@@ -1,0 +1,23 @@
+{{define "title"}}Users · MeshTender{{end}}
+{{define "content"}}
+<section class="card">
+  <h1>Users &amp; capabilities</h1>
+  {{if .Error}}<p class="error banner">{{.Error}}</p>{{end}}
+  <p class="muted">
+    <strong>Manage users</strong> = can grant/revoke these capabilities (superadmin).
+    <strong>Manage catalog</strong> = can edit the command catalog. Neither grants access to any
+    repeater — that's still per-repeater sharing.
+  </p>
+
+  {{range .Users}}
+  <form method="post" action="/admin/users/{{.ID}}" class="catrow">
+    <span class="catcmd">{{.Name}} <span class="muted">@{{.Username}}</span></span>
+    <label><input type="checkbox" name="manage_users" {{if .CapManageUsers}}checked{{end}}> manage users</label>
+    <label><input type="checkbox" name="manage_catalog" {{if .CapManageCatalog}}checked{{end}}> manage catalog</label>
+    <button type="submit" class="link">Save</button>
+    {{if eq .ID $.Self}}<span class="muted">(you)</span>{{end}}
+  </form>
+  {{end}}
+  <p><a href="/admin">← Admin</a></p>
+</section>
+{{end}}

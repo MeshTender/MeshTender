@@ -1,0 +1,42 @@
+{{define "title"}}Repeater invite · MeshTender{{end}}
+{{define "content"}}
+<section class="card auth">
+  {{if eq .State "invalid"}}
+    <h1>Invalid link</h1>
+    <p class="muted">This share link is no longer valid — it's single-use and may have already been used or revoked. Ask the owner for a new one.</p>
+    <p><a href="/">← Go to dashboard</a></p>
+
+  {{else if eq .State "auth_required"}}
+    <h1>You've been invited</h1>
+    <p>You've been invited to control <strong>{{.Repeater.Name}}</strong>, shared by {{.Repeater.OwnerName}}.</p>
+    <p class="muted">Sign in or create an account to accept.</p>
+    <p>
+      <a class="btnlink" href="/login?next={{.Next}}">Sign in</a>
+      &nbsp;·&nbsp;
+      <a class="btnlink" href="/signup?next={{.Next}}">Create account</a>
+    </p>
+
+  {{else if eq .State "owner"}}
+    <h1>This is your repeater</h1>
+    <p>You own <strong>{{.Repeater.Name}}</strong> — no need to accept your own link.</p>
+    <p><a href="/repeaters/{{.Repeater.ID}}/share">Manage sharing</a> · <a href="/">Dashboard</a></p>
+
+  {{else if eq .State "already"}}
+    <h1>Already shared with you</h1>
+    <p>You already have access to <strong>{{.Repeater.Name}}</strong>.</p>
+    <p><a href="/">← Go to dashboard</a></p>
+
+  {{else}}{{/* confirm */}}
+    <h1>Accept invite</h1>
+    <p>Accept access to <strong>{{.Repeater.Name}}</strong>, shared by {{.Repeater.OwnerName}}?</p>
+    <p class="muted">You're signed in as <strong>{{.UserName}}</strong>.</p>
+    <form method="post" action="/invite/{{.Token}}/accept">
+      <button type="submit" class="primary">Accept as {{.UserName}}</button>
+    </form>
+    <form method="post" action="/logout" class="inline">
+      <input type="hidden" name="next" value="/invite/{{.Token}}">
+      <button type="submit" class="link">Switch account</button>
+    </form>
+  {{end}}
+</section>
+{{end}}

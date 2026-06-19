@@ -1,0 +1,39 @@
+{{define "title"}}Commands for {{.Target.Name}} · MeshTender{{end}}
+{{define "content"}}
+<section class="card">
+  <h1>Commands for {{.Target.Name}}</h1>
+  <p class="muted">
+    Choose which commands <strong>{{.Target.Name}}</strong> (@{{.Target.Username}}) may send to
+    “{{.Repeater.Name}}”. Risky commands can take over or brick the node — grant them only with care.
+  </p>
+
+  <form method="post" action="/repeaters/{{.Repeater.ID}}/share/{{.Target.ID}}/commands" id="cmdform-perms">
+    {{range .Groups}}
+    <fieldset class="cmdgroup">
+      <legend>{{.Name}}</legend>
+      {{range .Commands}}
+      <label class="cmdrow{{if .Risky}} risky{{end}}">
+        <input type="checkbox" name="cmd" value="{{.ID}}" {{if .Checked}}checked{{end}}
+               {{if .Risky}}data-risky="1"{{end}}>
+        <code>{{.Template}}</code>
+        {{if .Risky}}<span class="badge warn">risky</span>{{end}}
+        {{if .Args}}<span class="muted">{{.Args}}</span>{{end}}
+      </label>
+      {{end}}
+    </fieldset>
+    {{end}}
+    <button type="submit" class="primary">Save commands</button>
+    <a class="btnlink" href="/repeaters/{{.Repeater.ID}}/share">Cancel</a>
+  </form>
+</section>
+<script>
+  // Confirm before enabling a risky command.
+  document.querySelectorAll('input[data-risky]').forEach(function (cb) {
+    cb.addEventListener('change', function () {
+      if (cb.checked && !confirm('This command can take over, lock out, or brick the node. Grant it to this user?')) {
+        cb.checked = false;
+      }
+    });
+  });
+</script>
+{{end}}

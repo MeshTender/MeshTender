@@ -1,0 +1,32 @@
+{{define "title"}}Join organization · MeshTender{{end}}
+{{define "content"}}
+<section class="card auth">
+  {{if eq .State "invalid"}}
+    <h1>Invalid link</h1>
+    <p class="muted">This join link is no longer valid — it may have been revoked.</p>
+    <p><a href="/orgs">← Organizations</a></p>
+
+  {{else if eq .State "auth_required"}}
+    <h1>Join {{.Org.Name}}</h1>
+    <p class="muted">Sign in or create an account to join as a member.</p>
+    <p>
+      <a class="btnlink" href="/login?next={{.Next}}">Sign in</a>
+      &nbsp;·&nbsp;
+      <a class="btnlink" href="/signup?next={{.Next}}">Create account</a>
+    </p>
+
+  {{else if eq .State "already"}}
+    <h1>Already a member</h1>
+    <p>You're already in <strong>{{.Org.Name}}</strong>.</p>
+    <p><a href="/orgs/{{.Org.ID}}">Go to {{.Org.Name}}</a></p>
+
+  {{else}}{{/* confirm */}}
+    <h1>Join {{.Org.Name}}</h1>
+    <p>Join <strong>{{.Org.Name}}</strong> as a member? You can later contribute repeaters to it and
+       review what the org may do with them.</p>
+    <form method="post" action="/org-invite/{{.Token}}/accept">
+      <button type="submit" class="primary">Join</button>
+    </form>
+  {{end}}
+</section>
+{{end}}

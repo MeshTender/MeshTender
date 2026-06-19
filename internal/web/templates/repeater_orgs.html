@@ -1,0 +1,46 @@
+{{define "title"}}Organizations · {{.Repeater.Name}} · MeshTender{{end}}
+{{define "content"}}
+<section class="card">
+  <h1>Organizations · {{.Repeater.Name}}</h1>
+  <p class="muted">
+    Contributing this repeater to an organization lets that org's admins/members run their permitted
+    commands on it (over the mesh) — within the envelope you consent to. You can withdraw anytime.
+  </p>
+
+  <h2>Contributed to</h2>
+  {{if .Contributed}}
+  <ul class="repeaters">
+    {{range .Contributed}}
+    <li class="rhead">
+      <span class="rname">{{.OrgName}}</span>
+      <span class="muted">consented to v{{.ConsentedVersion}}{{if .NeedsReconsent}} · org is now on v{{.CurrentVersion}}{{end}}</span>
+      {{if .NeedsReconsent}}
+      <a class="btnlink" href="/repeaters/{{$.Repeater.ID}}/orgs/{{.OrgID}}/contribute">Review changes</a>
+      {{end}}
+      <form method="post" action="/repeaters/{{$.Repeater.ID}}/orgs/{{.OrgID}}/withdraw" class="inline" onsubmit="return confirm('Withdraw this repeater from {{.OrgName}}?')">
+        <button type="submit" class="link danger">Withdraw</button>
+      </form>
+    </li>
+    {{end}}
+  </ul>
+  {{else}}
+  <p class="muted">Not contributed to any organization.</p>
+  {{end}}
+
+  {{if .Available}}
+  <h2>Contribute to</h2>
+  <ul class="repeaters">
+    {{range .Available}}
+    <li class="rhead">
+      <span class="rname">{{.Name}}</span>
+      <a class="btnlink" href="/repeaters/{{$.Repeater.ID}}/orgs/{{.ID}}/contribute">Review &amp; contribute</a>
+    </li>
+    {{end}}
+  </ul>
+  {{else}}
+  <p class="muted">Join more organizations to contribute this repeater to them.</p>
+  {{end}}
+
+  <p><a href="/">← Back to dashboard</a></p>
+</section>
+{{end}}

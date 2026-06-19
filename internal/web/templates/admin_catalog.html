@@ -1,0 +1,30 @@
+{{define "title"}}Command catalog · MeshTender{{end}}
+{{define "content"}}
+<section class="card">
+  <h1>Command catalog</h1>
+  <p class="muted">
+    The firmware commands MeshTender can send. There's no global on/off — a repeater owner can run
+    anything. These flags seed what other people are offered: <strong>share</strong> = default for new
+    shares; <strong>member</strong>/<strong>admin</strong> = the org default sets (Phase 2).
+    <strong>Risky</strong> commands can take over or brick a node.
+  </p>
+  {{if .Saved}}<p class="badge ok">Saved</p>{{end}}
+
+  {{range .Groups}}
+  <fieldset class="cmdgroup">
+    <legend>{{.Name}}</legend>
+    {{range .Commands}}
+    <form method="post" action="/admin/catalog/{{.ID}}" class="catrow">
+      <code class="catcmd">{{.Template}}</code>
+      <label><input type="checkbox" name="risky" {{if .Risky}}checked{{end}}> risky</label>
+      <label><input type="checkbox" name="share" {{if .InShareDefault}}checked{{end}}> share</label>
+      <label><input type="checkbox" name="org_member" {{if .InOrgMemberDefault}}checked{{end}}> member</label>
+      <label><input type="checkbox" name="org_admin" {{if .InOrgAdminDefault}}checked{{end}}> admin</label>
+      <button type="submit" class="link">Save</button>
+    </form>
+    {{end}}
+  </fieldset>
+  {{end}}
+  <p><a href="/admin">← Admin</a></p>
+</section>
+{{end}}

@@ -1,0 +1,12 @@
+[tools]
+go = "latest"
+pitchfork = "latest"
+
+[env]
+_.file = ".env"
+
+[deps.go]
+auto = true
+
+[tasks.dev]
+run = "go run ./cmd/meshtender"

@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: meshtender
+      POSTGRES_PASSWORD: meshtender
+      POSTGRES_DB: meshtender
+    ports:
+      - "5432:5432"
+    volumes:
+      - meshtender_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U meshtender"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  meshtender_pgdata:

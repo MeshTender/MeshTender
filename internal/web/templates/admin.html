@@ -1,0 +1,11 @@
+{{define "title"}}Admin · MeshTender{{end}}
+{{define "content"}}
+<section class="card">
+  <h1>Admin</h1>
+  <ul class="adminlinks">
+    {{if .CanCatalog}}<li><a href="/admin/catalog">Command catalog</a> — edit risk tags and the default command sets.</li>{{end}}
+    {{if .CanUsers}}<li><a href="/admin/users">Users &amp; capabilities</a> — grant or revoke admin capabilities.</li>{{end}}
+  </ul>
+  <p><a href="/">← Back to dashboard</a></p>
+</section>
+{{end}}

@@ -1,0 +1,67 @@
+{{define "title"}}Share {{.Repeater.Name}} · MeshTender{{end}}
+{{define "content"}}
+{{if .Error}}<p class="error banner">{{.Error}}</p>{{end}}
+<section class="card">
+  <h1>Share “{{.Repeater.Name}}”</h1>
+  <p class="muted">
+    Anyone with the share link can accept it (while signed in) to control this repeater from their
+    own browser-connected KISS modem. All commands still use MeshTender's single identity, so you
+    never hand out keys. Revoke the link anytime, or remove individuals below.
+  </p>
+
+  <h2>Share links</h2>
+  <p class="muted">Each link works once. Mint one per person and label it so you remember who it's for.</p>
+  <form method="post" action="/repeaters/{{.Repeater.ID}}/share/link">
+    <label>Description (optional)
+      <input type="text" name="description" placeholder="e.g. for Bob's modem" maxlength="100">
+    </label>
+    <button type="submit" class="primary">Create single-use link</button>
+  </form>
+
+  {{if .Invites}}
+  <ul class="repeaters">
+    {{range .Invites}}
+    <li>
+      <div class="rhead">
+        <span class="rname">{{if .Description}}{{.Description}}{{else}}(no label){{end}}</span>
+        {{if .UsedAt}}<span class="badge ok">Used by {{.UsedByName}}</span>{{else}}<span class="badge pending">Unused</span>{{end}}
+      </div>
+      {{if not .UsedAt}}
+      <div class="copyrow">
+        <code id="link-{{.ID}}">{{$.BaseURL}}/invite/{{.Token}}</code>
+        <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('link-{{.ID}}').textContent)">Copy</button>
+      </div>
+      {{end}}
+      <form method="post" action="/repeaters/{{$.Repeater.ID}}/share/link/delete" class="inline">
+        <input type="hidden" name="invite_id" value="{{.ID}}">
+        <button type="submit" class="link danger">{{if .UsedAt}}Remove from list{{else}}Revoke link{{end}}</button>
+      </form>
+    </li>
+    {{end}}
+  </ul>
+  {{else}}
+  <p class="muted">No links yet.</p>
+  {{end}}
+
+  <h2>People with access</h2>
+  {{if .Shares}}
+  <ul class="repeaters">
+    {{range .Shares}}
+    <li class="rhead">
+      <span class="rname">{{.Name}}</span>
+      <span class="muted">@{{.Username}}</span>
+      <a class="btnlink" href="/repeaters/{{$.Repeater.ID}}/share/{{.UserID}}/commands">Edit commands</a>
+      <form method="post" action="/repeaters/{{$.Repeater.ID}}/unshare" class="inline">
+        <input type="hidden" name="user_id" value="{{.UserID}}">
+        <button type="submit" class="link danger">Revoke</button>
+      </form>
+    </li>
+    {{end}}
+  </ul>
+  {{else}}
+  <p class="muted">No one has accepted yet.</p>
+  {{end}}
+
+  <p><a href="/">← Back to dashboard</a></p>
+</section>
+{{end}}

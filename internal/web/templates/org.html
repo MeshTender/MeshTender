@@ -1,0 +1,69 @@
+{{define "title"}}{{.Org.Name}} · MeshTender{{end}}
+{{define "content"}}
+{{if .Error}}<p class="error banner">{{.Error}}</p>{{end}}
+<section class="card">
+  <h1>{{.Org.Name}}</h1>
+  <p class="muted">You are {{if .IsAdmin}}an <strong>admin</strong>{{else}}a <strong>member</strong>{{end}} of this organization.</p>
+  {{if .IsAdmin}}
+  <div class="ractions">
+    <a class="btnlink" href="/orgs/{{.Org.ID}}/permissions">Edit permissions</a>
+  </div>
+  {{end}}
+  <form method="post" action="/orgs/{{.Org.ID}}/leave" class="inline" onsubmit="return confirm('Leave this organization?')">
+    <button type="submit" class="link danger">Leave organization</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Members</h2>
+  <ul class="repeaters">
+    {{range .Members}}
+    <li class="rhead">
+      <span class="rname">{{.Name}}</span>
+      <span class="muted">@{{.Username}}</span>
+      {{if eq .Role "admin"}}<span class="badge ok">admin</span>{{else}}<span class="badge shared">member</span>{{end}}
+      {{if and $.IsAdmin (ne .UserID $.Self)}}
+      <form method="post" action="/orgs/{{$.Org.ID}}/members/{{.UserID}}" class="inline">
+        {{if eq .Role "admin"}}
+        <button type="submit" name="action" value="demote" class="link">Demote</button>
+        {{else}}
+        <button type="submit" name="action" value="promote" class="link">Make admin</button>
+        {{end}}
+        <button type="submit" name="action" value="remove" class="link danger">Remove</button>
+      </form>
+      {{end}}
+    </li>
+    {{end}}
+  </ul>
+</section>
+
+{{if .IsAdmin}}
+<section class="card">
+  <h2>Join links</h2>
+  <p class="muted">Anyone with a link joins as a member. Promote them to admin above if needed.</p>
+  {{if .Invites}}
+  <ul class="repeaters">
+    {{range .Invites}}
+    <li>
+      <div class="rhead"><span class="rname">{{if .Description}}{{.Description}}{{else}}(no label){{end}}</span></div>
+      <div class="copyrow">
+        <code id="ol-{{.ID}}">{{.Link}}</code>
+        <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('ol-{{.ID}}').textContent)">Copy</button>
+      </div>
+      <form method="post" action="/orgs/{{$.Org.ID}}/invite/delete" class="inline">
+        <input type="hidden" name="invite_id" value="{{.ID}}">
+        <button type="submit" class="link danger">Revoke</button>
+      </form>
+    </li>
+    {{end}}
+  </ul>
+  {{end}}
+  <form method="post" action="/orgs/{{.Org.ID}}/invite">
+    <label>New link description (optional)<input type="text" name="description" maxlength="100" placeholder="e.g. forum post"></label>
+    <button type="submit" class="primary">Create join link</button>
+  </form>
+</section>
+{{end}}
+
+<p><a href="/orgs">← All organizations</a></p>
+{{end}}

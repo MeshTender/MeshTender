@@ -1,0 +1,39 @@
+{{define "title"}}Create account · MeshTender{{end}}
+{{define "content"}}
+<section class="card auth">
+  <h1>Create your account</h1>
+  {{if .Error}}<p class="error">{{.Error}}</p>{{end}}
+  <p class="muted">No email required. Pick a username; optionally add a display name (shown to people you share repeaters with).</p>
+
+  <form id="passkey-form" onsubmit="return false;">
+    <label>Username
+      <input type="text" id="username" name="username" autocomplete="username webauthn" autocapitalize="none" required>
+    </label>
+    <label>Display name (optional)
+      <input type="text" id="displayName" name="display_name" autocomplete="off">
+    </label>
+    <button type="button" class="primary" onclick="passkeyRegister()">Create with passkey</button>
+  </form>
+  <p id="passkey-status" class="status"></p>
+
+  <details class="fallback">
+    <summary>Use a password instead</summary>
+    <form method="post" action="/signup/password">
+      {{if .Next}}<input type="hidden" name="next" value="{{.Next}}">{{end}}
+      <label>Username
+        <input type="text" name="username" autocomplete="username" autocapitalize="none" required>
+      </label>
+      <label>Display name (optional)
+        <input type="text" name="display_name" autocomplete="off">
+      </label>
+      <label>Password (min 8 chars)
+        <input type="password" name="password" autocomplete="new-password" minlength="8" required>
+      </label>
+      <button type="submit">Create with password</button>
+    </form>
+  </details>
+
+  <p class="muted">Already have an account? <a href="/login{{if .Next}}?next={{.Next}}{{end}}">Sign in</a></p>
+</section>
+<script src="/static/webauthn.js"></script>
+{{end}}

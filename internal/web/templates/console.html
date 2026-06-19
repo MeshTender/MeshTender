@@ -1,0 +1,41 @@
+{{define "title"}}Console · {{.Repeater.Name}} · MeshTender{{end}}
+{{define "content"}}
+<section class="card">
+  <h1>Console · {{.Repeater.Name}}</h1>
+  <p class="muted">
+    Connect a MeshCore KISS modem and send commands to this repeater. You can run the commands listed
+    below; the server enforces what you're allowed to send.
+  </p>
+  <code class="pk">{{.Repeater.PublicKeyHex}}</code>
+
+  <div id="unsupported" class="error" hidden>
+    This browser does not support WebSerial. Use Chrome, Edge, or another Chromium-based browser over HTTPS or on localhost.
+  </div>
+
+  <button id="connect" class="primary" type="button">Connect modem</button>
+
+  <ul id="log" class="evlog console"></ul>
+
+  <form id="cmdform" autocomplete="off">
+    <input type="text" id="cmdinput" placeholder="Connect the modem first…" disabled>
+    <button type="submit" id="cmdsend" disabled>Send</button>
+  </form>
+
+  {{if .Commands}}
+  <div class="cmdchips">
+    {{range .Commands}}
+    <button type="button" class="chip{{if .Risky}} risky{{end}}" data-template="{{.Template}}" title="{{.Args}}">{{.Template}}</button>
+    {{end}}
+  </div>
+  {{else}}
+  <p class="muted">You have no commands allowed on this repeater yet.</p>
+  {{end}}
+
+  <p><a href="/">← Back to dashboard</a></p>
+</section>
+
+<script>
+  window.MESHTENDER_WS = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/repeaters/{{.Repeater.ID}}/console/ws";
+</script>
+<script src="/static/console.js"></script>
+{{end}}

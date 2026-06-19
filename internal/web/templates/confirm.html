@@ -1,0 +1,34 @@
+{{define "title"}}Confirm {{.Repeater.Name}} · MeshTender{{end}}
+{{define "content"}}
+<section class="card">
+  <h1>Confirm “{{.Repeater.Name}}”</h1>
+  <p class="muted">
+    Plug a MeshCore <strong>KISS modem</strong> into this computer, then connect it below.
+    MeshTender will send a signed login to the repeater through your modem and read the reply
+    to verify it has access. This is optional — the repeater works either way.
+  </p>
+  <code class="pk">{{.Repeater.PublicKeyHex}}</code>
+  <div class="rmeta muted">{{.Repeater.RadioFreqHz}} Hz · BW {{.Repeater.RadioBwHz}} · SF{{.Repeater.RadioSF}} · CR{{.Repeater.RadioCR}}</div>
+
+  <div id="unsupported" class="error" hidden>
+    This browser does not support WebSerial. Use Chrome, Edge, or another Chromium-based browser over HTTPS or on localhost.
+  </div>
+
+  <button id="connect" class="primary" type="button">Connect modem &amp; confirm</button>
+
+  <ul id="log" class="evlog"></ul>
+  <p>
+    <a href="/">← Back to dashboard</a>
+    {{if .Debug}}
+    &nbsp;·&nbsp; <a href="/repeaters/{{.Repeater.ID}}/confirm">Disable debug</a>
+    {{else}}
+    &nbsp;·&nbsp; <a href="/repeaters/{{.Repeater.ID}}/confirm?debug=1">Debug: show raw frames</a>
+    {{end}}
+  </p>
+</section>
+
+<script>
+  window.MESHTENDER_WS = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/repeaters/{{.Repeater.ID}}/ws{{if .Debug}}?debug=1{{end}}";
+</script>
+<script src="/static/serial.js"></script>
+{{end}}

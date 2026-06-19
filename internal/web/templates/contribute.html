@@ -1,0 +1,46 @@
+{{define "title"}}Contribute {{.Repeater.Name}} · MeshTender{{end}}
+{{define "content"}}
+<section class="card">
+  <h1>Contribute “{{.Repeater.Name}}” to {{.Org.Name}}</h1>
+  <p class="muted">
+    By consenting, you allow {{.Org.Name}}'s admins and members to run these commands on this repeater
+    over the mesh (policy v{{.Version}}). Org-admins also get everything members get. If the org later
+    adds commands, this repeater stays on v{{.Version}} until you review and re-consent. You can
+    withdraw anytime.
+  </p>
+
+  {{if .Reconsent}}
+  <div class="warn-note">
+    <strong>Changes since you consented (v{{.ConsentedVersion}} → v{{.Version}}):</strong>
+    {{if .Added}}<div>Newly granted: {{range .Added}}<code>{{.}}</code> {{end}}</div>{{end}}
+    {{if .Removed}}<div>No longer granted: {{range .Removed}}<code>{{.}}</code> {{end}}</div>{{end}}
+    {{if not (or .Added .Removed)}}<div>No command changes (notes/metadata only).</div>{{end}}
+    {{if .Notes}}<div class="muted" style="margin-top:0.4rem">
+      {{range .Notes}}v{{.Version}}{{if .Note}}: {{.Note}}{{end}}<br>{{end}}
+    </div>{{end}}
+  </div>
+  {{end}}
+
+  {{if .Envelope}}
+  {{range .Envelope}}
+  <fieldset class="cmdgroup">
+    <legend>{{.Name}}</legend>
+    {{range .Commands}}
+    <div class="catrow{{if .Risky}} risky{{end}}">
+      <code class="catcmd">{{.Template}}{{if .Risky}} <span class="badge warn">risky</span>{{end}}</code>
+      {{if .AdminChecked}}<span class="badge ok">admin</span>{{end}}
+      {{if .MemberChecked}}<span class="badge shared">member</span>{{end}}
+    </div>
+    {{end}}
+  </fieldset>
+  {{end}}
+  {{else}}
+  <p class="muted">This org's policy currently grants no commands.</p>
+  {{end}}
+
+  <form method="post" action="/repeaters/{{.Repeater.ID}}/orgs/{{.Org.ID}}/contribute">
+    <button type="submit" class="primary">I consent — contribute this repeater</button>
+    <a class="btnlink" href="/repeaters/{{.Repeater.ID}}/orgs">Cancel</a>
+  </form>
+</section>
+{{end}}

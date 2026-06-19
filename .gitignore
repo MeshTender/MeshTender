@@ -1,0 +1,4 @@
+/meshtender
+/cmd/meshtender/meshtender
+*.exe
+.env

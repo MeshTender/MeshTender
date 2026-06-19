@@ -1,0 +1,3 @@
+[daemons.app]
+run = "mise run dev"
+watch = "cmd/**", "internal/**", ".env", "go.mod", "go.sum"]

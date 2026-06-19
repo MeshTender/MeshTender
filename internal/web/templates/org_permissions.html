@@ -1,0 +1,32 @@
+{{define "title"}}Permissions · {{.Org.Name}} · MeshTender{{end}}
+{{define "content"}}
+<section class="card">
+  <h1>Permissions · {{.Org.Name}}</h1>
+  <p class="muted">
+    Current version: <strong>v{{.Version}}</strong>. Choose which commands org <strong>admins</strong>
+    and <strong>members</strong> may run on contributed repeaters. Saving publishes a new version;
+    members' repeaters stay on their consented version until owners re-consent to the additions.
+    Admins effectively also get everything members get. Risky commands can take over or brick a node.
+  </p>
+
+  <form method="post" action="/orgs/{{.Org.ID}}/permissions">
+    {{range .Groups}}
+    <fieldset class="cmdgroup">
+      <legend>{{.Name}}</legend>
+      {{range .Commands}}
+      <div class="catrow{{if .Risky}} risky{{end}}">
+        <code class="catcmd">{{.Template}}{{if .Risky}} <span class="badge warn">risky</span>{{end}}</code>
+        <label><input type="checkbox" name="admin" value="{{.ID}}" {{if .AdminChecked}}checked{{end}}> admin</label>
+        <label><input type="checkbox" name="member" value="{{.ID}}" {{if .MemberChecked}}checked{{end}}> member</label>
+      </div>
+      {{end}}
+    </fieldset>
+    {{end}}
+    <label>Change note (shown to owners when they re-consent)
+      <input type="text" name="note" maxlength="200" placeholder="e.g. added set tx for the new region plan">
+    </label>
+    <button type="submit" class="primary">Publish new version</button>
+    <a class="btnlink" href="/orgs/{{.Org.ID}}">Cancel</a>
+  </form>
+</section>
+{{end}}

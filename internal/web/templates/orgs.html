@@ -1,0 +1,32 @@
+{{define "title"}}Organizations · MeshTender{{end}}
+{{define "content"}}
+{{if .Error}}<p class="error banner">{{.Error}}</p>{{end}}
+<section class="card">
+  <h1>Organizations</h1>
+  <p class="muted">
+    Join an organization to let its admins help keep your repeaters in spec — under a permission
+    envelope you review and consent to per repeater. A step up in trust from one-off sharing.
+  </p>
+  {{if .Orgs}}
+  <ul class="repeaters">
+    {{range .Orgs}}
+    <li class="rhead">
+      <a class="rname" href="/orgs/{{.Org.ID}}">{{.Org.Name}}</a>
+      {{if eq .Role "admin"}}<span class="badge ok">admin</span>{{else}}<span class="badge shared">member</span>{{end}}
+    </li>
+    {{end}}
+  </ul>
+  {{else}}
+  <p class="muted">You're not in any organizations yet.</p>
+  {{end}}
+</section>
+
+<section class="card">
+  <h2>Create an organization</h2>
+  <form method="post" action="/orgs">
+    <label>Name<input type="text" name="name" maxlength="80" placeholder="e.g. Bay Area Mesh" required></label>
+    <button type="submit" class="primary">Create</button>
+  </form>
+  <p class="muted">You'll be its first admin.</p>
+</section>
+{{end}}
