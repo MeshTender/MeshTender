@@ -16,12 +16,10 @@
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar-menu" aria-controls="navbar-menu" aria-expanded="false" aria-label="Toggle navigation">
           <span class="navbar-toggler-icon"></span>
         </button>
-        <div class="navbar-brand navbar-brand-autodark d-none-navbar-horizontal pe-0 pe-md-3">
-          <a href="/" class="d-flex align-items-center text-reset text-decoration-none">
-            {{template "icon-tower" "me-2"}}<span class="fw-bold">MeshTender</span>
-          </a>
-        </div>
-        <div class="navbar-nav flex-row order-md-last">
+        <a href="/" class="navbar-brand navbar-brand-autodark d-flex align-items-center text-reset text-decoration-none">
+          {{template "icon-tower" "me-2"}}<span class="fw-bold fs-3">MeshTender</span>
+        </a>
+        <div class="navbar-nav flex-row order-md-last align-items-center gap-2">
           {{if .UserName}}
           <div class="nav-item dropdown">
             <a href="#" class="nav-link d-flex lh-1 p-0 px-2" data-bs-toggle="dropdown" aria-label="Open user menu">
@@ -45,6 +43,12 @@
             {{if .UserName}}
             <li class="nav-item">
               <a class="nav-link" href="/">
+                <span class="nav-link-icon d-md-none d-lg-inline-block">{{template "icon-home" ""}}</span>
+                <span class="nav-link-title">Dashboard</span>
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/repeaters">
                 <span class="nav-link-icon d-md-none d-lg-inline-block">{{template "icon-antenna" ""}}</span>
                 <span class="nav-link-title">Repeaters</span>
               </a>
@@ -123,6 +127,42 @@
       {{template "content" .}}
     </div>
   </div>
+</body>
+</html>{{end}}
+
+{{/* landingbase is the public marketing layout: a transparent navbar with
+     sign-in / sign-up actions, the page content, and a simple footer. Pages opt
+     in via the "Layout":"landingbase" render key. */}}
+{{define "landingbase"}}<!doctype html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>{{template "title" .}}</title>
+  <link rel="stylesheet" href="/static/tabler.min.css">
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/tabler.min.js" defer></script>
+</head>
+<body>
+  <header class="navbar navbar-expand-md navbar-transparent py-3">
+    <div class="container">
+      <a href="/" class="navbar-brand navbar-brand-autodark d-flex align-items-center text-reset text-decoration-none">
+        {{template "icon-tower" "me-2"}}<span class="fw-bold fs-3">MeshTender</span>
+      </a>
+      <div class="navbar-nav flex-row order-md-last align-items-center gap-2">
+        <a href="/login" class="btn btn-ghost-secondary">Sign in</a>
+        <a href="/signup" class="btn btn-primary">Create account</a>
+      </div>
+    </div>
+  </header>
+  {{template "content" .}}
+  <footer class="footer footer-transparent">
+    <div class="container">
+      <div class="row align-items-center justify-content-center">
+        <div class="col-auto text-secondary">MeshTender &mdash; tend your mesh.</div>
+      </div>
+    </div>
+  </footer>
 </body>
 </html>{{end}}
 

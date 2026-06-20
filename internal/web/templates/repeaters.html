@@ -1,0 +1,88 @@
+{{define "title"}}Repeaters · MeshTender{{end}}
+{{define "header"}}
+<div class="row g-2 align-items-center">
+  <div class="col">
+    <div class="page-pretitle">Your equipment</div>
+    <h2 class="page-title">Repeaters</h2>
+  </div>
+  <div class="col-auto ms-auto d-print-none">
+    <a class="btn btn-primary" href="/repeaters/add">{{template "icon-plus" "me-1"}}Add repeater</a>
+  </div>
+</div>
+{{end}}
+{{define "content"}}
+{{if .Error}}<div class="alert alert-danger" role="alert">{{.Error}}</div>{{end}}
+
+{{if .Owned}}
+<div class="row row-cards">
+  {{range .Owned}}
+  <div class="col-12">
+    <div class="card">
+      <div class="card-body">
+        <div class="d-flex align-items-center flex-wrap gap-2 mb-2">
+          <h3 class="card-title mb-0 me-1">{{.Name}}</h3>
+          {{template "repstatus" .}}
+          {{if index $.Reconsent .ID}}<a class="badge bg-warning-lt" href="/repeaters/{{.ID}}/share">re-consent needed</a>{{end}}
+        </div>
+        <code class="pk">{{.PublicKeyHex}}</code>
+        <div class="text-secondary small mt-2">{{.RadioFreqHz}} Hz · BW {{.RadioBwHz}} · SF{{.RadioSF}} · CR{{.RadioCR}}</div>
+        {{if and .Confirmed .AccessKnown (not .IsAdmin)}}
+        <div class="alert alert-warning mt-3 mb-0">
+          MeshTender only has <strong>guest</strong> access here. Guest is available to anyone with a blank password, so there's no point operating at this level — re-run <code>setperm &lt;your key&gt; 3</code> on the repeater to grant admin, then re-test.
+        </div>
+        {{end}}
+        <div class="btn-list mt-3">
+          <a class="btn btn-primary" href="/repeaters/{{.ID}}/console">{{template "icon-terminal" "me-1"}}Console</a>
+          <div class="dropdown">
+            <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">Manage</button>
+            <div class="dropdown-menu dropdown-menu-end">
+              <a class="dropdown-item" href="/repeaters/{{.ID}}/edit">{{template "icon-pencil" "dropdown-item-icon"}}Edit details</a>
+              <a class="dropdown-item" href="/repeaters/{{.ID}}/confirm">{{template "icon-antenna" "dropdown-item-icon"}}Confirm access</a>
+              <a class="dropdown-item" href="/repeaters/{{.ID}}/log">{{template "icon-list" "dropdown-item-icon"}}Logs</a>
+              <a class="dropdown-item" href="/repeaters/{{.ID}}/share">{{template "icon-share" "dropdown-item-icon"}}Sharing</a>
+              <div class="dropdown-divider"></div>
+              <a class="dropdown-item text-danger" href="/repeaters/{{.ID}}/delete">{{template "icon-trash" "dropdown-item-icon"}}Delete repeater</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {{end}}
+</div>
+{{else}}
+<div class="empty">
+  <div class="empty-icon">{{template "icon-antenna" ""}}</div>
+  <p class="empty-title">No repeaters yet</p>
+  <p class="empty-subtitle text-secondary">Add one to grant MeshTender access and test it with a modem.</p>
+  <div class="empty-action">
+    <a href="/repeaters/add" class="btn btn-primary">{{template "icon-plus" "me-1"}}Add repeater</a>
+  </div>
+</div>
+{{end}}
+
+{{if .Shared}}
+<h3 class="mt-4 mb-3">Shared with you</h3>
+<div class="row row-cards">
+  {{range .Shared}}
+  <div class="col-12">
+    <div class="card">
+      <div class="card-body">
+        <div class="d-flex align-items-center flex-wrap gap-2 mb-2">
+          <h3 class="card-title mb-0 me-1">{{.Name}}</h3>
+          {{template "repstatus" .}}
+          <span class="badge bg-azure-lt">via {{.OwnerName}}</span>
+        </div>
+        <code class="pk">{{.PublicKeyHex}}</code>
+        <div class="text-secondary small mt-2">{{.RadioFreqHz}} Hz · BW {{.RadioBwHz}} · SF{{.RadioSF}} · CR{{.RadioCR}}</div>
+        <div class="btn-list mt-3">
+          <a class="btn btn-primary" href="/repeaters/{{.ID}}/console">{{template "icon-terminal" "me-1"}}Console</a>
+          <a class="btn" href="/repeaters/{{.ID}}/confirm">Confirm / test</a>
+        </div>
+      </div>
+    </div>
+  </div>
+  {{end}}
+</div>
+{{end}}
+{{end}}

@@ -1,0 +1,113 @@
+{{define "title"}}MeshTender · Tend your mesh{{end}}
+{{define "content"}}
+<!-- Hero -->
+<div class="page-header">
+  <div class="container">
+    <div class="row align-items-center py-5">
+      <div class="col-lg-7">
+        <h1 class="display-5 fw-bold mb-3">Tend your MeshCore network — without handing out keys.</h1>
+        <p class="fs-3 text-secondary mb-4">
+          MeshTender manages your LoRa repeaters through a single trusted identity. Grant access once,
+          then share, organize, and audit who can do what — and revoke any time.
+        </p>
+        <div class="btn-list">
+          <a href="/signup" class="btn btn-primary btn-lg">{{template "icon-key" "me-2"}}Get started</a>
+          <a href="/orgs" class="btn btn-lg">Browse organizations</a>
+        </div>
+        <p class="text-secondary mt-3 mb-0">No email required. Sign in with a passkey.</p>
+      </div>
+      <div class="col-lg-5 d-none d-lg-flex justify-content-center">
+        <span class="text-primary" style="opacity:.85">
+          <svg xmlns="http://www.w3.org/2000/svg" width="220" height="220" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"/><path d="M16.616 13.924a5 5 0 1 0 -9.23 0"/><path d="M20.307 15.469a9 9 0 1 0 -16.615 0"/><path d="M9 21l3 -9l3 9"/><path d="M10 19h4"/></svg>
+        </span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Features -->
+<div class="page-body">
+  <div class="container">
+    <div class="row row-cards">
+      <div class="col-md-6 col-lg-4">
+        <div class="card">
+          <div class="card-body">
+            <div class="d-flex align-items-center mb-2">
+              <span class="avatar bg-primary-lt text-primary me-3">{{template "icon-key" ""}}</span>
+              <h3 class="card-title m-0">One identity, no key sharing</h3>
+            </div>
+            <p class="text-secondary mb-0">Grant MeshTender admin on a repeater once. Everyone you authorize operates through that single identity — you never distribute private keys.</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-4">
+        <div class="card">
+          <div class="card-body">
+            <div class="d-flex align-items-center mb-2">
+              <span class="avatar bg-primary-lt text-primary me-3">{{template "icon-share" ""}}</span>
+              <h3 class="card-title m-0">Share with precision</h3>
+            </div>
+            <p class="text-secondary mb-0">Hand specific people single-use links, and approve the exact commands each may run. Contribute repeaters to organizations with command policies you review first.</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-4">
+        <div class="card">
+          <div class="card-body">
+            <div class="d-flex align-items-center mb-2">
+              <span class="avatar bg-primary-lt text-primary me-3">{{template "icon-antenna" ""}}</span>
+              <h3 class="card-title m-0">Confirm reachability</h3>
+            </div>
+            <p class="text-secondary mb-0">Connect a KISS modem in your browser and verify a repeater is reachable. Others corroborate it from their own modems — proof it's truly on the air.</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-4">
+        <div class="card">
+          <div class="card-body">
+            <div class="d-flex align-items-center mb-2">
+              <span class="avatar bg-primary-lt text-primary me-3">{{template "icon-list" ""}}</span>
+              <h3 class="card-title m-0">Full audit log</h3>
+            </div>
+            <p class="text-secondary mb-0">Every command sent through MeshTender is logged by session, with who sent it and whether the repeater replied.</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-4">
+        <div class="card">
+          <div class="card-body">
+            <div class="d-flex align-items-center mb-2">
+              <span class="avatar bg-primary-lt text-primary me-3">{{template "icon-world" ""}}</span>
+              <h3 class="card-title m-0">Map your network</h3>
+            </div>
+            <p class="text-secondary mb-0">Opt repeaters into a map so your organization — or the public — can see where coverage reaches.</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-4">
+        <div class="card">
+          <div class="card-body">
+            <div class="d-flex align-items-center mb-2">
+              <span class="avatar bg-primary-lt text-primary me-3">{{template "icon-user" ""}}</span>
+              <h3 class="card-title m-0">Passwordless by default</h3>
+            </div>
+            <p class="text-secondary mb-0">Create an account with just a username and a passkey. No email, no password to leak — with a password as an optional fallback.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CTA -->
+    <div class="card card-md mt-4">
+      <div class="card-body text-center py-5">
+        <h2 class="mb-3">Ready to tend your mesh?</h2>
+        <p class="text-secondary mb-4">Register a repeater in minutes and bring your team along.</p>
+        <div class="btn-list justify-content-center">
+          <a href="/signup" class="btn btn-primary btn-lg">Create your account</a>
+          <a href="/login" class="btn btn-lg">Sign in</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{{end}}

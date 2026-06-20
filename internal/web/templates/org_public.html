@@ -35,18 +35,11 @@
     <link rel="stylesheet" href="/static/leaflet.css">
     <div id="map"></div>
     <script src="/static/leaflet.js"></script>
+    <script src="/static/meshmap.js"></script>
     <script>
-      var pts = [
+      meshMap('map', [
         {{range .Repeaters}}{{if .HasLocation}}{name: {{.Name}}, lat: {{.Lat}}, lon: {{.Lon}}},{{end}}{{end}}
-      ];
-      var map = L.map('map');
-      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19, attribution: '&copy; OpenStreetMap'
-      }).addTo(map);
-      var group = L.featureGroup(pts.map(function (p) {
-        return L.circleMarker([p.lat, p.lon], { radius: 7, color: '#066fd1', fillOpacity: 0.7 }).bindPopup(p.name);
-      })).addTo(map);
-      map.fitBounds(group.getBounds().pad(0.2));
+      ]);
     </script>
   </div>
 </div>

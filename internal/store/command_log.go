@@ -104,6 +104,47 @@ func (s *Store) ListCommandLogSessions(ctx context.Context, repeaterID int64, li
 	return groups, rows.Err()
 }
 
+// OwnerCommandLogEntry is a recent command across all repeaters a user owns,
+// joined with the repeater's name and the sender's name (for the dashboard).
+type OwnerCommandLogEntry struct {
+	RepeaterID   int64
+	RepeaterName string
+	SenderName   string
+	CommandText  string
+	SentAt       time.Time
+	AckReceived  bool
+	ResponseText *string
+}
+
+// ListRecentCommandsForOwner returns the most recent commands run on any
+// repeater owned by ownerID, newest first, bounded by limit.
+func (s *Store) ListRecentCommandsForOwner(ctx context.Context, ownerID int64, limit int) ([]OwnerCommandLogEntry, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT l.repeater_id, r.name,
+		       COALESCE(NULLIF(u.display_name, ''), u.username, '(deleted)'),
+		       l.command_text, l.sent_at, l.ack_received, l.response_text
+		FROM command_log l
+		JOIN repeaters r ON r.id = l.repeater_id
+		LEFT JOIN users u ON u.id = l.user_id
+		WHERE r.owner_id = $1
+		ORDER BY l.sent_at DESC
+		LIMIT $2`, ownerID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list owner commands: %w", err)
+	}
+	defer rows.Close()
+	var out []OwnerCommandLogEntry
+	for rows.Next() {
+		var e OwnerCommandLogEntry
+		if err := rows.Scan(&e.RepeaterID, &e.RepeaterName, &e.SenderName,
+			&e.CommandText, &e.SentAt, &e.AckReceived, &e.ResponseText); err != nil {
+			return nil, fmt.Errorf("scan owner command: %w", err)
+		}
+		out = append(out, e)
+	}
+	return out, rows.Err()
+}
+
 // ListCommandLog returns recent log entries for a repeater, newest first.
 func (s *Store) ListCommandLog(ctx context.Context, repeaterID int64, limit int) ([]*CommandLogEntry, error) {
 	rows, err := s.pool.Query(ctx, `

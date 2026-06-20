@@ -2,142 +2,193 @@
 {{define "header"}}
 <div class="row g-2 align-items-center">
   <div class="col">
-    <div class="page-pretitle">Organization</div>
+    <div class="page-pretitle">Organization · you're {{if .IsAdmin}}an admin{{else}}a member{{end}}</div>
     <h2 class="page-title">{{.Org.Name}}</h2>
+  </div>
+  <div class="col-auto ms-auto d-print-none">
+    <div class="btn-list">
+      {{if .IsAdmin}}<a class="btn" href="/orgs/{{.Org.ID}}/permissions">{{template "icon-settings" "me-1"}}Edit permissions</a>{{end}}
+      <a class="btn" href="/orgs/{{.Org.ID}}?view=public">{{template "icon-world" "me-1"}}Public page</a>
+      <form method="post" action="/orgs/{{.Org.ID}}/leave" class="m-0" onsubmit="return confirm('Leave this organization?')">
+        <button type="submit" class="btn btn-ghost-danger">Leave</button>
+      </form>
+    </div>
   </div>
 </div>
 {{end}}
 {{define "content"}}
 {{if .Error}}<div class="alert alert-danger">{{.Error}}</div>{{end}}
 
-<div class="card">
-  <div class="card-body">
-    <p class="text-secondary">You are {{if .IsAdmin}}an <strong>admin</strong>{{else}}a <strong>member</strong>{{end}} of this organization.</p>
-    {{if .Org.Description}}<p>{{.Org.Description}}</p>{{end}}
-    <div class="btn-list">
-      {{if .IsAdmin}}<a class="btn" href="/orgs/{{.Org.ID}}/permissions">{{template "icon-settings" "me-1"}}Edit permissions</a>{{end}}
-      <a class="btn" href="/orgs/{{.Org.ID}}?view=public">{{template "icon-world" "me-1"}}View public page</a>
-      <form method="post" action="/orgs/{{.Org.ID}}/leave" class="m-0" onsubmit="return confirm('Leave this organization?')">
-        <button type="submit" class="btn btn-ghost-danger">Leave organization</button>
-      </form>
+<!-- Summary stats -->
+<div class="row row-cards">
+  <div class="col-sm-6 col-lg-3">
+    <div class="card card-sm">
+      <div class="card-body">
+        <div class="row align-items-center">
+          <div class="col-auto"><span class="bg-primary text-white avatar">{{template "icon-users" ""}}</span></div>
+          <div class="col"><div class="h1 mb-0">{{.MemberCount}}</div><div class="text-secondary">Member{{if ne .MemberCount 1}}s{{end}}</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card card-sm">
+      <div class="card-body">
+        <div class="row align-items-center">
+          <div class="col-auto"><span class="bg-azure text-white avatar">{{template "icon-antenna" ""}}</span></div>
+          <div class="col"><div class="h1 mb-0">{{.RepeaterCount}}</div><div class="text-secondary">Repeater{{if ne .RepeaterCount 1}}s{{end}}</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card card-sm">
+      <div class="card-body">
+        <div class="row align-items-center">
+          <div class="col-auto"><span class="bg-green text-white avatar">{{template "icon-user" ""}}</span></div>
+          <div class="col"><div class="h1 mb-0">{{.AdminCount}}</div><div class="text-secondary">Admin{{if ne .AdminCount 1}}s{{end}}</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card card-sm">
+      <div class="card-body">
+        <div class="row align-items-center">
+          <div class="col-auto"><span class="bg-purple text-white avatar">{{template "icon-world" ""}}</span></div>
+          <div class="col"><div class="h1 mb-0">{{.MappedCount}}</div><div class="text-secondary">On the map</div></div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
 
-{{if .IsAdmin}}
-<div class="card mt-3">
-  <div class="card-body">
-    <h3 class="card-title">Organization profile <span class="text-secondary">(public)</span></h3>
-    <p class="text-secondary">Name and description are shown on the public organization page and directory.</p>
-    <form method="post" action="/orgs/{{.Org.ID}}/edit">
-      <div class="mb-3">
-        <label class="form-label">Name</label>
-        <input type="text" class="form-control" name="name" value="{{.Org.Name}}" maxlength="80" required>
+<div class="row row-cards mt-1">
+  <!-- Left column -->
+  <div class="col-lg-8">
+    {{if .HasMap}}
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">Repeater map</h3></div>
+      <div class="card-body p-2">
+        <link rel="stylesheet" href="/static/leaflet.css">
+        <div id="map" style="height:300px"></div>
+        <script src="/static/leaflet.js"></script>
+        <script src="/static/meshmap.js"></script>
+        <script>
+          meshMap('map', [
+            {{range .Repeaters}}{{if .HasLocation}}{name: {{.Name}}, lat: {{.Lat}}, lon: {{.Lon}}},{{end}}{{end}}
+          ]);
+        </script>
       </div>
-      <div class="mb-3">
-        <label class="form-label">Description</label>
-        <input type="text" class="form-control" name="description" value="{{.Org.Description}}" maxlength="2000" placeholder="What this organization is about, where it operates, etc.">
-      </div>
-      <button type="submit" class="btn btn-primary">Save profile</button>
-    </form>
-  </div>
-</div>
-{{end}}
+    </div>
+    {{end}}
 
-<div class="card mt-3">
-  <div class="card-body">
-    <h3 class="card-title">Members</h3>
-    <div class="list-group list-group-flush">
-      {{range .Members}}
-      <div class="list-group-item d-flex align-items-center flex-wrap gap-2 px-0">
-        <span class="fw-bold">{{.Name}}</span>
-        <span class="text-secondary">@{{.Username}}</span>
-        {{if eq .Role "admin"}}<span class="badge bg-success-lt">admin</span>{{else}}<span class="badge bg-azure-lt">member</span>{{end}}
-        {{if and $.IsAdmin (ne .UserID $.Self)}}
-        <form method="post" action="/orgs/{{$.Org.ID}}/members/{{.UserID}}" class="m-0 ms-auto d-flex gap-2">
-          {{if eq .Role "admin"}}
-          <button type="submit" name="action" value="demote" class="btn btn-sm">Demote</button>
-          {{else}}
-          <button type="submit" name="action" value="promote" class="btn btn-sm">Make admin</button>
-          {{end}}
-          <button type="submit" name="action" value="remove" class="btn btn-sm btn-ghost-danger">Remove</button>
-        </form>
+    <div class="card {{if .HasMap}}mt-3{{end}}">
+      <div class="card-header"><h3 class="card-title">Repeaters</h3></div>
+      {{if .Repeaters}}
+      <div class="list-group list-group-flush">
+        {{range .Repeaters}}
+        <div class="list-group-item d-flex align-items-center gap-2">
+          <span class="text-secondary">{{template "icon-antenna" ""}}</span>
+          <div class="flex-fill text-truncate">
+            <span class="fw-bold">{{.Name}}</span>
+            <div class="text-secondary small">owner {{.OwnerName}}</div>
+          </div>
+          <a class="btn btn-primary btn-sm" href="/repeaters/{{.RepeaterID}}/console">{{template "icon-terminal" "me-1"}}Console</a>
+        </div>
         {{end}}
       </div>
+      {{else}}
+      <div class="card-body"><p class="text-secondary mb-0">No repeaters have been contributed yet. Members can contribute their own from a repeater's “Organizations” page.</p></div>
       {{end}}
     </div>
-  </div>
-</div>
 
-<div class="card mt-3">
-  <div class="card-body">
-    <h3 class="card-title">Repeaters</h3>
-    {{if .HasMap}}
-    <link rel="stylesheet" href="/static/leaflet.css">
-    <div id="map" class="mb-3"></div>
-    <script src="/static/leaflet.js"></script>
-    <script>
-      var pts = [
-        {{range .Repeaters}}{{if .HasLocation}}{name: {{.Name}}, lat: {{.Lat}}, lon: {{.Lon}}},{{end}}{{end}}
-      ];
-      var map = L.map('map');
-      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19, attribution: '&copy; OpenStreetMap'
-      }).addTo(map);
-      var group = L.featureGroup(pts.map(function (p) {
-        return L.circleMarker([p.lat, p.lon], { radius: 7, color: '#066fd1', fillOpacity: 0.7 }).bindPopup(p.name);
-      })).addTo(map);
-      map.fitBounds(group.getBounds().pad(0.2));
-    </script>
-    {{end}}
-    {{if .Repeaters}}
-    <div class="list-group list-group-flush">
-      {{range .Repeaters}}
-      <div class="list-group-item d-flex align-items-center gap-2 px-0">
-        <span class="fw-bold">{{.Name}}</span>
-        <span class="text-secondary">owner {{.OwnerName}}</span>
-        <a class="btn btn-primary btn-sm ms-auto" href="/repeaters/{{.RepeaterID}}/console">{{template "icon-terminal" "me-1"}}Console</a>
-      </div>
-      {{end}}
-    </div>
-    {{else}}
-    <p class="text-secondary mb-0">No repeaters have been contributed yet. Members can contribute their own from a repeater's “Organizations” page.</p>
-    {{end}}
-  </div>
-</div>
-
-{{if .IsAdmin}}
-<div class="card mt-3">
-  <div class="card-body">
-    <h3 class="card-title">Join links</h3>
-    <p class="text-secondary">Anyone with a link joins as a member. Promote them to admin above if needed.</p>
-    {{if .Invites}}
-    <div class="list-group list-group-flush mb-3">
-      {{range .Invites}}
-      <div class="list-group-item px-0">
-        <div class="fw-bold mb-1">{{if .Description}}{{.Description}}{{else}}(no label){{end}}</div>
-        <div class="input-group mb-2">
-          <code class="form-control font-monospace" id="ol-{{.ID}}">{{.Link}}</code>
-          <button type="button" class="btn" onclick="navigator.clipboard.writeText(document.getElementById('ol-{{.ID}}').textContent)">{{template "icon-copy" ""}}Copy</button>
+    <div class="card mt-3">
+      <div class="card-header"><h3 class="card-title">Members</h3></div>
+      <div class="list-group list-group-flush">
+        {{range .Members}}
+        <div class="list-group-item d-flex align-items-center flex-wrap gap-2">
+          <div class="flex-fill text-truncate">
+            <span class="fw-bold">{{.Name}}</span>
+            <span class="text-secondary">@{{.Username}}</span>
+          </div>
+          {{if eq .Role "admin"}}<span class="badge bg-success-lt">admin</span>{{else}}<span class="badge bg-azure-lt">member</span>{{end}}
+          {{if and $.IsAdmin (ne .UserID $.Self)}}
+          <form method="post" action="/orgs/{{$.Org.ID}}/members/{{.UserID}}" class="m-0 d-flex gap-2">
+            {{if eq .Role "admin"}}
+            <button type="submit" name="action" value="demote" class="btn btn-sm">Demote</button>
+            {{else}}
+            <button type="submit" name="action" value="promote" class="btn btn-sm">Make admin</button>
+            {{end}}
+            <button type="submit" name="action" value="remove" class="btn btn-sm btn-ghost-danger">Remove</button>
+          </form>
+          {{end}}
         </div>
-        <form method="post" action="/orgs/{{$.Org.ID}}/invite/delete" class="m-0">
-          <input type="hidden" name="invite_id" value="{{.ID}}">
-          <button type="submit" class="btn btn-sm btn-ghost-danger">Revoke</button>
+        {{end}}
+      </div>
+    </div>
+  </div>
+
+  <!-- Right column -->
+  <div class="col-lg-4">
+    {{if .Org.Description}}
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">About</h3></div>
+      <div class="card-body"><p class="mb-0">{{.Org.Description}}</p></div>
+    </div>
+    {{end}}
+
+    {{if .IsAdmin}}
+    <div class="card {{if .Org.Description}}mt-3{{end}}">
+      <div class="card-header"><h3 class="card-title">Organization profile <span class="text-secondary">(public)</span></h3></div>
+      <div class="card-body">
+        <form method="post" action="/orgs/{{.Org.ID}}/edit">
+          <div class="mb-3">
+            <label class="form-label">Name</label>
+            <input type="text" class="form-control" name="name" value="{{.Org.Name}}" maxlength="80" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Description</label>
+            <textarea class="form-control" name="description" rows="3" maxlength="2000" placeholder="What this organization is about, where it operates, etc.">{{.Org.Description}}</textarea>
+          </div>
+          <button type="submit" class="btn btn-primary">Save profile</button>
         </form>
       </div>
-      {{end}}
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-header"><h3 class="card-title">Join links</h3></div>
+      <div class="card-body">
+        <p class="text-secondary">Anyone with a link joins as a member. Promote them to admin above if needed.</p>
+        {{if .Invites}}
+        <div class="list-group list-group-flush mb-3">
+          {{range .Invites}}
+          <div class="list-group-item px-0">
+            <div class="fw-bold mb-1">{{if .Description}}{{.Description}}{{else}}(no label){{end}}</div>
+            <div class="input-group mb-2">
+              <code class="form-control font-monospace" id="ol-{{.ID}}">{{.Link}}</code>
+              <button type="button" class="btn" onclick="navigator.clipboard.writeText(document.getElementById('ol-{{.ID}}').textContent)">{{template "icon-copy" ""}}Copy</button>
+            </div>
+            <form method="post" action="/orgs/{{$.Org.ID}}/invite/delete" class="m-0">
+              <input type="hidden" name="invite_id" value="{{.ID}}">
+              <button type="submit" class="btn btn-sm btn-ghost-danger">Revoke</button>
+            </form>
+          </div>
+          {{end}}
+        </div>
+        {{end}}
+        <form method="post" action="/orgs/{{.Org.ID}}/invite">
+          <div class="mb-3">
+            <label class="form-label">New link description <span class="text-secondary">(optional)</span></label>
+            <input type="text" class="form-control" name="description" maxlength="100" placeholder="e.g. forum post">
+          </div>
+          <button type="submit" class="btn btn-primary">Create join link</button>
+        </form>
+      </div>
     </div>
     {{end}}
-    <form method="post" action="/orgs/{{.Org.ID}}/invite">
-      <div class="mb-3">
-        <label class="form-label">New link description <span class="text-secondary">(optional)</span></label>
-        <input type="text" class="form-control" name="description" maxlength="100" placeholder="e.g. forum post">
-      </div>
-      <button type="submit" class="btn btn-primary">Create join link</button>
-    </form>
   </div>
 </div>
-{{end}}
 
 <a class="btn btn-link px-0 mt-3" href="/orgs">{{template "icon-arrow-left" "me-1"}}All organizations</a>
 {{end}}

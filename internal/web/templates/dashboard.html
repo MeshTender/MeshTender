@@ -2,8 +2,8 @@
 {{define "header"}}
 <div class="row g-2 align-items-center">
   <div class="col">
-    <div class="page-pretitle">Overview</div>
-    <h2 class="page-title">Your repeaters</h2>
+    <div class="page-pretitle">Dashboard</div>
+    <h2 class="page-title">Welcome back{{if .UserName}}, {{.UserName}}{{end}}</h2>
   </div>
   <div class="col-auto ms-auto d-print-none">
     <a class="btn btn-primary" href="/repeaters/add">{{template "icon-plus" "me-1"}}Add repeater</a>
@@ -12,77 +12,176 @@
 {{end}}
 {{define "content"}}
 {{if .Error}}<div class="alert alert-danger" role="alert">{{.Error}}</div>{{end}}
+{{if .Reconsent}}
+<div class="alert alert-warning" role="alert">
+  <div class="d-flex"><div>{{template "icon-alert" "alert-icon"}}</div>
+    <div>One or more of your repeaters need re-consent after an organization changed its command policy.
+      <a href="/repeaters" class="alert-link">Review on the Repeaters page</a>.</div></div>
+</div>
+{{end}}
 
-{{if .Owned}}
+<!-- Summary stats -->
 <div class="row row-cards">
-  {{range .Owned}}
-  <div class="col-12">
-    <div class="card">
+  <div class="col-sm-6 col-lg-3">
+    <div class="card card-sm">
       <div class="card-body">
-        <div class="d-flex align-items-center flex-wrap gap-2 mb-2">
-          <h3 class="card-title mb-0 me-1">{{.Name}}</h3>
-          {{template "repstatus" .}}
-          {{if index $.Reconsent .ID}}<a class="badge bg-warning-lt" href="/repeaters/{{.ID}}/share">re-consent needed</a>{{end}}
-        </div>
-        <code class="pk">{{.PublicKeyHex}}</code>
-        <div class="text-secondary small mt-2">{{.RadioFreqHz}} Hz · BW {{.RadioBwHz}} · SF{{.RadioSF}} · CR{{.RadioCR}}</div>
-        {{if and .Confirmed .AccessKnown (not .IsAdmin)}}
-        <div class="alert alert-warning mt-3 mb-0">
-          MeshTender only has <strong>guest</strong> access here. Guest is available to anyone with a blank password, so there's no point operating at this level — re-run <code>setperm &lt;your key&gt; 3</code> on the repeater to grant admin, then re-test.
-        </div>
-        {{end}}
-        <div class="btn-list mt-3">
-          <a class="btn btn-primary" href="/repeaters/{{.ID}}/console">{{template "icon-terminal" "me-1"}}Console</a>
-          <div class="dropdown">
-            <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">Manage</button>
-            <div class="dropdown-menu dropdown-menu-end">
-              <a class="dropdown-item" href="/repeaters/{{.ID}}/edit">{{template "icon-pencil" "dropdown-item-icon"}}Edit details</a>
-              <a class="dropdown-item" href="/repeaters/{{.ID}}/confirm">{{template "icon-antenna" "dropdown-item-icon"}}Confirm access</a>
-              <a class="dropdown-item" href="/repeaters/{{.ID}}/log">{{template "icon-list" "dropdown-item-icon"}}Logs</a>
-              <a class="dropdown-item" href="/repeaters/{{.ID}}/share">{{template "icon-share" "dropdown-item-icon"}}Sharing</a>
-              <div class="dropdown-divider"></div>
-              <a class="dropdown-item text-danger" href="/repeaters/{{.ID}}/delete">{{template "icon-trash" "dropdown-item-icon"}}Delete repeater</a>
-            </div>
+        <div class="row align-items-center">
+          <div class="col-auto"><span class="bg-primary text-white avatar">{{template "icon-antenna" ""}}</span></div>
+          <div class="col">
+            <div class="h1 mb-0">{{.OwnedCount}}</div>
+            <div class="text-secondary">Repeater{{if ne .OwnedCount 1}}s{{end}} owned</div>
           </div>
         </div>
       </div>
     </div>
   </div>
-  {{end}}
-</div>
-{{else}}
-<div class="empty">
-  <div class="empty-icon">{{template "icon-antenna" ""}}</div>
-  <p class="empty-title">No repeaters yet</p>
-  <p class="empty-subtitle text-secondary">Add one to grant MeshTender access and test it with a modem.</p>
-  <div class="empty-action">
-    <a href="/repeaters/add" class="btn btn-primary">{{template "icon-plus" "me-1"}}Add repeater</a>
-  </div>
-</div>
-{{end}}
-
-{{if .Shared}}
-<h3 class="mt-4 mb-3">Shared with you</h3>
-<div class="row row-cards">
-  {{range .Shared}}
-  <div class="col-12">
-    <div class="card">
+  <div class="col-sm-6 col-lg-3">
+    <div class="card card-sm">
       <div class="card-body">
-        <div class="d-flex align-items-center flex-wrap gap-2 mb-2">
-          <h3 class="card-title mb-0 me-1">{{.Name}}</h3>
-          {{template "repstatus" .}}
-          <span class="badge bg-azure-lt">via {{.OwnerName}}</span>
-        </div>
-        <code class="pk">{{.PublicKeyHex}}</code>
-        <div class="text-secondary small mt-2">{{.RadioFreqHz}} Hz · BW {{.RadioBwHz}} · SF{{.RadioSF}} · CR{{.RadioCR}}</div>
-        <div class="btn-list mt-3">
-          <a class="btn btn-primary" href="/repeaters/{{.ID}}/console">{{template "icon-terminal" "me-1"}}Console</a>
-          <a class="btn" href="/repeaters/{{.ID}}/confirm">Confirm / test</a>
+        <div class="row align-items-center">
+          <div class="col-auto"><span class="bg-green text-white avatar">{{template "icon-check" ""}}</span></div>
+          <div class="col">
+            <div class="h1 mb-0">{{.Confirmed}}</div>
+            <div class="text-secondary">Confirmed{{if .Unconfirmed}} · {{.Unconfirmed}} pending{{end}}</div>
+          </div>
         </div>
       </div>
     </div>
   </div>
-  {{end}}
+  <div class="col-sm-6 col-lg-3">
+    <div class="card card-sm">
+      <div class="card-body">
+        <div class="row align-items-center">
+          <div class="col-auto"><span class="bg-azure text-white avatar">{{template "icon-world" ""}}</span></div>
+          <div class="col">
+            <div class="h1 mb-0">{{.OrgCount}}</div>
+            <div class="text-secondary">Organization{{if ne .OrgCount 1}}s{{end}}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card card-sm">
+      <div class="card-body">
+        <div class="row align-items-center">
+          <div class="col-auto"><span class="bg-purple text-white avatar">{{template "icon-share" ""}}</span></div>
+          <div class="col">
+            <div class="h1 mb-0">{{.SharedCount}}</div>
+            <div class="text-secondary">Shared with you</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
-{{end}}
+
+<div class="row row-cards mt-1">
+  <!-- Left column -->
+  <div class="col-lg-8">
+    <!-- Your repeaters -->
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">Your repeaters</h3>
+        <div class="card-actions"><a href="/repeaters" class="btn btn-sm">View all{{if .OwnedCount}} ({{.OwnedCount}}){{end}}</a></div>
+      </div>
+      {{if .Owned}}
+      <div class="list-group list-group-flush">
+        {{range .Owned}}
+        <div class="list-group-item d-flex align-items-center gap-2">
+          <span class="text-secondary">{{template "icon-antenna" ""}}</span>
+          <div class="flex-fill text-truncate">
+            <a class="fw-bold text-reset text-decoration-none" href="/repeaters/{{.ID}}/console">{{.Name}}</a>
+            <div class="text-secondary small text-truncate">{{.RadioFreqHz}} Hz · SF{{.RadioSF}}</div>
+          </div>
+          {{template "repstatus" .}}
+          <a class="btn btn-sm" href="/repeaters/{{.ID}}/console">{{template "icon-terminal" "me-1"}}Console</a>
+        </div>
+        {{end}}
+      </div>
+      {{else}}
+      <div class="card-body">
+        <div class="empty">
+          <div class="empty-icon">{{template "icon-antenna" ""}}</div>
+          <p class="empty-title">No repeaters yet</p>
+          <p class="empty-subtitle text-secondary">Add one to grant MeshTender access and test it with a modem.</p>
+          <div class="empty-action"><a href="/repeaters/add" class="btn btn-primary">{{template "icon-plus" "me-1"}}Add repeater</a></div>
+        </div>
+      </div>
+      {{end}}
+    </div>
+
+    <!-- Recent activity -->
+    <div class="card mt-3">
+      <div class="card-header"><h3 class="card-title">Recent activity</h3></div>
+      {{if .Recent}}
+      <div class="table-responsive">
+        <table class="table table-vcenter card-table">
+          <thead><tr><th>Repeater</th><th>Command</th><th>By</th><th>When</th><th></th></tr></thead>
+          <tbody>
+            {{range .Recent}}
+            <tr>
+              <td class="text-truncate" style="max-width:10rem"><a class="text-reset" href="/repeaters/{{.RepeaterID}}/log">{{.RepeaterName}}</a></td>
+              <td><code>{{.CommandText}}</code></td>
+              <td class="text-secondary">{{.SenderName}}</td>
+              <td class="text-secondary text-nowrap">{{.SentAt.Format "Jan 2, 15:04"}}</td>
+              <td>{{if .AckReceived}}<span class="badge bg-success-lt">reply</span>{{else}}<span class="badge bg-yellow-lt">no reply</span>{{end}}</td>
+            </tr>
+            {{end}}
+          </tbody>
+        </table>
+      </div>
+      {{else}}
+      <div class="card-body"><p class="text-secondary mb-0">No commands have been run on your repeaters yet. Open a repeater's console to send one.</p></div>
+      {{end}}
+    </div>
+  </div>
+
+  <!-- Right column -->
+  <div class="col-lg-4">
+    <!-- Map -->
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">Repeater map</h3></div>
+      {{if .Mapped}}
+      <div class="card-body p-2">
+        <link rel="stylesheet" href="/static/leaflet.css">
+        <div id="map" style="height:260px"></div>
+        <script src="/static/leaflet.js"></script>
+        <script src="/static/meshmap.js"></script>
+        <script>
+          meshMap('map', [
+            {{range .Mapped}}{name: {{.Name}}, lat: {{.Latitude}}, lon: {{.Longitude}}},{{end}}
+          ]);
+        </script>
+      </div>
+      {{else}}
+      <div class="card-body"><p class="text-secondary mb-0">No repeater locations yet. Enable “store location” when editing a repeater and confirm it with a modem to place it on the map.</p></div>
+      {{end}}
+    </div>
+
+    <!-- Organizations -->
+    <div class="card mt-3">
+      <div class="card-header">
+        <h3 class="card-title">Organizations</h3>
+        <div class="card-actions"><a href="/orgs" class="btn btn-sm">View all{{if .OrgCount}} ({{.OrgCount}}){{end}}</a></div>
+      </div>
+      {{if .Orgs}}
+      <div class="list-group list-group-flush">
+        {{range .Orgs}}
+        <a href="/orgs/{{.Org.ID}}" class="list-group-item list-group-item-action d-flex align-items-center gap-2">
+          <span class="text-secondary">{{template "icon-world" ""}}</span>
+          <span class="flex-fill text-truncate fw-bold">{{.Org.Name}}</span>
+          {{if eq .Role "admin"}}<span class="badge bg-success-lt">admin</span>{{else}}<span class="badge bg-azure-lt">member</span>{{end}}
+        </a>
+        {{end}}
+      </div>
+      {{else}}
+      <div class="card-body">
+        <p class="text-secondary">You're not in any organizations yet. Join one to help tend a mesh together.</p>
+        <a href="/orgs" class="btn btn-sm">Browse organizations</a>
+      </div>
+      {{end}}
+    </div>
+  </div>
+</div>
 {{end}}

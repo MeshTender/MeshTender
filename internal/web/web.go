@@ -63,6 +63,9 @@ func (s *Server) routes() {
 	staticSub, _ := fs.Sub(staticFS, "static")
 	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.FS(staticSub))))
 
+	// Root: marketing landing for visitors, overview dashboard for members.
+	r.Get("/", s.pageHome)
+
 	// Public auth pages + JSON ceremony endpoints.
 	r.Get("/login", s.pageLogin)
 	r.Get("/signup", s.pageSignup)
@@ -82,7 +85,7 @@ func (s *Server) routes() {
 	// Authenticated area.
 	r.Group(func(r chi.Router) {
 		r.Use(s.auth.RequireUser)
-		r.Get("/", s.pageDashboard)
+		r.Get("/repeaters", s.pageRepeaters)
 		r.Post("/logout", s.handleLogout)
 		r.Get("/account", s.pageAccount)
 		r.Post("/account/profile", s.handleUpdateProfile)
@@ -194,7 +197,19 @@ func (s *Server) pageSignup(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (s *Server) pageDashboard(w http.ResponseWriter, r *http.Request) {
+// pageHome serves the marketing landing page to visitors and the overview
+// dashboard to signed-in members.
+func (s *Server) pageHome(w http.ResponseWriter, r *http.Request) {
+	if s.auth.CurrentUserID(r.Context()) == 0 {
+		s.render(w, r, "landing.html", map[string]any{"Layout": "landingbase"})
+		return
+	}
+	s.pageDashboard(w, r)
+}
+
+// pageRepeaters lists every repeater the user owns or has been shared, split
+// into owned and shared sections.
+func (s *Server) pageRepeaters(w http.ResponseWriter, r *http.Request) {
 	uid := s.auth.CurrentUserID(r.Context())
 	repeaters, err := s.store.ListRepeatersForUser(r.Context(), uid)
 	if err != nil {
@@ -206,8 +221,76 @@ func (s *Server) pageDashboard(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not load org state", http.StatusInternalServerError)
 		return
 	}
-	// Split owned vs directly-shared for the two dashboard sections.
-	var owned, shared []*store.Repeater
+	owned, shared := splitOwnedShared(repeaters)
+	s.render(w, r, "repeaters.html", map[string]any{
+		"Owned":     owned,
+		"Shared":    shared,
+		"Reconsent": reconsent,
+		"Error":     r.URL.Query().Get("error"),
+	})
+}
+
+// pageDashboard renders the signed-in overview: summary stats, short lists of
+// repeaters and organizations, a map of owned repeaters, and recent activity.
+func (s *Server) pageDashboard(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	uid := s.auth.CurrentUserID(ctx)
+
+	repeaters, err := s.store.ListRepeatersForUser(ctx, uid)
+	if err != nil {
+		http.Error(w, "could not load repeaters", http.StatusInternalServerError)
+		return
+	}
+	owned, shared := splitOwnedShared(repeaters)
+
+	reconsent, err := s.store.OwnedRepeatersNeedingReconsent(ctx, uid)
+	if err != nil {
+		http.Error(w, "could not load org state", http.StatusInternalServerError)
+		return
+	}
+	orgs, err := s.store.ListOrgsForUser(ctx, uid)
+	if err != nil {
+		http.Error(w, "could not load organizations", http.StatusInternalServerError)
+		return
+	}
+	recent, err := s.store.ListRecentCommandsForOwner(ctx, uid, 8)
+	if err != nil {
+		http.Error(w, "could not load activity", http.StatusInternalServerError)
+		return
+	}
+
+	// Summary counts and the owned repeaters that have a stored location.
+	confirmed, unconfirmed := 0, 0
+	var mapped []*store.Repeater
+	for _, rp := range owned {
+		if rp.Confirmed {
+			confirmed++
+		} else {
+			unconfirmed++
+		}
+		if rp.Latitude != nil && rp.Longitude != nil {
+			mapped = append(mapped, rp)
+		}
+	}
+
+	s.render(w, r, "dashboard.html", map[string]any{
+		"OwnedCount":  len(owned),
+		"SharedCount": len(shared),
+		"OrgCount":    len(orgs),
+		"Confirmed":   confirmed,
+		"Unconfirmed": unconfirmed,
+		"Owned":       firstRepeaters(owned, 5),
+		"Shared":      firstRepeaters(shared, 5),
+		"Orgs":        firstOrgs(orgs, 5),
+		"Mapped":      mapped,
+		"Recent":      recent,
+		"Reconsent":   reconsent,
+		"Error":       r.URL.Query().Get("error"),
+	})
+}
+
+// splitOwnedShared partitions a repeater list into owned and directly-shared.
+func splitOwnedShared(repeaters []*store.Repeater) (owned, shared []*store.Repeater) {
 	for _, rp := range repeaters {
 		if rp.Shared {
 			shared = append(shared, rp)
@@ -215,12 +298,21 @@ func (s *Server) pageDashboard(w http.ResponseWriter, r *http.Request) {
 			owned = append(owned, rp)
 		}
 	}
-	s.render(w, r, "dashboard.html", map[string]any{
-		"Owned":     owned,
-		"Shared":    shared,
-		"Reconsent": reconsent,
-		"Error":     r.URL.Query().Get("error"),
-	})
+	return owned, shared
+}
+
+func firstRepeaters(rs []*store.Repeater, n int) []*store.Repeater {
+	if len(rs) > n {
+		return rs[:n]
+	}
+	return rs
+}
+
+func firstOrgs(os []store.OrgMembership, n int) []store.OrgMembership {
+	if len(os) > n {
+		return os[:n]
+	}
+	return os
 }
 
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {

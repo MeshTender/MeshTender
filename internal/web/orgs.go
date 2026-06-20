@@ -107,23 +107,32 @@ func (s *Server) pageOrg(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not load repeaters", http.StatusInternalServerError)
 		return
 	}
-	hasMap := false
+	mapped := 0
 	for _, rp := range repeaters {
 		if rp.HasLocation {
-			hasMap = true
-			break
+			mapped++
+		}
+	}
+	adminCount := 0
+	for _, m := range members {
+		if m.Role == "admin" {
+			adminCount++
 		}
 	}
 	isAdmin := role == "admin"
 	data := map[string]any{
-		"Org":       org,
-		"Role":      role,
-		"IsAdmin":   isAdmin,
-		"Members":   members,
-		"Repeaters": repeaters,
-		"HasMap":    hasMap,
-		"Self":      uid,
-		"Error":     r.URL.Query().Get("error"),
+		"Org":           org,
+		"Role":          role,
+		"IsAdmin":       isAdmin,
+		"Members":       members,
+		"Repeaters":     repeaters,
+		"HasMap":        mapped > 0,
+		"MemberCount":   len(members),
+		"RepeaterCount": len(repeaters),
+		"AdminCount":    adminCount,
+		"MappedCount":   mapped,
+		"Self":          uid,
+		"Error":         r.URL.Query().Get("error"),
 	}
 	if isAdmin {
 		invites, err := s.store.ListOrgInvites(r.Context(), id)
