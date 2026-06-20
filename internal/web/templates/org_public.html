@@ -2,48 +2,109 @@
 {{define "header"}}
 <div class="row g-2 align-items-center">
   <div class="col">
-    <div class="page-pretitle">Organization</div>
+    <div class="page-pretitle">Organization{{if .IsMember}} · public preview{{end}}</div>
     <h2 class="page-title">{{.Org.Name}}</h2>
   </div>
+  {{if .IsMember}}
+  <div class="col-auto ms-auto d-print-none">
+    <a class="btn" href="/orgs/{{.Org.ID}}">{{template "icon-arrow-left" "me-1"}}Back to member view</a>
+  </div>
+  {{end}}
 </div>
 {{end}}
 {{define "content"}}
-<div class="card">
-  <div class="card-body">
-    {{if .IsMember}}<p class="text-secondary"><a href="/orgs/{{.Org.ID}}">{{template "icon-arrow-left" "me-1"}}Back to member view</a> — you're previewing the public page.</p>{{end}}
-    {{if .Org.Description}}<p>{{.Org.Description}}</p>{{else}}<p class="text-secondary">This organization hasn't added a description yet.</p>{{end}}
-    <div class="text-secondary small">{{.MemberCount}} member{{if ne .MemberCount 1}}s{{end}} · {{.RepeaterCount}} repeater{{if ne .RepeaterCount 1}}s{{end}}</div>
-  </div>
-</div>
-
-<div class="card mt-3">
-  <div class="card-body">
-    <h3 class="card-title">Admins</h3>
-    {{if .Admins}}
-    <div class="d-flex flex-wrap gap-2">
-      {{range .Admins}}<span class="badge bg-success-lt">{{.}}</span>{{end}}
+<!-- Summary stats -->
+<div class="row row-cards">
+  <div class="col-sm-6 col-lg-3">
+    <div class="card card-sm">
+      <div class="card-body">
+        <div class="row align-items-center">
+          <div class="col-auto"><span class="bg-primary text-white avatar">{{template "icon-users" ""}}</span></div>
+          <div class="col"><div class="h1 mb-0">{{.MemberCount}}</div><div class="text-secondary">Member{{if ne .MemberCount 1}}s{{end}}</div></div>
+        </div>
+      </div>
     </div>
-    {{else}}<p class="text-secondary mb-0">No admins listed.</p>{{end}}
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card card-sm">
+      <div class="card-body">
+        <div class="row align-items-center">
+          <div class="col-auto"><span class="bg-green text-white avatar">{{template "icon-user" ""}}</span></div>
+          <div class="col"><div class="h1 mb-0">{{len .Admins}}</div><div class="text-secondary">Admin{{if ne (len .Admins) 1}}s{{end}}</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card card-sm">
+      <div class="card-body">
+        <div class="row align-items-center">
+          <div class="col-auto"><span class="bg-azure text-white avatar">{{template "icon-antenna" ""}}</span></div>
+          <div class="col"><div class="h1 mb-0">{{.RepeaterCount}}</div><div class="text-secondary">Repeater{{if ne .RepeaterCount 1}}s{{end}}</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card card-sm">
+      <div class="card-body">
+        <div class="row align-items-center">
+          <div class="col-auto"><span class="bg-purple text-white avatar">{{template "icon-map-pin" ""}}</span></div>
+          <div class="col text-truncate">
+            <div class="h3 mb-0 text-truncate">{{if .Org.Region}}{{.Org.Region}}{{else}}<span class="text-secondary fw-normal">Not set</span>{{end}}</div>
+            <div class="text-secondary">Region</div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
-{{if .HasMap}}
-<div class="card mt-3">
-  <div class="card-body">
-    <h3 class="card-title">Public repeater map</h3>
-    <p class="text-secondary">Repeaters whose owners chose to show them publicly.</p>
-    <link rel="stylesheet" href="/static/leaflet.css">
-    <div id="map"></div>
-    <script src="/static/leaflet.js"></script>
-    <script src="/static/meshmap.js"></script>
-    <script>
-      meshMap('map', [
-        {{range .Repeaters}}{{if .HasLocation}}{name: {{.Name}}, lat: {{.Lat}}, lon: {{.Lon}}},{{end}}{{end}}
-      ]);
-    </script>
+<div class="row row-cards mt-1">
+  <!-- Left column -->
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">Public repeater map</h3></div>
+      {{if .HasMap}}
+      <div class="card-body p-2">
+        <link rel="stylesheet" href="/static/leaflet.css">
+        <div id="map" style="height:340px"></div>
+        <script src="/static/leaflet.js"></script>
+        <script src="/static/meshmap.js"></script>
+        <script>
+          meshMap('map', [
+            {{range .Repeaters}}{{if .HasLocation}}{name: {{.Name}}, lat: {{.Lat}}, lon: {{.Lon}}},{{end}}{{end}}
+          ]);
+        </script>
+      </div>
+      {{else}}
+      <div class="card-body"><p class="text-secondary mb-0">No repeaters are shown publicly. Members can opt a repeater into the public map when editing it.</p></div>
+      {{end}}
+    </div>
+  </div>
+
+  <!-- Right column -->
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">About</h3></div>
+      <div class="card-body">
+        {{if .Org.Region}}<div class="d-flex align-items-center text-secondary mb-2">{{template "icon-map-pin" "me-1"}}{{.Org.Region}}</div>{{end}}
+        {{if .Org.Description}}<p class="mb-0">{{.Org.Description}}</p>{{else}}<p class="text-secondary mb-0">This organization hasn't added a description yet.</p>{{end}}
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-header"><h3 class="card-title">Admins</h3></div>
+      <div class="card-body">
+        {{if .Admins}}
+        <div class="d-flex flex-wrap gap-2">
+          {{range .Admins}}<span class="badge bg-success-lt">{{.}}</span>{{end}}
+        </div>
+        {{else}}<p class="text-secondary mb-0">No admins listed.</p>{{end}}
+      </div>
+    </div>
   </div>
 </div>
-{{end}}
 
 <a class="btn btn-link px-0 mt-3" href="/orgs">{{template "icon-arrow-left" "me-1"}}All organizations</a>
 {{end}}

@@ -130,7 +130,6 @@ func (s *Server) pageOrg(w http.ResponseWriter, r *http.Request) {
 		"MemberCount":   len(members),
 		"RepeaterCount": len(repeaters),
 		"AdminCount":    adminCount,
-		"MappedCount":   mapped,
 		"Self":          uid,
 		"Error":         r.URL.Query().Get("error"),
 	}
@@ -198,6 +197,7 @@ func (s *Server) handleEditOrg(w http.ResponseWriter, r *http.Request) {
 	}
 	name := strings.TrimSpace(r.FormValue("name"))
 	desc := strings.TrimSpace(r.FormValue("description"))
+	region := strings.TrimSpace(r.FormValue("region"))
 	if name == "" || len(name) > 80 {
 		orgErr(w, r, id, "Enter an organization name.")
 		return
@@ -205,7 +205,10 @@ func (s *Server) handleEditOrg(w http.ResponseWriter, r *http.Request) {
 	if len(desc) > 2000 {
 		desc = desc[:2000]
 	}
-	if err := s.store.UpdateOrg(r.Context(), id, name, desc); err != nil {
+	if len(region) > 120 {
+		region = region[:120]
+	}
+	if err := s.store.UpdateOrg(r.Context(), id, name, desc, region); err != nil {
 		orgErr(w, r, id, "Could not save changes.")
 		return
 	}

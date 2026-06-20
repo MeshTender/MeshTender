@@ -14,6 +14,7 @@ type Org struct {
 	ID          int64
 	Name        string
 	Description string
+	Region      string
 	CreatedBy   *int64
 	CreatedAt   time.Time
 }
@@ -61,8 +62,8 @@ func (s *Store) CreateOrg(ctx context.Context, name string, creatorID int64) (*O
 	var o Org
 	if err := tx.QueryRow(ctx,
 		`INSERT INTO organizations (name, created_by) VALUES ($1, $2)
-		 RETURNING id, name, description, created_by, created_at`,
-		name, creatorID).Scan(&o.ID, &o.Name, &o.Description, &o.CreatedBy, &o.CreatedAt); err != nil {
+		 RETURNING id, name, description, region, created_by, created_at`,
+		name, creatorID).Scan(&o.ID, &o.Name, &o.Description, &o.Region, &o.CreatedBy, &o.CreatedAt); err != nil {
 		return nil, fmt.Errorf("insert org: %w", err)
 	}
 	if _, err := tx.Exec(ctx,
@@ -100,8 +101,8 @@ func (s *Store) CreateOrg(ctx context.Context, name string, creatorID int64) (*O
 func (s *Store) GetOrg(ctx context.Context, id int64) (*Org, error) {
 	var o Org
 	err := s.pool.QueryRow(ctx,
-		`SELECT id, name, description, created_by, created_at FROM organizations WHERE id = $1`, id).
-		Scan(&o.ID, &o.Name, &o.Description, &o.CreatedBy, &o.CreatedAt)
+		`SELECT id, name, description, region, created_by, created_at FROM organizations WHERE id = $1`, id).
+		Scan(&o.ID, &o.Name, &o.Description, &o.Region, &o.CreatedBy, &o.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -111,10 +112,11 @@ func (s *Store) GetOrg(ctx context.Context, id int64) (*Org, error) {
 	return &o, nil
 }
 
-// UpdateOrg updates an org's name and description.
-func (s *Store) UpdateOrg(ctx context.Context, orgID int64, name, description string) error {
+// UpdateOrg updates an org's name, description, and region.
+func (s *Store) UpdateOrg(ctx context.Context, orgID int64, name, description, region string) error {
 	tag, err := s.pool.Exec(ctx,
-		`UPDATE organizations SET name = $2, description = $3 WHERE id = $1`, orgID, name, description)
+		`UPDATE organizations SET name = $2, description = $3, region = $4 WHERE id = $1`,
+		orgID, name, description, region)
 	if err != nil {
 		return fmt.Errorf("update org: %w", err)
 	}

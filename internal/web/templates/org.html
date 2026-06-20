@@ -35,16 +35,6 @@
     <div class="card card-sm">
       <div class="card-body">
         <div class="row align-items-center">
-          <div class="col-auto"><span class="bg-azure text-white avatar">{{template "icon-antenna" ""}}</span></div>
-          <div class="col"><div class="h1 mb-0">{{.RepeaterCount}}</div><div class="text-secondary">Repeater{{if ne .RepeaterCount 1}}s{{end}}</div></div>
-        </div>
-      </div>
-    </div>
-  </div>
-  <div class="col-sm-6 col-lg-3">
-    <div class="card card-sm">
-      <div class="card-body">
-        <div class="row align-items-center">
           <div class="col-auto"><span class="bg-green text-white avatar">{{template "icon-user" ""}}</span></div>
           <div class="col"><div class="h1 mb-0">{{.AdminCount}}</div><div class="text-secondary">Admin{{if ne .AdminCount 1}}s{{end}}</div></div>
         </div>
@@ -55,8 +45,21 @@
     <div class="card card-sm">
       <div class="card-body">
         <div class="row align-items-center">
-          <div class="col-auto"><span class="bg-purple text-white avatar">{{template "icon-world" ""}}</span></div>
-          <div class="col"><div class="h1 mb-0">{{.MappedCount}}</div><div class="text-secondary">On the map</div></div>
+          <div class="col-auto"><span class="bg-azure text-white avatar">{{template "icon-antenna" ""}}</span></div>
+          <div class="col"><div class="h1 mb-0">{{.RepeaterCount}}</div><div class="text-secondary">Repeater{{if ne .RepeaterCount 1}}s{{end}}</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card card-sm">
+      <div class="card-body">
+        <div class="row align-items-center">
+          <div class="col-auto"><span class="bg-purple text-white avatar">{{template "icon-map-pin" ""}}</span></div>
+          <div class="col text-truncate">
+            <div class="h3 mb-0 text-truncate">{{if .Org.Region}}{{.Org.Region}}{{else}}<span class="text-secondary fw-normal">Not set</span>{{end}}</div>
+            <div class="text-secondary">Region</div>
+          </div>
         </div>
       </div>
     </div>
@@ -146,6 +149,10 @@
           <div class="mb-3">
             <label class="form-label">Name</label>
             <input type="text" class="form-control" name="name" value="{{.Org.Name}}" maxlength="80" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Region <span class="text-secondary">(optional)</span></label>
+            <input type="text" class="form-control" name="region" value="{{.Org.Region}}" maxlength="120" placeholder="e.g. Buffalo, NY">
           </div>
           <div class="mb-3">
             <label class="form-label">Description</label>
