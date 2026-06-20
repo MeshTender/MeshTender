@@ -3,6 +3,27 @@
    from Tabler; this file only covers things Tabler has no component for: the
    live console/event log, the Leaflet map, and the public-key code block. */
 
+/* ---------- Back links (icon + text, plain link — not a button) ----------
+   These are navigational "← All organizations" links. Styling them as a plain
+   link (rather than .btn .btn-link) avoids the button's inline-flex box being
+   icon-height tall but text-width wide, which made the focus/hover state show
+   asymmetric padding (flush left/right, padded top/bottom). */
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  color: var(--tblr-link-color);
+  text-decoration: none;
+}
+/* a.back-link beats Tabler's `a:hover:has(.icon){text-decoration:none}`. */
+a.back-link:hover {
+  color: var(--tblr-link-hover-color);
+  text-decoration: underline;
+}
+.back-link .icon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
 /* ---------- Public-key / monospace code blocks ---------- */
 code.pk,
 code.pubkey {

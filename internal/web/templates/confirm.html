@@ -26,7 +26,7 @@
 
     <ul id="log" class="evlog mt-3"></ul>
     <div class="mt-3">
-      <a class="btn btn-link px-0" href="/">{{template "icon-arrow-left" "me-1"}}Back to dashboard</a>
+      <a class="back-link" href="/">{{template "icon-arrow-left" "me-1"}}Back to dashboard</a>
       {{if .Debug}}
       <a class="text-secondary ms-2" href="/repeaters/{{.Repeater.PublicID}}/confirm">Disable debug</a>
       {{else}}

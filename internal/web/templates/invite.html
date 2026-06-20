@@ -12,7 +12,7 @@
         {{if eq .State "invalid"}}
           <h2 class="card-title">Invalid link</h2>
           <p class="text-secondary">This share link is no longer valid — it's single-use and may have already been used or revoked. Ask the owner for a new one.</p>
-          <a class="btn btn-link px-0" href="/">{{template "icon-arrow-left" "me-1"}}Go to dashboard</a>
+          <a class="back-link" href="/">{{template "icon-arrow-left" "me-1"}}Go to dashboard</a>
 
         {{else if eq .State "auth_required"}}
           <h2 class="card-title">You've been invited</h2>
@@ -34,7 +34,7 @@
         {{else if eq .State "already"}}
           <h2 class="card-title">Already shared with you</h2>
           <p>You already have access to <strong>{{.Repeater.Name}}</strong>.</p>
-          <a class="btn btn-link px-0" href="/">{{template "icon-arrow-left" "me-1"}}Go to dashboard</a>
+          <a class="back-link" href="/">{{template "icon-arrow-left" "me-1"}}Go to dashboard</a>
 
         {{else}}{{/* confirm */}}
           <h2 class="card-title">Accept invite</h2>
