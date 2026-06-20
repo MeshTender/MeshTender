@@ -118,9 +118,25 @@ func (s *Service) PopNext(ctx context.Context) string {
 }
 
 // SafeLocalPath reports whether p is a safe same-site redirect target: a
-// rooted path that is not protocol-relative ("//host").
+// rooted path that can't escape the origin. It rejects protocol-relative URLs
+// ("//host") and the backslash variant ("/\host", which browsers normalize to
+// "//host"), as well as any control characters.
 func SafeLocalPath(p string) bool {
-	return len(p) >= 1 && p[0] == '/' && (len(p) < 2 || p[1] != '/')
+	if len(p) < 1 || p[0] != '/' {
+		return false
+	}
+	// Block "//host" and "/\host": both resolve to a foreign origin in browsers.
+	if len(p) >= 2 && (p[1] == '/' || p[1] == '\\') {
+		return false
+	}
+	// Reject control characters (incl. NUL, tab, CR, LF) that could smuggle
+	// headers or confuse URL parsing.
+	for i := 0; i < len(p); i++ {
+		if p[i] < 0x20 || p[i] == 0x7f {
+			return false
+		}
+	}
+	return true
 }
 
 // PasswordMatches reports whether the given password matches the user's stored
