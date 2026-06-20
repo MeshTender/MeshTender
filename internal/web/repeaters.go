@@ -10,8 +10,26 @@ import (
 	"github.com/go-chi/chi/v5"
 	meshcore "github.com/meshcore-go/meshcore-go"
 
+	"github.com/jleight/meshtender/internal/config"
 	"github.com/jleight/meshtender/internal/store"
 )
+
+// pageAddRepeater shows the MeshTender identity/setperm instructions and the
+// add-repeater form.
+func (s *Server) pageAddRepeater(w http.ResponseWriter, r *http.Request) {
+	s.render(w, r, "add_repeater.html", map[string]any{
+		"ServerPubKey":    s.identity.PublicKeyHex(),
+		"SetPermCommand":  s.identity.SetPermCommand(),
+		"Defaults":        s.cfg.DefaultRadio,
+		"Presets":         radioPresets,
+		"DefaultPresetID": defaultPresetID(s.cfg.DefaultRadio),
+		"Error":           r.URL.Query().Get("error"),
+	})
+}
+
+func addErr(w http.ResponseWriter, r *http.Request, msg string) {
+	http.Redirect(w, r, "/repeaters/add?error="+url.QueryEscape(msg), http.StatusSeeOther)
+}
 
 // handleAddRepeater registers a new repeater (unconfirmed) for the current user.
 func (s *Server) handleAddRepeater(w http.ResponseWriter, r *http.Request) {
@@ -20,39 +38,99 @@ func (s *Server) handleAddRepeater(w http.ResponseWriter, r *http.Request) {
 	name := strings.TrimSpace(r.FormValue("name"))
 	pubHex := strings.ToLower(strings.TrimSpace(r.FormValue("public_key")))
 	if name == "" {
-		dashErr(w, r, "Repeater name is required.")
+		addErr(w, r, "Repeater name is required.")
 		return
 	}
 	// Validate the public key is a real 32-byte MeshCore key.
 	if _, err := meshcore.NewIdentityFromHex(pubHex); err != nil {
-		dashErr(w, r, "Public key must be 64 hex characters (a 32-byte MeshCore key).")
+		addErr(w, r, "Public key must be 64 hex characters (a 32-byte MeshCore key).")
 		return
 	}
 
-	freq, err1 := strconv.ParseInt(r.FormValue("radio_freq_hz"), 10, 64)
-	bw, err2 := strconv.ParseInt(r.FormValue("radio_bw_hz"), 10, 64)
-	sf, err3 := strconv.ParseInt(r.FormValue("radio_sf"), 10, 16)
-	cr, err4 := strconv.ParseInt(r.FormValue("radio_cr"), 10, 16)
-	if err1 != nil || err2 != nil || err3 != nil || err4 != nil || freq <= 0 || bw <= 0 {
-		dashErr(w, r, "Radio parameters must be valid numbers.")
+	freq, bw, sf, cr, ok := parseRadioForm(r)
+	if !ok {
+		addErr(w, r, "Radio parameters must be valid numbers.")
 		return
 	}
 
 	_, err := s.store.CreateRepeater(r.Context(), &store.Repeater{
-		OwnerID:      uid,
-		Name:         name,
-		PublicKeyHex: pubHex,
-		RadioFreqHz:  freq,
-		RadioBwHz:    bw,
-		RadioSF:      int16(sf),
-		RadioCR:      int16(cr),
+		OwnerID:       uid,
+		Name:          name,
+		PublicKeyHex:  pubHex,
+		RadioFreqHz:   freq,
+		RadioBwHz:     bw,
+		RadioSF:       int16(sf),
+		RadioCR:       int16(cr),
+		StoreLocation: r.FormValue("store_location") != "",
 	})
 	if errors.Is(err, store.ErrDuplicate) {
-		dashErr(w, r, "You already added a repeater with that public key.")
+		addErr(w, r, "You already added a repeater with that public key.")
 		return
 	}
 	if err != nil {
-		dashErr(w, r, "Could not add repeater.")
+		addErr(w, r, "Could not add repeater.")
+		return
+	}
+	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
+// parseRadioForm reads and validates the radio fields from a repeater form.
+func parseRadioForm(r *http.Request) (freq, bw int64, sf, cr int16, ok bool) {
+	f, e1 := strconv.ParseInt(r.FormValue("radio_freq_hz"), 10, 64)
+	b, e2 := strconv.ParseInt(r.FormValue("radio_bw_hz"), 10, 64)
+	s, e3 := strconv.ParseInt(r.FormValue("radio_sf"), 10, 16)
+	c, e4 := strconv.ParseInt(r.FormValue("radio_cr"), 10, 16)
+	if e1 != nil || e2 != nil || e3 != nil || e4 != nil || f <= 0 || b <= 0 {
+		return 0, 0, 0, 0, false
+	}
+	return f, b, int16(s), int16(c), true
+}
+
+// pageEditRepeater shows the edit form for an owned repeater.
+func (s *Server) pageEditRepeater(w http.ResponseWriter, r *http.Request) {
+	uid := s.auth.CurrentUserID(r.Context())
+	id, ok := parseID(r)
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	rep, err := s.store.GetRepeaterOwned(r.Context(), uid, id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	s.render(w, r, "edit_repeater.html", map[string]any{
+		"Repeater":       rep,
+		"Presets":        radioPresets,
+		"SelectedPreset": defaultPresetID(config.RadioDefaults{FreqHz: uint32(rep.RadioFreqHz), BwHz: uint32(rep.RadioBwHz), SF: uint8(rep.RadioSF), CR: uint8(rep.RadioCR)}),
+		"Error":          r.URL.Query().Get("error"),
+	})
+}
+
+// handleEditRepeater saves changes to an owned repeater's settings.
+func (s *Server) handleEditRepeater(w http.ResponseWriter, r *http.Request) {
+	uid := s.auth.CurrentUserID(r.Context())
+	id, ok := parseID(r)
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	editErr := func(msg string) {
+		http.Redirect(w, r, "/repeaters/"+strconv.FormatInt(id, 10)+"/edit?error="+url.QueryEscape(msg), http.StatusSeeOther)
+	}
+	name := strings.TrimSpace(r.FormValue("name"))
+	if name == "" {
+		editErr("Repeater name is required.")
+		return
+	}
+	freq, bw, sf, cr, valid := parseRadioForm(r)
+	if !valid {
+		editErr("Radio parameters must be valid numbers.")
+		return
+	}
+	storeLocation := r.FormValue("store_location") != ""
+	if err := s.store.UpdateRepeater(r.Context(), uid, id, name, freq, bw, sf, cr, storeLocation); err != nil {
+		editErr("Could not save changes.")
 		return
 	}
 	http.Redirect(w, r, "/", http.StatusSeeOther)

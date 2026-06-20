@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"crypto/rand"
+	"encoding/binary"
 	"encoding/json"
 	"net/http"
 	"net/http/cookiejar"
@@ -35,6 +36,9 @@ func TestConsoleRoundTrip(t *testing.T) {
 	if u, err := url.Parse(dsn); err != nil || !strings.HasSuffix(strings.TrimPrefix(u.Path, "/"), "_test") {
 		t.Fatalf("refusing to run: test DB name must end in _test (got %q)", dsn)
 	}
+	orig := perTryReply
+	perTryReply = 300 * time.Millisecond
+	defer func() { perTryReply = orig }()
 	ctx := context.Background()
 
 	st, err := store.New(ctx, dsn)
@@ -120,12 +124,16 @@ func TestConsoleRoundTrip(t *testing.T) {
 	must(ws.Write(rw, websocket.MessageText, []byte(`{"type":"cmd","text":"ver"}`)), "cmd")
 
 	serverID := idSvc.Local().Identity
+	shared, err := repeater.SharedSecret(serverID)
+	must(err, "shared")
 	const replyText = "> v1.2.3 (test build)"
 
-	// Read until we receive the command packet, reply as the repeater, then
-	// collect the "reply" status pushed back to the browser.
+	// The console logs in first (flood, to learn the route), then sends the
+	// command (direct). Reply to both as the repeater, then collect the reply
+	// status pushed back to the browser.
 	var buf []byte
-	repliedSent := false
+	loggedIn := false
+	cmdReplied := false
 	got := ""
 	for got == "" {
 		typ, data, err := ws.Read(rw)
@@ -142,41 +150,53 @@ func TestConsoleRoundTrip(t *testing.T) {
 			}
 			continue
 		}
-		// Binary: KISS frames from the modem. Find the command data frame, reply once.
-		if repliedSent {
-			continue
-		}
 		buf = append(buf, data...)
 		frames, rest, _ := hardware.ExtractFrames(buf)
 		buf = rest
 		for _, f := range frames {
 			if f.Command != hardware.KISS_CMD_DATA {
-				continue
+				continue // skip SetRadio hardware frames
 			}
 			pkt, err := meshcore.PacketFromBytes(f.Data)
-			if err != nil || pkt.PayloadType() != meshcore.PayloadTypeTxtMsg {
+			if err != nil {
 				continue
 			}
-			// Decode the command to confirm it round-trips.
-			tm, err := meshcore.TextMessageFromBytes(pkt.Payload)
-			must(err, "parse text message")
-			shared, err := repeater.SharedSecret(serverID)
-			must(err, "shared")
-			plain := tm.Decrypt(shared)
-			if plain == nil || string(plain[5:8]) != "ver" {
-				t.Fatalf("decoded command = %q, want ver", string(plain[5:]))
+			switch pkt.PayloadType() {
+			case meshcore.PayloadTypeAnonReq:
+				if loggedIn {
+					continue
+				}
+				loggedIn = true
+				resp := make([]byte, 13)
+				binary.LittleEndian.PutUint32(resp[:4], 1_700_002_000)
+				resp[6] = 1 // admin
+				resp[7] = 3
+				body := append([]byte{0x00, meshcore.PayloadTypeResponse}, resp...)
+				enc, _ := meshcore.EncryptThenMAC(shared, body)
+				p := &meshcore.Path{Destination: serverID.Hash()[0], Source: repeater.Identity.Hash()[0], MAC: [2]byte{enc[0], enc[1]}, EncryptedPayload: enc[2:]}
+				payload, _ := p.ToBytes()
+				lp := &meshcore.Packet{Header: meshcore.MakeHeader(meshcore.RouteTypeFlood, meshcore.PayloadTypePath, 0), Payload: payload}
+				raw, _ := lp.ToBytes()
+				must(ws.Write(rw, websocket.MessageBinary, hardware.EncodeDataFrame(raw)), "login reply")
+			case meshcore.PayloadTypeTxtMsg:
+				if cmdReplied {
+					continue
+				}
+				tm, err := meshcore.TextMessageFromBytes(pkt.Payload)
+				must(err, "parse text message")
+				plain := tm.Decrypt(shared)
+				if plain == nil || string(plain[5:8]) != "ver" {
+					t.Fatalf("decoded command = %q, want ver", string(plain[5:]))
+				}
+				cmdReplied = true
+				replyPlain := meshcore.BuildTextPlaintext(time.Unix(1_700_002_000, 0), 1<<2, []byte(replyText))
+				rtm, err := meshcore.NewTextMessage(repeater, serverID, replyPlain, shared)
+				must(err, "reply text message")
+				payload, _ := rtm.ToBytes()
+				rpkt := &meshcore.Packet{Header: meshcore.MakeHeader(meshcore.RouteTypeFlood, meshcore.PayloadTypeTxtMsg, 0), Payload: payload}
+				raw, _ := rpkt.ToBytes()
+				must(ws.Write(rw, websocket.MessageBinary, hardware.EncodeDataFrame(raw)), "send reply")
 			}
-			// Reply as the repeater: a TXT_MSG datagram with [ts][flags][text].
-			replyPlain := meshcore.BuildTextPlaintext(time.Unix(1_700_002_000, 0), 1<<2, []byte(replyText))
-			rtm, err := meshcore.NewTextMessage(repeater, serverID, replyPlain, shared)
-			must(err, "reply text message")
-			payload, err := rtm.ToBytes()
-			must(err, "reply bytes")
-			rpkt := &meshcore.Packet{Header: meshcore.MakeHeader(meshcore.RouteTypeFlood, meshcore.PayloadTypeTxtMsg, 0), Payload: payload}
-			raw, err := rpkt.ToBytes()
-			must(err, "reply packet")
-			must(ws.Write(rw, websocket.MessageBinary, hardware.EncodeDataFrame(raw)), "send reply")
-			repliedSent = true
 		}
 	}
 

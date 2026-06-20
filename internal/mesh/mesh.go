@@ -17,6 +17,17 @@ import (
 // decrypted login response).
 const respLoginOK byte = 0x00
 
+// floodPathLen is the path-length byte for our outbound flood packets: routing
+// path hash size 3, count 0 (encoded as (size-1)<<6 | count). Three-byte path
+// hashes make a forwarding repeater far less likely to false-positive its
+// loop detection on a hash collision (1-byte hashes collide 1-in-256) and drop
+// our flood, so packets reach the target more reliably. The repeater mirrors
+// this size on its reply (sendFloodReply uses the request's path hash size).
+//
+// Note: this is the routing breadcrumb size, not the 1-byte destination hash —
+// MeshCore fixes the destination hash at PATH_HASH_SIZE = 1 byte.
+const floodPathLen byte = (3 - 1) << 6 // 0x80
+
 // LoginResponse is the decoded repeater reply to a login request. A non-nil
 // LoginResponse means the reply was addressed to us and its MAC verified under
 // our shared secret with the repeater — i.e. we provably reached the repeater
@@ -29,6 +40,12 @@ type LoginResponse struct {
 	Plaintext   []byte // full decrypted payload, for diagnostics
 	// FromPath is true when the reply was a PATH packet (vs a direct RESPONSE).
 	FromPath bool
+	// OutPath is the routing path back to the repeater learned from a PATH
+	// reply, for sending subsequent packets via direct routing. It may be empty
+	// (count 0) meaning the repeater is in direct range. OutPathLen is the
+	// MeshCore path_len byte (hash size + count) describing OutPath.
+	OutPath    []byte
+	OutPathLen byte
 }
 
 // BuildLoginPacket builds the raw MeshCore LoRa packet bytes that perform an
@@ -64,8 +81,9 @@ func BuildLoginPacket(server meshcore.LocalIdentity, repeater meshcore.Identity,
 	}
 
 	pkt := &meshcore.Packet{
-		Header:  meshcore.MakeHeader(meshcore.RouteTypeFlood, meshcore.PayloadTypeAnonReq, 0),
-		Payload: payload,
+		Header:     meshcore.MakeHeader(meshcore.RouteTypeFlood, meshcore.PayloadTypeAnonReq, 0),
+		PathLength: floodPathLen,
+		Payload:    payload,
 	}
 	raw, err := pkt.ToBytes()
 	if err != nil {
@@ -99,21 +117,25 @@ func DecodeLoginResponse(server meshcore.LocalIdentity, repeater meshcore.Identi
 	// content wraps the response; a direct reply (RESPONSE) carries it as-is.
 	body := plain
 	isPath := payloadType == meshcore.PayloadTypePath
+	var outPath []byte
+	var outPathLen byte
 	switch payloadType {
 	case meshcore.PayloadTypeResponse:
-		// body already the response
+		// body already the response; no path learned (in-range / already direct).
 	case meshcore.PayloadTypePath:
-		extra, ok := unwrapPathReturn(plain)
+		path, pathLen, extra, ok := unwrapPathReturn(plain)
 		if !ok {
 			return nil, ErrNotForUs // malformed/unexpected path wrapper
 		}
-		body = extra
+		body, outPath, outPathLen = extra, path, pathLen
 	default:
 		return nil, ErrNotForUs
 	}
 
 	lr := parseLoginPayload(body)
 	lr.FromPath = isPath
+	lr.OutPath = outPath
+	lr.OutPathLen = outPathLen
 	return lr, nil
 }
 
@@ -163,22 +185,23 @@ func decodeAddressedReply(server meshcore.LocalIdentity, repeater meshcore.Ident
 //	[path_len:1][path: count*size bytes][extra_type:1][extra…]
 //
 // where count = path_len & 0x3f and size = (path_len>>6)+1. It returns the
-// extra payload, and false if the framing is malformed or the embedded type is
-// not a RESPONSE.
-func unwrapPathReturn(plain []byte) (extra []byte, ok bool) {
+// path bytes (the route back to the repeater, for direct sends), the path_len
+// byte describing them, and the extra payload. ok is false if the framing is
+// malformed or the embedded type is not a RESPONSE.
+func unwrapPathReturn(plain []byte) (path []byte, pathLen byte, extra []byte, ok bool) {
 	if len(plain) < 1 {
-		return nil, false
+		return nil, 0, nil, false
 	}
-	pathLen := plain[0]
-	pathBytes := int(pathLen&0x3f) * int((pathLen>>6)+1)
+	pl := plain[0]
+	pathBytes := int(pl&0x3f) * int((pl>>6)+1)
 	typeOff := 1 + pathBytes
 	if typeOff >= len(plain) {
-		return nil, false
+		return nil, 0, nil, false
 	}
 	if plain[typeOff] != meshcore.PayloadTypeResponse {
-		return nil, false
+		return nil, 0, nil, false
 	}
-	return plain[typeOff+1:], true
+	return plain[1:typeOff], pl, plain[typeOff+1:], true
 }
 
 // Field offsets within the repeater's login RESPONSE payload (reply_data), per

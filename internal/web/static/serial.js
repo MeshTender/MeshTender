@@ -71,9 +71,9 @@
           let msg = {};
           try { msg = JSON.parse(ev.data); } catch (_) {}
           addLog(msg.state || "info", msg.message || ev.data);
-          if (msg.state === "confirmed" || msg.state === "warning" || msg.state === "timeout") {
-            await cleanup();
-          }
+          // The server keeps the session open after login to fetch the
+          // location, then closes it when done (handled by ws.onclose). Don't
+          // close proactively here, or the location fetch would be cut off.
           return;
         }
         // Binary from server -> write raw bytes to the modem.

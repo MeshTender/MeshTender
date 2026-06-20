@@ -31,6 +31,13 @@ repeater works either way. This is implemented as a custom `hardware.Transport`
 - Sharing is via **single-use share links** — the owner mints one labeled link per person; the
   recipient signs in and accepts (consuming it). No user directory; used links are kept as an audit
   trail showing who accepted
+- **Mesh-friendly transmission**: each session uses strictly increasing per-command timestamps (the
+  repeater dedupes same-timestamp commands) and a 1-message/second rate limit, so a user can't flood
+  the shared LoRa mesh through their modem. The first contact (login) floods with 3-byte routing path
+  hashes (reliable propagation); once the repeater's reply reveals the route home, subsequent commands
+  use **direct routing** along that path — traversing only those repeaters instead of flooding the
+  whole mesh — with automatic fallback to flood if the path goes stale. All sends, retries, timestamps,
+  and routing are handled by one `mesh.Exchanger`
 - **Command console**: authorized users send firmware CLI commands to a repeater over their modem
   (same WebSocket↔WebSerial bridge as confirm). Owners run anything; shared users run only the
   commands the owner granted them. Every send is recorded in a per-repeater audit log (who/when/ack)
@@ -46,7 +53,10 @@ repeater works either way. This is implemented as a custom `hardware.Transport`
   **consents** to the policy version; effective commands = the org's *current* set ∩ the version the
   owner *consented to*, per the user's tier (admins ⊇ members). Policy additions require the owner to
   re-consent (shown as a diff + changelog); removals apply immediately. Org-admins operate distant
-  nodes over the mesh from their own modem. Withdraw / leave revokes access instantly.
+  nodes over the mesh from their own modem. Withdraw / leave revokes access instantly. Members reach
+  contributed repeaters from the org page; the org page also shows a **map** of repeater locations.
+- **Repeater location** (opt-in): when adding a repeater the owner may consent to storing its lat/lon,
+  which is fetched (`get lat`/`get lon`) during the modem test and shown on org maps. Off by default.
 - Server-rendered `html/template` + htmx; hand-written JS only for the WebSerial page
 - `coder/websocket`
 

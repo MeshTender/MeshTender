@@ -1,0 +1,75 @@
+{{define "title"}}Add a repeater · MeshTender{{end}}
+{{define "content"}}
+{{if .Error}}<p class="error banner">{{.Error}}</p>{{end}}
+
+<section class="card">
+  <h1>Add a repeater</h1>
+  <p class="muted">
+    First, grant MeshTender admin on the repeater you own by running this command on it (via its
+    BLE/USB companion app or another admin client). Then enter the repeater's public key below.
+  </p>
+  <label>MeshTender server public key
+    <code class="pubkey">{{.ServerPubKey}}</code>
+  </label>
+  <label>Grant-access command
+    <div class="copyrow">
+      <code id="setperm">{{.SetPermCommand}}</code>
+      <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('setperm').textContent)">Copy</button>
+    </div>
+  </label>
+</section>
+
+<section class="card">
+  <h2>Repeater details</h2>
+  <form method="post" action="/repeaters">
+    <label>Name
+      <input type="text" name="name" placeholder="Hilltop repeater" required>
+    </label>
+    <label>Repeater public key (64 hex chars)
+      <input type="text" name="public_key" pattern="[0-9a-fA-F]{64}" placeholder="a1b2…" required>
+    </label>
+    <label>Region preset
+      <select id="region" onchange="applyRegion()">
+        {{range .Presets}}
+        <option value="{{.ID}}" data-freq="{{.FreqHz}}" data-bw="{{.BwHz}}" data-sf="{{.SF}}" data-cr="{{.CR}}"{{if eq .ID $.DefaultPresetID}} selected{{end}}>{{.Label}}</option>
+        {{end}}
+        <option value="custom"{{if eq "custom" $.DefaultPresetID}} selected{{end}}>Custom…</option>
+      </select>
+    </label>
+    <div class="radiorow">
+      <label>Freq (Hz)<input type="number" id="radio_freq_hz" name="radio_freq_hz" value="{{.Defaults.FreqHz}}" required></label>
+      <label>Bandwidth (Hz)<input type="number" id="radio_bw_hz" name="radio_bw_hz" value="{{.Defaults.BwHz}}" required></label>
+      <label>SF<input type="number" id="radio_sf" name="radio_sf" value="{{.Defaults.SF}}" min="5" max="12" required></label>
+      <label>CR<input type="number" id="radio_cr" name="radio_cr" value="{{.Defaults.CR}}" min="5" max="8" required></label>
+    </div>
+
+    <label class="checkrow">
+      <input type="checkbox" name="store_location" value="1">
+      Store this repeater's location (lat/lon), fetched during the modem test, so it can appear on
+      organization maps. The location is already public via the repeater's adverts.
+    </label>
+
+    <button type="submit" class="primary">Add repeater</button>
+    <a class="btnlink" href="/">Cancel</a>
+  </form>
+</section>
+<script>
+  function applyRegion() {
+    var sel = document.getElementById("region");
+    var opt = sel.options[sel.selectedIndex];
+    var fields = ["radio_freq_hz", "radio_bw_hz", "radio_sf", "radio_cr"].map(function (id) {
+      return document.getElementById(id);
+    });
+    if (opt.dataset.freq) {
+      fields[0].value = opt.dataset.freq;
+      fields[1].value = opt.dataset.bw;
+      fields[2].value = opt.dataset.sf;
+      fields[3].value = opt.dataset.cr;
+      fields.forEach(function (el) { el.readOnly = true; });
+    } else {
+      fields.forEach(function (el) { el.readOnly = false; });
+    }
+  }
+  applyRegion();
+</script>
+{{end}}

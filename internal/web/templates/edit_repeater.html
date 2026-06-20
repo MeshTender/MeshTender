@@ -1,0 +1,57 @@
+{{define "title"}}Edit {{.Repeater.Name}} · MeshTender{{end}}
+{{define "content"}}
+{{if .Error}}<p class="error banner">{{.Error}}</p>{{end}}
+<section class="card">
+  <h1>Edit “{{.Repeater.Name}}”</h1>
+  <p class="muted">The public key identifies the repeater and can't be changed — delete and re-add to change it.</p>
+  <code class="pk">{{.Repeater.PublicKeyHex}}</code>
+
+  <form method="post" action="/repeaters/{{.Repeater.ID}}/edit">
+    <label>Name
+      <input type="text" name="name" value="{{.Repeater.Name}}" required>
+    </label>
+    <label>Region preset
+      <select id="region" onchange="applyRegion()">
+        {{range .Presets}}
+        <option value="{{.ID}}" data-freq="{{.FreqHz}}" data-bw="{{.BwHz}}" data-sf="{{.SF}}" data-cr="{{.CR}}"{{if eq .ID $.SelectedPreset}} selected{{end}}>{{.Label}}</option>
+        {{end}}
+        <option value="custom"{{if eq "custom" $.SelectedPreset}} selected{{end}}>Custom…</option>
+      </select>
+    </label>
+    <div class="radiorow">
+      <label>Freq (Hz)<input type="number" id="radio_freq_hz" name="radio_freq_hz" value="{{.Repeater.RadioFreqHz}}" required></label>
+      <label>Bandwidth (Hz)<input type="number" id="radio_bw_hz" name="radio_bw_hz" value="{{.Repeater.RadioBwHz}}" required></label>
+      <label>SF<input type="number" id="radio_sf" name="radio_sf" value="{{.Repeater.RadioSF}}" min="5" max="12" required></label>
+      <label>CR<input type="number" id="radio_cr" name="radio_cr" value="{{.Repeater.RadioCR}}" min="5" max="8" required></label>
+    </div>
+
+    <label class="checkrow">
+      <input type="checkbox" name="store_location" value="1"{{if .Repeater.StoreLocation}} checked{{end}}>
+      Store this repeater's location (lat/lon), fetched during the modem test, so it can appear on
+      organization maps. Unchecking this also clears any stored coordinates.
+    </label>
+
+    <button type="submit" class="primary">Save changes</button>
+    <a class="btnlink" href="/">Cancel</a>
+  </form>
+</section>
+<script>
+  function applyRegion() {
+    var sel = document.getElementById("region");
+    var opt = sel.options[sel.selectedIndex];
+    var fields = ["radio_freq_hz", "radio_bw_hz", "radio_sf", "radio_cr"].map(function (id) {
+      return document.getElementById(id);
+    });
+    if (opt.dataset.freq) {
+      fields[0].value = opt.dataset.freq;
+      fields[1].value = opt.dataset.bw;
+      fields[2].value = opt.dataset.sf;
+      fields[3].value = opt.dataset.cr;
+      fields.forEach(function (el) { el.readOnly = true; });
+    } else {
+      fields.forEach(function (el) { el.readOnly = false; });
+    }
+  }
+  applyRegion();
+</script>
+{{end}}

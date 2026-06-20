@@ -14,9 +14,22 @@ import (
 const txtTypeCLIData = 1
 
 // BuildCommandPacket builds the raw LoRa packet bytes that send a CLI command
-// to repeater as the (admin) server identity. The repeater accepts CLI commands
-// as encrypted TXT_MSG packets with plaintext [timestamp(4)][flags][command].
+// to repeater (flood-routed) as the (admin) server identity. The repeater
+// accepts CLI commands as encrypted TXT_MSG packets with plaintext
+// [timestamp(4)][flags][command].
 func BuildCommandPacket(server meshcore.LocalIdentity, repeater meshcore.Identity, command string, now time.Time) ([]byte, error) {
+	return buildCommandPacket(server, repeater, command, now, meshcore.RouteTypeFlood, floodPathLen, nil)
+}
+
+// BuildCommandPacketDirect builds a direct-routed CLI command using a path
+// learned from a prior login reply (path/pathLen as in LoginResponse.OutPath/
+// OutPathLen). Direct packets traverse only the repeaters on the path rather
+// than flooding the whole mesh.
+func BuildCommandPacketDirect(server meshcore.LocalIdentity, repeater meshcore.Identity, command string, now time.Time, path []byte, pathLen byte) ([]byte, error) {
+	return buildCommandPacket(server, repeater, command, now, meshcore.RouteTypeDirect, pathLen, path)
+}
+
+func buildCommandPacket(server meshcore.LocalIdentity, repeater meshcore.Identity, command string, now time.Time, routeType, pathLen byte, path []byte) ([]byte, error) {
 	shared, err := server.SharedSecret(repeater)
 	if err != nil {
 		return nil, fmt.Errorf("derive shared secret: %w", err)
@@ -32,8 +45,10 @@ func BuildCommandPacket(server meshcore.LocalIdentity, repeater meshcore.Identit
 		return nil, fmt.Errorf("encode text message: %w", err)
 	}
 	pkt := &meshcore.Packet{
-		Header:  meshcore.MakeHeader(meshcore.RouteTypeFlood, meshcore.PayloadTypeTxtMsg, 0),
-		Payload: payload,
+		Header:     meshcore.MakeHeader(routeType, meshcore.PayloadTypeTxtMsg, 0),
+		PathLength: pathLen,
+		Path:       path,
+		Payload:    payload,
 	}
 	raw, err := pkt.ToBytes()
 	if err != nil {

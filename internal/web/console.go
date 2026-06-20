@@ -4,9 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
+	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/coder/websocket"
@@ -19,8 +20,10 @@ import (
 )
 
 const (
-	consoleIdleTimeout  = 5 * time.Minute
-	commandReplyTimeout = 15 * time.Second
+	consoleIdleTimeout = 5 * time.Minute
+	// sendInterval is the minimum spacing between our LoRa transmissions, so a
+	// user can't flood the shared mesh through their modem.
+	sendInterval = time.Second
 )
 
 // commandPrefix is the literal leading part of a catalog template (before any
@@ -96,9 +99,11 @@ func (s *Server) pageConsole(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not load commands", http.StatusInternalServerError)
 		return
 	}
+	allowed := s.allowedCommands(r.Context(), rep, uid, catalog)
+	sort.Slice(allowed, func(i, j int) bool { return allowed[i].Template < allowed[j].Template })
 	s.render(w, r, "console.html", map[string]any{
 		"Repeater": rep,
-		"Commands": s.allowedCommands(r.Context(), rep, uid, catalog),
+		"Commands": allowed,
 	})
 }
 
@@ -140,6 +145,13 @@ func (s *Server) wsConsole(w http.ResponseWriter, r *http.Request) {
 	defer modem.Close()
 	server := s.identity.Local()
 
+	// All commands go through one exchanger: rate-limited, monotonic timestamps,
+	// automatic retry of lost packets.
+	ex := mesh.NewExchanger(modem, server, repeaterID, sendInterval, perTryReply, maxSendTries)
+	modem.SetDataHandler(func(data []byte, _ float32, _ int8, _ bool) {
+		ex.HandleData(data)
+	})
+
 	// Group this connection's commands into a session (required for logging).
 	sessionID, err := s.store.StartConsoleSession(ctx, id, uid)
 	if err != nil {
@@ -152,25 +164,6 @@ func (s *Server) wsConsole(w http.ResponseWriter, r *http.Request) {
 		_ = s.store.EndConsoleSession(endCtx, sessionID)
 	}()
 
-	// Correlate a single in-flight command with its reply.
-	var mu sync.Mutex
-	var pending chan string
-	modem.SetDataHandler(func(data []byte, _ float32, _ int8, _ bool) {
-		text, err := mesh.DecodeCommandReply(server, repeaterID, data)
-		if err != nil {
-			return // not a command reply for us; keep listening
-		}
-		mu.Lock()
-		ch := pending
-		pending = nil
-		mu.Unlock()
-		if ch != nil {
-			select {
-			case ch <- text:
-			default:
-			}
-		}
-	})
 	if err := modem.Connect(ctx); err != nil {
 		_ = bridge.Status("error", "modem connect: "+err.Error())
 		return
@@ -220,6 +213,32 @@ func (s *Server) wsConsole(w http.ResponseWriter, r *http.Request) {
 	case <-ctx.Done():
 		return
 	}
+
+	// Tune the modem to the repeater's channel.
+	_ = bridge.Status("info", "Tuning radio…")
+	if err := modem.SetRadio(&hardware.RadioConfig{
+		FreqHz: uint32(rep.RadioFreqHz),
+		BwHz:   uint32(rep.RadioBwHz),
+		SF:     uint8(rep.RadioSF),
+		CR:     uint8(rep.RadioCR),
+	}); err != nil {
+		_ = bridge.Status("error", "set radio: "+err.Error())
+		return
+	}
+
+	// Establish the session (flood) and learn the route home so commands can use
+	// direct routing. If login gets no reply we proceed anyway — the repeater may
+	// still have us cached as an admin client from an earlier session.
+	_ = bridge.Status("info", "Establishing session…")
+	if _, err := ex.Login(ctx, "", func(attempt, max int) {
+		if attempt > 1 {
+			_ = bridge.Status("info", fmt.Sprintf("No reply yet — retrying (%d/%d)…", attempt, max))
+		}
+	}); errors.Is(err, mesh.ErrNoReply) {
+		_ = bridge.Status("warning", "Couldn't reach the repeater to establish a session — commands will still be attempted (flood), but may not work if it doesn't recognize MeshTender.")
+	} else if err != nil {
+		return // context cancelled
+	}
 	_ = bridge.Status("info", "Connected. Ready for commands.")
 
 	runCommand := func(text string) {
@@ -240,34 +259,24 @@ func (s *Server) wsConsole(w http.ResponseWriter, r *http.Request) {
 		}
 
 		logID, _ := s.store.LogCommand(ctx, id, uid, sessionID, cmd.ID, text)
-		ch := make(chan string, 1)
-		mu.Lock()
-		pending = ch
-		mu.Unlock()
 
-		_ = bridge.Status("sent", "→ "+text)
-		pkt, err := mesh.BuildCommandPacket(server, repeaterID, text, time.Now())
-		if err != nil {
-			_ = bridge.Status("error", "build command: "+err.Error())
-			return
-		}
-		if err := modem.SendData(pkt); err != nil {
-			_ = bridge.Status("error", "transmit: "+err.Error())
-			return
-		}
-
-		select {
-		case reply := <-ch:
+		reply, err := ex.Command(ctx, text, func(attempt, max int) {
+			if attempt == 1 {
+				_ = bridge.Status("sent", "→ "+text)
+			} else {
+				_ = bridge.Status("info", fmt.Sprintf("no reply — retrying (%d/%d)…", attempt, max))
+			}
+		})
+		switch {
+		case err == nil:
 			if logID != 0 {
 				_ = s.store.MarkCommandReply(ctx, logID, reply)
 			}
 			_ = bridge.Status("reply", reply)
-		case <-time.After(commandReplyTimeout):
-			mu.Lock()
-			pending = nil
-			mu.Unlock()
-			_ = bridge.Status("noreply", "No reply received — the command may still have run.")
-		case <-ctx.Done():
+		case errors.Is(err, mesh.ErrNoReply):
+			_ = bridge.Status("noreply", "No reply received after several tries — the command may still have run.")
+		default:
+			// context cancelled or a build/transmit error
 		}
 	}
 

@@ -45,6 +45,45 @@ func (s *Store) WithdrawRepeater(ctx context.Context, orgID, repeaterID int64) e
 	return nil
 }
 
+// OrgRepeaterInfo is a contributed repeater shown on the org page.
+type OrgRepeaterInfo struct {
+	RepeaterID  int64
+	Name        string
+	OwnerName   string
+	HasLocation bool
+	Lat, Lon    float64
+}
+
+// ListOrgRepeaters returns the repeaters contributed to an org (with location
+// when the owner consented to storing it).
+func (s *Store) ListOrgRepeaters(ctx context.Context, orgID int64) ([]OrgRepeaterInfo, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT r.id, r.name, COALESCE(NULLIF(ou.display_name, ''), ou.username, '?'),
+		       r.latitude, r.longitude
+		FROM org_repeaters orp
+		JOIN repeaters r ON r.id = orp.repeater_id
+		JOIN users ou ON ou.id = r.owner_id
+		WHERE orp.org_id = $1
+		ORDER BY r.name`, orgID)
+	if err != nil {
+		return nil, fmt.Errorf("list org repeaters: %w", err)
+	}
+	defer rows.Close()
+	var out []OrgRepeaterInfo
+	for rows.Next() {
+		var ri OrgRepeaterInfo
+		var lat, lon *float64
+		if err := rows.Scan(&ri.RepeaterID, &ri.Name, &ri.OwnerName, &lat, &lon); err != nil {
+			return nil, fmt.Errorf("scan org repeater: %w", err)
+		}
+		if lat != nil && lon != nil {
+			ri.HasLocation, ri.Lat, ri.Lon = true, *lat, *lon
+		}
+		out = append(out, ri)
+	}
+	return out, rows.Err()
+}
+
 // ConsentedVersionID returns the permission version a repeater is pinned to for
 // an org, or (0, false) if it isn't contributed there.
 func (s *Store) ConsentedVersionID(ctx context.Context, orgID, repeaterID int64) (int64, bool, error) {

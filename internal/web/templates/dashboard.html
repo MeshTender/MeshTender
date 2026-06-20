@@ -3,24 +3,13 @@
 {{if .Error}}<p class="error banner">{{.Error}}</p>{{end}}
 
 <section class="card">
-  <h1>MeshTender identity</h1>
-  <p class="muted">This server holds one MeshCore identity. Grant it admin on a repeater you own by running this command on the repeater, then add the repeater below.</p>
-  <label>Server public key
-    <code class="pubkey">{{.ServerPubKey}}</code>
-  </label>
-  <label>Grant-access command
-    <div class="copyrow">
-      <code id="setperm">{{.SetPermCommand}}</code>
-      <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('setperm').textContent)">Copy</button>
-    </div>
-  </label>
-</section>
-
-<section class="card">
-  <h2>Your repeaters</h2>
-  {{if .Repeaters}}
+  <div class="rhead">
+    <h1 style="flex:1;margin:0">Your repeaters</h1>
+    <a class="btnlink" href="/repeaters/add">+ Add repeater</a>
+  </div>
+  {{if .Owned}}
   <ul class="repeaters">
-    {{range .Repeaters}}
+    {{range .Owned}}
     <li>
       <div class="rhead">
         <span class="rname">{{.Name}}</span>
@@ -29,7 +18,6 @@
             {{if .IsAdmin}}<span class="badge ok">Confirmed · admin</span>{{else}}<span class="badge warn">Confirmed · guest</span>{{end}}
           {{else}}<span class="badge ok">Confirmed</span>{{end}}
         {{else}}<span class="badge pending">Unconfirmed</span>{{end}}
-        {{if .Shared}}<span class="badge shared">via {{.OwnerName}}</span>{{end}}
         {{if index $.Reconsent .ID}}<a class="badge warn" href="/repeaters/{{.ID}}/orgs">re-consent needed</a>{{end}}
       </div>
       <code class="pk">{{.PublicKeyHex}}</code>
@@ -39,67 +27,43 @@
       {{end}}
       <div class="ractions">
         <a class="btnlink" href="/repeaters/{{.ID}}/console">Console</a>
-        <a class="btnlink" href="/repeaters/{{.ID}}/confirm">Confirm / test with modem</a>
-        {{if not .Shared}}
+        <a class="btnlink" href="/repeaters/{{.ID}}/confirm">Confirm / test</a>
         <a class="btnlink" href="/repeaters/{{.ID}}/share">Share</a>
         <a class="btnlink" href="/repeaters/{{.ID}}/orgs">Organizations</a>
+        <a class="btnlink" href="/repeaters/{{.ID}}/edit">Edit</a>
         <a class="btnlink" href="/repeaters/{{.ID}}/log">Log</a>
         <form method="post" action="/repeaters/{{.ID}}/delete" class="inline" onsubmit="return confirm('Delete this repeater?')">
           <button type="submit" class="link danger">Delete</button>
         </form>
-        {{end}}
       </div>
     </li>
     {{end}}
   </ul>
   {{else}}
-  <p class="muted">No repeaters yet. Add one below.</p>
+  <p class="muted">No repeaters yet. Add one to grant MeshTender access and test it with a modem.</p>
   {{end}}
 </section>
 
+{{if .Shared}}
 <section class="card">
-  <h2>Add a repeater</h2>
-  <form method="post" action="/repeaters">
-    <label>Name
-      <input type="text" name="name" placeholder="Hilltop repeater" required>
-    </label>
-    <label>Repeater public key (64 hex chars)
-      <input type="text" name="public_key" pattern="[0-9a-fA-F]{64}" placeholder="a1b2…" required>
-    </label>
-    <label>Region preset
-      <select id="region" onchange="applyRegion()">
-        {{range .Presets}}
-        <option value="{{.ID}}" data-freq="{{.FreqHz}}" data-bw="{{.BwHz}}" data-sf="{{.SF}}" data-cr="{{.CR}}"{{if eq .ID $.DefaultPresetID}} selected{{end}}>{{.Label}}</option>
-        {{end}}
-        <option value="custom"{{if eq "custom" $.DefaultPresetID}} selected{{end}}>Custom…</option>
-      </select>
-    </label>
-    <div class="radiorow">
-      <label>Freq (Hz)<input type="number" id="radio_freq_hz" name="radio_freq_hz" value="{{.Defaults.FreqHz}}" required></label>
-      <label>Bandwidth (Hz)<input type="number" id="radio_bw_hz" name="radio_bw_hz" value="{{.Defaults.BwHz}}" required></label>
-      <label>SF<input type="number" id="radio_sf" name="radio_sf" value="{{.Defaults.SF}}" min="5" max="12" required></label>
-      <label>CR<input type="number" id="radio_cr" name="radio_cr" value="{{.Defaults.CR}}" min="5" max="8" required></label>
-    </div>
-    <button type="submit" class="primary">Add repeater</button>
-  </form>
+  <h2>Shared with you</h2>
+  <ul class="repeaters">
+    {{range .Shared}}
+    <li>
+      <div class="rhead">
+        <span class="rname">{{.Name}}</span>
+        {{if .Confirmed}}<span class="badge ok">Confirmed</span>{{else}}<span class="badge pending">Unconfirmed</span>{{end}}
+        <span class="badge shared">via {{.OwnerName}}</span>
+      </div>
+      <code class="pk">{{.PublicKeyHex}}</code>
+      <div class="rmeta muted">{{.RadioFreqHz}} Hz · BW {{.RadioBwHz}} · SF{{.RadioSF}} · CR{{.RadioCR}}</div>
+      <div class="ractions">
+        <a class="btnlink" href="/repeaters/{{.ID}}/console">Console</a>
+        <a class="btnlink" href="/repeaters/{{.ID}}/confirm">Confirm / test</a>
+      </div>
+    </li>
+    {{end}}
+  </ul>
 </section>
-<script>
-  function applyRegion() {
-    var sel = document.getElementById("region");
-    var opt = sel.options[sel.selectedIndex];
-    var fields = ["radio_freq_hz", "radio_bw_hz", "radio_sf", "radio_cr"].map(function (id) {
-      return document.getElementById(id);
-    });
-    if (opt.dataset.freq) {
-      fields[0].value = opt.dataset.freq;
-      fields[1].value = opt.dataset.bw;
-      fields[2].value = opt.dataset.sf;
-      fields[3].value = opt.dataset.cr;
-      fields.forEach(function (el) { el.readOnly = true; });
-    } else {
-      fields.forEach(function (el) { el.readOnly = false; });
-    }
-  }
-  applyRegion();
-</script>
+{{end}}
 {{end}}

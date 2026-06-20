@@ -83,6 +83,12 @@ func TestLoginRequestDecodableByRepeater(t *testing.T) {
 	if pkt.PayloadType() != meshcore.PayloadTypeAnonReq {
 		t.Fatalf("payload type = %d, want AnonReq", pkt.PayloadType())
 	}
+	if pkt.PathHashSize() != 3 {
+		t.Errorf("path hash size = %d, want 3", pkt.PathHashSize())
+	}
+	if pkt.PathHashCount() != 0 {
+		t.Errorf("fresh flood path hash count = %d, want 0", pkt.PathHashCount())
+	}
 	anon, err := meshcore.AnonReqFromBytes(pkt.Payload)
 	if err != nil {
 		t.Fatalf("AnonReqFromBytes: %v", err)
@@ -192,9 +198,12 @@ func TestParseRealPathReply(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	extra, ok := unwrapPathReturn(plain)
+	path, _, extra, ok := unwrapPathReturn(plain)
 	if !ok {
 		t.Fatal("unwrapPathReturn failed on real capture")
+	}
+	if len(path) != 0 {
+		t.Errorf("path len = %d, want 0 (path_len byte was 0x00)", len(path))
 	}
 	lr := parseLoginPayload(extra)
 	if !lr.LoginOK {

@@ -80,7 +80,10 @@ func (s *Server) routes() {
 		r.Use(s.auth.RequireUser)
 		r.Get("/", s.pageDashboard)
 		r.Post("/logout", s.handleLogout)
+		r.Get("/repeaters/add", s.pageAddRepeater)
 		r.Post("/repeaters", s.handleAddRepeater)
+		r.Get("/repeaters/{id}/edit", s.pageEditRepeater)
+		r.Post("/repeaters/{id}/edit", s.handleEditRepeater)
 		r.Post("/repeaters/{id}/delete", s.handleDeleteRepeater)
 		r.Get("/repeaters/{id}/confirm", s.pageConfirm)
 		r.Get("/repeaters/{id}/ws", s.wsConfirm)
@@ -186,15 +189,20 @@ func (s *Server) pageDashboard(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not load org state", http.StatusInternalServerError)
 		return
 	}
+	// Split owned vs directly-shared for the two dashboard sections.
+	var owned, shared []*store.Repeater
+	for _, rp := range repeaters {
+		if rp.Shared {
+			shared = append(shared, rp)
+		} else {
+			owned = append(owned, rp)
+		}
+	}
 	s.render(w, r, "dashboard.html", map[string]any{
-		"ServerPubKey":    s.identity.PublicKeyHex(),
-		"SetPermCommand":  s.identity.SetPermCommand(),
-		"Repeaters":       repeaters,
-		"Reconsent":       reconsent,
-		"Defaults":        s.cfg.DefaultRadio,
-		"Presets":         radioPresets,
-		"DefaultPresetID": defaultPresetID(s.cfg.DefaultRadio),
-		"Error":           r.URL.Query().Get("error"),
+		"Owned":     owned,
+		"Shared":    shared,
+		"Reconsent": reconsent,
+		"Error":     r.URL.Query().Get("error"),
 	})
 }
 

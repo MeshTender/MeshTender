@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"sync/atomic"
+	"strings"
 	"time"
 
 	"github.com/coder/websocket"
@@ -20,8 +20,17 @@ import (
 	"github.com/jleight/meshtender/internal/wsbridge"
 )
 
-// confirmTimeout bounds a single confirm session.
-const confirmTimeout = 60 * time.Second
+// confirmTimeout bounds a single confirm session (login + optional location
+// fetch, each with retries). Sized to comfortably exceed the worst case of a
+// few fully-failed exchanges at maxSendTries × perTryReply.
+const confirmTimeout = 150 * time.Second
+
+// Packet send tuning, shared by confirm and console. perTryReply is how long we
+// wait for a reply before resending (a var so tests can shorten it);
+// maxSendTries is the maximum number of sends per request.
+var perTryReply = 10 * time.Second
+
+const maxSendTries = 4
 
 // pageConfirm renders the WebSerial confirm page for a repeater the user can access.
 func (s *Server) pageConfirm(w http.ResponseWriter, r *http.Request) {
@@ -85,9 +94,14 @@ func (s *Server) wsConfirm(w http.ResponseWriter, r *http.Request) {
 	defer modem.Close()
 
 	server := s.identity.Local()
-	var confirmed atomic.Bool
 	debug := r.URL.Query().Get("debug") == "1"
 
+	// All sends (login + location queries) go through one exchanger: rate-limited,
+	// monotonic timestamps, automatic retry of lost packets.
+	ex := mesh.NewExchanger(modem, server, repeaterID, sendInterval, perTryReply, maxSendTries)
+	modem.SetDataHandler(func(data []byte, _ float32, _ int8, _ bool) {
+		ex.HandleData(data)
+	})
 	if debug {
 		// Dump every inbound KISS frame as hex so we can see exactly what the
 		// modem reports back (e.g. whether the repeater replies at all).
@@ -95,40 +109,6 @@ func (s *Server) wsConfirm(w http.ResponseWriter, r *http.Request) {
 			_ = bridge.Status("debug", fmt.Sprintf("rx frame cmd=0x%02x len=%d data=%x", f.Command, len(f.Data), f.Data))
 		})
 	}
-
-	modem.SetDataHandler(func(data []byte, snr float32, rssi int8, hasSig bool) {
-		lr, err := mesh.DecodeLoginResponse(server, repeaterID, data)
-		if errors.Is(err, mesh.ErrNotForUs) {
-			if debug {
-				meta := ""
-				if hasSig {
-					meta = fmt.Sprintf(" (SNR %.1f dB, RSSI %d)", snr, rssi)
-				}
-				_ = bridge.Status("debug", fmt.Sprintf("heard a packet not addressed to us%s: %x", meta, data))
-			}
-			return // overheard traffic; keep listening
-		}
-		if err != nil {
-			_ = bridge.Status("error", "decode failed: "+err.Error())
-			return
-		}
-		if confirmed.Swap(true) {
-			return // already handled
-		}
-		if debug {
-			_ = bridge.Status("debug", fmt.Sprintf("reply decrypted (fromPath=%v): %x → admin=%v perms=%d", lr.FromPath, lr.Plaintext, lr.IsAdmin, lr.Permissions))
-		}
-		if err := s.store.SetRepeaterConfirmed(ctx, id, lr.IsAdmin, int16(lr.Permissions)); err != nil {
-			_ = bridge.Status("error", "could not save confirmation: "+err.Error())
-			return
-		}
-		if lr.IsAdmin {
-			_ = bridge.Status("confirmed", "Repeater reached with admin access. ✓")
-		} else {
-			_ = bridge.Status("warning", fmt.Sprintf("Repeater reached, but MeshTender only has GUEST access (permissions=%d). Guest is open to anyone with a blank password, so MeshTender can't administer this repeater — re-run `setperm <key> 3` to grant admin.", lr.Permissions))
-		}
-		cancel()
-	})
 
 	if err := modem.Connect(ctx); err != nil {
 		_ = bridge.Status("error", "modem connect: "+err.Error())
@@ -181,23 +161,76 @@ func (s *Server) wsConfirm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = bridge.Status("info", "Sending login to repeater…")
-	pkt, err := mesh.BuildLoginPacket(server, repeaterID, "", time.Now())
-	if err != nil {
-		_ = bridge.Status("error", "build login: "+err.Error())
+	// Log in (retried internally on lost packets).
+	lr, err := ex.Login(ctx, "", func(attempt, max int) {
+		if attempt == 1 {
+			_ = bridge.Status("info", "Sending login to repeater…")
+		} else {
+			_ = bridge.Status("info", fmt.Sprintf("No reply yet — retrying login (%d/%d)…", attempt, max))
+		}
+	})
+	if errors.Is(err, mesh.ErrNoReply) {
+		_ = bridge.Status("timeout", "No reply from the repeater after several tries. Check that the modem is on the repeater's frequency/SF/BW and that MeshTender has been granted access (setperm).")
 		return
 	}
-	// With TX flow control disabled, SendData returns as soon as the frame is
-	// handed to the modem; an error here means the write itself failed.
-	if err := modem.SendData(pkt); err != nil {
-		_ = bridge.Status("error", "transmit: "+err.Error())
-		return
+	if err != nil {
+		return // context cancelled or a build/transmit error already reported
 	}
 
-	// Wait for the repeater's reply or the overall timeout.
-	_ = bridge.Status("info", "Login sent. Waiting for the repeater to reply…")
-	<-ctx.Done()
-	if !confirmed.Load() {
-		_ = bridge.Status("timeout", "No reply from the repeater. Check that the modem is on the repeater's frequency/SF/BW and that MeshTender has been granted access (setperm).")
+	if err := s.store.SetRepeaterConfirmed(ctx, id, lr.IsAdmin, int16(lr.Permissions)); err != nil {
+		_ = bridge.Status("error", "could not save confirmation: "+err.Error())
+		return
 	}
+	if debug {
+		_ = bridge.Status("debug", fmt.Sprintf("login reply fromPath=%v admin=%v perms=%d", lr.FromPath, lr.IsAdmin, lr.Permissions))
+	}
+	if !lr.IsAdmin {
+		// Guests can't run CLI commands (including get lat/lon), so there's
+		// nothing more to do — stop here rather than fruitlessly querying.
+		_ = bridge.Status("warning", fmt.Sprintf("Repeater reached, but MeshTender only has GUEST access (permissions=%d). Guest is open to anyone with a blank password, so MeshTender can't administer this repeater — re-run `setperm <key> 3` to grant admin.", lr.Permissions))
+		return
+	}
+	_ = bridge.Status("confirmed", "Repeater reached with admin access. ✓")
+
+	// Optionally fetch and store the repeater's location (owner consented). Each
+	// coordinate is a separate query so progress (and retries) are visible.
+	if rep.StoreLocation {
+		fetchCoord := func(label, cmd string) (float64, bool) {
+			reply, err := ex.Command(ctx, cmd, func(attempt, max int) {
+				if attempt == 1 {
+					_ = bridge.Status("info", "Fetching "+label+"…")
+				} else {
+					_ = bridge.Status("info", fmt.Sprintf("Fetching %s — retry %d/%d…", label, attempt, max))
+				}
+			})
+			if err != nil {
+				return 0, false
+			}
+			return parseLocationFloat(reply)
+		}
+		lat, okLat := fetchCoord("latitude", "get lat")
+		lon, okLon := fetchCoord("longitude", "get lon")
+		if okLat && okLon {
+			if err := s.store.SetRepeaterLocation(ctx, id, lat, lon); err != nil {
+				_ = bridge.Status("error", "could not store location: "+err.Error())
+			} else {
+				_ = bridge.Status("info", fmt.Sprintf("Stored location: %.5f, %.5f", lat, lon))
+			}
+		} else {
+			_ = bridge.Status("warning", "Could not read a location from the repeater.")
+		}
+	}
+}
+
+// parseLocationFloat parses a "get lat"/"get lon" reply like "> 37.7749".
+func parseLocationFloat(reply string) (float64, bool) {
+	s := strings.TrimSpace(strings.TrimLeft(strings.TrimSpace(reply), ">"))
+	if i := strings.IndexAny(s, " \t\r\n"); i >= 0 {
+		s = s[:i]
+	}
+	f, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return 0, false
+	}
+	return f, true
 }

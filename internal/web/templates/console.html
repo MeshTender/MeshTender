@@ -14,22 +14,27 @@
 
   <button id="connect" class="primary" type="button">Connect modem</button>
 
-  <ul id="log" class="evlog console"></ul>
-
-  <form id="cmdform" autocomplete="off">
-    <input type="text" id="cmdinput" placeholder="Connect the modem first…" disabled>
-    <button type="submit" id="cmdsend" disabled>Send</button>
-  </form>
-
-  {{if .Commands}}
-  <div class="cmdchips">
-    {{range .Commands}}
-    <button type="button" class="chip{{if .Risky}} risky{{end}}" data-template="{{.Template}}" title="{{.Args}}">{{.Template}}</button>
-    {{end}}
+  <div class="console-layout">
+    <div class="console-main">
+      <ul id="log" class="evlog console"></ul>
+      <form id="cmdform" autocomplete="off" hidden>
+        <input type="text" id="cmdinput" placeholder="type a command, e.g. ver">
+        <button type="submit" id="cmdsend">Send</button>
+      </form>
+    </div>
+    <aside class="console-sidebar">
+      <h3>Allowed commands</h3>
+      {{if .Commands}}
+      <ul class="cmdlist">
+        {{range .Commands}}
+        <li><button type="button" class="chip{{if .Risky}} risky{{end}}" data-template="{{.Template}}" title="{{.Args}}">{{.Template}}</button></li>
+        {{end}}
+      </ul>
+      {{else}}
+      <p class="muted">No commands allowed here yet.</p>
+      {{end}}
+    </aside>
   </div>
-  {{else}}
-  <p class="muted">You have no commands allowed on this repeater yet.</p>
-  {{end}}
 
   <p><a href="/">← Back to dashboard</a></p>
 </section>

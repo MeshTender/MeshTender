@@ -27,9 +27,7 @@
 
   function setReady(on) {
     ready = on;
-    input.disabled = !on;
-    sendBtn.disabled = !on;
-    input.placeholder = on ? "type a command, e.g. ver" : "Connect the modem first…";
+    form.hidden = !on; // hide the command box until the modem is connected
     if (on) input.focus();
   }
 

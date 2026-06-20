@@ -149,13 +149,14 @@ func TestOrgRepeaterAccess(t *testing.T) {
 	vid, _, _ := st.CurrentVersion(ctx, org.ID)
 	_ = st.ContributeRepeater(ctx, org.ID, rep.ID, vid, owner.ID)
 
-	// Member sees & can fetch the repeater via org access.
+	// Member can fetch (and thus operate) the repeater via org access...
 	if _, err := st.GetRepeaterForUser(ctx, member.ID, rep.ID); err != nil {
 		t.Errorf("member GetRepeaterForUser: %v", err)
 	}
+	// ...but org repeaters are reached from the org page, not the dashboard list.
 	list, err := st.ListRepeatersForUser(ctx, member.ID)
-	if err != nil || len(list) != 1 {
-		t.Errorf("member list = %d repeaters (err %v), want 1", len(list), err)
+	if err != nil || len(list) != 0 {
+		t.Errorf("member dashboard list = %d repeaters (err %v), want 0", len(list), err)
 	}
 	// Outsider cannot.
 	if _, err := st.GetRepeaterForUser(ctx, outsider.ID, rep.ID); !errors.Is(err, ErrNotFound) {
