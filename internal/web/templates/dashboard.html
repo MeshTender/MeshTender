@@ -5,7 +5,7 @@
 <section class="card">
   <div class="rhead">
     <h1 style="flex:1;margin:0">Your repeaters</h1>
-    <a class="btnlink" href="/repeaters/add">+ Add repeater</a>
+    <a class="btn primary sm" href="/repeaters/add">+ Add repeater</a>
   </div>
   {{if .Owned}}
   <ul class="repeaters">
@@ -13,12 +13,8 @@
     <li>
       <div class="rhead">
         <span class="rname">{{.Name}}</span>
-        {{if .Confirmed}}
-          {{if .AccessKnown}}
-            {{if .IsAdmin}}<span class="badge ok">Confirmed · admin</span>{{else}}<span class="badge warn">Confirmed · guest</span>{{end}}
-          {{else}}<span class="badge ok">Confirmed</span>{{end}}
-        {{else}}<span class="badge pending">Unconfirmed</span>{{end}}
-        {{if index $.Reconsent .ID}}<a class="badge warn" href="/repeaters/{{.ID}}/orgs">re-consent needed</a>{{end}}
+        {{template "repstatus" .}}
+        {{if index $.Reconsent .ID}}<a class="badge warn" href="/repeaters/{{.ID}}/share">re-consent needed</a>{{end}}
       </div>
       <code class="pk">{{.PublicKeyHex}}</code>
       <div class="rmeta muted">{{.RadioFreqHz}} Hz · BW {{.RadioBwHz}} · SF{{.RadioSF}} · CR{{.RadioCR}}</div>
@@ -26,15 +22,19 @@
       <p class="warn-note">⚠ MeshTender only has <strong>guest</strong> access here. Guest is available to anyone with a blank password, so there's no point operating at this level — re-run <code>setperm &lt;your key&gt; 3</code> on the repeater to grant admin, then re-test.</p>
       {{end}}
       <div class="ractions">
-        <a class="btnlink" href="/repeaters/{{.ID}}/console">Console</a>
-        <a class="btnlink" href="/repeaters/{{.ID}}/confirm">Confirm / test</a>
-        <a class="btnlink" href="/repeaters/{{.ID}}/share">Share</a>
-        <a class="btnlink" href="/repeaters/{{.ID}}/orgs">Organizations</a>
-        <a class="btnlink" href="/repeaters/{{.ID}}/edit">Edit</a>
-        <a class="btnlink" href="/repeaters/{{.ID}}/log">Log</a>
-        <form method="post" action="/repeaters/{{.ID}}/delete" class="inline" onsubmit="return confirm('Delete this repeater?')">
-          <button type="submit" class="link danger">Delete</button>
-        </form>
+        <a class="btn primary sm" href="/repeaters/{{.ID}}/console">▸ Console</a>
+        <details class="menu">
+          <summary>Manage ▾</summary>
+          <div class="menu-panel">
+            <a href="/repeaters/{{.ID}}/edit">✎ Edit details</a>
+            <a href="/repeaters/{{.ID}}/confirm">📶 Confirm access</a>
+            <a href="/repeaters/{{.ID}}/log">📋 Logs</a>
+            <div class="menu-sep"></div>
+            <a href="/repeaters/{{.ID}}/share">🔗 Sharing</a>
+            <div class="menu-sep"></div>
+            <a class="danger" href="/repeaters/{{.ID}}/delete">🗑 Delete repeater</a>
+          </div>
+        </details>
       </div>
     </li>
     {{end}}
@@ -52,13 +52,13 @@
     <li>
       <div class="rhead">
         <span class="rname">{{.Name}}</span>
-        {{if .Confirmed}}<span class="badge ok">Confirmed</span>{{else}}<span class="badge pending">Unconfirmed</span>{{end}}
+        {{template "repstatus" .}}
         <span class="badge shared">via {{.OwnerName}}</span>
       </div>
       <code class="pk">{{.PublicKeyHex}}</code>
       <div class="rmeta muted">{{.RadioFreqHz}} Hz · BW {{.RadioBwHz}} · SF{{.RadioSF}} · CR{{.RadioCR}}</div>
       <div class="ractions">
-        <a class="btnlink" href="/repeaters/{{.ID}}/console">Console</a>
+        <a class="btn primary sm" href="/repeaters/{{.ID}}/console">▸ Console</a>
         <a class="btnlink" href="/repeaters/{{.ID}}/confirm">Confirm / test</a>
       </div>
     </li>

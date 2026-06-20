@@ -1,0 +1,60 @@
+{{define "title"}}Repeater added · MeshTender{{end}}
+{{define "content"}}
+<ol class="steps">
+  <li class="done">Grant access</li>
+  <li class="done">Repeater details</li>
+  <li class="active">Confirm</li>
+  <li class="active">Share</li>
+</ol>
+
+<section class="card">
+  <h1>✓ “{{.Repeater.Name}}” added</h1>
+  <p class="muted">
+    It's registered but <strong>unconfirmed</strong> — MeshTender hasn't reached it yet. The two steps
+    below are optional; your repeater is already usable by anyone you share it with.
+  </p>
+</section>
+
+<section class="card">
+  <h2 style="margin-top:0">Step 3 · Confirm it works <span class="muted">(optional)</span></h2>
+  <p class="muted">
+    Connect a MeshCore KISS modem and have MeshTender login to verify it has admin access. Confirming
+    now marks it <span class="badge shared">Self-confirmed</span>. Later, if another member reaches it
+    from their modem, it becomes <span class="badge ok">✓ Corroborated</span> — proof that more than
+    one person can reach it.
+  </p>
+  <p class="muted">No modem handy? Skip this — anyone you share it with can corroborate it for you later.</p>
+  <div class="ractions">
+    <a class="btn primary" href="/repeaters/{{.Repeater.ID}}/confirm">Connect modem &amp; confirm now</a>
+    <a class="btn ghost" href="/">Skip for now</a>
+  </div>
+</section>
+
+<section class="card">
+  <h2 style="margin-top:0">Step 4 · Contribute to an organization <span class="muted">(optional)</span></h2>
+  {{if .Orgs}}
+  <p class="muted">
+    Let an organization's admins and members help operate this repeater. You'll be aasked to review and
+    consent to the list of commands that organization members and admins will be able to run on your
+    repeater. You can withdraw anytime.
+  </p>
+  <ul class="repeaters">
+    {{range .Orgs}}
+    <li class="rhead">
+      <span class="rname">{{.Org.Name}}</span>
+      {{if eq .Role "admin"}}<span class="badge ok">admin</span>{{else}}<span class="badge shared">member</span>{{end}}
+      <a class="btn sm" style="margin-left:auto" href="/repeaters/{{$.Repeater.ID}}/orgs/{{.Org.ID}}/contribute">Review &amp; contribute</a>
+    </li>
+    {{end}}
+  </ul>
+  {{else}}
+  <p class="muted">
+    You're not in any organizations yet. Joining one lets its admins help keep your repeater in spec.
+    <a class="navlink" href="/orgs">Browse organizations →</a>
+  </p>
+  {{end}}
+  <div class="ractions">
+    <a class="btn primary" href="/">Done — go to dashboard</a>
+  </div>
+</section>
+{{end}}

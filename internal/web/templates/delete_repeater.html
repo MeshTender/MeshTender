@@ -1,0 +1,27 @@
+{{define "title"}}Delete {{.Repeater.Name}} · MeshTender{{end}}
+{{define "content"}}
+<section class="card">
+  <h1>Delete “{{.Repeater.Name}}”?</h1>
+  <p class="muted">
+    This removes the repeater from MeshTender — its shares, org contributions, and command history here
+    all go away. This can't be undone.
+  </p>
+
+  <div class="danger-note">
+    <h3>⚠ This does not revoke MeshTender's access</h3>
+    <p class="muted" style="margin:0">
+      Your repeater still trusts MeshTender's identity at the firmware level. If you want MeshTender to
+      truly lose access, revoke it on the device too — see below.
+    </p>
+  </div>
+
+  {{template "revokedoc" .RevokeCommand}}
+
+  <form method="post" action="/repeaters/{{.Repeater.ID}}/delete">
+    <div class="ractions">
+      <button type="submit" class="btn danger">Delete repeater</button>
+      <a class="btn ghost" href="/">Cancel</a>
+    </div>
+  </form>
+</section>
+{{end}}

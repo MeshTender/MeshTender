@@ -177,7 +177,7 @@ func (s *Server) wsConfirm(w http.ResponseWriter, r *http.Request) {
 		return // context cancelled or a build/transmit error already reported
 	}
 
-	if err := s.store.SetRepeaterConfirmed(ctx, id, lr.IsAdmin, int16(lr.Permissions)); err != nil {
+	if err := s.store.SetRepeaterConfirmed(ctx, id, uid, lr.IsAdmin, int16(lr.Permissions)); err != nil {
 		_ = bridge.Status("error", "could not save confirmation: "+err.Error())
 		return
 	}

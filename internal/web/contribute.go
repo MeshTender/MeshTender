@@ -9,47 +9,6 @@ import (
 	"github.com/jleight/meshtender/internal/store"
 )
 
-// pageRepeaterOrgs shows which orgs a repeater is contributed to and which the
-// owner could contribute it to (owner only).
-func (s *Server) pageRepeaterOrgs(w http.ResponseWriter, r *http.Request) {
-	owner := s.auth.CurrentUserID(r.Context())
-	id, ok := parseID(r)
-	if !ok {
-		http.NotFound(w, r)
-		return
-	}
-	rep, err := s.store.GetRepeaterOwned(r.Context(), owner, id)
-	if err != nil {
-		http.NotFound(w, r) // owner-only
-		return
-	}
-	contributed, err := s.store.ListRepeaterOrgs(r.Context(), id)
-	if err != nil {
-		http.Error(w, "could not load orgs", http.StatusInternalServerError)
-		return
-	}
-	memberships, err := s.store.ListOrgsForUser(r.Context(), owner)
-	if err != nil {
-		http.Error(w, "could not load memberships", http.StatusInternalServerError)
-		return
-	}
-	in := map[int64]bool{}
-	for _, c := range contributed {
-		in[c.OrgID] = true
-	}
-	var available []*store.Org
-	for _, m := range memberships {
-		if !in[m.Org.ID] {
-			available = append(available, m.Org)
-		}
-	}
-	s.render(w, r, "repeater_orgs.html", map[string]any{
-		"Repeater":    rep,
-		"Contributed": contributed,
-		"Available":   available,
-	})
-}
-
 // orgContext resolves the {id} repeater (owned) and {orgID} the user belongs to.
 func (s *Server) orgContext(w http.ResponseWriter, r *http.Request) (*store.Repeater, int64, bool) {
 	owner := s.auth.CurrentUserID(r.Context())
@@ -187,7 +146,7 @@ func (s *Server) handleContribute(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not contribute", http.StatusInternalServerError)
 		return
 	}
-	http.Redirect(w, r, "/repeaters/"+strconv.FormatInt(rep.ID, 10)+"/orgs", http.StatusSeeOther)
+	http.Redirect(w, r, "/repeaters/"+strconv.FormatInt(rep.ID, 10)+"/share", http.StatusSeeOther)
 }
 
 // handleWithdraw removes the repeater from the org.
@@ -200,5 +159,5 @@ func (s *Server) handleWithdraw(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not withdraw", http.StatusInternalServerError)
 		return
 	}
-	http.Redirect(w, r, "/repeaters/"+strconv.FormatInt(rep.ID, 10)+"/orgs", http.StatusSeeOther)
+	http.Redirect(w, r, "/repeaters/"+strconv.FormatInt(rep.ID, 10)+"/share", http.StatusSeeOther)
 }

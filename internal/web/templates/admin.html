@@ -3,9 +3,9 @@
 <section class="card">
   <h1>Admin</h1>
   <ul class="adminlinks">
-    {{if .CanCatalog}}<li><a href="/admin/catalog">Command catalog</a> — edit risk tags and the default command sets.</li>{{end}}
-    {{if .CanUsers}}<li><a href="/admin/users">Users &amp; capabilities</a> — grant or revoke admin capabilities.</li>{{end}}
+    {{if .CanCatalog}}<li><a href="/admin/catalog">Command catalog<span class="desc">Edit risk tags and the default command sets.</span></a></li>{{end}}
+    {{if .CanUsers}}<li><a href="/admin/users">Users &amp; capabilities<span class="desc">Grant or revoke admin capabilities.</span></a></li>{{end}}
   </ul>
-  <p><a href="/">← Back to dashboard</a></p>
+  <p><a class="backlink" href="/">← Back to dashboard</a></p>
 </section>
 {{end}}

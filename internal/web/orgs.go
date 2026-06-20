@@ -21,18 +21,33 @@ func orgErr(w http.ResponseWriter, r *http.Request, orgID int64, msg string) {
 	http.Redirect(w, r, "/orgs/"+strconv.FormatInt(orgID, 10)+"?error="+url.QueryEscape(msg), http.StatusSeeOther)
 }
 
-// pageOrgs lists the user's organizations and offers to create one.
+// pageOrgs is the public organization directory. Everyone sees the list; signed-
+// in users also get the create form and a marker on orgs they belong to.
 func (s *Server) pageOrgs(w http.ResponseWriter, r *http.Request) {
 	uid := s.auth.CurrentUserID(r.Context())
-	orgs, err := s.store.ListOrgsForUser(r.Context(), uid)
+	all, err := s.store.ListPublicOrgs(r.Context())
 	if err != nil {
 		http.Error(w, "could not load orgs", http.StatusInternalServerError)
 		return
 	}
-	s.render(w, r, "orgs.html", map[string]any{
-		"Orgs":  orgs,
-		"Error": r.URL.Query().Get("error"),
-	})
+	data := map[string]any{
+		"All":      all,
+		"LoggedIn": uid != 0,
+		"Error":    r.URL.Query().Get("error"),
+	}
+	if uid != 0 {
+		mine, err := s.store.ListOrgsForUser(r.Context(), uid)
+		if err != nil {
+			http.Error(w, "could not load orgs", http.StatusInternalServerError)
+			return
+		}
+		memberOf := map[int64]string{}
+		for _, m := range mine {
+			memberOf[m.Org.ID] = m.Role
+		}
+		data["MemberOf"] = memberOf
+	}
+	s.render(w, r, "orgs.html", data)
 }
 
 // handleCreateOrg creates an org with the current user as its first admin.
@@ -51,7 +66,9 @@ func (s *Server) handleCreateOrg(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/orgs/"+strconv.FormatInt(org.ID, 10), http.StatusSeeOther)
 }
 
-// pageOrg shows an org's home (members; admins see management actions).
+// pageOrg shows an org's home. Members get the full management view; everyone
+// else (anonymous or non-member) gets the public view. Members can preview the
+// public view with ?view=public.
 func (s *Server) pageOrg(w http.ResponseWriter, r *http.Request) {
 	uid := s.auth.CurrentUserID(r.Context())
 	id, ok := orgIDParam(r)
@@ -59,14 +76,18 @@ func (s *Server) pageOrg(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	role, isMember, err := s.store.OrgRole(r.Context(), id, uid)
-	if err != nil || !isMember {
-		http.NotFound(w, r) // non-members can't see the org
-		return
-	}
 	org, err := s.store.GetOrg(r.Context(), id)
 	if err != nil {
 		http.NotFound(w, r)
+		return
+	}
+	role, isMember, err := s.store.OrgRole(r.Context(), id, uid)
+	if err != nil {
+		http.Error(w, "could not load org", http.StatusInternalServerError)
+		return
+	}
+	if !isMember || r.URL.Query().Get("view") == "public" {
+		s.renderOrgPublic(w, r, org, isMember)
 		return
 	}
 	members, err := s.store.ListOrgMembers(r.Context(), id)
@@ -116,6 +137,63 @@ func (s *Server) pageOrg(w http.ResponseWriter, r *http.Request) {
 		data["Invites"] = views
 	}
 	s.render(w, r, "org.html", data)
+}
+
+// renderOrgPublic renders the public-facing org page (name, description, admins,
+// counts, and a map of repeaters opted into public display).
+func (s *Server) renderOrgPublic(w http.ResponseWriter, r *http.Request, org *store.Org, isMember bool) {
+	members, err := s.store.ListOrgMembers(r.Context(), org.ID)
+	if err != nil {
+		http.Error(w, "could not load org", http.StatusInternalServerError)
+		return
+	}
+	var admins []string
+	for _, m := range members {
+		if m.Role == "admin" {
+			admins = append(admins, m.Name())
+		}
+	}
+	memberCount, repeaterCount, err := s.store.OrgCounts(r.Context(), org.ID)
+	if err != nil {
+		http.Error(w, "could not load org", http.StatusInternalServerError)
+		return
+	}
+	pubReps, err := s.store.ListPublicMapRepeaters(r.Context(), org.ID)
+	if err != nil {
+		http.Error(w, "could not load org", http.StatusInternalServerError)
+		return
+	}
+	s.render(w, r, "org_public.html", map[string]any{
+		"Org":           org,
+		"Admins":        admins,
+		"MemberCount":   memberCount,
+		"RepeaterCount": repeaterCount,
+		"Repeaters":     pubReps,
+		"HasMap":        len(pubReps) > 0,
+		"IsMember":      isMember,
+	})
+}
+
+// handleEditOrg updates an org's name and description (admin only).
+func (s *Server) handleEditOrg(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.requireOrgAdmin(w, r)
+	if !ok {
+		return
+	}
+	name := strings.TrimSpace(r.FormValue("name"))
+	desc := strings.TrimSpace(r.FormValue("description"))
+	if name == "" || len(name) > 80 {
+		orgErr(w, r, id, "Enter an organization name.")
+		return
+	}
+	if len(desc) > 2000 {
+		desc = desc[:2000]
+	}
+	if err := s.store.UpdateOrg(r.Context(), id, name, desc); err != nil {
+		orgErr(w, r, id, "Could not save changes.")
+		return
+	}
+	http.Redirect(w, r, "/orgs/"+strconv.FormatInt(id, 10), http.StatusSeeOther)
 }
 
 // requireOrgAdmin resolves {id} and verifies the current user is an org admin.

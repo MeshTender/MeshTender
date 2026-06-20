@@ -18,11 +18,11 @@
 
   <ul id="log" class="evlog"></ul>
   <p>
-    <a href="/">← Back to dashboard</a>
+    <a class="backlink" href="/">← Back to dashboard</a>
     {{if .Debug}}
-    &nbsp;·&nbsp; <a href="/repeaters/{{.Repeater.ID}}/confirm">Disable debug</a>
+    &nbsp;·&nbsp; <a class="backlink" href="/repeaters/{{.Repeater.ID}}/confirm">Disable debug</a>
     {{else}}
-    &nbsp;·&nbsp; <a href="/repeaters/{{.Repeater.ID}}/confirm?debug=1">Debug: show raw frames</a>
+    &nbsp;·&nbsp; <a class="backlink" href="/repeaters/{{.Repeater.ID}}/confirm?debug=1">Debug: show raw frames</a>
     {{end}}
   </p>
 </section>

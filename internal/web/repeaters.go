@@ -14,12 +14,20 @@ import (
 	"github.com/jleight/meshtender/internal/store"
 )
 
-// pageAddRepeater shows the MeshTender identity/setperm instructions and the
-// add-repeater form.
+// pageAddRepeater drives the add-repeater wizard. Step 1 ("grant") is a
+// mandatory acknowledgment that the owner has granted MeshTender admin on the
+// repeater; step 2 ("details") collects the repeater's name/key/radio. The two
+// post-creation steps (confirm, contribute) live on pageRepeaterAdded.
 func (s *Server) pageAddRepeater(w http.ResponseWriter, r *http.Request) {
+	step := r.URL.Query().Get("step")
+	if step != "details" {
+		step = "grant"
+	}
 	s.render(w, r, "add_repeater.html", map[string]any{
+		"Step":            step,
 		"ServerPubKey":    s.identity.PublicKeyHex(),
 		"SetPermCommand":  s.identity.SetPermCommand(),
+		"RevokeCommand":   s.identity.RevokePermCommand(),
 		"Defaults":        s.cfg.DefaultRadio,
 		"Presets":         radioPresets,
 		"DefaultPresetID": defaultPresetID(s.cfg.DefaultRadio),
@@ -28,7 +36,34 @@ func (s *Server) pageAddRepeater(w http.ResponseWriter, r *http.Request) {
 }
 
 func addErr(w http.ResponseWriter, r *http.Request, msg string) {
-	http.Redirect(w, r, "/repeaters/add?error="+url.QueryEscape(msg), http.StatusSeeOther)
+	http.Redirect(w, r, "/repeaters/add?step=details&error="+url.QueryEscape(msg), http.StatusSeeOther)
+}
+
+// pageRepeaterAdded is the wizard's final two steps for a freshly-added
+// repeater: optionally confirm it with a modem now, and optionally contribute
+// it to an organization the owner belongs to.
+func (s *Server) pageRepeaterAdded(w http.ResponseWriter, r *http.Request) {
+	uid := s.auth.CurrentUserID(r.Context())
+	id, ok := parseID(r)
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	rep, err := s.store.GetRepeaterOwned(r.Context(), uid, id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	orgs, err := s.store.ListOrgsForUser(r.Context(), uid)
+	if err != nil {
+		http.Error(w, "could not load orgs", http.StatusInternalServerError)
+		return
+	}
+	s.render(w, r, "repeater_added.html", map[string]any{
+		"Repeater":      rep,
+		"Orgs":          orgs,
+		"RevokeCommand": s.identity.RevokePermCommand(),
+	})
 }
 
 // handleAddRepeater registers a new repeater (unconfirmed) for the current user.
@@ -53,7 +88,8 @@ func (s *Server) handleAddRepeater(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err := s.store.CreateRepeater(r.Context(), &store.Repeater{
+	storeLocation := r.FormValue("store_location") != ""
+	rep, err := s.store.CreateRepeater(r.Context(), &store.Repeater{
 		OwnerID:       uid,
 		Name:          name,
 		PublicKeyHex:  pubHex,
@@ -61,7 +97,8 @@ func (s *Server) handleAddRepeater(w http.ResponseWriter, r *http.Request) {
 		RadioBwHz:     bw,
 		RadioSF:       int16(sf),
 		RadioCR:       int16(cr),
-		StoreLocation: r.FormValue("store_location") != "",
+		StoreLocation: storeLocation,
+		PublicMap:     storeLocation && r.FormValue("public_map") != "",
 	})
 	if errors.Is(err, store.ErrDuplicate) {
 		addErr(w, r, "You already added a repeater with that public key.")
@@ -71,7 +108,8 @@ func (s *Server) handleAddRepeater(w http.ResponseWriter, r *http.Request) {
 		addErr(w, r, "Could not add repeater.")
 		return
 	}
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	// Continue the wizard: offer to confirm and contribute.
+	http.Redirect(w, r, "/repeaters/"+strconv.FormatInt(rep.ID, 10)+"/added", http.StatusSeeOther)
 }
 
 // parseRadioForm reads and validates the radio fields from a repeater form.
@@ -103,6 +141,7 @@ func (s *Server) pageEditRepeater(w http.ResponseWriter, r *http.Request) {
 		"Repeater":       rep,
 		"Presets":        radioPresets,
 		"SelectedPreset": defaultPresetID(config.RadioDefaults{FreqHz: uint32(rep.RadioFreqHz), BwHz: uint32(rep.RadioBwHz), SF: uint8(rep.RadioSF), CR: uint8(rep.RadioCR)}),
+		"RevokeCommand":  s.identity.RevokePermCommand(),
 		"Error":          r.URL.Query().Get("error"),
 	})
 }
@@ -129,11 +168,33 @@ func (s *Server) handleEditRepeater(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	storeLocation := r.FormValue("store_location") != ""
-	if err := s.store.UpdateRepeater(r.Context(), uid, id, name, freq, bw, sf, cr, storeLocation); err != nil {
+	publicMap := r.FormValue("public_map") != ""
+	if err := s.store.UpdateRepeater(r.Context(), uid, id, name, freq, bw, sf, cr, storeLocation, publicMap); err != nil {
 		editErr("Could not save changes.")
 		return
 	}
 	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
+// pageDeleteRepeater shows a confirmation page before deleting, reminding the
+// owner that removing the repeater here does not revoke MeshTender's access on
+// the device.
+func (s *Server) pageDeleteRepeater(w http.ResponseWriter, r *http.Request) {
+	uid := s.auth.CurrentUserID(r.Context())
+	id, ok := parseID(r)
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	rep, err := s.store.GetRepeaterOwned(r.Context(), uid, id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	s.render(w, r, "delete_repeater.html", map[string]any{
+		"Repeater":      rep,
+		"RevokeCommand": s.identity.RevokePermCommand(),
+	})
 }
 
 // handleDeleteRepeater removes a repeater the current user owns.

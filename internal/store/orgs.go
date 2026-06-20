@@ -11,10 +11,20 @@ import (
 
 // Org is an organization.
 type Org struct {
-	ID        int64
-	Name      string
-	CreatedBy *int64
-	CreatedAt time.Time
+	ID          int64
+	Name        string
+	Description string
+	CreatedBy   *int64
+	CreatedAt   time.Time
+}
+
+// OrgSummary is a public directory entry for an organization.
+type OrgSummary struct {
+	ID            int64
+	Name          string
+	Description   string
+	MemberCount   int
+	RepeaterCount int
 }
 
 // OrgMembership pairs an org with the querying user's role in it.
@@ -51,8 +61,8 @@ func (s *Store) CreateOrg(ctx context.Context, name string, creatorID int64) (*O
 	var o Org
 	if err := tx.QueryRow(ctx,
 		`INSERT INTO organizations (name, created_by) VALUES ($1, $2)
-		 RETURNING id, name, created_by, created_at`,
-		name, creatorID).Scan(&o.ID, &o.Name, &o.CreatedBy, &o.CreatedAt); err != nil {
+		 RETURNING id, name, description, created_by, created_at`,
+		name, creatorID).Scan(&o.ID, &o.Name, &o.Description, &o.CreatedBy, &o.CreatedAt); err != nil {
 		return nil, fmt.Errorf("insert org: %w", err)
 	}
 	if _, err := tx.Exec(ctx,
@@ -90,8 +100,8 @@ func (s *Store) CreateOrg(ctx context.Context, name string, creatorID int64) (*O
 func (s *Store) GetOrg(ctx context.Context, id int64) (*Org, error) {
 	var o Org
 	err := s.pool.QueryRow(ctx,
-		`SELECT id, name, created_by, created_at FROM organizations WHERE id = $1`, id).
-		Scan(&o.ID, &o.Name, &o.CreatedBy, &o.CreatedAt)
+		`SELECT id, name, description, created_by, created_at FROM organizations WHERE id = $1`, id).
+		Scan(&o.ID, &o.Name, &o.Description, &o.CreatedBy, &o.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -101,10 +111,59 @@ func (s *Store) GetOrg(ctx context.Context, id int64) (*Org, error) {
 	return &o, nil
 }
 
+// UpdateOrg updates an org's name and description.
+func (s *Store) UpdateOrg(ctx context.Context, orgID int64, name, description string) error {
+	tag, err := s.pool.Exec(ctx,
+		`UPDATE organizations SET name = $2, description = $3 WHERE id = $1`, orgID, name, description)
+	if err != nil {
+		return fmt.Errorf("update org: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// ListPublicOrgs returns every organization with member/repeater counts, for the
+// public directory. Orgs are publicly listed by default.
+func (s *Store) ListPublicOrgs(ctx context.Context) ([]OrgSummary, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT o.id, o.name, o.description,
+		       (SELECT count(*) FROM org_members m WHERE m.org_id = o.id),
+		       (SELECT count(*) FROM org_repeaters orp WHERE orp.org_id = o.id)
+		FROM organizations o
+		ORDER BY o.name`)
+	if err != nil {
+		return nil, fmt.Errorf("list public orgs: %w", err)
+	}
+	defer rows.Close()
+	var out []OrgSummary
+	for rows.Next() {
+		var s OrgSummary
+		if err := rows.Scan(&s.ID, &s.Name, &s.Description, &s.MemberCount, &s.RepeaterCount); err != nil {
+			return nil, fmt.Errorf("scan org summary: %w", err)
+		}
+		out = append(out, s)
+	}
+	return out, rows.Err()
+}
+
+// OrgCounts returns the member and contributed-repeater counts for an org.
+func (s *Store) OrgCounts(ctx context.Context, orgID int64) (members, repeaters int, err error) {
+	err = s.pool.QueryRow(ctx, `
+		SELECT (SELECT count(*) FROM org_members WHERE org_id = $1),
+		       (SELECT count(*) FROM org_repeaters WHERE org_id = $1)`, orgID).
+		Scan(&members, &repeaters)
+	if err != nil {
+		return 0, 0, fmt.Errorf("org counts: %w", err)
+	}
+	return members, repeaters, nil
+}
+
 // ListOrgsForUser returns the orgs a user belongs to with their role.
 func (s *Store) ListOrgsForUser(ctx context.Context, userID int64) ([]OrgMembership, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT o.id, o.name, o.created_by, o.created_at, m.role
+		SELECT o.id, o.name, o.description, o.created_by, o.created_at, m.role
 		FROM org_members m JOIN organizations o ON o.id = m.org_id
 		WHERE m.user_id = $1 ORDER BY o.name`, userID)
 	if err != nil {
@@ -115,7 +174,7 @@ func (s *Store) ListOrgsForUser(ctx context.Context, userID int64) ([]OrgMembers
 	for rows.Next() {
 		var o Org
 		var role string
-		if err := rows.Scan(&o.ID, &o.Name, &o.CreatedBy, &o.CreatedAt, &role); err != nil {
+		if err := rows.Scan(&o.ID, &o.Name, &o.Description, &o.CreatedBy, &o.CreatedAt, &role); err != nil {
 			return nil, fmt.Errorf("scan org: %w", err)
 		}
 		out = append(out, OrgMembership{Org: &o, Role: role})
@@ -295,9 +354,9 @@ func (s *Store) DeleteOrgInvite(ctx context.Context, orgID, inviteID int64) erro
 func (s *Store) OrgByInviteToken(ctx context.Context, token string) (*Org, error) {
 	var o Org
 	err := s.pool.QueryRow(ctx, `
-		SELECT o.id, o.name, o.created_by, o.created_at
+		SELECT o.id, o.name, o.description, o.created_by, o.created_at
 		FROM org_invites i JOIN organizations o ON o.id = i.org_id
-		WHERE i.token = $1`, token).Scan(&o.ID, &o.Name, &o.CreatedBy, &o.CreatedAt)
+		WHERE i.token = $1`, token).Scan(&o.ID, &o.Name, &o.Description, &o.CreatedBy, &o.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}

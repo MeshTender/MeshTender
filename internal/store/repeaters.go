@@ -29,13 +29,25 @@ type Repeater struct {
 	StoreLocation bool
 	Latitude      *float64
 	Longitude     *float64
+	// PublicMap opts this repeater into the public org map (independent of
+	// StoreLocation, which only governs whether coordinates are stored at all).
+	PublicMap bool
 	// Shared is true when the row is visible to the querying user via a share
 	// rather than ownership.
 	Shared bool
 	// Owner identity, for display on shared repeaters.
 	OwnerUsername    string
 	OwnerDisplayName *string
+	// Confirmation provenance, derived from repeater_confirmations:
+	// SelfConfirmed = the owner reached it; Corroborators = distinct non-owner
+	// names that also reached it.
+	SelfConfirmed bool
+	Corroborators []string
 }
+
+// Corroborated reports whether someone other than the owner has confirmed the
+// repeater is reachable.
+func (r *Repeater) Corroborated() bool { return len(r.Corroborators) > 0 }
 
 // AccessKnown reports whether the repeater's access level has been determined.
 func (r *Repeater) AccessKnown() bool { return r.ConfirmedAdmin != nil }
@@ -64,12 +76,12 @@ func (r *Repeater) OwnerName() string {
 func (s *Store) CreateRepeater(ctx context.Context, r *Repeater) (*Repeater, error) {
 	var out Repeater
 	err := s.pool.QueryRow(ctx, `
-		INSERT INTO repeaters (owner_id, name, public_key_hex, radio_freq_hz, radio_bw_hz, radio_sf, radio_cr, store_location)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-		RETURNING id, owner_id, name, public_key_hex, radio_freq_hz, radio_bw_hz, radio_sf, radio_cr, confirmed, confirmed_at, created_at, store_location`,
-		r.OwnerID, r.Name, r.PublicKeyHex, r.RadioFreqHz, r.RadioBwHz, r.RadioSF, r.RadioCR, r.StoreLocation).
+		INSERT INTO repeaters (owner_id, name, public_key_hex, radio_freq_hz, radio_bw_hz, radio_sf, radio_cr, store_location, public_map)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		RETURNING id, owner_id, name, public_key_hex, radio_freq_hz, radio_bw_hz, radio_sf, radio_cr, confirmed, confirmed_at, created_at, store_location, public_map`,
+		r.OwnerID, r.Name, r.PublicKeyHex, r.RadioFreqHz, r.RadioBwHz, r.RadioSF, r.RadioCR, r.StoreLocation, r.PublicMap).
 		Scan(&out.ID, &out.OwnerID, &out.Name, &out.PublicKeyHex, &out.RadioFreqHz, &out.RadioBwHz,
-			&out.RadioSF, &out.RadioCR, &out.Confirmed, &out.ConfirmedAt, &out.CreatedAt, &out.StoreLocation)
+			&out.RadioSF, &out.RadioCR, &out.Confirmed, &out.ConfirmedAt, &out.CreatedAt, &out.StoreLocation, &out.PublicMap)
 	if isUniqueViolation(err) {
 		return nil, ErrDuplicate
 	}
@@ -85,8 +97,13 @@ const repeaterSelect = `
 	SELECT r.id, r.owner_id, r.name, r.public_key_hex, r.radio_freq_hz, r.radio_bw_hz,
 	       r.radio_sf, r.radio_cr, r.confirmed, r.confirmed_at, r.created_at,
 	       r.confirmed_admin, r.confirmed_perms,
-	       r.store_location, r.latitude, r.longitude,
-	       (r.owner_id <> $1) AS shared, ou.username, ou.display_name
+	       r.store_location, r.latitude, r.longitude, r.public_map,
+	       (r.owner_id <> $1) AS shared, ou.username, ou.display_name,
+	       EXISTS(SELECT 1 FROM repeater_confirmations c
+	              WHERE c.repeater_id = r.id AND c.user_id = r.owner_id) AS self_confirmed,
+	       ARRAY(SELECT DISTINCT COALESCE(NULLIF(cu.display_name, ''), cu.username)
+	             FROM repeater_confirmations c JOIN users cu ON cu.id = c.user_id
+	             WHERE c.repeater_id = r.id AND c.user_id <> r.owner_id) AS corroborators
 	FROM repeaters r JOIN users ou ON ou.id = r.owner_id`
 
 func scanRepeater(row pgx.Row) (*Repeater, error) {
@@ -94,8 +111,9 @@ func scanRepeater(row pgx.Row) (*Repeater, error) {
 	err := row.Scan(&r.ID, &r.OwnerID, &r.Name, &r.PublicKeyHex, &r.RadioFreqHz, &r.RadioBwHz,
 		&r.RadioSF, &r.RadioCR, &r.Confirmed, &r.ConfirmedAt, &r.CreatedAt,
 		&r.ConfirmedAdmin, &r.ConfirmedPerms,
-		&r.StoreLocation, &r.Latitude, &r.Longitude,
-		&r.Shared, &r.OwnerUsername, &r.OwnerDisplayName)
+		&r.StoreLocation, &r.Latitude, &r.Longitude, &r.PublicMap,
+		&r.Shared, &r.OwnerUsername, &r.OwnerDisplayName,
+		&r.SelfConfirmed, &r.Corroborators)
 	if err != nil {
 		return nil, err
 	}
@@ -147,15 +165,31 @@ func (s *Store) GetRepeaterForUser(ctx context.Context, userID, repeaterID int64
 	return r, nil
 }
 
-// SetRepeaterConfirmed marks a repeater confirmed, recording the access level
-// learned from the login reply and stamping the time.
-func (s *Store) SetRepeaterConfirmed(ctx context.Context, repeaterID int64, admin bool, perms int16) error {
-	_, err := s.pool.Exec(ctx, `
+// SetRepeaterConfirmed marks a repeater confirmed by userID, recording the
+// access level learned from the login reply. It updates the cached "latest"
+// columns on the repeater and appends a row to the confirmation history (so a
+// non-owner confirmation can corroborate the owner's own). Both writes happen
+// in one transaction.
+func (s *Store) SetRepeaterConfirmed(ctx context.Context, repeaterID, userID int64, admin bool, perms int16) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	if _, err := tx.Exec(ctx, `
 		UPDATE repeaters
 		SET confirmed = TRUE, confirmed_at = now(), confirmed_admin = $2, confirmed_perms = $3
-		WHERE id = $1`, repeaterID, admin, perms)
-	if err != nil {
+		WHERE id = $1`, repeaterID, admin, perms); err != nil {
 		return fmt.Errorf("set confirmed: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO repeater_confirmations (repeater_id, user_id, is_admin, perms)
+		VALUES ($1, $2, $3, $4)`, repeaterID, userID, admin, perms); err != nil {
+		return fmt.Errorf("record confirmation: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit: %w", err)
 	}
 	return nil
 }
@@ -163,15 +197,18 @@ func (s *Store) SetRepeaterConfirmed(ctx context.Context, repeaterID int64, admi
 // UpdateRepeater updates an owned repeater's settings (the public key is fixed).
 // When storeLocation is turned off, any stored coordinates are cleared. Returns
 // ErrNotFound if the repeater isn't owned by ownerID.
-func (s *Store) UpdateRepeater(ctx context.Context, ownerID, repeaterID int64, name string, freq, bw int64, sf, cr int16, storeLocation bool) error {
+func (s *Store) UpdateRepeater(ctx context.Context, ownerID, repeaterID int64, name string, freq, bw int64, sf, cr int16, storeLocation, publicMap bool) error {
+	// public_map only makes sense when coordinates are stored; clear it when
+	// location storage is turned off (which also clears the coordinates).
 	tag, err := s.pool.Exec(ctx, `
 		UPDATE repeaters SET
 			name = $3, radio_freq_hz = $4, radio_bw_hz = $5, radio_sf = $6, radio_cr = $7,
 			store_location = $8,
 			latitude  = CASE WHEN $8 THEN latitude  ELSE NULL END,
-			longitude = CASE WHEN $8 THEN longitude ELSE NULL END
+			longitude = CASE WHEN $8 THEN longitude ELSE NULL END,
+			public_map = ($8 AND $9)
 		WHERE id = $1 AND owner_id = $2`,
-		repeaterID, ownerID, name, freq, bw, sf, cr, storeLocation)
+		repeaterID, ownerID, name, freq, bw, sf, cr, storeLocation, publicMap)
 	if err != nil {
 		return fmt.Errorf("update repeater: %w", err)
 	}

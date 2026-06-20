@@ -4,15 +4,27 @@
 <section class="card">
   <h1>{{.Org.Name}}</h1>
   <p class="muted">You are {{if .IsAdmin}}an <strong>admin</strong>{{else}}a <strong>member</strong>{{end}} of this organization.</p>
-  {{if .IsAdmin}}
+  {{if .Org.Description}}<p>{{.Org.Description}}</p>{{end}}
   <div class="ractions">
-    <a class="btnlink" href="/orgs/{{.Org.ID}}/permissions">Edit permissions</a>
+    {{if .IsAdmin}}<a class="btnlink" href="/orgs/{{.Org.ID}}/permissions">⚙ Edit permissions</a>{{end}}
+    <a class="btnlink" href="/orgs/{{.Org.ID}}?view=public">🌐 View public page</a>
+    <form method="post" action="/orgs/{{.Org.ID}}/leave" class="inline" onsubmit="return confirm('Leave this organization?')">
+      <button type="submit" class="btn danger sm">Leave organization</button>
+    </form>
   </div>
-  {{end}}
-  <form method="post" action="/orgs/{{.Org.ID}}/leave" class="inline" onsubmit="return confirm('Leave this organization?')">
-    <button type="submit" class="link danger">Leave organization</button>
+</section>
+
+{{if .IsAdmin}}
+<section class="card">
+  <h2 style="margin-top:0">Organization profile <span class="muted">(public)</span></h2>
+  <p class="muted">Name and description are shown on the public organization page and directory.</p>
+  <form method="post" action="/orgs/{{.Org.ID}}/edit">
+    <label>Name<input type="text" name="name" value="{{.Org.Name}}" maxlength="80" required></label>
+    <label>Description<input type="text" name="description" value="{{.Org.Description}}" maxlength="2000" placeholder="What this organization is about, where it operates, etc."></label>
+    <button type="submit" class="primary">Save profile</button>
   </form>
 </section>
+{{end}}
 
 <section class="card">
   <h2>Members</h2>
@@ -23,7 +35,7 @@
       <span class="muted">@{{.Username}}</span>
       {{if eq .Role "admin"}}<span class="badge ok">admin</span>{{else}}<span class="badge shared">member</span>{{end}}
       {{if and $.IsAdmin (ne .UserID $.Self)}}
-      <form method="post" action="/orgs/{{$.Org.ID}}/members/{{.UserID}}" class="inline">
+      <form method="post" action="/orgs/{{$.Org.ID}}/members/{{.UserID}}" class="inline" style="margin-left:auto;display:flex;gap:0.6rem">
         {{if eq .Role "admin"}}
         <button type="submit" name="action" value="demote" class="link">Demote</button>
         {{else}}
@@ -63,7 +75,7 @@
     <li class="rhead">
       <span class="rname">{{.Name}}</span>
       <span class="muted">owner {{.OwnerName}}</span>
-      <a class="btnlink" href="/repeaters/{{.RepeaterID}}/console">Console</a>
+      <a class="btn primary sm" style="margin-left:auto" href="/repeaters/{{.RepeaterID}}/console">▸ Console</a>
     </li>
     {{end}}
   </ul>
@@ -100,5 +112,5 @@
 </section>
 {{end}}
 
-<p><a href="/orgs">← All organizations</a></p>
+<p><a class="backlink" href="/orgs">← All organizations</a></p>
 {{end}}

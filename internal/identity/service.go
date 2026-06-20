@@ -29,6 +29,13 @@ func (s *Service) SetPermCommand() string {
 	return fmt.Sprintf("setperm %s 3", s.local.String())
 }
 
+// RevokePermCommand returns the repeater CLI command that revokes this server
+// identity's access by removing it from the ACL entirely (no numeric argument,
+// as opposed to setting it to 0 / guest). Owners run it to revoke MeshTender.
+func (s *Service) RevokePermCommand() string {
+	return fmt.Sprintf("setperm %s", s.local.String())
+}
+
 // LoadOrCreate loads the singleton server identity from the store, decrypting
 // its seed with masterKey. If none exists, it generates a fresh identity,
 // seals the seed, and persists it.

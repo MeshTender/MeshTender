@@ -4,21 +4,20 @@
   {{if eq .State "invalid"}}
     <h1>Invalid link</h1>
     <p class="muted">This join link is no longer valid — it may have been revoked.</p>
-    <p><a href="/orgs">← Organizations</a></p>
+    <p><a class="backlink" href="/orgs">← Organizations</a></p>
 
   {{else if eq .State "auth_required"}}
     <h1>Join {{.Org.Name}}</h1>
     <p class="muted">Sign in or create an account to join as a member.</p>
-    <p>
-      <a class="btnlink" href="/login?next={{.Next}}">Sign in</a>
-      &nbsp;·&nbsp;
-      <a class="btnlink" href="/signup?next={{.Next}}">Create account</a>
-    </p>
+    <div class="ractions">
+      <a class="btn primary" href="/login?next={{.Next}}">Sign in</a>
+      <a class="btn" href="/signup?next={{.Next}}">Create account</a>
+    </div>
 
   {{else if eq .State "already"}}
     <h1>Already a member</h1>
     <p>You're already in <strong>{{.Org.Name}}</strong>.</p>
-    <p><a href="/orgs/{{.Org.ID}}">Go to {{.Org.Name}}</a></p>
+    <p><a class="btn primary" href="/orgs/{{.Org.ID}}">Go to {{.Org.Name}}</a></p>
 
   {{else}}{{/* confirm */}}
     <h1>Join {{.Org.Name}}</h1>

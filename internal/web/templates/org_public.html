@@ -1,0 +1,43 @@
+{{define "title"}}{{.Org.Name}} · MeshTender{{end}}
+{{define "content"}}
+<section class="card">
+  <h1>{{.Org.Name}}</h1>
+  {{if .IsMember}}<p class="muted">Previewing the public page. <a class="navlink" href="/orgs/{{.Org.ID}}">← Back to member view</a></p>{{end}}
+  {{if .Org.Description}}<p>{{.Org.Description}}</p>{{else}}<p class="muted">This organization hasn't added a description yet.</p>{{end}}
+  <div class="rmeta">{{.MemberCount}} member{{if ne .MemberCount 1}}s{{end}} · {{.RepeaterCount}} repeater{{if ne .RepeaterCount 1}}s{{end}}</div>
+</section>
+
+<section class="card">
+  <h2 style="margin-top:0">Admins</h2>
+  {{if .Admins}}
+  <ul class="repeaters">
+    {{range .Admins}}<li class="rhead"><span class="rname">{{.}}</span><span class="badge ok">admin</span></li>{{end}}
+  </ul>
+  {{else}}<p class="muted">No admins listed.</p>{{end}}
+</section>
+
+{{if .HasMap}}
+<section class="card">
+  <h2 style="margin-top:0">Public repeater map</h2>
+  <p class="muted">Repeaters whose owners chose to show them publicly.</p>
+  <link rel="stylesheet" href="/static/leaflet.css">
+  <div id="map"></div>
+  <script src="/static/leaflet.js"></script>
+  <script>
+    var pts = [
+      {{range .Repeaters}}{{if .HasLocation}}{name: {{.Name}}, lat: {{.Lat}}, lon: {{.Lon}}},{{end}}{{end}}
+    ];
+    var map = L.map('map');
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19, attribution: '&copy; OpenStreetMap'
+    }).addTo(map);
+    var group = L.featureGroup(pts.map(function (p) {
+      return L.circleMarker([p.lat, p.lon], { radius: 7, color: '#3fb950', fillOpacity: 0.7 }).bindPopup(p.name);
+    })).addTo(map);
+    map.fitBounds(group.getBounds().pad(0.2));
+  </script>
+</section>
+{{end}}
+
+<p><a class="backlink" href="/orgs">← All organizations</a></p>
+{{end}}

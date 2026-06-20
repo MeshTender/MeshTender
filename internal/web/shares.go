@@ -40,12 +40,36 @@ func (s *Server) pageShare(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not load links", http.StatusInternalServerError)
 		return
 	}
+	// Organizations section: orgs this repeater is contributed to, plus orgs the
+	// owner belongs to but hasn't contributed it to yet.
+	contributed, err := s.store.ListRepeaterOrgs(r.Context(), id)
+	if err != nil {
+		http.Error(w, "could not load orgs", http.StatusInternalServerError)
+		return
+	}
+	memberships, err := s.store.ListOrgsForUser(r.Context(), uid)
+	if err != nil {
+		http.Error(w, "could not load memberships", http.StatusInternalServerError)
+		return
+	}
+	in := map[int64]bool{}
+	for _, c := range contributed {
+		in[c.OrgID] = true
+	}
+	var available []*store.Org
+	for _, m := range memberships {
+		if !in[m.Org.ID] {
+			available = append(available, m.Org)
+		}
+	}
 	s.render(w, r, "share.html", map[string]any{
-		"Repeater": rep,
-		"Shares":   shares,
-		"Invites":  invites,
-		"BaseURL":  s.absoluteURL(r, ""),
-		"Error":    r.URL.Query().Get("error"),
+		"Repeater":    rep,
+		"Shares":      shares,
+		"Invites":     invites,
+		"Contributed": contributed,
+		"Available":   available,
+		"BaseURL":     s.absoluteURL(r, ""),
+		"Error":       r.URL.Query().Get("error"),
 	})
 }
 

@@ -12,17 +12,70 @@
     <a class="brand" href="/">📡 MeshTender</a>
     {{if .UserName}}
     <nav>
+      <a href="/" class="navlink">Repeaters</a>
       <a href="/orgs" class="navlink">Organizations</a>
       {{if .CanAdmin}}<a href="/admin" class="navlink">Admin</a>{{end}}
-      <span class="who">{{.UserName}}</span>
-      <form method="post" action="/logout" class="inline">
-        <button type="submit" class="link">Sign out</button>
-      </form>
+      <details class="menu">
+        <summary>👤 {{.UserName}}</summary>
+        <div class="menu-panel">
+          <span class="who" style="padding:0.4rem 0.65rem">Signed in as <strong>{{.UserName}}</strong></span>
+          <div class="menu-sep"></div>
+          <form method="post" action="/logout">
+            <button type="submit" class="danger">Sign out</button>
+          </form>
+        </div>
+      </details>
+    </nav>
+    {{else}}
+    <nav>
+      <a href="/orgs" class="navlink">Organizations</a>
+      <a href="/login" class="btn sm">Sign in</a>
     </nav>
     {{end}}
   </header>
   <main>
     {{block "content" .}}{{end}}
   </main>
+  <script>
+    // Close any open <details class="menu"> when clicking outside it.
+    document.addEventListener("click", function (e) {
+      document.querySelectorAll("details.menu[open]").forEach(function (d) {
+        if (!d.contains(e.target)) d.removeAttribute("open");
+      });
+    });
+  </script>
 </body>
 </html>{{end}}
+
+{{/* revokedoc explains how to revoke MeshTender's access. Dot is the revoke command string. */}}
+{{define "revokedoc"}}
+<details class="fallback">
+  <summary>How to revoke MeshTender's access later</summary>
+  <p class="muted">
+    Granting access is a standing trust: MeshTender keeps admin on your repeater until <strong>you</strong>
+    remove it — deleting the repeater from this site does <strong>not</strong> revoke it. To revoke, run this
+    on the repeater (via its BLE/USB companion app or another admin client):
+  </p>
+  <div class="copyrow">
+    <code>{{.}}</code>
+    <button type="button" onclick="navigator.clipboard.writeText(this.previousElementSibling.textContent)">Copy</button>
+  </div>
+  <p class="muted">With no level argument, that <strong>removes MeshTender from the repeater's ACL entirely</strong>.</p>
+</details>
+{{end}}
+
+{{/* repstatus renders confirmation provenance + access badges for a *store.Repeater. */}}
+{{define "repstatus"}}
+{{- if .Confirmed -}}
+  {{- if .Corroborated -}}
+    <span class="badge ok" title="Independently reached by {{range $i, $n := .Corroborators}}{{if $i}}, {{end}}{{$n}}{{end}}">✓ Corroborated</span>
+  {{- else if .SelfConfirmed -}}
+    <span class="badge shared" title="You reached it from your own modem; no one else has corroborated yet">Self-confirmed</span>
+  {{- else -}}
+    <span class="badge ok">Confirmed</span>
+  {{- end -}}
+  {{- if .AccessKnown}}{{if .IsAdmin}}<span class="badge ok">admin</span>{{else}}<span class="badge warn">guest only</span>{{end}}{{end -}}
+{{- else -}}
+  <span class="badge pending" title="No one has reached this repeater through MeshTender yet">Unconfirmed</span>
+{{- end -}}
+{{end}}

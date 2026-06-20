@@ -4,29 +4,40 @@
 <section class="card">
   <h1>Organizations</h1>
   <p class="muted">
-    Join an organization to let its admins help keep your repeaters in spec — under a permission
-    envelope you review and consent to per repeater. A step up in trust from one-off sharing.
+    Organizations tend meshes together with MeshTender. Join one (via an invite link) to let its admins
+    help keep your repeaters in spec — you stay in control of exactly which commands they can run on each
+    repeater you contribute.
   </p>
-  {{if .Orgs}}
+  {{if .All}}
   <ul class="repeaters">
-    {{range .Orgs}}
-    <li class="rhead">
-      <a class="rname" href="/orgs/{{.Org.ID}}">{{.Org.Name}}</a>
-      {{if eq .Role "admin"}}<span class="badge ok">admin</span>{{else}}<span class="badge shared">member</span>{{end}}
+    {{range .All}}
+    <li>
+      <div class="rhead">
+        <a class="rname" href="/orgs/{{.ID}}">{{.Name}}</a>
+        {{if $.LoggedIn}}{{$role := index $.MemberOf .ID}}{{if $role}}{{if eq $role "admin"}}<span class="badge ok">admin</span>{{else}}<span class="badge shared">member</span>{{end}}{{end}}{{end}}
+      </div>
+      {{if .Description}}<p class="muted" style="margin:0.2rem 0 0.5rem">{{.Description}}</p>{{end}}
+      <div class="rmeta">{{.MemberCount}} member{{if ne .MemberCount 1}}s{{end}} · {{.RepeaterCount}} repeater{{if ne .RepeaterCount 1}}s{{end}}</div>
     </li>
     {{end}}
   </ul>
   {{else}}
-  <p class="muted">You're not in any organizations yet.</p>
+  <p class="muted">No organizations yet.</p>
   {{end}}
 </section>
 
+{{if .LoggedIn}}
 <section class="card">
-  <h2>Create an organization</h2>
+  <h2 style="margin-top:0">Create an organization</h2>
   <form method="post" action="/orgs">
     <label>Name<input type="text" name="name" maxlength="80" placeholder="e.g. Bay Area Mesh" required></label>
     <button type="submit" class="primary">Create</button>
   </form>
   <p class="muted">You'll be its first admin.</p>
 </section>
+{{else}}
+<section class="card">
+  <p class="muted" style="margin:0">Want to start or join one? <a class="navlink" href="/login">Sign in or create an account →</a></p>
+</section>
+{{end}}
 {{end}}

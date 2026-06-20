@@ -84,6 +84,36 @@ func (s *Store) ListOrgRepeaters(ctx context.Context, orgID int64) ([]OrgRepeate
 	return out, rows.Err()
 }
 
+// ListPublicMapRepeaters returns the contributed repeaters an org may show on
+// its public map: those whose owner opted into public_map and have coordinates.
+func (s *Store) ListPublicMapRepeaters(ctx context.Context, orgID int64) ([]OrgRepeaterInfo, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT r.id, r.name, COALESCE(NULLIF(ou.display_name, ''), ou.username, '?'),
+		       r.latitude, r.longitude
+		FROM org_repeaters orp
+		JOIN repeaters r ON r.id = orp.repeater_id
+		JOIN users ou ON ou.id = r.owner_id
+		WHERE orp.org_id = $1 AND r.public_map AND r.latitude IS NOT NULL AND r.longitude IS NOT NULL
+		ORDER BY r.name`, orgID)
+	if err != nil {
+		return nil, fmt.Errorf("list public map repeaters: %w", err)
+	}
+	defer rows.Close()
+	var out []OrgRepeaterInfo
+	for rows.Next() {
+		var ri OrgRepeaterInfo
+		var lat, lon *float64
+		if err := rows.Scan(&ri.RepeaterID, &ri.Name, &ri.OwnerName, &lat, &lon); err != nil {
+			return nil, fmt.Errorf("scan public map repeater: %w", err)
+		}
+		if lat != nil && lon != nil {
+			ri.HasLocation, ri.Lat, ri.Lon = true, *lat, *lon
+		}
+		out = append(out, ri)
+	}
+	return out, rows.Err()
+}
+
 // ConsentedVersionID returns the permission version a repeater is pinned to for
 // an org, or (0, false) if it isn't contributed there.
 func (s *Store) ConsentedVersionID(ctx context.Context, orgID, repeaterID int64) (int64, bool, error) {

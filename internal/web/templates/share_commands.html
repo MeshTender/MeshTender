@@ -22,8 +22,10 @@
       {{end}}
     </fieldset>
     {{end}}
-    <button type="submit" class="primary">Save commands</button>
-    <a class="btnlink" href="/repeaters/{{.Repeater.ID}}/share">Cancel</a>
+    <div class="ractions">
+      <button type="submit" class="primary">Save commands</button>
+      <a class="btn ghost" href="/repeaters/{{.Repeater.ID}}/share">Cancel</a>
+    </div>
   </form>
 </section>
 <script>

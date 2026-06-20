@@ -39,8 +39,10 @@
   {{end}}
 
   <form method="post" action="/repeaters/{{.Repeater.ID}}/orgs/{{.Org.ID}}/contribute">
-    <button type="submit" class="primary">I consent — contribute this repeater</button>
-    <a class="btnlink" href="/repeaters/{{.Repeater.ID}}/orgs">Cancel</a>
+    <div class="ractions">
+      <button type="submit" class="primary">I consent — contribute this repeater</button>
+      <a class="btn ghost" href="/repeaters/{{.Repeater.ID}}/share">Cancel</a>
+    </div>
   </form>
 </section>
 {{end}}

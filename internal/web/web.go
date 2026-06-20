@@ -74,6 +74,8 @@ func (s *Server) routes() {
 	r.Post("/api/login/finish", s.auth.LoginFinish)
 	r.Get("/invite/{token}", s.pageInvite)        // public: handles logged-out state
 	r.Get("/org-invite/{token}", s.pageOrgInvite) // public: handles logged-out state
+	r.Get("/orgs", s.pageOrgs)                    // public: organization directory
+	r.Get("/orgs/{id}", s.pageOrg)                // public: org page (public view for non-members)
 
 	// Authenticated area.
 	r.Group(func(r chi.Router) {
@@ -82,8 +84,10 @@ func (s *Server) routes() {
 		r.Post("/logout", s.handleLogout)
 		r.Get("/repeaters/add", s.pageAddRepeater)
 		r.Post("/repeaters", s.handleAddRepeater)
+		r.Get("/repeaters/{id}/added", s.pageRepeaterAdded)
 		r.Get("/repeaters/{id}/edit", s.pageEditRepeater)
 		r.Post("/repeaters/{id}/edit", s.handleEditRepeater)
+		r.Get("/repeaters/{id}/delete", s.pageDeleteRepeater)
 		r.Post("/repeaters/{id}/delete", s.handleDeleteRepeater)
 		r.Get("/repeaters/{id}/confirm", s.pageConfirm)
 		r.Get("/repeaters/{id}/ws", s.wsConfirm)
@@ -96,15 +100,13 @@ func (s *Server) routes() {
 		r.Post("/repeaters/{id}/unshare", s.handleUnshare)
 		r.Get("/repeaters/{id}/share/{userID}/commands", s.pageShareCommands)
 		r.Post("/repeaters/{id}/share/{userID}/commands", s.handleSetShareCommands)
-		r.Get("/repeaters/{id}/orgs", s.pageRepeaterOrgs)
 		r.Get("/repeaters/{id}/orgs/{orgID}/contribute", s.pageContribute)
 		r.Post("/repeaters/{id}/orgs/{orgID}/contribute", s.handleContribute)
 		r.Post("/repeaters/{id}/orgs/{orgID}/withdraw", s.handleWithdraw)
 		r.Post("/invite/{token}/accept", s.handleAcceptInvite)
 
-		r.Get("/orgs", s.pageOrgs)
 		r.Post("/orgs", s.handleCreateOrg)
-		r.Get("/orgs/{id}", s.pageOrg)
+		r.Post("/orgs/{id}/edit", s.handleEditOrg)
 		r.Post("/orgs/{id}/leave", s.handleLeaveOrg)
 		r.Post("/orgs/{id}/invite", s.handleCreateOrgInvite)
 		r.Post("/orgs/{id}/invite/delete", s.handleDeleteOrgInvite)

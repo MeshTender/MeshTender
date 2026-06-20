@@ -26,14 +26,22 @@
     </div>
 
     <label class="checkrow">
-      <input type="checkbox" name="store_location" value="1"{{if .Repeater.StoreLocation}} checked{{end}}>
+      <input type="checkbox" name="store_location" id="store_location" value="1"{{if .Repeater.StoreLocation}} checked{{end}} onchange="syncPublicMap()">
       Store this repeater's location (lat/lon), fetched during the modem test, so it can appear on
       organization maps. Unchecking this also clears any stored coordinates.
     </label>
+    <label class="checkrow" id="public_map_row"{{if not .Repeater.StoreLocation}} style="display:none"{{end}}>
+      <input type="checkbox" name="public_map" value="1"{{if .Repeater.PublicMap}} checked{{end}}>
+      Also show this repeater on the <strong>public</strong> organization map (visible to anyone, signed in or not).
+    </label>
 
-    <button type="submit" class="primary">Save changes</button>
-    <a class="btnlink" href="/">Cancel</a>
+    <div class="ractions">
+      <button type="submit" class="primary">Save changes</button>
+      <a class="btn ghost" href="/">Cancel</a>
+    </div>
   </form>
+
+  {{template "revokedoc" .RevokeCommand}}
 </section>
 <script>
   function applyRegion() {
@@ -52,6 +60,12 @@
       fields.forEach(function (el) { el.readOnly = false; });
     }
   }
+  function syncPublicMap() {
+    var on = document.getElementById("store_location").checked;
+    document.getElementById("public_map_row").style.display = on ? "" : "none";
+    if (!on) document.querySelector("#public_map_row input").checked = false;
+  }
   applyRegion();
+  syncPublicMap();
 </script>
 {{end}}
