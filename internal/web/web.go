@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -119,8 +120,12 @@ func (s *Server) routes() {
 	// Public auth pages + JSON ceremony endpoints.
 	r.Get("/login", s.pageLogin)
 	r.Get("/signup", s.pageSignup)
-	r.Post("/login/password", s.auth.LoginPassword)
-	r.Post("/signup/password", s.auth.SignupPassword)
+	// Throttle credential submission per client IP to blunt password guessing
+	// and signup spam. Allows a burst (e.g. fat-fingered retries), then ~1 try
+	// every 6s; bcrypt's cost is the second line of defense.
+	authLimit := newRateLimiter(10, 6*time.Second)
+	r.With(authLimit.middleware).Post("/login/password", s.auth.LoginPassword)
+	r.With(authLimit.middleware).Post("/signup/password", s.auth.SignupPassword)
 	r.Post("/api/register/begin", s.auth.RegisterBegin)
 	r.Post("/api/register/finish", s.auth.RegisterFinish)
 	r.Post("/api/login/begin", s.auth.LoginBegin)
