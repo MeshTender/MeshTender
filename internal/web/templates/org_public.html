@@ -5,11 +5,17 @@
     <div class="page-pretitle">Organization{{if .IsMember}} · public preview{{end}}</div>
     <h2 class="page-title">{{.Org.Name}}</h2>
   </div>
-  {{if .IsMember}}
   <div class="col-auto ms-auto d-print-none">
+    {{if .IsMember}}
     <a class="btn" href="/orgs/{{.Org.Slug}}">{{template "icon-arrow-left" "me-1"}}Back to member view</a>
+    {{else if .CanJoin}}
+    <form method="post" action="/orgs/{{.Org.Slug}}/join" class="m-0">
+      <button type="submit" class="btn btn-primary">{{template "icon-users" "me-1"}}Join organization</button>
+    </form>
+    {{else}}
+    <a class="btn btn-primary" href="/login?next=/orgs/{{.Org.Slug}}">Sign in to join</a>
+    {{end}}
   </div>
-  {{end}}
 </div>
 {{end}}
 {{define "content"}}

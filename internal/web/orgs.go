@@ -138,23 +138,6 @@ func (s *Server) pageOrg(w http.ResponseWriter, r *http.Request) {
 		"Error":         r.URL.Query().Get("error"),
 	}
 	if isAdmin {
-		invites, err := s.store.ListOrgInvites(r.Context(), id)
-		if err != nil {
-			http.Error(w, "could not load invites", http.StatusInternalServerError)
-			return
-		}
-		// Build full URLs for display.
-		type inviteView struct {
-			ID          int64
-			Description string
-			Link        string
-		}
-		var views []inviteView
-		for _, inv := range invites {
-			views = append(views, inviteView{inv.ID, inv.Description, s.absoluteURL(r, "/org-invite/"+inv.Token)})
-		}
-		data["Invites"] = views
-
 		domains, err := s.store.ListOrgDomains(r.Context(), id)
 		if err != nil {
 			http.Error(w, "could not load domains", http.StatusInternalServerError)
@@ -190,6 +173,7 @@ func (s *Server) renderOrgPublic(w http.ResponseWriter, r *http.Request, org *st
 		http.Error(w, "could not load org", http.StatusInternalServerError)
 		return
 	}
+	uid := s.auth.CurrentUserID(r.Context())
 	s.render(w, r, "org_public.html", map[string]any{
 		"Org":           org,
 		"Admins":        admins,
@@ -198,6 +182,8 @@ func (s *Server) renderOrgPublic(w http.ResponseWriter, r *http.Request, org *st
 		"Repeaters":     pubReps,
 		"HasMap":        len(pubReps) > 0,
 		"IsMember":      isMember,
+		"LoggedIn":      uid != 0,
+		"CanJoin":       uid != 0 && !isMember,
 	})
 }
 
@@ -271,34 +257,17 @@ func (s *Server) handleLeaveOrg(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/orgs", http.StatusSeeOther)
 }
 
-func (s *Server) handleCreateOrgInvite(w http.ResponseWriter, r *http.Request) {
-	id, ok := s.requireOrgAdmin(w, r)
+// handleJoinOrg adds the current user to an org as a member. Orgs are publicly
+// listed and anyone signed in may join directly from the org page (idempotent).
+func (s *Server) handleJoinOrg(w http.ResponseWriter, r *http.Request) {
+	uid := s.auth.CurrentUserID(r.Context())
+	id, ok := s.orgID(r)
 	if !ok {
+		http.NotFound(w, r)
 		return
 	}
-	desc := strings.TrimSpace(r.FormValue("description"))
-	if len(desc) > 100 {
-		desc = desc[:100]
-	}
-	if _, err := s.store.CreateOrgInvite(r.Context(), id, desc); err != nil {
-		orgErr(w, r, "Could not create link.")
-		return
-	}
-	http.Redirect(w, r, "/orgs/"+orgParam(r), http.StatusSeeOther)
-}
-
-func (s *Server) handleDeleteOrgInvite(w http.ResponseWriter, r *http.Request) {
-	id, ok := s.requireOrgAdmin(w, r)
-	if !ok {
-		return
-	}
-	inviteID, err := strconv.ParseInt(r.FormValue("invite_id"), 10, 64)
-	if err != nil {
-		orgErr(w, r, "Invalid link.")
-		return
-	}
-	if err := s.store.DeleteOrgInvite(r.Context(), id, inviteID); err != nil {
-		orgErr(w, r, "Could not revoke link.")
+	if err := s.store.AddOrgMember(r.Context(), id, uid, "member"); err != nil {
+		orgErr(w, r, "Could not join.")
 		return
 	}
 	http.Redirect(w, r, "/orgs/"+orgParam(r), http.StatusSeeOther)
@@ -335,58 +304,4 @@ func (s *Server) handleSetOrgMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Redirect(w, r, "/orgs/"+orgParam(r), http.StatusSeeOther)
-}
-
-// --- join via invite ---
-
-func (s *Server) pageOrgInvite(w http.ResponseWriter, r *http.Request) {
-	token := chi.URLParam(r, "token")
-	uid := s.auth.CurrentUserID(r.Context())
-
-	org, err := s.store.OrgByInviteToken(r.Context(), token)
-	if errors.Is(err, store.ErrNotFound) {
-		s.render(w, r, "org_invite.html", map[string]any{"State": "invalid"})
-		return
-	}
-	if err != nil {
-		http.Error(w, "could not load invite", http.StatusInternalServerError)
-		return
-	}
-	data := map[string]any{"Org": org, "Token": token}
-	switch {
-	case uid == 0:
-		data["State"] = "auth_required"
-		data["Next"] = "/org-invite/" + token
-	default:
-		_, isMember, err := s.store.OrgRole(r.Context(), org.ID, uid)
-		if err != nil {
-			http.Error(w, "error", http.StatusInternalServerError)
-			return
-		}
-		if isMember {
-			data["State"] = "already"
-		} else {
-			data["State"] = "confirm"
-		}
-	}
-	s.render(w, r, "org_invite.html", data)
-}
-
-func (s *Server) handleAcceptOrgInvite(w http.ResponseWriter, r *http.Request) {
-	token := chi.URLParam(r, "token")
-	uid := s.auth.CurrentUserID(r.Context())
-	org, err := s.store.OrgByInviteToken(r.Context(), token)
-	if errors.Is(err, store.ErrNotFound) {
-		s.render(w, r, "org_invite.html", map[string]any{"State": "invalid"})
-		return
-	}
-	if err != nil {
-		http.Error(w, "could not load invite", http.StatusInternalServerError)
-		return
-	}
-	if err := s.store.AddOrgMember(r.Context(), org.ID, uid, "member"); err != nil {
-		http.Error(w, "could not join", http.StatusInternalServerError)
-		return
-	}
-	http.Redirect(w, r, "/orgs/"+org.Slug, http.StatusSeeOther)
 }

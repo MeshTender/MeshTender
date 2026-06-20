@@ -84,10 +84,9 @@ func (s *Server) routes() {
 	r.Post("/api/login/finish", s.auth.LoginFinish)
 	r.Post("/api/login/discoverable/begin", s.auth.LoginDiscoverableBegin)
 	r.Post("/api/login/discoverable/finish", s.auth.LoginDiscoverableFinish)
-	r.Get("/invite/{token}", s.pageInvite)        // public: handles logged-out state
-	r.Get("/org-invite/{token}", s.pageOrgInvite) // public: handles logged-out state
-	r.Get("/orgs", s.pageOrgs)                    // public: organization directory
-	r.Get("/orgs/{id}", s.pageOrg)                // public: org page (public view for non-members)
+	r.Get("/invite/{token}", s.pageInvite) // public: handles logged-out state
+	r.Get("/orgs", s.pageOrgs)             // public: organization directory
+	r.Get("/orgs/{id}", s.pageOrg)         // public: org page (public view for non-members)
 
 	// Authenticated area.
 	r.Group(func(r chi.Router) {
@@ -125,16 +124,14 @@ func (s *Server) routes() {
 		r.Get("/orgs/new", s.pageNewOrg)
 		r.Post("/orgs", s.handleCreateOrg)
 		r.Post("/orgs/{id}/edit", s.handleEditOrg)
+		r.Post("/orgs/{id}/join", s.handleJoinOrg)
 		r.Post("/orgs/{id}/leave", s.handleLeaveOrg)
-		r.Post("/orgs/{id}/invite", s.handleCreateOrgInvite)
-		r.Post("/orgs/{id}/invite/delete", s.handleDeleteOrgInvite)
 		r.Post("/orgs/{id}/members/{userID}", s.handleSetOrgMember)
 		r.Get("/orgs/{id}/permissions", s.pageOrgPermissions)
 		r.Post("/orgs/{id}/permissions", s.handleSaveOrgPermissions)
 		r.Post("/orgs/{id}/domains", s.handleAddOrgDomain)
 		r.Post("/orgs/{id}/domains/verify", s.handleVerifyOrgDomain)
 		r.Post("/orgs/{id}/domains/delete", s.handleDeleteOrgDomain)
-		r.Post("/org-invite/{token}/accept", s.handleAcceptOrgInvite)
 
 		r.Route("/admin", func(r chi.Router) {
 			r.With(s.requireCap(capAny)).Get("/", s.pageAdmin)

@@ -222,33 +222,13 @@
     </div>
 
     <div class="card mt-3">
-      <div class="card-header"><h3 class="card-title">Join links</h3></div>
+      <div class="card-header"><h3 class="card-title">Membership</h3></div>
       <div class="card-body">
-        <p class="text-secondary">Anyone with a link joins as a member. Promote them to admin above if needed.</p>
-        {{if .Invites}}
-        <div class="list-group list-group-flush mb-3">
-          {{range .Invites}}
-          <div class="list-group-item px-0">
-            <div class="fw-bold mb-1">{{if .Description}}{{.Description}}{{else}}(no label){{end}}</div>
-            <div class="input-group mb-2">
-              <code class="form-control font-monospace" id="ol-{{.ID}}">{{.Link}}</code>
-              <button type="button" class="btn" onclick="navigator.clipboard.writeText(document.getElementById('ol-{{.ID}}').textContent)">{{template "icon-copy" ""}}Copy</button>
-            </div>
-            <form method="post" action="/orgs/{{$.Org.Slug}}/invite/delete" class="m-0">
-              <input type="hidden" name="invite_id" value="{{.ID}}">
-              <button type="submit" class="btn btn-sm btn-ghost-danger">Revoke</button>
-            </form>
-          </div>
-          {{end}}
-        </div>
-        {{end}}
-        <form method="post" action="/orgs/{{.Org.Slug}}/invite">
-          <div class="mb-3">
-            <label class="form-label">New link description <span class="text-secondary">(optional)</span></label>
-            <input type="text" class="form-control" name="description" maxlength="100" placeholder="e.g. forum post">
-          </div>
-          <button type="submit" class="btn btn-primary">Create join link</button>
-        </form>
+        <p class="text-secondary mb-2">
+          Anyone signed in can join this organization from its
+          <a href="/orgs/{{.Org.Slug}}?view=public">public page</a>. New members start as members;
+          promote them to admin above.
+        </p>
       </div>
     </div>
     {{end}}

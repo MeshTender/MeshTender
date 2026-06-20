@@ -48,7 +48,7 @@ repeater works either way. This is implemented as a custom `hardware.Transport`
   `cap_manage_catalog` (edit the catalog), managed at `/admin`. The first registered account is
   bootstrapped with both. These are separate from per-repeater access (sharing)
 - **Organizations** (the trust-first tier above sharing): any user creates an org and becomes its
-  admin; others join via a multi-use member link and can be promoted. An org has a **versioned,
+  admin; orgs are publicly listed and any signed-in user joins from the org page and can be promoted. An org has a **versioned,
   two-tier (admin/member) permission policy**. An owner *contributes* a repeater to an org and
   **consents** to the policy version; effective commands = the org's *current* set ∩ the version the
   owner *consented to*, per the user's tier (admins ⊇ members). Policy additions require the owner to
