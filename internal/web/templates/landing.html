@@ -5,16 +5,15 @@
   <div class="container">
     <div class="row align-items-center py-5">
       <div class="col-lg-7">
-        <h1 class="display-5 fw-bold mb-3">Tend your MeshCore network — without handing out keys.</h1>
+        <h1 class="display-5 fw-bold mb-3">Tend your MeshCore network.</h1>
         <p class="fs-3 text-secondary mb-4">
-          MeshTender manages your LoRa repeaters through a single trusted identity. Grant access once,
-          then share, organize, and audit who can do what — and revoke any time.
+          MeshTender helps MeshCore repeater owners and regional mesh organizations keep their configurations
+          in sync without needing to share admin passwords.
         </p>
         <div class="btn-list">
           <a href="/signup" class="btn btn-primary btn-lg">{{template "icon-key" "me-2"}}Get started</a>
           <a href="/orgs" class="btn btn-lg">Browse organizations</a>
         </div>
-        <p class="text-secondary mt-3 mb-0">No email required. Sign in with a passkey.</p>
       </div>
       <div class="col-lg-5 d-none d-lg-flex justify-content-center">
         <span class="text-primary" style="opacity:.85">
@@ -34,9 +33,9 @@
           <div class="card-body">
             <div class="d-flex align-items-center mb-2">
               <span class="avatar bg-primary-lt text-primary me-3">{{template "icon-key" ""}}</span>
-              <h3 class="card-title m-0">One identity, no key sharing</h3>
+              <h3 class="card-title m-0">No password sharing</h3>
             </div>
-            <p class="text-secondary mb-0">Grant MeshTender admin on a repeater once. Everyone you authorize operates through that single identity — you never distribute private keys.</p>
+            <p class="text-secondary mb-0">Grant MeshTender's public key access to your repeater without sharing your repeater password.</p>
           </div>
         </div>
       </div>
@@ -47,18 +46,7 @@
               <span class="avatar bg-primary-lt text-primary me-3">{{template "icon-share" ""}}</span>
               <h3 class="card-title m-0">Share with precision</h3>
             </div>
-            <p class="text-secondary mb-0">Hand specific people single-use links, and approve the exact commands each may run. Contribute repeaters to organizations with command policies you review first.</p>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-6 col-lg-4">
-        <div class="card">
-          <div class="card-body">
-            <div class="d-flex align-items-center mb-2">
-              <span class="avatar bg-primary-lt text-primary me-3">{{template "icon-antenna" ""}}</span>
-              <h3 class="card-title m-0">Confirm reachability</h3>
-            </div>
-            <p class="text-secondary mb-0">Connect a KISS modem in your browser and verify a repeater is reachable. Others corroborate it from their own modems — proof it's truly on the air.</p>
+            <p class="text-secondary mb-0">Share access to your repeaters with single-use share links and command-level permissions. Contribute your repeater to an Organization will full transparency into which commands they can run.</p>
           </div>
         </div>
       </div>
@@ -69,7 +57,7 @@
               <span class="avatar bg-primary-lt text-primary me-3">{{template "icon-list" ""}}</span>
               <h3 class="card-title m-0">Full audit log</h3>
             </div>
-            <p class="text-secondary mb-0">Every command sent through MeshTender is logged by session, with who sent it and whether the repeater replied.</p>
+            <p class="text-secondary mb-0">Every command sent through MeshTender is logged so you can see who ran it and when.</p>
           </div>
         </div>
       </div>
@@ -81,6 +69,17 @@
               <h3 class="card-title m-0">Map your network</h3>
             </div>
             <p class="text-secondary mb-0">Opt repeaters into a map so your organization — or the public — can see where coverage reaches.</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-4">
+        <div class="card">
+          <div class="card-body">
+            <div class="d-flex align-items-center mb-2">
+              <span class="avatar bg-primary-lt text-primary me-3">{{template "icon-antenna" ""}}</span>
+              <h3 class="card-title m-0">Confirm reachability</h3>
+            </div>
+            <p class="text-secondary mb-0">Connect a KISS modem in your browser and verify a repeater is reachable. Others corroborate it from their own modems — proof it's truly on the air.</p>
           </div>
         </div>
       </div>
