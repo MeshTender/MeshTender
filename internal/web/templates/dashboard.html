@@ -91,8 +91,9 @@
         <div class="list-group-item d-flex align-items-center gap-2">
           <span class="text-secondary">{{template "icon-antenna" ""}}</span>
           <div class="flex-fill text-truncate">
-            <a class="fw-bold text-reset text-decoration-none" href="/repeaters/{{.ID}}/console">{{.Name}}</a>
-            <div class="text-secondary small text-truncate">{{.RadioFreqHz}} Hz · SF{{.RadioSF}}</div>
+            <a class="fw-bold text-reset text-decoration-none" href="/repeaters/{{.ID}}">{{.Name}}</a>
+            {{$c := index $.ShareCounts .ID}}
+            <div class="text-secondary small text-truncate">{{if or $c.Users $c.Orgs}}Shared with {{$c.Users}} user{{if ne $c.Users 1}}s{{end}} · {{$c.Orgs}} org{{if ne $c.Orgs 1}}s{{end}}{{else}}Not shared{{end}}</div>
           </div>
           {{template "repstatus" .}}
           <a class="btn btn-sm" href="/repeaters/{{.ID}}/console">{{template "icon-terminal" "me-1"}}Console</a>

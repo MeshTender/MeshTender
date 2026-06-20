@@ -94,7 +94,7 @@
         <div class="list-group-item d-flex align-items-center gap-2">
           <span class="text-secondary">{{template "icon-antenna" ""}}</span>
           <div class="flex-fill text-truncate">
-            <span class="fw-bold">{{.Name}}</span>
+            <a class="fw-bold text-reset text-decoration-none" href="/repeaters/{{.RepeaterID}}">{{.Name}}</a>
             <div class="text-secondary small">owner {{.OwnerName}}</div>
           </div>
           <a class="btn btn-primary btn-sm" href="/repeaters/{{.RepeaterID}}/console">{{template "icon-terminal" "me-1"}}Console</a>

@@ -2,6 +2,7 @@ package web
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -33,6 +34,52 @@ func (s *Server) pageAddRepeater(w http.ResponseWriter, r *http.Request) {
 		"DefaultPresetID": defaultPresetID(s.cfg.DefaultRadio),
 		"Error":           r.URL.Query().Get("error"),
 	})
+}
+
+// pageRepeater shows a repeater's details: status, radio config, location,
+// recent activity, and the actions available to the viewer. Owners get full
+// management; users with shared/org access see a read-only view plus console.
+func (s *Server) pageRepeater(w http.ResponseWriter, r *http.Request) {
+	uid := s.auth.CurrentUserID(r.Context())
+	id, ok := parseID(r)
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	rep, err := s.store.GetRepeaterForUser(r.Context(), uid, id)
+	if errors.Is(err, store.ErrNotFound) {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		http.Error(w, "could not load repeater", http.StatusInternalServerError)
+		return
+	}
+
+	isOwner := !rep.Shared
+	radio := fmt.Sprintf("%g MHz / %g kHz / SF%d / CR%d",
+		float64(rep.RadioFreqHz)/1e6, float64(rep.RadioBwHz)/1e3, rep.RadioSF, rep.RadioCR)
+	data := map[string]any{
+		"Repeater": rep,
+		"IsOwner":  isOwner,
+		"Radio":    radio,
+		"Error":    r.URL.Query().Get("error"),
+	}
+	if isOwner {
+		orgs, err := s.store.ListRepeaterOrgs(r.Context(), id)
+		if err != nil {
+			http.Error(w, "could not load organizations", http.StatusInternalServerError)
+			return
+		}
+		recent, err := s.store.ListCommandLog(r.Context(), id, 8)
+		if err != nil {
+			http.Error(w, "could not load activity", http.StatusInternalServerError)
+			return
+		}
+		data["Orgs"] = orgs
+		data["Recent"] = recent
+	}
+	s.render(w, r, "repeater.html", data)
 }
 
 func addErr(w http.ResponseWriter, r *http.Request, msg string) {

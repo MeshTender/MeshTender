@@ -93,6 +93,7 @@ func (s *Server) routes() {
 		r.Post("/account/passkeys/delete", s.handleDeletePasskey)
 		r.Get("/repeaters/add", s.pageAddRepeater)
 		r.Post("/repeaters", s.handleAddRepeater)
+		r.Get("/repeaters/{id}", s.pageRepeater)
 		r.Get("/repeaters/{id}/added", s.pageRepeaterAdded)
 		r.Get("/repeaters/{id}/edit", s.pageEditRepeater)
 		r.Post("/repeaters/{id}/edit", s.handleEditRepeater)
@@ -221,12 +222,18 @@ func (s *Server) pageRepeaters(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not load org state", http.StatusInternalServerError)
 		return
 	}
+	shareCounts, err := s.store.RepeaterSharingCounts(r.Context(), uid)
+	if err != nil {
+		http.Error(w, "could not load sharing", http.StatusInternalServerError)
+		return
+	}
 	owned, shared := splitOwnedShared(repeaters)
 	s.render(w, r, "repeaters.html", map[string]any{
-		"Owned":     owned,
-		"Shared":    shared,
-		"Reconsent": reconsent,
-		"Error":     r.URL.Query().Get("error"),
+		"Owned":       owned,
+		"Shared":      shared,
+		"Reconsent":   reconsent,
+		"ShareCounts": shareCounts,
+		"Error":       r.URL.Query().Get("error"),
 	})
 }
 
@@ -258,6 +265,11 @@ func (s *Server) pageDashboard(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not load activity", http.StatusInternalServerError)
 		return
 	}
+	shareCounts, err := s.store.RepeaterSharingCounts(ctx, uid)
+	if err != nil {
+		http.Error(w, "could not load sharing", http.StatusInternalServerError)
+		return
+	}
 
 	// Summary counts and the owned repeaters that have a stored location.
 	confirmed, unconfirmed := 0, 0
@@ -285,6 +297,7 @@ func (s *Server) pageDashboard(w http.ResponseWriter, r *http.Request) {
 		"Mapped":      mapped,
 		"Recent":      recent,
 		"Reconsent":   reconsent,
+		"ShareCounts": shareCounts,
 		"Error":       r.URL.Query().Get("error"),
 	})
 }

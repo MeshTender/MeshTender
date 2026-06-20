@@ -76,6 +76,36 @@ func (s *Store) RemoveShare(ctx context.Context, repeaterID, userID int64) error
 	return nil
 }
 
+// ShareCounts summarizes how widely a repeater is shared.
+type ShareCounts struct {
+	Users int // direct user shares
+	Orgs  int // organization contributions
+}
+
+// RepeaterSharingCounts returns per-repeater share and org-contribution counts
+// for every repeater owned by ownerID, keyed by repeater id.
+func (s *Store) RepeaterSharingCounts(ctx context.Context, ownerID int64) (map[int64]ShareCounts, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT r.id,
+		       (SELECT count(*) FROM repeater_shares rs WHERE rs.repeater_id = r.id),
+		       (SELECT count(*) FROM org_repeaters orp WHERE orp.repeater_id = r.id)
+		FROM repeaters r WHERE r.owner_id = $1`, ownerID)
+	if err != nil {
+		return nil, fmt.Errorf("repeater sharing counts: %w", err)
+	}
+	defer rows.Close()
+	out := map[int64]ShareCounts{}
+	for rows.Next() {
+		var id int64
+		var c ShareCounts
+		if err := rows.Scan(&id, &c.Users, &c.Orgs); err != nil {
+			return nil, fmt.Errorf("scan sharing counts: %w", err)
+		}
+		out[id] = c
+	}
+	return out, rows.Err()
+}
+
 // ListShares returns the users a repeater is shared with.
 func (s *Store) ListShares(ctx context.Context, repeaterID int64) ([]ShareInfo, error) {
 	rows, err := s.pool.Query(ctx, `

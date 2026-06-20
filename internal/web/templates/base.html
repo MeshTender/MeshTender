@@ -185,16 +185,8 @@
 
 {{/* repstatus renders confirmation provenance + access badges for a *store.Repeater. */}}
 {{define "repstatus"}}
-{{- if .Confirmed -}}
-  {{- if .Corroborated -}}
-    <span class="badge bg-success-lt" title="Independently reached by {{range $i, $n := .Corroborators}}{{if $i}}, {{end}}{{$n}}{{end}}">Corroborated</span>
-  {{- else if .SelfConfirmed -}}
-    <span class="badge bg-azure-lt" title="You reached it from your own modem; no one else has corroborated yet">Self-confirmed</span>
-  {{- else -}}
-    <span class="badge bg-success-lt">Confirmed</span>
-  {{- end -}}
-  {{- if .AccessKnown}}{{if .IsAdmin}}<span class="badge bg-success-lt">admin</span>{{else}}<span class="badge bg-warning-lt">guest only</span>{{end}}{{end -}}
-{{- else -}}
+{{- if not .Confirmed -}}
   <span class="badge bg-yellow-lt" title="No one has reached this repeater through MeshTender yet">Unconfirmed</span>
 {{- end -}}
+{{- if and .AccessKnown (not .IsAdmin)}}<span class="badge bg-warning-lt">guest only</span>{{end -}}
 {{end}}

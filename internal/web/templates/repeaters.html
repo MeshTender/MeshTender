@@ -20,12 +20,16 @@
     <div class="card">
       <div class="card-body">
         <div class="d-flex align-items-center flex-wrap gap-2 mb-2">
-          <h3 class="card-title mb-0 me-1">{{.Name}}</h3>
+          <h3 class="card-title mb-0 me-1"><a class="text-reset text-decoration-none" href="/repeaters/{{.ID}}">{{.Name}}</a></h3>
           {{template "repstatus" .}}
           {{if index $.Reconsent .ID}}<a class="badge bg-warning-lt" href="/repeaters/{{.ID}}/share">re-consent needed</a>{{end}}
         </div>
         <code class="pk">{{.PublicKeyHex}}</code>
-        <div class="text-secondary small mt-2">{{.RadioFreqHz}} Hz · BW {{.RadioBwHz}} · SF{{.RadioSF}} · CR{{.RadioCR}}</div>
+        {{$c := index $.ShareCounts .ID}}
+        <div class="d-flex flex-wrap gap-2 mt-2">
+          <span class="badge bg-azure-lt">Shared with {{$c.Users}} user{{if ne $c.Users 1}}s{{end}}</span>
+          <span class="badge bg-purple-lt">{{$c.Orgs}} organization{{if ne $c.Orgs 1}}s{{end}}</span>
+        </div>
         {{if and .Confirmed .AccessKnown (not .IsAdmin)}}
         <div class="alert alert-warning mt-3 mb-0">
           MeshTender only has <strong>guest</strong> access here. Guest is available to anyone with a blank password, so there's no point operating at this level — re-run <code>setperm &lt;your key&gt; 3</code> on the repeater to grant admin, then re-test.
@@ -69,7 +73,7 @@
     <div class="card">
       <div class="card-body">
         <div class="d-flex align-items-center flex-wrap gap-2 mb-2">
-          <h3 class="card-title mb-0 me-1">{{.Name}}</h3>
+          <h3 class="card-title mb-0 me-1"><a class="text-reset text-decoration-none" href="/repeaters/{{.ID}}">{{.Name}}</a></h3>
           {{template "repstatus" .}}
           <span class="badge bg-azure-lt">via {{.OwnerName}}</span>
         </div>
