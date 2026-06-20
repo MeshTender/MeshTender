@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -144,11 +145,34 @@ func (s *Store) GetUserByID(ctx context.Context, id int64) (*User, error) {
 	return u, nil
 }
 
-// SetPassword sets (or clears) a user's bcrypt password hash.
+// SetDisplayName updates a user's display name. An empty name clears it (stored
+// as NULL), so Name() falls back to the username.
+func (s *Store) SetDisplayName(ctx context.Context, userID int64, displayName string) error {
+	var dn *string
+	if displayName != "" {
+		dn = &displayName
+	}
+	_, err := s.pool.Exec(ctx, `UPDATE users SET display_name = $1 WHERE id = $2`, dn, userID)
+	if err != nil {
+		return fmt.Errorf("set display name: %w", err)
+	}
+	return nil
+}
+
+// SetPassword sets a user's bcrypt password hash.
 func (s *Store) SetPassword(ctx context.Context, userID int64, hash string) error {
 	_, err := s.pool.Exec(ctx, `UPDATE users SET password_hash = $1 WHERE id = $2`, hash, userID)
 	if err != nil {
 		return fmt.Errorf("set password: %w", err)
+	}
+	return nil
+}
+
+// ClearPassword removes a user's password, leaving passkeys as the only way in.
+func (s *Store) ClearPassword(ctx context.Context, userID int64) error {
+	_, err := s.pool.Exec(ctx, `UPDATE users SET password_hash = NULL WHERE id = $1`, userID)
+	if err != nil {
+		return fmt.Errorf("clear password: %w", err)
 	}
 	return nil
 }
@@ -185,6 +209,57 @@ func (s *Store) GetCredentials(ctx context.Context, userID int64) ([][]byte, err
 		out = append(out, data)
 	}
 	return out, rows.Err()
+}
+
+// CredentialInfo is display metadata for a registered passkey.
+type CredentialInfo struct {
+	ID           int64
+	CredentialID []byte
+	CreatedAt    time.Time
+}
+
+// ListCredentials returns metadata for a user's passkeys, newest first.
+func (s *Store) ListCredentials(ctx context.Context, userID int64) ([]CredentialInfo, error) {
+	rows, err := s.pool.Query(ctx,
+		`SELECT id, credential_id, created_at FROM webauthn_credentials WHERE user_id = $1 ORDER BY created_at DESC, id DESC`,
+		userID)
+	if err != nil {
+		return nil, fmt.Errorf("list credentials: %w", err)
+	}
+	defer rows.Close()
+	var out []CredentialInfo
+	for rows.Next() {
+		var c CredentialInfo
+		if err := rows.Scan(&c.ID, &c.CredentialID, &c.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan credential: %w", err)
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
+// CountCredentials returns how many passkeys a user has registered.
+func (s *Store) CountCredentials(ctx context.Context, userID int64) (int, error) {
+	var n int
+	if err := s.pool.QueryRow(ctx,
+		`SELECT count(*) FROM webauthn_credentials WHERE user_id = $1`, userID).Scan(&n); err != nil {
+		return 0, fmt.Errorf("count credentials: %w", err)
+	}
+	return n, nil
+}
+
+// DeleteCredential removes one of the user's passkeys by row id. It scopes the
+// delete to the owner and returns ErrNotFound if no such credential exists.
+func (s *Store) DeleteCredential(ctx context.Context, userID, credentialRowID int64) error {
+	tag, err := s.pool.Exec(ctx,
+		`DELETE FROM webauthn_credentials WHERE id = $1 AND user_id = $2`, credentialRowID, userID)
+	if err != nil {
+		return fmt.Errorf("delete credential: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 // UpdateCredential replaces the stored blob for a credential (used to persist

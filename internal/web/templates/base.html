@@ -29,7 +29,7 @@
               <div class="d-none d-xl-block ps-2"><div>{{.UserName}}</div></div>
             </a>
             <div class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
-              <span class="dropdown-header">Signed in as <strong>{{.UserName}}</strong></span>
+              <a class="dropdown-item" href="/account">{{template "icon-settings" "dropdown-item-icon"}}Account settings</a>
               <div class="dropdown-divider"></div>
               <form method="post" action="/logout" class="m-0">
                 <button type="submit" class="dropdown-item text-danger">{{template "icon-logout" "dropdown-item-icon"}}Sign out</button>
@@ -94,6 +94,33 @@
           </div>
         </div>
       </footer>
+    </div>
+  </div>
+</body>
+</html>{{end}}
+
+{{/* authbase is a standalone, centered layout for the sign-in / sign-up pages —
+     no navbar or page chrome, just a brand logo above the page's content card.
+     Pages opt in with {{define "base"}}{{template "authbase" .}}{{end}}. */}}
+{{define "authbase"}}<!doctype html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>{{template "title" .}}</title>
+  <link rel="stylesheet" href="/static/tabler.min.css">
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/tabler.min.js" defer></script>
+</head>
+<body class="d-flex flex-column">
+  <div class="page page-center">
+    <div class="container container-tight py-4">
+      <div class="text-center mb-4">
+        <a href="/" class="navbar-brand navbar-brand-autodark d-inline-flex align-items-center text-reset text-decoration-none">
+          {{template "icon-tower" "me-2"}}<span class="fw-bold fs-2">MeshTender</span>
+        </a>
+      </div>
+      {{template "content" .}}
     </div>
   </div>
 </body>

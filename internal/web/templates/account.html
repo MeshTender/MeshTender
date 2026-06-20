@@ -1,0 +1,115 @@
+{{define "title"}}Account settings · MeshTender{{end}}
+{{define "header"}}
+<div class="row g-2 align-items-center">
+  <div class="col">
+    <div class="page-pretitle">Your account</div>
+    <h2 class="page-title">Account settings</h2>
+  </div>
+</div>
+{{end}}
+{{define "content"}}
+{{if .Error}}<div class="alert alert-danger">{{.Error}}</div>{{end}}
+{{if .OK}}<div class="alert alert-success">{{.OK}}</div>{{end}}
+
+<div class="row row-cards">
+  <!-- Profile -->
+  <div class="col-12 col-lg-6">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">Profile</h3></div>
+      <div class="card-body">
+        <form method="post" action="/account/profile">
+          <div class="mb-3">
+            <label class="form-label">Username</label>
+            <input type="text" class="form-control" value="{{.User.Username}}" disabled>
+            <small class="form-hint">Your username can't be changed.</small>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Display name <span class="form-label-description">optional</span></label>
+            <input type="text" class="form-control" name="display_name" maxlength="64" value="{{if .DisplayName}}{{.DisplayName}}{{end}}" placeholder="Shown to people you share with">
+          </div>
+          <button type="submit" class="btn btn-primary">Save profile</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Passkeys -->
+  <div class="col-12 col-lg-6">
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">Passkeys</h3>
+        <div class="card-actions">
+          <button type="button" class="btn btn-primary btn-sm" onclick="addPasskey()">{{template "icon-key" "me-1"}}Add a passkey</button>
+        </div>
+      </div>
+      <div class="card-body">
+        <p class="text-secondary">Passkeys let you sign in with your device's fingerprint, face, or PIN — no password to remember or leak.</p>
+        <p id="passkey-status" class="text-secondary small mb-0" style="min-height:1.2em"></p>
+      </div>
+      {{if .Passkeys}}
+      <div class="list-group list-group-flush">
+        {{range .Passkeys}}
+        <div class="list-group-item d-flex align-items-center gap-2">
+          <span class="text-secondary">{{template "icon-key" ""}}</span>
+          <div class="flex-fill">
+            <div class="font-monospace">{{.ShortID}}…</div>
+            <div class="text-secondary small">Added {{.Added.Format "Jan 2, 2006"}}</div>
+          </div>
+          <form method="post" action="/account/passkeys/delete" class="m-0" onsubmit="return confirm('Remove this passkey? You won\'t be able to sign in with it anymore.')">
+            <input type="hidden" name="credential_id" value="{{.ID}}">
+            <button type="submit" class="btn btn-sm btn-ghost-danger">Remove</button>
+          </form>
+        </div>
+        {{end}}
+      </div>
+      {{else}}
+      <div class="card-body pt-0"><p class="text-secondary mb-0">No passkeys yet. Add one for faster, more secure sign-in.</p></div>
+      {{end}}
+    </div>
+  </div>
+
+  <!-- Password -->
+  <div class="col-12 col-lg-6">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">Password</h3></div>
+      <div class="card-body">
+        {{if .HasPassword}}
+        <p class="text-secondary">Change the password you use as a fallback to passkeys.</p>
+        {{else}}
+        <p class="text-secondary">You don't have a password set — you sign in with a passkey. You can add a password as a fallback.</p>
+        {{end}}
+        <form method="post" action="/account/password">
+          {{if .HasPassword}}
+          <div class="mb-3">
+            <label class="form-label">Current password</label>
+            <div class="input-group input-group-flat">
+              <input type="password" class="form-control" id="cur_pw" name="current_password" autocomplete="current-password" required>
+              <span class="input-group-text"><a href="#" class="link-secondary" title="Show password" data-pwtoggle="cur_pw" aria-label="Show password">{{template "icon-eye" ""}}</a></span>
+            </div>
+          </div>
+          {{end}}
+          <div class="mb-3">
+            <label class="form-label">{{if .HasPassword}}New password{{else}}Password{{end}} <span class="form-label-description">min 8 characters</span></label>
+            <div class="input-group input-group-flat">
+              <input type="password" class="form-control" id="new_pw" name="new_password" autocomplete="new-password" minlength="8" required>
+              <span class="input-group-text"><a href="#" class="link-secondary" title="Show password" data-pwtoggle="new_pw" aria-label="Show password">{{template "icon-eye" ""}}</a></span>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary">{{if .HasPassword}}Change password{{else}}Set password{{end}}</button>
+        </form>
+
+        {{if .HasPassword}}
+        <hr>
+        <form method="post" action="/account/password" onsubmit="return confirm('Remove your password? You will only be able to sign in with a passkey.')">
+          <input type="hidden" name="remove" value="1">
+          <button type="submit" class="btn btn-ghost-danger">Remove password</button>
+          <small class="form-hint mt-1">Only available if you have at least one passkey.</small>
+        </form>
+        {{end}}
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/static/webauthn.js"></script>
+{{end}}

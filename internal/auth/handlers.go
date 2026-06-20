@@ -2,11 +2,13 @@ package auth
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
 
+	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
 
 	"github.com/jleight/meshtender/internal/store"
@@ -62,7 +64,12 @@ func (s *Service) RegisterBegin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	options, sessionData, err := s.wa.BeginRegistration(waUser)
+	// Prefer discoverable (resident-key) credentials so the holder can sign in
+	// later without typing a username — this is what makes the login page's
+	// automatic passkey prompt work.
+	options, sessionData, err := s.wa.BeginRegistration(waUser,
+		webauthn.WithResidentKeyRequirement(protocol.ResidentKeyRequirementPreferred),
+	)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, "begin registration")
 		return
@@ -184,6 +191,78 @@ func (s *Service) LoginFinish(w http.ResponseWriter, r *http.Request) {
 		_ = s.store.UpdateCredential(ctx, cred.ID, blob)
 	}
 	if err := s.login(ctx, u.ID); err != nil {
+		httpError(w, http.StatusInternalServerError, "login")
+		return
+	}
+	writeJSON(w, map[string]any{"ok": true, "redirect": s.PopNext(ctx)})
+}
+
+// --- usernameless (discoverable) passkey login ---
+
+// LoginDiscoverableBegin starts a passkey assertion ceremony without a known
+// user. The browser resolves which discoverable credential to use, so the
+// login page can prompt for a passkey before the visitor types anything.
+func (s *Service) LoginDiscoverableBegin(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	options, sessionData, err := s.wa.BeginDiscoverableLogin()
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, "begin login")
+		return
+	}
+	blob, err := json.Marshal(sessionData)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, "save ceremony")
+		return
+	}
+	// No user is known yet; stash only the session data, clearing any stale uid.
+	s.Sessions.Remove(ctx, sessKeyWAUID)
+	s.Sessions.Put(ctx, sessKeyWAData, blob)
+	writeJSON(w, options)
+}
+
+// LoginDiscoverableFinish completes a usernameless assertion, resolving the
+// account from the credential's user handle.
+func (s *Service) LoginDiscoverableFinish(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	blob, _ := s.Sessions.Get(ctx, sessKeyWAData).([]byte)
+	if len(blob) == 0 {
+		httpError(w, http.StatusBadRequest, "no login in progress")
+		return
+	}
+	s.Sessions.Remove(ctx, sessKeyWAData)
+	var sessionData webauthn.SessionData
+	if err := json.Unmarshal(blob, &sessionData); err != nil {
+		httpError(w, http.StatusBadRequest, "invalid ceremony")
+		return
+	}
+
+	var resolved *store.User
+	handler := func(_, userHandle []byte) (webauthn.User, error) {
+		if len(userHandle) != 8 {
+			return nil, errors.New("unrecognized user handle")
+		}
+		uid := int64(binary.BigEndian.Uint64(userHandle))
+		u, err := s.store.GetUserByID(ctx, uid)
+		if err != nil {
+			return nil, err
+		}
+		waUser, err := s.loadWebAuthnUser(ctx, u)
+		if err != nil {
+			return nil, err
+		}
+		resolved = u
+		return waUser, nil
+	}
+
+	cred, err := s.wa.FinishDiscoverableLogin(handler, sessionData, r)
+	if err != nil || resolved == nil {
+		httpError(w, http.StatusUnauthorized, "login failed")
+		return
+	}
+	if blob, err := json.Marshal(cred); err == nil {
+		_ = s.store.UpdateCredential(ctx, cred.ID, blob)
+	}
+	if err := s.login(ctx, resolved.ID); err != nil {
 		httpError(w, http.StatusInternalServerError, "login")
 		return
 	}

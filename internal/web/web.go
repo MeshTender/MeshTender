@@ -72,6 +72,8 @@ func (s *Server) routes() {
 	r.Post("/api/register/finish", s.auth.RegisterFinish)
 	r.Post("/api/login/begin", s.auth.LoginBegin)
 	r.Post("/api/login/finish", s.auth.LoginFinish)
+	r.Post("/api/login/discoverable/begin", s.auth.LoginDiscoverableBegin)
+	r.Post("/api/login/discoverable/finish", s.auth.LoginDiscoverableFinish)
 	r.Get("/invite/{token}", s.pageInvite)        // public: handles logged-out state
 	r.Get("/org-invite/{token}", s.pageOrgInvite) // public: handles logged-out state
 	r.Get("/orgs", s.pageOrgs)                    // public: organization directory
@@ -82,6 +84,10 @@ func (s *Server) routes() {
 		r.Use(s.auth.RequireUser)
 		r.Get("/", s.pageDashboard)
 		r.Post("/logout", s.handleLogout)
+		r.Get("/account", s.pageAccount)
+		r.Post("/account/profile", s.handleUpdateProfile)
+		r.Post("/account/password", s.handleChangePassword)
+		r.Post("/account/passkeys/delete", s.handleDeletePasskey)
 		r.Get("/repeaters/add", s.pageAddRepeater)
 		r.Post("/repeaters", s.handleAddRepeater)
 		r.Get("/repeaters/{id}/added", s.pageRepeaterAdded)
@@ -150,8 +156,14 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, page string, dat
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	// Pages may opt into an alternate root layout (e.g. the centered "authbase"
+	// for sign-in/up) via the "Layout" data key; everything else uses "base".
+	layout, _ := data["Layout"].(string)
+	if layout == "" {
+		layout = "base"
+	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := t.ExecuteTemplate(w, "base", data); err != nil {
+	if err := t.ExecuteTemplate(w, layout, data); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
@@ -163,8 +175,9 @@ func (s *Server) pageLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	s.auth.SetNext(r.Context(), r.URL.Query().Get("next"))
 	s.render(w, r, "login.html", map[string]any{
-		"Error": r.URL.Query().Get("error"),
-		"Next":  r.URL.Query().Get("next"),
+		"Layout": "authbase",
+		"Error":  r.URL.Query().Get("error"),
+		"Next":   r.URL.Query().Get("next"),
 	})
 }
 
@@ -175,8 +188,9 @@ func (s *Server) pageSignup(w http.ResponseWriter, r *http.Request) {
 	}
 	s.auth.SetNext(r.Context(), r.URL.Query().Get("next"))
 	s.render(w, r, "signup.html", map[string]any{
-		"Error": r.URL.Query().Get("error"),
-		"Next":  r.URL.Query().Get("next"),
+		"Layout": "authbase",
+		"Error":  r.URL.Query().Get("error"),
+		"Next":   r.URL.Query().Get("next"),
 	})
 }
 

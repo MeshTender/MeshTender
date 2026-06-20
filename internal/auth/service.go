@@ -123,6 +123,15 @@ func SafeLocalPath(p string) bool {
 	return len(p) >= 1 && p[0] == '/' && (len(p) < 2 || p[1] != '/')
 }
 
+// PasswordMatches reports whether the given password matches the user's stored
+// hash. It returns false when the user has no password set.
+func (s *Service) PasswordMatches(u *store.User, password string) bool {
+	if u.PasswordHash == nil {
+		return false
+	}
+	return bcrypt.CompareHashAndPassword([]byte(*u.PasswordHash), []byte(password)) == nil
+}
+
 // SetPassword hashes and stores a password for a user.
 func (s *Service) SetPassword(ctx context.Context, userID int64, password string) error {
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
