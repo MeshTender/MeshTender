@@ -10,36 +10,50 @@
 {{define "content"}}
 <div class="card">
   <div class="card-body">
-    <p class="text-secondary">
+    <p class="text-secondary mb-0">
       Commands grouped by console session (one modem connection). “Confirmed” means a reply came back;
       no reply doesn't mean the command failed — it may have run without us hearing the response.
     </p>
   </div>
-  {{if .Sessions}}
-  {{range .Sessions}}
-  <div class="card-header bg-transparent">
-    <h3 class="card-title mb-0">{{.SenderName}}</h3>
-    <span class="text-secondary ms-2">{{.StartedAt.Format "2006-01-02 15:04"}}{{if .EndedAt}}–{{.EndedAt.Format "15:04"}}{{else}} · in progress{{end}}</span>
-  </div>
-  <div class="table-responsive">
-    <table class="table table-vcenter card-table">
-      <thead><tr><th>When</th><th>Command</th><th>Confirmed</th><th>Response</th></tr></thead>
-      <tbody>
-        {{range .Entries}}
-        <tr>
-          <td class="text-secondary">{{.SentAt.Format "15:04:05"}}</td>
-          <td><code>{{.CommandText}}</code></td>
-          <td>{{if .AckReceived}}<span class="badge bg-success-lt">yes</span>{{else}}<span class="badge bg-yellow-lt">no reply</span>{{end}}</td>
-          <td><code class="text-wrap">{{if .ResponseText}}{{.ResponseText}}{{else}}—{{end}}</code></td>
-        </tr>
-        {{end}}
-      </tbody>
-    </table>
-  </div>
-  {{end}}
-  {{else}}
-  <div class="card-body pt-0"><p class="text-secondary mb-0">No commands have been sent yet.</p></div>
-  {{end}}
 </div>
+{{if .Sessions}}
+<ul class="timeline mt-3">
+  {{range .Sessions}}
+  <li class="timeline-event">
+    <div class="timeline-event-icon">{{template "icon-terminal" ""}}</div>
+    <div class="card timeline-event-card">
+      <div class="card-body">
+        <div class="text-secondary float-end">{{.StartedAt.Format "2006-01-02 15:04"}}{{if .EndedAt}}–{{.EndedAt.Format "15:04"}}{{else}} · in progress{{end}}</div>
+        <h4 class="mb-2">{{.SenderName}}</h4>
+        <div class="table-responsive">
+          <table class="table table-vcenter">
+            <thead><tr><th>When</th><th>Command</th><th>Confirmed</th><th>Response</th></tr></thead>
+            <tbody>
+              {{range .Entries}}
+              <tr>
+                <td class="text-secondary">{{.SentAt.Format "15:04:05"}}</td>
+                <td><code>{{.CommandText}}</code></td>
+                <td>{{if .AckReceived}}<span class="badge bg-success-lt">yes</span>{{else}}<span class="badge bg-yellow-lt">no reply</span>{{end}}</td>
+                <td><code class="text-wrap">{{if .ResponseText}}{{.ResponseText}}{{else}}—{{end}}</code></td>
+              </tr>
+              {{end}}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </li>
+  {{end}}
+</ul>
+{{if .NextBefore}}
+<div class="text-center mt-3">
+  <a class="btn btn-outline-secondary" href="?before={{.NextBefore}}">Show older sessions</a>
+</div>
+{{end}}
+{{else}}
+<div class="card mt-3">
+  <div class="card-body"><p class="text-secondary mb-0">No commands have been sent yet.</p></div>
+</div>
+{{end}}
 <a class="back-link mt-3" href="/">{{template "icon-arrow-left" "me-1"}}Back to dashboard</a>
 {{end}}

@@ -61,47 +61,100 @@ type CommandSession struct {
 	Entries    []*CommandLogEntry // chronological (oldest first)
 }
 
-// ListCommandLogSessions returns recent command-log entries for a repeater
-// grouped into console sessions, newest session first. limit bounds the number
-// of underlying log rows scanned.
-func (s *Store) ListCommandLogSessions(ctx context.Context, repeaterID int64, limit int) ([]*CommandSession, error) {
-	rows, err := s.pool.Query(ctx, `
-		SELECT l.id, l.command_text, l.sent_at, l.ack_received, l.response_text,
-		       l.session_id, cs.started_at, cs.ended_at,
-		       COALESCE(NULLIF(su.display_name, ''), su.username, '(deleted)')
-		FROM command_log l
-		JOIN console_sessions cs ON cs.id = l.session_id
-		LEFT JOIN users su ON su.id = cs.user_id
-		WHERE l.repeater_id = $1
-		ORDER BY l.sent_at DESC
-		LIMIT $2`, repeaterID, limit)
-	if err != nil {
-		return nil, fmt.Errorf("list command sessions: %w", err)
+// CommandLogPageSize is the number of console sessions shown per log page.
+const CommandLogPageSize = 25
+
+// CommandLogCursor is the keyset position in a repeater's session log: the
+// (started_at, id) of the last session on the current page. The next page seeks
+// strictly older than it.
+type CommandLogCursor struct {
+	StartedAt time.Time
+	ID        int64
+}
+
+// ListCommandLogSessionsPage returns one keyset page of a repeater's command log
+// grouped into console sessions, newest session first. before is the cursor from
+// the previous page, or nil for the first page. It returns the sessions (each
+// with its entries chronological) and whether older sessions remain.
+//
+// Sessions are the pagination unit (the page renders one card per session), so
+// a session is never split across pages — and the per-page work is bounded by
+// the page size, unlike the old fixed 500-row cap that silently hid older
+// history. Both the session seek and the entry fetch ride existing indexes.
+func (s *Store) ListCommandLogSessionsPage(ctx context.Context, repeaterID int64, before *CommandLogCursor) ([]*CommandSession, bool, error) {
+	first := before == nil
+	var curStarted time.Time
+	var curID int64
+	if !first {
+		curStarted, curID = before.StartedAt, before.ID
 	}
-	defer rows.Close()
+	// Fetch one extra session to detect whether an older page exists. Only
+	// sessions that actually logged a command are shown (matching the inner-join
+	// behavior of the previous query).
+	headers, err := s.pool.Query(ctx, `
+		SELECT cs.id, cs.started_at, cs.ended_at,
+		       COALESCE(NULLIF(su.display_name, ''), su.username, '(deleted)')
+		FROM console_sessions cs
+		LEFT JOIN users su ON su.id = cs.user_id
+		WHERE cs.repeater_id = $1
+		  AND ($2 OR (cs.started_at, cs.id) < ($3, $4))
+		  AND EXISTS (SELECT 1 FROM command_log l WHERE l.session_id = cs.id)
+		ORDER BY cs.started_at DESC, cs.id DESC
+		LIMIT $5`, repeaterID, first, curStarted, curID, CommandLogPageSize+1)
+	if err != nil {
+		return nil, false, fmt.Errorf("list command sessions: %w", err)
+	}
+	defer headers.Close()
 
 	var groups []*CommandSession
-	byID := map[int64]*CommandSession{}
+	for headers.Next() {
+		var g CommandSession
+		if err := headers.Scan(&g.ID, &g.StartedAt, &g.EndedAt, &g.SenderName); err != nil {
+			return nil, false, fmt.Errorf("scan session: %w", err)
+		}
+		groups = append(groups, &g)
+	}
+	if err := headers.Err(); err != nil {
+		return nil, false, err
+	}
+
+	hasMore := len(groups) > CommandLogPageSize
+	if hasMore {
+		groups = groups[:CommandLogPageSize]
+	}
+	if len(groups) == 0 {
+		return groups, false, nil
+	}
+
+	// Index the page's sessions so the entry fetch can attach rows by session.
+	byID := make(map[int64]*CommandSession, len(groups))
+	ids := make([]int64, 0, len(groups))
+	for _, g := range groups {
+		byID[g.ID] = g
+		ids = append(ids, g.ID)
+	}
+	// Load all entries for the page's sessions at once, oldest first so each
+	// session's slice ends up chronological.
+	rows, err := s.pool.Query(ctx, `
+		SELECT l.id, l.session_id, l.command_text, l.sent_at, l.ack_received, l.response_text
+		FROM command_log l
+		WHERE l.session_id = ANY($1)
+		ORDER BY l.sent_at ASC, l.id ASC`, ids)
+	if err != nil {
+		return nil, false, fmt.Errorf("list command entries: %w", err)
+	}
+	defer rows.Close()
 	for rows.Next() {
 		var e CommandLogEntry
 		var sessionID int64
-		var startedAt time.Time
-		var endedAt *time.Time
-		var sender string
-		if err := rows.Scan(&e.ID, &e.CommandText, &e.SentAt, &e.AckReceived, &e.ResponseText,
-			&sessionID, &startedAt, &endedAt, &sender); err != nil {
-			return nil, fmt.Errorf("scan session row: %w", err)
+		if err := rows.Scan(&e.ID, &sessionID, &e.CommandText, &e.SentAt, &e.AckReceived, &e.ResponseText); err != nil {
+			return nil, false, fmt.Errorf("scan entry: %w", err)
 		}
-		g := byID[sessionID]
-		if g == nil {
-			g = &CommandSession{ID: sessionID, SenderName: sender, StartedAt: startedAt, EndedAt: endedAt}
-			byID[sessionID] = g
-			groups = append(groups, g) // encounter order = newest session first
+		if g := byID[sessionID]; g != nil {
+			g.Entries = append(g.Entries, &e)
 		}
-		// Rows arrive newest-first; prepend to make each session chronological.
-		g.Entries = append([]*CommandLogEntry{&e}, g.Entries...)
 	}
-	return groups, rows.Err()
+	return groups, hasMore, rows.Err()
 }
 
 // OwnerCommandLogEntry is a recent command across all repeaters a user owns,
