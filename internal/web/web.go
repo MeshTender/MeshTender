@@ -105,6 +105,7 @@ func (s *Server) routes() {
 		r.Post("/repeaters/{id}/orgs/{orgID}/withdraw", s.handleWithdraw)
 		r.Post("/invite/{token}/accept", s.handleAcceptInvite)
 
+		r.Get("/orgs/new", s.pageNewOrg)
 		r.Post("/orgs", s.handleCreateOrg)
 		r.Post("/orgs/{id}/edit", s.handleEditOrg)
 		r.Post("/orgs/{id}/leave", s.handleLeaveOrg)

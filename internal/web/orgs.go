@@ -50,17 +50,24 @@ func (s *Server) pageOrgs(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, "orgs.html", data)
 }
 
+// pageNewOrg renders the standalone "create an organization" form.
+func (s *Server) pageNewOrg(w http.ResponseWriter, r *http.Request) {
+	s.render(w, r, "new_org.html", map[string]any{
+		"Error": r.URL.Query().Get("error"),
+	})
+}
+
 // handleCreateOrg creates an org with the current user as its first admin.
 func (s *Server) handleCreateOrg(w http.ResponseWriter, r *http.Request) {
 	uid := s.auth.CurrentUserID(r.Context())
 	name := strings.TrimSpace(r.FormValue("name"))
 	if name == "" || len(name) > 80 {
-		http.Redirect(w, r, "/orgs?error="+url.QueryEscape("Enter an organization name."), http.StatusSeeOther)
+		http.Redirect(w, r, "/orgs/new?error="+url.QueryEscape("Enter an organization name."), http.StatusSeeOther)
 		return
 	}
 	org, err := s.store.CreateOrg(r.Context(), name, uid)
 	if err != nil {
-		http.Redirect(w, r, "/orgs?error="+url.QueryEscape("Could not create organization."), http.StatusSeeOther)
+		http.Redirect(w, r, "/orgs/new?error="+url.QueryEscape("Could not create organization."), http.StatusSeeOther)
 		return
 	}
 	http.Redirect(w, r, "/orgs/"+strconv.FormatInt(org.ID, 10), http.StatusSeeOther)

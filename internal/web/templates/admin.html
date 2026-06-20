@@ -1,11 +1,34 @@
 {{define "title"}}Admin · MeshTender{{end}}
+{{define "header"}}
+<div class="row g-2 align-items-center">
+  <div class="col">
+    <div class="page-pretitle">Administration</div>
+    <h2 class="page-title">Admin</h2>
+  </div>
+</div>
+{{end}}
 {{define "content"}}
-<section class="card">
-  <h1>Admin</h1>
-  <ul class="adminlinks">
-    {{if .CanCatalog}}<li><a href="/admin/catalog">Command catalog<span class="desc">Edit risk tags and the default command sets.</span></a></li>{{end}}
-    {{if .CanUsers}}<li><a href="/admin/users">Users &amp; capabilities<span class="desc">Grant or revoke admin capabilities.</span></a></li>{{end}}
-  </ul>
-  <p><a class="backlink" href="/">← Back to dashboard</a></p>
-</section>
+<div class="row row-cards">
+  {{if .CanCatalog}}
+  <div class="col-md-6">
+    <a class="card card-link" href="/admin/catalog">
+      <div class="card-body">
+        <h3 class="card-title">{{template "icon-list" "me-1"}}Command catalog</h3>
+        <p class="text-secondary mb-0">Edit risk tags and the default command sets.</p>
+      </div>
+    </a>
+  </div>
+  {{end}}
+  {{if .CanUsers}}
+  <div class="col-md-6">
+    <a class="card card-link" href="/admin/users">
+      <div class="card-body">
+        <h3 class="card-title">{{template "icon-users" "me-1"}}Users &amp; capabilities</h3>
+        <p class="text-secondary mb-0">Grant or revoke admin capabilities.</p>
+      </div>
+    </a>
+  </div>
+  {{end}}
+</div>
+<a class="btn btn-link px-0 mt-3" href="/">{{template "icon-arrow-left" "me-1"}}Back to dashboard</a>
 {{end}}

@@ -1,32 +1,47 @@
 {{define "title"}}Sign in · MeshTender{{end}}
+{{define "header"}}
+<div class="row g-2 align-items-center">
+  <div class="col"><h2 class="page-title">Sign in</h2></div>
+</div>
+{{end}}
 {{define "content"}}
-<section class="card auth">
-  <h1>Sign in</h1>
-  {{if .Error}}<p class="error">{{.Error}}</p>{{end}}
+<div class="row justify-content-center">
+  <div class="col-12 col-md-6 col-lg-5">
+    <div class="card">
+      <div class="card-body">
+        <h2 class="card-title text-center mb-4">Sign in to MeshTender</h2>
+        {{if .Error}}<div class="alert alert-danger">{{.Error}}</div>{{end}}
 
-  <form id="passkey-form" onsubmit="return false;">
-    <label>Username
-      <input type="text" id="username" name="username" autocomplete="username webauthn" autocapitalize="none" required>
-    </label>
-    <button type="button" class="primary" onclick="passkeyLogin()">Sign in with passkey</button>
-  </form>
-  <p id="passkey-status" class="status"></p>
+        <form id="passkey-form" onsubmit="return false;">
+          <div class="mb-3">
+            <label class="form-label">Username</label>
+            <input type="text" class="form-control" id="username" name="username" autocomplete="username webauthn" autocapitalize="none" required>
+          </div>
+          <div class="form-footer">
+            <button type="button" class="btn btn-primary w-100" onclick="passkeyLogin()">Sign in with passkey</button>
+          </div>
+        </form>
+        <p id="passkey-status" class="text-secondary text-center mt-2 mb-0" style="min-height:1.2em"></p>
 
-  <details class="fallback">
-    <summary>Use a password instead</summary>
-    <form method="post" action="/login/password">
-      {{if .Next}}<input type="hidden" name="next" value="{{.Next}}">{{end}}
-      <label>Username
-        <input type="text" name="username" autocomplete="username" autocapitalize="none" required>
-      </label>
-      <label>Password
-        <input type="password" name="password" autocomplete="current-password" required>
-      </label>
-      <button type="submit">Sign in with password</button>
-    </form>
-  </details>
-
-  <p class="muted">No account? <a href="/signup{{if .Next}}?next={{.Next}}{{end}}">Create one</a></p>
-</section>
+        <details class="mt-3">
+          <summary class="text-secondary" style="cursor:pointer">Use a password instead</summary>
+          <form method="post" action="/login/password" class="mt-2">
+            {{if .Next}}<input type="hidden" name="next" value="{{.Next}}">{{end}}
+            <div class="mb-3">
+              <label class="form-label">Username</label>
+              <input type="text" class="form-control" name="username" autocomplete="username" autocapitalize="none" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Password</label>
+              <input type="password" class="form-control" name="password" autocomplete="current-password" required>
+            </div>
+            <button type="submit" class="btn w-100">Sign in with password</button>
+          </form>
+        </details>
+      </div>
+    </div>
+    <p class="text-secondary text-center mt-3">No account? <a href="/signup{{if .Next}}?next={{.Next}}{{end}}">Create one</a></p>
+  </div>
+</div>
 <script src="/static/webauthn.js"></script>
 {{end}}

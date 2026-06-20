@@ -1,101 +1,119 @@
 {{define "title"}}Add a repeater · MeshTender{{end}}
+{{define "header"}}
+<div class="row g-2 align-items-center">
+  <div class="col"><h2 class="page-title">Add a repeater</h2></div>
+</div>
+{{end}}
 {{define "content"}}
-{{if .Error}}<p class="error banner">{{.Error}}</p>{{end}}
+{{if .Error}}<div class="alert alert-danger">{{.Error}}</div>{{end}}
 
-<ol class="steps">
-  <li class="{{if eq .Step "grant"}}active{{else}}done{{end}}">Grant access</li>
-  <li class="{{if eq .Step "details"}}active{{end}}">Repeater details</li>
-  <li>Confirm</li>
-  <li>Share</li>
-</ol>
+<ul class="steps steps-counter mb-4">
+  <li class="step-item {{if eq .Step "grant"}}active{{end}}">Grant access</li>
+  <li class="step-item {{if eq .Step "details"}}active{{end}}">Repeater details</li>
+  <li class="step-item">Confirm</li>
+  <li class="step-item">Share</li>
+</ul>
 
 {{if eq .Step "grant"}}
-<section class="card">
-  <h1>Step 1 · Grant MeshTender access</h1>
-  <p class="muted">
-    MeshTender controls repeaters through a single MeshTender identity. Before it can do anything with
-    your repeater, you must grant that identity admin access by running the command below on the repeater
-    (via its BLE/USB companion app or another admin client).
-  </p>
+<div class="card">
+  <div class="card-body">
+    <h2 class="card-title">Step 1 · Grant MeshTender access</h2>
+    <p class="text-secondary">
+      MeshTender controls repeaters through a single MeshTender identity. Before it can do anything with
+      your repeater, you must grant that identity admin access by running the command below on the repeater
+      (via its BLE/USB companion app or another admin client).
+    </p>
 
-  <div class="danger-note">
-    <h3>⚠ This grants full admin control to MeshTender</h3>
-    <ul>
-      <li>This grants admin to <strong>MeshTender itself</strong> — <strong>not</strong> to other
-        MeshTender users. Letting specific people operate the repeater is a separate step you control later
-        via sharing and contributing to organizations.</li>
-      <li>MeshTender will not abuse this access — but that is a <strong>promise, not a technical
-        limit</strong>.</li>
-      <li>This is a standing grant. It remains until <strong>you</strong> revoke it on the repeater
-        (see below) — removing the repeater from this site does not revoke MeshTender's access.</li>
-    </ul>
-  </div>
-
-  <label>MeshTender server public key
-    <code class="pubkey">{{.ServerPubKey}}</code>
-  </label>
-  <label>Grant-access command — run this on your repeater
-    <div class="copyrow">
-      <code>{{.SetPermCommand}}</code>
-      <button type="button" onclick="navigator.clipboard.writeText(this.previousElementSibling.textContent)">Copy</button>
+    <div class="alert alert-danger" role="alert">
+      <div class="d-flex">
+        <div>{{template "icon-alert" "alert-icon"}}</div>
+        <div>
+          <h4 class="alert-title">This grants full admin control to MeshTender</h4>
+          <ul class="mb-0 text-secondary">
+            <li>This grants admin to <strong>MeshTender itself</strong> — <strong>not</strong> to other
+              MeshTender users. Letting specific people operate the repeater is a separate step you control later
+              via sharing and contributing to organizations.</li>
+            <li>MeshTender will not abuse this access — but that is a <strong>promise, not a technical limit</strong>.</li>
+            <li>This is a standing grant. It remains until <strong>you</strong> revoke it on the repeater
+              (see below) — removing the repeater from this site does not revoke MeshTender's access.</li>
+          </ul>
+        </div>
+      </div>
     </div>
-  </label>
 
-  {{template "revokedoc" .RevokeCommand}}
+    <div class="mb-3">
+      <label class="form-label">MeshTender server public key</label>
+      <code class="pubkey">{{.ServerPubKey}}</code>
+    </div>
+    <div class="mb-3">
+      <label class="form-label">Grant-access command — run this on your repeater</label>
+      <div class="input-group">
+        <code class="form-control font-monospace">{{.SetPermCommand}}</code>
+        <button type="button" class="btn" onclick="navigator.clipboard.writeText(this.previousElementSibling.textContent)">{{template "icon-copy" ""}}Copy</button>
+      </div>
+    </div>
 
-  <label class="checkrow">
-    <input type="checkbox" id="ack" onchange="document.getElementById('continue').toggleAttribute('disabled', !this.checked)">
-    I've granted MeshTender admin on this repeater (or I understand I must, before it will work here).
-  </label>
-  <div class="ractions">
-    <a class="btn primary" id="continue" href="/repeaters/add?step=details" disabled
-       onclick="if(this.hasAttribute('disabled')){return false;}">Continue →</a>
-    <a class="btn ghost" href="/">Cancel</a>
+    {{template "revokedoc" .RevokeCommand}}
+
+    <label class="form-check mt-3">
+      <input class="form-check-input" type="checkbox" id="ack" onchange="var c=document.getElementById('continue');c.classList.toggle('disabled', !this.checked);c.toggleAttribute('disabled', !this.checked);">
+      <span class="form-check-label">I've granted MeshTender admin on this repeater (or I understand I must, before it will work here).</span>
+    </label>
+    <div class="btn-list mt-3">
+      <a class="btn btn-primary disabled" id="continue" href="/repeaters/add?step=details" disabled
+         onclick="if(this.hasAttribute('disabled')){return false;}">Continue →</a>
+      <a class="btn" href="/">Cancel</a>
+    </div>
   </div>
-</section>
+</div>
 
 {{else}}
-<section class="card">
-  <h1>Step 2 · Repeater details</h1>
-  <p class="muted">Tell MeshTender which repeater you just granted access to, and how its radio is configured.</p>
-  <form method="post" action="/repeaters">
-    <label>Name
-      <input type="text" name="name" placeholder="Hilltop repeater" required autofocus>
-    </label>
-    <label>Repeater public key (64 hex chars)
-      <input type="text" name="public_key" pattern="[0-9a-fA-F]{64}" placeholder="a1b2…" required>
-    </label>
-    <label>Region preset
-      <select id="region" onchange="applyRegion()">
-        {{range .Presets}}
-        <option value="{{.ID}}" data-freq="{{.FreqHz}}" data-bw="{{.BwHz}}" data-sf="{{.SF}}" data-cr="{{.CR}}"{{if eq .ID $.DefaultPresetID}} selected{{end}}>{{.Label}}</option>
-        {{end}}
-        <option value="custom"{{if eq "custom" $.DefaultPresetID}} selected{{end}}>Custom…</option>
-      </select>
-    </label>
-    <div class="radiorow">
-      <label>Freq (Hz)<input type="number" id="radio_freq_hz" name="radio_freq_hz" value="{{.Defaults.FreqHz}}" required></label>
-      <label>Bandwidth (Hz)<input type="number" id="radio_bw_hz" name="radio_bw_hz" value="{{.Defaults.BwHz}}" required></label>
-      <label>SF<input type="number" id="radio_sf" name="radio_sf" value="{{.Defaults.SF}}" min="5" max="12" required></label>
-      <label>CR<input type="number" id="radio_cr" name="radio_cr" value="{{.Defaults.CR}}" min="5" max="8" required></label>
-    </div>
+<div class="card">
+  <div class="card-body">
+    <h2 class="card-title">Step 2 · Repeater details</h2>
+    <p class="text-secondary">Tell MeshTender which repeater you just granted access to, and how its radio is configured.</p>
+    <form method="post" action="/repeaters">
+      <div class="mb-3">
+        <label class="form-label">Name</label>
+        <input type="text" class="form-control" name="name" placeholder="Hilltop repeater" required autofocus>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Repeater public key (64 hex chars)</label>
+        <input type="text" class="form-control font-monospace" name="public_key" pattern="[0-9a-fA-F]{64}" placeholder="a1b2…" required>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Region preset</label>
+        <select class="form-select" id="region" onchange="applyRegion()">
+          {{range .Presets}}
+          <option value="{{.ID}}" data-freq="{{.FreqHz}}" data-bw="{{.BwHz}}" data-sf="{{.SF}}" data-cr="{{.CR}}"{{if eq .ID $.DefaultPresetID}} selected{{end}}>{{.Label}}</option>
+          {{end}}
+          <option value="custom"{{if eq "custom" $.DefaultPresetID}} selected{{end}}>Custom…</option>
+        </select>
+      </div>
+      <div class="row g-2">
+        <div class="col-6 col-md-3"><label class="form-label">Freq (Hz)</label><input type="number" class="form-control" id="radio_freq_hz" name="radio_freq_hz" value="{{.Defaults.FreqHz}}" required></div>
+        <div class="col-6 col-md-3"><label class="form-label">Bandwidth (Hz)</label><input type="number" class="form-control" id="radio_bw_hz" name="radio_bw_hz" value="{{.Defaults.BwHz}}" required></div>
+        <div class="col-6 col-md-3"><label class="form-label">SF</label><input type="number" class="form-control" id="radio_sf" name="radio_sf" value="{{.Defaults.SF}}" min="5" max="12" required></div>
+        <div class="col-6 col-md-3"><label class="form-label">CR</label><input type="number" class="form-control" id="radio_cr" name="radio_cr" value="{{.Defaults.CR}}" min="5" max="8" required></div>
+      </div>
 
-    <label class="checkrow">
-      <input type="checkbox" name="store_location" id="store_location" value="1" onchange="syncPublicMap()">
-      Store this repeater's location (lat/lon), fetched during the modem test, so it can appear on
-      the organization map to other organization members.
-    </label>
-    <label class="checkrow" id="public_map_row" style="display:none">
-      <input type="checkbox" name="public_map" value="1">
-      Also show this repeater on the <strong>public</strong> organization map.
-    </label>
+      <label class="form-check mt-3">
+        <input class="form-check-input" type="checkbox" name="store_location" id="store_location" value="1" onchange="syncPublicMap()">
+        <span class="form-check-label">Store this repeater's location (lat/lon), fetched during the modem test, so it can appear on
+        the organization map to other organization members.</span>
+      </label>
+      <label class="form-check" id="public_map_row" style="display:none">
+        <input class="form-check-input" type="checkbox" name="public_map" value="1">
+        <span class="form-check-label">Also show this repeater on the <strong>public</strong> organization map.</span>
+      </label>
 
-    <div class="ractions">
-      <button type="submit" class="primary">Add repeater</button>
-      <a class="btn ghost" href="/repeaters/add?step=grant">← Back</a>
-    </div>
-  </form>
-</section>
+      <div class="btn-list mt-3">
+        <button type="submit" class="btn btn-primary">Add repeater</button>
+        <a class="btn" href="/repeaters/add?step=grant">← Back</a>
+      </div>
+    </form>
+  </div>
+</div>
 <script>
   function applyRegion() {
     var sel = document.getElementById("region");

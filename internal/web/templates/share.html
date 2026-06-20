@@ -1,119 +1,133 @@
 {{define "title"}}Sharing · {{.Repeater.Name}} · MeshTender{{end}}
+{{define "header"}}
+<div class="row g-2 align-items-center">
+  <div class="col">
+    <div class="page-pretitle">Sharing</div>
+    <h2 class="page-title">{{.Repeater.Name}}</h2>
+  </div>
+</div>
+{{end}}
 {{define "content"}}
-{{if .Error}}<p class="error banner">{{.Error}}</p>{{end}}
+{{if .Error}}<div class="alert alert-danger">{{.Error}}</div>{{end}}
 
-<section class="card">
-  <h1>Sharing · “{{.Repeater.Name}}”</h1>
-  <p class="muted">
-    Decide who can operate this repeater. Everyone you grant access uses MeshTender's single identity, so
-    you never hand out keys — and you can revoke or withdraw at any time.
-  </p>
-</section>
+<div class="card">
+  <div class="card-body">
+    <p class="text-secondary mb-0">
+      Decide who can operate this repeater. Everyone you grant access uses MeshTender's single identity, so
+      you never hand out keys — and you can revoke or withdraw at any time.
+    </p>
+  </div>
+</div>
 
-<section class="card">
-  <h2 style="margin-top:0">Organizations</h2>
-  <p class="muted">
-    Contribute this repeater to an organization so its admins and members can run their permitted
-    commands on it over the mesh — but only the specific commands you review and approve first. You can
-    withdraw anytime.
-  </p>
+<div class="card mt-3">
+  <div class="card-body">
+    <h3 class="card-title">Organizations</h3>
+    <p class="text-secondary">
+      Contribute this repeater to an organization so its admins and members can run their permitted
+      commands on it over the mesh — but only the specific commands you review and approve first. You can
+      withdraw anytime.
+    </p>
 
-  <h3>Contributed to</h3>
-  {{if .Contributed}}
-  <ul class="repeaters">
-    {{range .Contributed}}
-    <li class="rhead">
-      <span class="rname">{{.OrgName}}</span>
-      <span class="muted">consented to v{{.ConsentedVersion}}{{if .NeedsReconsent}} · org is now on v{{.CurrentVersion}}{{end}}</span>
-      {{if .NeedsReconsent}}
-      <a class="btnlink" href="/repeaters/{{$.Repeater.ID}}/orgs/{{.OrgID}}/contribute">Review changes</a>
-      {{end}}
-      <form method="post" action="/repeaters/{{$.Repeater.ID}}/orgs/{{.OrgID}}/withdraw" class="inline" onsubmit="return confirm('Withdraw this repeater from {{.OrgName}}?')">
-        <button type="submit" class="link danger">Withdraw</button>
-      </form>
-    </li>
-    {{end}}
-  </ul>
-  {{else}}
-  <p class="muted">Not contributed to any organization.</p>
-  {{end}}
-
-  {{if .Available}}
-  <h3>Contribute to</h3>
-  <ul class="repeaters">
-    {{range .Available}}
-    <li class="rhead">
-      <span class="rname">{{.Name}}</span>
-      <a class="btnlink" style="margin-left:auto" href="/repeaters/{{$.Repeater.ID}}/orgs/{{.ID}}/contribute">Review &amp; contribute</a>
-    </li>
-    {{end}}
-  </ul>
-  {{else if .Contributed}}
-  {{else}}
-  <p class="muted">Join an organization to contribute this repeater to it.</p>
-  {{end}}
-</section>
-
-<section class="card">
-  <h2 style="margin-top:0">People</h2>
-  <p class="muted">
-    Share single-use links with specific people. The recipient signs in and accepts to control this
-    repeater from their own browser-connected KISS modem.
-  </p>
-
-  <h3>Share links</h3>
-  <p class="muted">Each link works once. Mint one per person and label it so you remember who it's for.</p>
-  <form method="post" action="/repeaters/{{.Repeater.ID}}/share/link">
-    <label>Description (optional)
-      <input type="text" name="description" placeholder="e.g. for Bob's modem" maxlength="100">
-    </label>
-    <button type="submit" class="primary">Create single-use link</button>
-  </form>
-
-  {{if .Invites}}
-  <ul class="repeaters">
-    {{range .Invites}}
-    <li>
-      <div class="rhead">
-        <span class="rname">{{if .Description}}{{.Description}}{{else}}(no label){{end}}</span>
-        {{if .UsedAt}}<span class="badge ok">Used by {{.UsedByName}}</span>{{else}}<span class="badge pending">Unused</span>{{end}}
-      </div>
-      {{if not .UsedAt}}
-      <div class="copyrow">
-        <code id="link-{{.ID}}">{{$.BaseURL}}/invite/{{.Token}}</code>
-        <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('link-{{.ID}}').textContent)">Copy</button>
+    <div class="subheader mt-3 mb-2">Contributed to</div>
+    {{if .Contributed}}
+    <div class="list-group list-group-flush">
+      {{range .Contributed}}
+      <div class="list-group-item d-flex align-items-center flex-wrap gap-2 px-0">
+        <span class="fw-bold">{{.OrgName}}</span>
+        <span class="text-secondary">consented to v{{.ConsentedVersion}}{{if .NeedsReconsent}} · org is now on v{{.CurrentVersion}}{{end}}</span>
+        {{if .NeedsReconsent}}
+        <a class="btn btn-sm" href="/repeaters/{{$.Repeater.ID}}/orgs/{{.OrgID}}/contribute">Review changes</a>
+        {{end}}
+        <form method="post" action="/repeaters/{{$.Repeater.ID}}/orgs/{{.OrgID}}/withdraw" class="m-0 ms-auto" onsubmit="return confirm('Withdraw this repeater from {{.OrgName}}?')">
+          <button type="submit" class="btn btn-sm btn-ghost-danger">Withdraw</button>
+        </form>
       </div>
       {{end}}
-      <form method="post" action="/repeaters/{{$.Repeater.ID}}/share/link/delete" class="inline">
-        <input type="hidden" name="invite_id" value="{{.ID}}">
-        <button type="submit" class="link danger">{{if .UsedAt}}Remove from list{{else}}Revoke link{{end}}</button>
-      </form>
-    </li>
+    </div>
+    {{else}}
+    <p class="text-secondary">Not contributed to any organization.</p>
     {{end}}
-  </ul>
-  {{else}}
-  <p class="muted">No links yet.</p>
-  {{end}}
 
-  <h3>People with access</h3>
-  {{if .Shares}}
-  <ul class="repeaters">
-    {{range .Shares}}
-    <li class="rhead">
-      <span class="rname">{{.Name}}</span>
-      <span class="muted">@{{.Username}}</span>
-      <a class="btnlink" style="margin-left:auto" href="/repeaters/{{$.Repeater.ID}}/share/{{.UserID}}/commands">Edit commands</a>
-      <form method="post" action="/repeaters/{{$.Repeater.ID}}/unshare" class="inline">
-        <input type="hidden" name="user_id" value="{{.UserID}}">
-        <button type="submit" class="link danger">Revoke</button>
-      </form>
-    </li>
+    {{if .Available}}
+    <div class="subheader mt-3 mb-2">Contribute to</div>
+    <div class="list-group list-group-flush">
+      {{range .Available}}
+      <div class="list-group-item d-flex align-items-center gap-2 px-0">
+        <span class="fw-bold">{{.Name}}</span>
+        <a class="btn btn-sm ms-auto" href="/repeaters/{{$.Repeater.ID}}/orgs/{{.ID}}/contribute">Review &amp; contribute</a>
+      </div>
+      {{end}}
+    </div>
+    {{else if .Contributed}}
+    {{else}}
+    <p class="text-secondary">Join an organization to contribute this repeater to it.</p>
     {{end}}
-  </ul>
-  {{else}}
-  <p class="muted">No one has accepted yet.</p>
-  {{end}}
-</section>
+  </div>
+</div>
 
-<p><a class="backlink" href="/">← Back to dashboard</a></p>
+<div class="card mt-3">
+  <div class="card-body">
+    <h3 class="card-title">People</h3>
+    <p class="text-secondary">
+      Share single-use links with specific people. The recipient signs in and accepts to control this
+      repeater from their own browser-connected KISS modem.
+    </p>
+
+    <div class="subheader mt-3 mb-2">Share links</div>
+    <p class="text-secondary">Each link works once. Mint one per person and label it so you remember who it's for.</p>
+    <form method="post" action="/repeaters/{{.Repeater.ID}}/share/link">
+      <div class="mb-3">
+        <label class="form-label">Description <span class="text-secondary">(optional)</span></label>
+        <input type="text" class="form-control" name="description" placeholder="e.g. for Bob's modem" maxlength="100">
+      </div>
+      <button type="submit" class="btn btn-primary">Create single-use link</button>
+    </form>
+
+    {{if .Invites}}
+    <div class="list-group list-group-flush mt-3">
+      {{range .Invites}}
+      <div class="list-group-item px-0">
+        <div class="d-flex align-items-center gap-2 mb-1">
+          <span class="fw-bold">{{if .Description}}{{.Description}}{{else}}(no label){{end}}</span>
+          {{if .UsedAt}}<span class="badge bg-success-lt">Used by {{.UsedByName}}</span>{{else}}<span class="badge bg-yellow-lt">Unused</span>{{end}}
+        </div>
+        {{if not .UsedAt}}
+        <div class="input-group mb-2">
+          <code class="form-control font-monospace" id="link-{{.ID}}">{{$.BaseURL}}/invite/{{.Token}}</code>
+          <button type="button" class="btn" onclick="navigator.clipboard.writeText(document.getElementById('link-{{.ID}}').textContent)">{{template "icon-copy" ""}}Copy</button>
+        </div>
+        {{end}}
+        <form method="post" action="/repeaters/{{$.Repeater.ID}}/share/link/delete" class="m-0">
+          <input type="hidden" name="invite_id" value="{{.ID}}">
+          <button type="submit" class="btn btn-sm btn-ghost-danger">{{if .UsedAt}}Remove from list{{else}}Revoke link{{end}}</button>
+        </form>
+      </div>
+      {{end}}
+    </div>
+    {{else}}
+    <p class="text-secondary mt-2">No links yet.</p>
+    {{end}}
+
+    <div class="subheader mt-3 mb-2">People with access</div>
+    {{if .Shares}}
+    <div class="list-group list-group-flush">
+      {{range .Shares}}
+      <div class="list-group-item d-flex align-items-center flex-wrap gap-2 px-0">
+        <span class="fw-bold">{{.Name}}</span>
+        <span class="text-secondary">@{{.Username}}</span>
+        <a class="btn btn-sm ms-auto" href="/repeaters/{{$.Repeater.ID}}/share/{{.UserID}}/commands">Edit commands</a>
+        <form method="post" action="/repeaters/{{$.Repeater.ID}}/unshare" class="m-0">
+          <input type="hidden" name="user_id" value="{{.UserID}}">
+          <button type="submit" class="btn btn-sm btn-ghost-danger">Revoke</button>
+        </form>
+      </div>
+      {{end}}
+    </div>
+    {{else}}
+    <p class="text-secondary">No one has accepted yet.</p>
+    {{end}}
+  </div>
+</div>
+
+<a class="btn btn-link px-0 mt-3" href="/">{{template "icon-arrow-left" "me-1"}}Back to dashboard</a>
 {{end}}

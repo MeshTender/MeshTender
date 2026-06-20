@@ -1,31 +1,42 @@
 {{define "title"}}Join organization · MeshTender{{end}}
+{{define "header"}}
+<div class="row g-2 align-items-center">
+  <div class="col"><h2 class="page-title">Join organization</h2></div>
+</div>
+{{end}}
 {{define "content"}}
-<section class="card auth">
-  {{if eq .State "invalid"}}
-    <h1>Invalid link</h1>
-    <p class="muted">This join link is no longer valid — it may have been revoked.</p>
-    <p><a class="backlink" href="/orgs">← Organizations</a></p>
+<div class="row justify-content-center">
+  <div class="col-12 col-md-7 col-lg-5">
+    <div class="card">
+      <div class="card-body">
+        {{if eq .State "invalid"}}
+          <h2 class="card-title">Invalid link</h2>
+          <p class="text-secondary">This join link is no longer valid — it may have been revoked.</p>
+          <a class="btn btn-link px-0" href="/orgs">{{template "icon-arrow-left" "me-1"}}Organizations</a>
 
-  {{else if eq .State "auth_required"}}
-    <h1>Join {{.Org.Name}}</h1>
-    <p class="muted">Sign in or create an account to join as a member.</p>
-    <div class="ractions">
-      <a class="btn primary" href="/login?next={{.Next}}">Sign in</a>
-      <a class="btn" href="/signup?next={{.Next}}">Create account</a>
+        {{else if eq .State "auth_required"}}
+          <h2 class="card-title">Join {{.Org.Name}}</h2>
+          <p class="text-secondary">Sign in or create an account to join as a member.</p>
+          <div class="btn-list">
+            <a class="btn btn-primary" href="/login?next={{.Next}}">Sign in</a>
+            <a class="btn" href="/signup?next={{.Next}}">Create account</a>
+          </div>
+
+        {{else if eq .State "already"}}
+          <h2 class="card-title">Already a member</h2>
+          <p>You're already in <strong>{{.Org.Name}}</strong>.</p>
+          <a class="btn btn-primary" href="/orgs/{{.Org.ID}}">Go to {{.Org.Name}}</a>
+
+        {{else}}{{/* confirm */}}
+          <h2 class="card-title">Join {{.Org.Name}}</h2>
+          <p>Join <strong>{{.Org.Name}}</strong> as a member? You can later contribute repeaters to it and
+             review what the org may do with them.</p>
+          <form method="post" action="/org-invite/{{.Token}}/accept" class="m-0">
+            <button type="submit" class="btn btn-primary">Join</button>
+          </form>
+        {{end}}
+      </div>
     </div>
-
-  {{else if eq .State "already"}}
-    <h1>Already a member</h1>
-    <p>You're already in <strong>{{.Org.Name}}</strong>.</p>
-    <p><a class="btn primary" href="/orgs/{{.Org.ID}}">Go to {{.Org.Name}}</a></p>
-
-  {{else}}{{/* confirm */}}
-    <h1>Join {{.Org.Name}}</h1>
-    <p>Join <strong>{{.Org.Name}}</strong> as a member? You can later contribute repeaters to it and
-       review what the org may do with them.</p>
-    <form method="post" action="/org-invite/{{.Token}}/accept">
-      <button type="submit" class="primary">Join</button>
-    </form>
-  {{end}}
-</section>
+  </div>
+</div>
 {{end}}

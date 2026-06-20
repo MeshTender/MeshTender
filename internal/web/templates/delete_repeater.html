@@ -1,27 +1,39 @@
 {{define "title"}}Delete {{.Repeater.Name}} · MeshTender{{end}}
+{{define "header"}}
+<div class="row g-2 align-items-center">
+  <div class="col"><h2 class="page-title">Delete “{{.Repeater.Name}}”?</h2></div>
+</div>
+{{end}}
 {{define "content"}}
-<section class="card">
-  <h1>Delete “{{.Repeater.Name}}”?</h1>
-  <p class="muted">
-    This removes the repeater from MeshTender — its shares, org contributions, and command history here
-    all go away. This can't be undone.
-  </p>
+<div class="row justify-content-center">
+  <div class="col-12 col-lg-8">
+    <div class="card">
+      <div class="card-body">
+        <p class="text-secondary">
+          This removes the repeater from MeshTender — its shares, org contributions, and command history here
+          all go away. This can't be undone.
+        </p>
 
-  <div class="danger-note">
-    <h3>⚠ This does not revoke MeshTender's access</h3>
-    <p class="muted" style="margin:0">
-      Your repeater still trusts MeshTender's identity at the firmware level. If you want MeshTender to
-      truly lose access, revoke it on the device too — see below.
-    </p>
-  </div>
+        <div class="alert alert-danger" role="alert">
+          <div class="d-flex">
+            <div>{{template "icon-alert" "alert-icon"}}</div>
+            <div>
+              <h4 class="alert-title">This does not revoke MeshTender's access</h4>
+              <div class="text-secondary">Your repeater still trusts MeshTender's identity at the firmware level. If you want MeshTender to truly lose access, revoke it on the device too — see below.</div>
+            </div>
+          </div>
+        </div>
 
-  {{template "revokedoc" .RevokeCommand}}
+        {{template "revokedoc" .RevokeCommand}}
 
-  <form method="post" action="/repeaters/{{.Repeater.ID}}/delete">
-    <div class="ractions">
-      <button type="submit" class="btn danger">Delete repeater</button>
-      <a class="btn ghost" href="/">Cancel</a>
+        <form method="post" action="/repeaters/{{.Repeater.ID}}/delete" class="mt-3">
+          <div class="btn-list">
+            <button type="submit" class="btn btn-danger">{{template "icon-trash" "me-1"}}Delete repeater</button>
+            <a class="btn" href="/">Cancel</a>
+          </div>
+        </form>
+      </div>
     </div>
-  </form>
-</section>
+  </div>
+</div>
 {{end}}

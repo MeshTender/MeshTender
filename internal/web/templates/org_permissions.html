@@ -1,34 +1,44 @@
 {{define "title"}}Permissions · {{.Org.Name}} · MeshTender{{end}}
+{{define "header"}}
+<div class="row g-2 align-items-center">
+  <div class="col">
+    <div class="page-pretitle">{{.Org.Name}}</div>
+    <h2 class="page-title">Permissions</h2>
+  </div>
+</div>
+{{end}}
 {{define "content"}}
-<section class="card">
-  <h1>Permissions · {{.Org.Name}}</h1>
-  <p class="muted">
-    Current version: <strong>v{{.Version}}</strong>. Choose which commands org <strong>admins</strong>
-    and <strong>members</strong> may run on contributed repeaters. Saving publishes a new version;
-    members' repeaters stay on their consented version until owners re-consent to the additions.
-    Admins effectively also get everything members get. Risky commands can take over or brick a node.
-  </p>
+<div class="card">
+  <div class="card-body">
+    <p class="text-secondary">
+      Current version: <strong>v{{.Version}}</strong>. Choose which commands org <strong>admins</strong>
+      and <strong>members</strong> may run on contributed repeaters. Saving publishes a new version;
+      members' repeaters stay on their consented version until owners re-consent to the additions.
+      Admins effectively also get everything members get. Risky commands can take over or brick a node.
+    </p>
 
-  <form method="post" action="/orgs/{{.Org.ID}}/permissions">
-    {{range .Groups}}
-    <fieldset class="cmdgroup">
-      <legend>{{.Name}}</legend>
-      {{range .Commands}}
-      <div class="catrow{{if .Risky}} risky{{end}}">
-        <code class="catcmd">{{.Template}}{{if .Risky}} <span class="badge warn">risky</span>{{end}}</code>
-        <label><input type="checkbox" name="admin" value="{{.ID}}" {{if .AdminChecked}}checked{{end}}> admin</label>
-        <label><input type="checkbox" name="member" value="{{.ID}}" {{if .MemberChecked}}checked{{end}}> member</label>
-      </div>
+    <form method="post" action="/orgs/{{.Org.ID}}/permissions">
+      {{range .Groups}}
+      <fieldset class="form-fieldset">
+        <div class="form-label fw-bold text-capitalize">{{.Name}}</div>
+        {{range .Commands}}
+        <div class="d-flex align-items-center flex-wrap gap-3 py-1">
+          <code class="flex-fill">{{.Template}}{{if .Risky}} <span class="badge bg-warning-lt">risky</span>{{end}}</code>
+          <label class="form-check form-check-inline m-0"><input class="form-check-input" type="checkbox" name="admin" value="{{.ID}}" {{if .AdminChecked}}checked{{end}}><span class="form-check-label">admin</span></label>
+          <label class="form-check form-check-inline m-0"><input class="form-check-input" type="checkbox" name="member" value="{{.ID}}" {{if .MemberChecked}}checked{{end}}><span class="form-check-label">member</span></label>
+        </div>
+        {{end}}
+      </fieldset>
       {{end}}
-    </fieldset>
-    {{end}}
-    <label>Change note (shown to owners when they re-consent)
-      <input type="text" name="note" maxlength="200" placeholder="e.g. added set tx for the new region plan">
-    </label>
-    <div class="ractions">
-      <button type="submit" class="primary">Publish new version</button>
-      <a class="btn ghost" href="/orgs/{{.Org.ID}}">Cancel</a>
-    </div>
-  </form>
-</section>
+      <div class="mb-3">
+        <label class="form-label">Change note <span class="text-secondary">(shown to owners when they re-consent)</span></label>
+        <input type="text" class="form-control" name="note" maxlength="200" placeholder="e.g. added set tx for the new region plan">
+      </div>
+      <div class="btn-list">
+        <button type="submit" class="btn btn-primary">Publish new version</button>
+        <a class="btn" href="/orgs/{{.Org.ID}}">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
 {{end}}

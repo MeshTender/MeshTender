@@ -1,30 +1,39 @@
 {{define "title"}}Command catalog · MeshTender{{end}}
+{{define "header"}}
+<div class="row g-2 align-items-center">
+  <div class="col">
+    <div class="page-pretitle">Administration</div>
+    <h2 class="page-title">Command catalog</h2>
+  </div>
+</div>
+{{end}}
 {{define "content"}}
-<section class="card">
-  <h1>Command catalog</h1>
-  <p class="muted">
-    The firmware commands MeshTender can send. There's no global on/off — a repeater owner can run
-    anything. These flags seed what other people are offered: <strong>share</strong> = default for new
-    shares; <strong>member</strong>/<strong>admin</strong> = the org default sets (Phase 2).
-    <strong>Risky</strong> commands can take over or brick a node.
-  </p>
-  {{if .Saved}}<p class="badge ok">Saved</p>{{end}}
+<div class="card">
+  <div class="card-body">
+    <p class="text-secondary">
+      The firmware commands MeshTender can send. There's no global on/off — a repeater owner can run
+      anything. These flags seed what other people are offered: <strong>share</strong> = default for new
+      shares; <strong>member</strong>/<strong>admin</strong> = the org default sets (Phase 2).
+      <strong>Risky</strong> commands can take over or brick a node.
+    </p>
+    {{if .Saved}}<div class="alert alert-success">Saved</div>{{end}}
 
-  {{range .Groups}}
-  <fieldset class="cmdgroup">
-    <legend>{{.Name}}</legend>
-    {{range .Commands}}
-    <form method="post" action="/admin/catalog/{{.ID}}" class="catrow">
-      <code class="catcmd">{{.Template}}</code>
-      <label><input type="checkbox" name="risky" {{if .Risky}}checked{{end}}> risky</label>
-      <label><input type="checkbox" name="share" {{if .InShareDefault}}checked{{end}}> share</label>
-      <label><input type="checkbox" name="org_member" {{if .InOrgMemberDefault}}checked{{end}}> member</label>
-      <label><input type="checkbox" name="org_admin" {{if .InOrgAdminDefault}}checked{{end}}> admin</label>
-      <button type="submit" class="link">Save</button>
-    </form>
+    {{range .Groups}}
+    <fieldset class="form-fieldset">
+      <div class="form-label fw-bold text-capitalize">{{.Name}}</div>
+      {{range .Commands}}
+      <form method="post" action="/admin/catalog/{{.ID}}" class="d-flex align-items-center flex-wrap gap-3 py-1 border-bottom">
+        <code class="flex-fill">{{.Template}}</code>
+        <label class="form-check form-check-inline m-0"><input class="form-check-input" type="checkbox" name="risky" {{if .Risky}}checked{{end}}><span class="form-check-label">risky</span></label>
+        <label class="form-check form-check-inline m-0"><input class="form-check-input" type="checkbox" name="share" {{if .InShareDefault}}checked{{end}}><span class="form-check-label">share</span></label>
+        <label class="form-check form-check-inline m-0"><input class="form-check-input" type="checkbox" name="org_member" {{if .InOrgMemberDefault}}checked{{end}}><span class="form-check-label">member</span></label>
+        <label class="form-check form-check-inline m-0"><input class="form-check-input" type="checkbox" name="org_admin" {{if .InOrgAdminDefault}}checked{{end}}><span class="form-check-label">admin</span></label>
+        <button type="submit" class="btn btn-sm">Save</button>
+      </form>
+      {{end}}
+    </fieldset>
     {{end}}
-  </fieldset>
-  {{end}}
-  <p><a class="backlink" href="/admin">← Admin</a></p>
-</section>
+  </div>
+</div>
+<a class="btn btn-link px-0 mt-3" href="/admin">{{template "icon-arrow-left" "me-1"}}Admin</a>
 {{end}}

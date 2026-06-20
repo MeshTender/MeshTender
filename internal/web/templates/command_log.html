@@ -1,40 +1,45 @@
 {{define "title"}}Command log · {{.Repeater.Name}} · MeshTender{{end}}
+{{define "header"}}
+<div class="row g-2 align-items-center">
+  <div class="col">
+    <div class="page-pretitle">Command log</div>
+    <h2 class="page-title">{{.Repeater.Name}}</h2>
+  </div>
+</div>
+{{end}}
 {{define "content"}}
-<section class="card">
-  <h1>Command log · {{.Repeater.Name}}</h1>
-  <p class="muted">
-    Commands grouped by console session (one modem connection). “Confirmed” means a reply came back;
-    no reply doesn't mean the command failed — it may have run without us hearing the response.
-  </p>
-
+<div class="card">
+  <div class="card-body">
+    <p class="text-secondary">
+      Commands grouped by console session (one modem connection). “Confirmed” means a reply came back;
+      no reply doesn't mean the command failed — it may have run without us hearing the response.
+    </p>
+  </div>
   {{if .Sessions}}
   {{range .Sessions}}
-  <div class="session">
-    <div class="session-head">
-      <strong>{{.SenderName}}</strong>
-      <span class="muted">· {{.StartedAt.Format "2006-01-02 15:04"}}{{if .EndedAt}}–{{.EndedAt.Format "15:04"}}{{else}} · in progress{{end}}</span>
-    </div>
-    <div class="logtable-wrap">
-      <table class="logtable">
-        <thead><tr><th>When</th><th>Command</th><th>Confirmed</th><th>Response</th></tr></thead>
-        <tbody>
-          {{range .Entries}}
-          <tr>
-            <td class="muted">{{.SentAt.Format "15:04:05"}}</td>
-            <td><code>{{.CommandText}}</code></td>
-            <td>{{if .AckReceived}}<span class="badge ok">yes</span>{{else}}<span class="badge pending">no reply</span>{{end}}</td>
-            <td><code class="resp">{{if .ResponseText}}{{.ResponseText}}{{else}}—{{end}}</code></td>
-          </tr>
-          {{end}}
-        </tbody>
-      </table>
-    </div>
+  <div class="card-header bg-transparent">
+    <h3 class="card-title mb-0">{{.SenderName}}</h3>
+    <span class="text-secondary ms-2">{{.StartedAt.Format "2006-01-02 15:04"}}{{if .EndedAt}}–{{.EndedAt.Format "15:04"}}{{else}} · in progress{{end}}</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-vcenter card-table">
+      <thead><tr><th>When</th><th>Command</th><th>Confirmed</th><th>Response</th></tr></thead>
+      <tbody>
+        {{range .Entries}}
+        <tr>
+          <td class="text-secondary">{{.SentAt.Format "15:04:05"}}</td>
+          <td><code>{{.CommandText}}</code></td>
+          <td>{{if .AckReceived}}<span class="badge bg-success-lt">yes</span>{{else}}<span class="badge bg-yellow-lt">no reply</span>{{end}}</td>
+          <td><code class="text-wrap">{{if .ResponseText}}{{.ResponseText}}{{else}}—{{end}}</code></td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
   </div>
   {{end}}
   {{else}}
-  <p class="muted">No commands have been sent yet.</p>
+  <div class="card-body pt-0"><p class="text-secondary mb-0">No commands have been sent yet.</p></div>
   {{end}}
-
-  <p><a class="backlink" href="/">← Back to dashboard</a></p>
-</section>
+</div>
+<a class="btn btn-link px-0 mt-3" href="/">{{template "icon-arrow-left" "me-1"}}Back to dashboard</a>
 {{end}}

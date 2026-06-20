@@ -1,31 +1,40 @@
 {{define "title"}}Confirm {{.Repeater.Name}} · MeshTender{{end}}
-{{define "content"}}
-<section class="card">
-  <h1>Confirm “{{.Repeater.Name}}”</h1>
-  <p class="muted">
-    Plug a MeshCore <strong>KISS modem</strong> into this computer, then connect it below.
-    MeshTender will send a signed login to the repeater through your modem and read the reply
-    to verify it has access. This is optional — the repeater works either way.
-  </p>
-  <code class="pk">{{.Repeater.PublicKeyHex}}</code>
-  <div class="rmeta muted">{{.Repeater.RadioFreqHz}} Hz · BW {{.Repeater.RadioBwHz}} · SF{{.Repeater.RadioSF}} · CR{{.Repeater.RadioCR}}</div>
-
-  <div id="unsupported" class="error" hidden>
-    This browser does not support WebSerial. Use Chrome, Edge, or another Chromium-based browser over HTTPS or on localhost.
+{{define "header"}}
+<div class="row g-2 align-items-center">
+  <div class="col">
+    <div class="page-pretitle">Confirm access</div>
+    <h2 class="page-title">{{.Repeater.Name}}</h2>
   </div>
+</div>
+{{end}}
+{{define "content"}}
+<div class="card">
+  <div class="card-body">
+    <p class="text-secondary">
+      Plug a MeshCore <strong>KISS modem</strong> into this computer, then connect it below.
+      MeshTender will send a signed login to the repeater through your modem and read the reply
+      to verify it has access. This is optional — the repeater works either way.
+    </p>
+    <code class="pk">{{.Repeater.PublicKeyHex}}</code>
+    <div class="text-secondary small mt-2">{{.Repeater.RadioFreqHz}} Hz · BW {{.Repeater.RadioBwHz}} · SF{{.Repeater.RadioSF}} · CR{{.Repeater.RadioCR}}</div>
 
-  <button id="connect" class="primary" type="button">Connect modem &amp; confirm</button>
+    <div id="unsupported" class="alert alert-danger mt-3" hidden>
+      This browser does not support WebSerial. Use Chrome, Edge, or another Chromium-based browser over HTTPS or on localhost.
+    </div>
 
-  <ul id="log" class="evlog"></ul>
-  <p>
-    <a class="backlink" href="/">← Back to dashboard</a>
-    {{if .Debug}}
-    &nbsp;·&nbsp; <a class="backlink" href="/repeaters/{{.Repeater.ID}}/confirm">Disable debug</a>
-    {{else}}
-    &nbsp;·&nbsp; <a class="backlink" href="/repeaters/{{.Repeater.ID}}/confirm?debug=1">Debug: show raw frames</a>
-    {{end}}
-  </p>
-</section>
+    <button id="connect" class="btn btn-primary mt-3" type="button">{{template "icon-plug" "me-1"}}Connect modem &amp; confirm</button>
+
+    <ul id="log" class="evlog mt-3"></ul>
+    <div class="mt-3">
+      <a class="btn btn-link px-0" href="/">{{template "icon-arrow-left" "me-1"}}Back to dashboard</a>
+      {{if .Debug}}
+      <a class="text-secondary ms-2" href="/repeaters/{{.Repeater.ID}}/confirm">Disable debug</a>
+      {{else}}
+      <a class="text-secondary ms-2" href="/repeaters/{{.Repeater.ID}}/confirm?debug=1">Debug: show raw frames</a>
+      {{end}}
+    </div>
+  </div>
+</div>
 
 <script>
   window.MESHTENDER_WS = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/repeaters/{{.Repeater.ID}}/ws{{if .Debug}}?debug=1{{end}}";
