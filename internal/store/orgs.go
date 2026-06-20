@@ -29,8 +29,10 @@ type OrgSummary struct {
 	Slug          string
 	Name          string
 	Description   string
+	Region        string
 	MemberCount   int
 	RepeaterCount int
+	CreatedAt     time.Time
 }
 
 // OrgMembership pairs an org with the querying user's role in it.
@@ -204,24 +206,122 @@ func (s *Store) UpdateOrg(ctx context.Context, orgID int64, slug, name, descript
 // OrgsPageSize is the number of organizations returned per directory page.
 const OrgsPageSize = 50
 
-// ListPublicOrgsPage returns one keyset page of the public org directory,
-// ordered by (name, id), starting strictly after the given cursor. A zero
-// cursor (afterName == "" && afterID == 0) starts at the beginning. It returns
-// the page (capped at OrgsPageSize) and whether more rows follow.
+// OrgSort names the orderings the public directory can be browsed in. Each maps
+// to a deterministic, tie-broken-by-id sort so keyset paging stays consistent.
+type OrgSort string
+
+const (
+	// OrgSortMembers orders by member count, most first — the default.
+	OrgSortMembers OrgSort = "members"
+	// OrgSortName orders alphabetically (A–Z).
+	OrgSortName OrgSort = "name"
+	// OrgSortRepeaters orders by contributed repeater count, most first.
+	OrgSortRepeaters OrgSort = "repeaters"
+	// OrgSortNewest orders by creation time, newest first.
+	OrgSortNewest OrgSort = "newest"
+)
+
+// NormalizeOrgSort coerces an untrusted sort string to a known OrgSort,
+// defaulting to OrgSortMembers.
+func NormalizeOrgSort(s string) OrgSort {
+	switch OrgSort(s) {
+	case OrgSortName, OrgSortRepeaters, OrgSortNewest:
+		return OrgSort(s)
+	default:
+		return OrgSortMembers
+	}
+}
+
+// OrgListParams describes a single requested page of the public directory: the
+// ordering, an optional case-insensitive search term, and the keyset position
+// to seek past. HasCursor distinguishes "first page" from a cursor whose fields
+// all happen to be zero.
+type OrgListParams struct {
+	Sort  OrgSort
+	Query string
+
+	HasCursor  bool
+	AfterName  string
+	AfterCount int
+	AfterTime  time.Time
+	AfterID    int64
+}
+
+// escapeLikePattern escapes the ILIKE wildcards in user input so the search
+// term is matched literally. Backslash is the default ILIKE escape character.
+func escapeLikePattern(s string) string {
+	return strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(s)
+}
+
+// ListPublicOrgsPage returns one keyset page of the public org directory in the
+// requested order, optionally filtered by a search term over name/description/
+// region, seeking strictly past p's cursor (or starting at the beginning when
+// HasCursor is false). It returns the page (capped at OrgsPageSize) and whether
+// more rows follow.
 //
-// Keyset (seek) paging keeps every page cheap regardless of how far in it is —
-// the (name, id) comparison rides the sort order — and the per-row member/
-// repeater counts, formerly unbounded, are now capped at the page size.
-func (s *Store) ListPublicOrgsPage(ctx context.Context, afterName string, afterID int64) ([]OrgSummary, bool, error) {
+// Keyset (seek) paging keeps every page cheap regardless of depth — the
+// (key, id) comparison rides the sort order — and caps the per-row member and
+// repeater counts at the page size. Counts are computed in an inner select so
+// the count-based orderings can both sort and seek on them.
+func (s *Store) ListPublicOrgsPage(ctx context.Context, p OrgListParams) ([]OrgSummary, bool, error) {
+	var args []any
+	add := func(v any) string { args = append(args, v); return fmt.Sprintf("$%d", len(args)) }
+
+	// Search filter applies to the inner select (raw columns).
+	innerWhere := ""
+	if q := strings.TrimSpace(p.Query); q != "" {
+		like := "%" + escapeLikePattern(q) + "%"
+		ph := add(like)
+		innerWhere = fmt.Sprintf(
+			"WHERE (o.name ILIKE %[1]s OR o.description ILIKE %[1]s OR o.region ILIKE %[1]s)", ph)
+	}
+
+	// Ordering and keyset seek apply to the outer select (computed columns
+	// available). Each seek tuple mirrors its ORDER BY exactly.
+	var order, keyset string
+	switch p.Sort {
+	case OrgSortName:
+		order = "name ASC, id ASC"
+		if p.HasCursor {
+			keyset = fmt.Sprintf("(name, id) > (%s, %s)", add(p.AfterName), add(p.AfterID))
+		}
+	case OrgSortRepeaters:
+		order = "repeater_count DESC, id DESC"
+		if p.HasCursor {
+			keyset = fmt.Sprintf("(repeater_count, id) < (%s, %s)", add(p.AfterCount), add(p.AfterID))
+		}
+	case OrgSortNewest:
+		order = "created_at DESC, id DESC"
+		if p.HasCursor {
+			keyset = fmt.Sprintf("(created_at, id) < (%s, %s)", add(p.AfterTime), add(p.AfterID))
+		}
+	default: // OrgSortMembers
+		order = "member_count DESC, id DESC"
+		if p.HasCursor {
+			keyset = fmt.Sprintf("(member_count, id) < (%s, %s)", add(p.AfterCount), add(p.AfterID))
+		}
+	}
+	outerWhere := ""
+	if keyset != "" {
+		outerWhere = "WHERE " + keyset
+	}
+
 	// Fetch one extra row to detect whether a further page exists.
-	rows, err := s.pool.Query(ctx, `
-		SELECT o.id, o.slug, o.name, o.description,
-		       (SELECT count(*) FROM org_members m WHERE m.org_id = o.id),
-		       (SELECT count(*) FROM org_repeaters orp WHERE orp.org_id = o.id)
-		FROM organizations o
-		WHERE (o.name, o.id) > ($1, $2)
-		ORDER BY o.name, o.id
-		LIMIT $3`, afterName, afterID, OrgsPageSize+1)
+	limit := add(OrgsPageSize + 1)
+	query := fmt.Sprintf(`
+		SELECT id, slug, name, description, region, member_count, repeater_count, created_at
+		FROM (
+			SELECT o.id, o.slug, o.name, o.description, o.region, o.created_at,
+			       (SELECT count(*) FROM org_members m WHERE m.org_id = o.id) AS member_count,
+			       (SELECT count(*) FROM org_repeaters orp WHERE orp.org_id = o.id) AS repeater_count
+			FROM organizations o
+			%s
+		) t
+		%s
+		ORDER BY %s
+		LIMIT %s`, innerWhere, outerWhere, order, limit)
+
+	rows, err := s.pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, false, fmt.Errorf("list public orgs: %w", err)
 	}
@@ -229,7 +329,7 @@ func (s *Store) ListPublicOrgsPage(ctx context.Context, afterName string, afterI
 	var out []OrgSummary
 	for rows.Next() {
 		var s OrgSummary
-		if err := rows.Scan(&s.ID, &s.Slug, &s.Name, &s.Description, &s.MemberCount, &s.RepeaterCount); err != nil {
+		if err := rows.Scan(&s.ID, &s.Slug, &s.Name, &s.Description, &s.Region, &s.MemberCount, &s.RepeaterCount, &s.CreatedAt); err != nil {
 			return nil, false, fmt.Errorf("scan org summary: %w", err)
 		}
 		out = append(out, s)

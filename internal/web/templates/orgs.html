@@ -11,20 +11,36 @@
 {{end}}
 {{define "content"}}
 {{if .Error}}<div class="alert alert-danger">{{.Error}}</div>{{end}}
-<div class="card">
+<div class="card mb-3">
   <div class="card-body">
-    <p class="text-secondary">
-      Organizations tend meshes together with MeshTender. Join one from its page to let its admins
-      help keep your repeaters in spec — you stay in control of exactly which commands they can run on each
-      repeater you contribute.
-    </p>
+    <form class="row g-2 align-items-center" method="get" action="/orgs">
+      <div class="col">
+        <input type="search" class="form-control" name="q" value="{{.Query}}"
+               placeholder="Search by name, description, or region…" aria-label="Search organizations">
+      </div>
+      <div class="col-auto">
+        <select class="form-select" name="sort" aria-label="Sort organizations" onchange="this.form.submit()">
+          <option value="members"{{if eq .Sort "members"}} selected{{end}}>Most members</option>
+          <option value="repeaters"{{if eq .Sort "repeaters"}} selected{{end}}>Most repeaters</option>
+          <option value="name"{{if eq .Sort "name"}} selected{{end}}>Name (A–Z)</option>
+          <option value="newest"{{if eq .Sort "newest"}} selected{{end}}>Newest</option>
+        </select>
+      </div>
+      <div class="col-auto">
+        <button class="btn btn-primary" type="submit">{{template "icon-search" "me-1"}}Search</button>
+      </div>
+    </form>
   </div>
+</div>
+
+<div class="card">
   {{if .All}}
   <div class="list-group list-group-flush">
     {{range .All}}
     <div class="list-group-item">
       <div class="d-flex align-items-center gap-2">
         <a class="fw-bold text-reset text-decoration-none" href="/orgs/{{.Slug}}">{{.Name}}</a>
+        {{if .Region}}<span class="badge bg-secondary-lt">{{.Region}}</span>{{end}}
         {{if $.LoggedIn}}{{$role := index $.MemberOf .ID}}{{if $role}}{{if eq $role "admin"}}<span class="badge bg-success-lt">admin</span>{{else}}<span class="badge bg-azure-lt">member</span>{{end}}{{end}}{{end}}
       </div>
       {{if .Description}}<p class="text-secondary mb-1 mt-1">{{.Description}}</p>{{end}}
@@ -38,7 +54,7 @@
   </div>
   {{end}}
   {{else}}
-  <div class="card-body pt-0"><p class="text-secondary mb-0">No organizations yet.</p></div>
+  <div class="card-body"><p class="text-secondary mb-0">{{if .Query}}No organizations match “{{.Query}}”.{{else}}No organizations yet.{{end}}</p></div>
   {{end}}
 </div>
 

@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -32,8 +33,33 @@ func orgErr(w http.ResponseWriter, r *http.Request, msg string) {
 // directory is keyset-paginated via an opaque ?cursor token.
 func (s *Server) pageOrgs(w http.ResponseWriter, r *http.Request) {
 	uid := s.auth.CurrentUserID(r.Context())
-	afterName, afterID := decodeOrgCursor(r.URL.Query().Get("cursor"))
-	all, hasMore, err := s.store.ListPublicOrgsPage(r.Context(), afterName, afterID)
+	q := r.URL.Query()
+
+	sortKey := store.NormalizeOrgSort(q.Get("sort"))
+	query := strings.TrimSpace(q.Get("q"))
+	if len(query) > 100 {
+		query = query[:100]
+	}
+
+	var p store.OrgListParams
+	// A cursor carries the authoritative sort, search, and keyset position for
+	// the page it points at, so paging stays consistent without re-sending the
+	// form; the sort/q params only matter on the first (cursorless) page.
+	if c, ok := decodeOrgCursor(q.Get("cursor")); ok {
+		sortKey = store.NormalizeOrgSort(c.Sort)
+		query = c.Query
+		p.HasCursor = true
+		p.AfterName = c.Name
+		p.AfterCount = c.Count
+		p.AfterID = c.ID
+		if c.Time != "" {
+			p.AfterTime, _ = time.Parse(time.RFC3339Nano, c.Time)
+		}
+	}
+	p.Sort = sortKey
+	p.Query = query
+
+	all, hasMore, err := s.store.ListPublicOrgsPage(r.Context(), p)
 	if err != nil {
 		http.Error(w, "could not load orgs", http.StatusInternalServerError)
 		return
@@ -41,11 +67,12 @@ func (s *Server) pageOrgs(w http.ResponseWriter, r *http.Request) {
 	data := map[string]any{
 		"All":      all,
 		"LoggedIn": uid != 0,
-		"Error":    r.URL.Query().Get("error"),
+		"Error":    q.Get("error"),
+		"Sort":     string(sortKey),
+		"Query":    query,
 	}
 	if hasMore && len(all) > 0 {
-		last := all[len(all)-1]
-		data["NextCursor"] = encodeOrgCursor(last.Name, last.ID)
+		data["NextCursor"] = encodeOrgCursor(nextOrgCursor(sortKey, query, all[len(all)-1]))
 	}
 	if uid != 0 {
 		mine, err := s.store.ListOrgsForUser(r.Context(), uid)
@@ -62,34 +89,57 @@ func (s *Server) pageOrgs(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, "orgs.html", data)
 }
 
-// orgCursor is the keyset position in the org directory: the (name, id) of the
-// last org on the current page. The next page seeks strictly past it.
+// orgCursor is an opaque directory position: the sort and search it belongs to,
+// plus the sort key and id of the last org on the current page. The next page
+// seeks strictly past it. Only the key field relevant to Sort is populated.
 type orgCursor struct {
-	Name string `json:"n"`
-	ID   int64  `json:"i"`
+	Sort  string `json:"s,omitempty"`
+	Query string `json:"q,omitempty"`
+	Name  string `json:"n,omitempty"`
+	Count int    `json:"c,omitempty"`
+	Time  string `json:"t,omitempty"` // RFC3339Nano, for the "newest" sort
+	ID    int64  `json:"i"`
+}
+
+// nextOrgCursor builds the cursor pointing just past last, carrying the current
+// sort and search so the next page reproduces them.
+func nextOrgCursor(sort store.OrgSort, query string, last store.OrgSummary) orgCursor {
+	c := orgCursor{Sort: string(sort), Query: query, ID: last.ID}
+	switch sort {
+	case store.OrgSortName:
+		c.Name = last.Name
+	case store.OrgSortRepeaters:
+		c.Count = last.RepeaterCount
+	case store.OrgSortNewest:
+		c.Time = last.CreatedAt.Format(time.RFC3339Nano)
+	default: // OrgSortMembers
+		c.Count = last.MemberCount
+	}
+	return c
 }
 
 // encodeOrgCursor packs a directory position into an opaque, URL-safe token.
-func encodeOrgCursor(name string, id int64) string {
-	b, _ := json.Marshal(orgCursor{Name: name, ID: id})
+func encodeOrgCursor(c orgCursor) string {
+	b, _ := json.Marshal(c)
 	return base64.RawURLEncoding.EncodeToString(b)
 }
 
 // decodeOrgCursor reverses encodeOrgCursor. A missing or malformed cursor
-// decodes to the zero position ("", 0), i.e. the first page.
-func decodeOrgCursor(tok string) (name string, id int64) {
+// decodes to ok=false, i.e. the first page — so a tampered URL just resets
+// paging rather than erroring.
+func decodeOrgCursor(tok string) (orgCursor, bool) {
 	if tok == "" {
-		return "", 0
+		return orgCursor{}, false
 	}
 	b, err := base64.RawURLEncoding.DecodeString(tok)
 	if err != nil {
-		return "", 0
+		return orgCursor{}, false
 	}
 	var c orgCursor
 	if json.Unmarshal(b, &c) != nil {
-		return "", 0
+		return orgCursor{}, false
 	}
-	return c.Name, c.ID
+	return c, true
 }
 
 // pageNewOrg renders the standalone "create an organization" form.
