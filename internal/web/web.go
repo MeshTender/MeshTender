@@ -28,12 +28,15 @@ var staticFS embed.FS
 
 // Server holds the dependencies shared by HTTP handlers.
 type Server struct {
-	store     *store.Store
-	auth      *auth.Service
-	identity  *identity.Service
-	cfg       *config.Config
-	templates *template.Template
-	router    chi.Router
+	store    *store.Store
+	auth     *auth.Service
+	identity *identity.Service
+	cfg      *config.Config
+	// pages holds each content page pre-composed with the shared layouts and
+	// partials, keyed by file name (e.g. "dashboard.html"). Built once at
+	// startup since the templates are embedded and never change at runtime.
+	pages  map[string]*template.Template
+	router chi.Router
 	// lookupTXT resolves DNS TXT records; injectable so domain verification is
 	// testable. Defaults to net.LookupTXT.
 	lookupTXT func(name string) ([]string, error)
@@ -41,13 +44,53 @@ type Server struct {
 
 // NewServer constructs the HTTP server and its routes.
 func NewServer(st *store.Store, authSvc *auth.Service, idSvc *identity.Service, cfg *config.Config) (*Server, error) {
-	tmpl, err := template.ParseFS(templatesFS, "templates/*.html")
+	pages, err := buildPages()
 	if err != nil {
 		return nil, err
 	}
-	s := &Server{store: st, auth: authSvc, identity: idSvc, cfg: cfg, templates: tmpl, lookupTXT: net.LookupTXT}
+	s := &Server{store: st, auth: authSvc, identity: idSvc, cfg: cfg, pages: pages, lookupTXT: net.LookupTXT}
 	s.routes()
 	return s, nil
+}
+
+// sharedTemplates are the layouts and partials shared by every page (the root
+// layouts live in base.html; reusable snippets like the icon set in icons.html).
+// They define no "content"/"title" blocks of their own, so they can be the
+// common base each page is composed onto.
+var sharedTemplates = []string{"templates/base.html", "templates/icons.html"}
+
+// buildPages composes each content page with the shared layouts/partials once,
+// returning a map keyed by the page's file name. Each page redefines the
+// "content"/"title"/"header" blocks, so every page needs its own template set
+// rather than one shared set (where the blocks would collide).
+func buildPages() (map[string]*template.Template, error) {
+	base, err := template.New("").ParseFS(templatesFS, sharedTemplates...)
+	if err != nil {
+		return nil, err
+	}
+	all, err := fs.Glob(templatesFS, "templates/*.html")
+	if err != nil {
+		return nil, err
+	}
+	shared := map[string]bool{}
+	for _, p := range sharedTemplates {
+		shared[p] = true
+	}
+	pages := map[string]*template.Template{}
+	for _, p := range all {
+		if shared[p] {
+			continue
+		}
+		clone, err := base.Clone()
+		if err != nil {
+			return nil, err
+		}
+		if _, err := clone.ParseFS(templatesFS, p); err != nil {
+			return nil, err
+		}
+		pages[strings.TrimPrefix(p, "templates/")] = clone
+	}
+	return pages, nil
 }
 
 // Handler returns the root HTTP handler.
@@ -188,14 +231,9 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, page string, dat
 			data["CanAdmin"] = u.CapManageUsers || u.CapManageCatalog
 		}
 	}
-	// Clone so we can associate the page's blocks without mutating the shared set.
-	t, err := s.templates.Clone()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if _, err := t.ParseFS(templatesFS, "templates/"+page); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	t, ok := s.pages[page]
+	if !ok {
+		http.Error(w, "unknown page: "+page, http.StatusInternalServerError)
 		return
 	}
 	// Pages may opt into an alternate root layout (e.g. the centered "authbase"
