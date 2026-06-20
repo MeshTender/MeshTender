@@ -10,7 +10,6 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -90,7 +89,7 @@ func TestConfirmFetchesLocation(t *testing.T) {
 		t.Fatalf("create repeater: %v", err)
 	}
 
-	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/repeaters/" + strconv.FormatInt(rep.ID, 10) + "/ws"
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/repeaters/" + rep.PublicID + "/ws"
 	hdr := http.Header{}
 	if cs := jar.Cookies(mustURL(t, ts.URL)); len(cs) > 0 {
 		var parts []string

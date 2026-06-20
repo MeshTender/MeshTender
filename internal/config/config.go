@@ -25,6 +25,12 @@ type Config struct {
 	RPDisplayName string
 	RPOrigins     []string
 
+	// PrimaryHost is the canonical app hostname (no scheme/port). Requests
+	// arriving on a different, verified org custom domain serve that org's
+	// public page; all other paths there redirect back to PrimaryHost (where
+	// the WebAuthn RP is valid). Defaults to RPID.
+	PrimaryHost string
+
 	// DefaultRadio holds fallback LoRa parameters offered when adding a
 	// repeater. Per-repeater values in the DB take precedence.
 	DefaultRadio RadioDefaults
@@ -47,6 +53,7 @@ func Load() (*Config, error) {
 		RPID:          envOr("MESHTENDER_RP_ID", "localhost"),
 		RPDisplayName: envOr("MESHTENDER_RP_NAME", "MeshTender"),
 		RPOrigins:     []string{envOr("MESHTENDER_RP_ORIGIN", "http://localhost:8080")},
+		PrimaryHost:   envOr("MESHTENDER_PRIMARY_HOST", envOr("MESHTENDER_RP_ID", "localhost")),
 		DefaultRadio: RadioDefaults{
 			FreqHz: uint32(envUintOr("MESHTENDER_RADIO_FREQ_HZ", 869525000)),
 			BwHz:   uint32(envUintOr("MESHTENDER_RADIO_BW_HZ", 250000)),

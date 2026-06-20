@@ -16,7 +16,7 @@ import (
 // share link (if any) and the list of people who have accepted.
 func (s *Server) pageShare(w http.ResponseWriter, r *http.Request) {
 	uid := s.auth.CurrentUserID(r.Context())
-	id, ok := parseID(r)
+	id, ok := s.repeaterID(r)
 	if !ok {
 		http.NotFound(w, r)
 		return
@@ -84,10 +84,10 @@ func (s *Server) handleCreateLink(w http.ResponseWriter, r *http.Request) {
 		description = description[:100]
 	}
 	if _, err := s.store.CreateInvite(r.Context(), id, description); err != nil {
-		shareErr(w, r, id, "Could not create share link.")
+		shareErr(w, r, "Could not create share link.")
 		return
 	}
-	http.Redirect(w, r, sharePath(id), http.StatusSeeOther)
+	http.Redirect(w, r, sharePath(repeaterParam(r)), http.StatusSeeOther)
 }
 
 // handleDeleteInvite revokes (or clears) a single share link by id (owner only).
@@ -98,14 +98,14 @@ func (s *Server) handleDeleteInvite(w http.ResponseWriter, r *http.Request) {
 	}
 	inviteID, err := strconv.ParseInt(r.FormValue("invite_id"), 10, 64)
 	if err != nil {
-		shareErr(w, r, id, "Invalid link.")
+		shareErr(w, r, "Invalid link.")
 		return
 	}
 	if err := s.store.DeleteInvite(r.Context(), id, inviteID); err != nil {
-		shareErr(w, r, id, "Could not remove link.")
+		shareErr(w, r, "Could not remove link.")
 		return
 	}
-	http.Redirect(w, r, sharePath(id), http.StatusSeeOther)
+	http.Redirect(w, r, sharePath(repeaterParam(r)), http.StatusSeeOther)
 }
 
 // handleUnshare revokes a user's access (owner only).
@@ -116,14 +116,14 @@ func (s *Server) handleUnshare(w http.ResponseWriter, r *http.Request) {
 	}
 	targetID, err := strconv.ParseInt(r.FormValue("user_id"), 10, 64)
 	if err != nil {
-		shareErr(w, r, id, "Invalid user.")
+		shareErr(w, r, "Invalid user.")
 		return
 	}
 	if err := s.store.RemoveShare(r.Context(), id, targetID); err != nil {
-		shareErr(w, r, id, "Could not revoke access.")
+		shareErr(w, r, "Could not revoke access.")
 		return
 	}
-	http.Redirect(w, r, sharePath(id), http.StatusSeeOther)
+	http.Redirect(w, r, sharePath(repeaterParam(r)), http.StatusSeeOther)
 }
 
 // --- invite accept flow ---
@@ -250,7 +250,7 @@ func groupCommands(catalog []*store.Command, checked map[int64]bool) []commandGr
 // pageShareCommands lets a repeater owner choose which commands a shared user may run.
 func (s *Server) pageShareCommands(w http.ResponseWriter, r *http.Request) {
 	owner := s.auth.CurrentUserID(r.Context())
-	id, ok := parseID(r)
+	id, ok := s.repeaterID(r)
 	targetID, terr := strconv.ParseInt(chi.URLParam(r, "userID"), 10, 64)
 	if !ok || terr != nil {
 		http.NotFound(w, r)
@@ -290,7 +290,7 @@ func (s *Server) pageShareCommands(w http.ResponseWriter, r *http.Request) {
 // handleSetShareCommands saves the chosen command set for a shared user.
 func (s *Server) handleSetShareCommands(w http.ResponseWriter, r *http.Request) {
 	owner := s.auth.CurrentUserID(r.Context())
-	id, ok := parseID(r)
+	id, ok := s.repeaterID(r)
 	targetID, terr := strconv.ParseInt(chi.URLParam(r, "userID"), 10, 64)
 	if !ok || terr != nil {
 		http.NotFound(w, r)
@@ -318,7 +318,7 @@ func (s *Server) handleSetShareCommands(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "could not save commands", http.StatusInternalServerError)
 		return
 	}
-	http.Redirect(w, r, sharePath(id), http.StatusSeeOther)
+	http.Redirect(w, r, sharePath(repeaterParam(r)), http.StatusSeeOther)
 }
 
 // --- helpers ---
@@ -327,7 +327,7 @@ func (s *Server) handleSetShareCommands(w http.ResponseWriter, r *http.Request) 
 // repeater, writing a 404 and returning ok=false otherwise.
 func (s *Server) requireOwned(w http.ResponseWriter, r *http.Request) (int64, bool) {
 	uid := s.auth.CurrentUserID(r.Context())
-	id, ok := parseID(r)
+	id, ok := s.repeaterID(r)
 	if !ok {
 		http.NotFound(w, r)
 		return 0, false
@@ -339,15 +339,21 @@ func (s *Server) requireOwned(w http.ResponseWriter, r *http.Request) (int64, bo
 	return id, true
 }
 
-func parseID(r *http.Request) (int64, bool) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+// repeaterID resolves the opaque {id} URL param (a public_id) to the internal
+// int64 primary key used by the store. Returns ok=false for unknown ids.
+func (s *Server) repeaterID(r *http.Request) (int64, bool) {
+	id, err := s.store.RepeaterIDByPublicID(r.Context(), chi.URLParam(r, "id"))
 	return id, err == nil
 }
 
-func sharePath(id int64) string { return "/repeaters/" + strconv.FormatInt(id, 10) + "/share" }
+// repeaterParam returns the raw public_id from the {id} URL param, for building
+// redirect URLs without a round-trip to the store.
+func repeaterParam(r *http.Request) string { return chi.URLParam(r, "id") }
 
-func shareErr(w http.ResponseWriter, r *http.Request, id int64, msg string) {
-	http.Redirect(w, r, sharePath(id)+"?error="+url.QueryEscape(msg), http.StatusSeeOther)
+func sharePath(publicID string) string { return "/repeaters/" + publicID + "/share" }
+
+func shareErr(w http.ResponseWriter, r *http.Request, msg string) {
+	http.Redirect(w, r, sharePath(repeaterParam(r))+"?error="+url.QueryEscape(msg), http.StatusSeeOther)
 }
 
 // absoluteURL builds an absolute URL for a path using the request's scheme/host.

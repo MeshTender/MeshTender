@@ -15,7 +15,7 @@
       “{{.Repeater.Name}}”. Risky commands can take over or brick the node — grant them only with care.
     </p>
 
-    <form method="post" action="/repeaters/{{.Repeater.ID}}/share/{{.Target.ID}}/commands" id="cmdform-perms">
+    <form method="post" action="/repeaters/{{.Repeater.PublicID}}/share/{{.Target.ID}}/commands" id="cmdform-perms">
       {{range .Groups}}
       <fieldset class="form-fieldset">
         <div class="form-label fw-bold text-capitalize">{{.Name}}</div>
@@ -33,7 +33,7 @@
       {{end}}
       <div class="btn-list mt-3">
         <button type="submit" class="btn btn-primary">Save commands</button>
-        <a class="btn" href="/repeaters/{{.Repeater.ID}}/share">Cancel</a>
+        <a class="btn" href="/repeaters/{{.Repeater.PublicID}}/share">Cancel</a>
       </div>
     </form>
   </div>

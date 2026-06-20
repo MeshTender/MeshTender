@@ -236,3 +236,18 @@ func randomToken() (string, error) {
 	}
 	return base64.RawURLEncoding.EncodeToString(b), nil
 }
+
+const base62 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+
+// randomPublicID returns a short, opaque, URL-safe identifier (12 base62 chars,
+// ~71 bits) used in place of sequential integer ids in URLs.
+func randomPublicID() (string, error) {
+	b := make([]byte, 12)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("random public id: %w", err)
+	}
+	for i, c := range b {
+		b[i] = base62[int(c)%len(base62)]
+	}
+	return string(b), nil
+}

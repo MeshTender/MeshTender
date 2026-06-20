@@ -105,5 +105,5 @@ func (s *Server) handleSaveOrgPermissions(w http.ResponseWriter, r *http.Request
 		http.Error(w, "could not publish", http.StatusInternalServerError)
 		return
 	}
-	http.Redirect(w, r, "/orgs/"+strconv.FormatInt(id, 10), http.StatusSeeOther)
+	http.Redirect(w, r, "/orgs/"+orgParam(r), http.StatusSeeOther)
 }

@@ -7,7 +7,7 @@ import (
 // pageCommandLog shows the command audit log for a repeater (owner only).
 func (s *Server) pageCommandLog(w http.ResponseWriter, r *http.Request) {
 	owner := s.auth.CurrentUserID(r.Context())
-	id, ok := parseID(r)
+	id, ok := s.repeaterID(r)
 	if !ok {
 		http.NotFound(w, r)
 		return

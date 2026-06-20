@@ -10,6 +10,7 @@ import (
 // re-consent is available).
 type RepeaterOrg struct {
 	OrgID            int64
+	OrgSlug          string
 	OrgName          string
 	ConsentedVersion int
 	CurrentVersion   int
@@ -47,18 +48,19 @@ func (s *Store) WithdrawRepeater(ctx context.Context, orgID, repeaterID int64) e
 
 // OrgRepeaterInfo is a contributed repeater shown on the org page.
 type OrgRepeaterInfo struct {
-	RepeaterID  int64
-	Name        string
-	OwnerName   string
-	HasLocation bool
-	Lat, Lon    float64
+	RepeaterID       int64
+	RepeaterPublicID string
+	Name             string
+	OwnerName        string
+	HasLocation      bool
+	Lat, Lon         float64
 }
 
 // ListOrgRepeaters returns the repeaters contributed to an org (with location
 // when the owner consented to storing it).
 func (s *Store) ListOrgRepeaters(ctx context.Context, orgID int64) ([]OrgRepeaterInfo, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT r.id, r.name, COALESCE(NULLIF(ou.display_name, ''), ou.username, '?'),
+		SELECT r.id, r.public_id, r.name, COALESCE(NULLIF(ou.display_name, ''), ou.username, '?'),
 		       r.latitude, r.longitude
 		FROM org_repeaters orp
 		JOIN repeaters r ON r.id = orp.repeater_id
@@ -73,7 +75,7 @@ func (s *Store) ListOrgRepeaters(ctx context.Context, orgID int64) ([]OrgRepeate
 	for rows.Next() {
 		var ri OrgRepeaterInfo
 		var lat, lon *float64
-		if err := rows.Scan(&ri.RepeaterID, &ri.Name, &ri.OwnerName, &lat, &lon); err != nil {
+		if err := rows.Scan(&ri.RepeaterID, &ri.RepeaterPublicID, &ri.Name, &ri.OwnerName, &lat, &lon); err != nil {
 			return nil, fmt.Errorf("scan org repeater: %w", err)
 		}
 		if lat != nil && lon != nil {
@@ -157,7 +159,7 @@ func (s *Store) OwnedRepeatersNeedingReconsent(ctx context.Context, ownerID int6
 // vs current version numbers.
 func (s *Store) ListRepeaterOrgs(ctx context.Context, repeaterID int64) ([]RepeaterOrg, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT o.id, o.name, cv.version,
+		SELECT o.id, o.slug, o.name, cv.version,
 		       (SELECT max(version) FROM org_permission_versions WHERE org_id = o.id)
 		FROM org_repeaters orp
 		JOIN organizations o ON o.id = orp.org_id
@@ -171,7 +173,7 @@ func (s *Store) ListRepeaterOrgs(ctx context.Context, repeaterID int64) ([]Repea
 	var out []RepeaterOrg
 	for rows.Next() {
 		var ro RepeaterOrg
-		if err := rows.Scan(&ro.OrgID, &ro.OrgName, &ro.ConsentedVersion, &ro.CurrentVersion); err != nil {
+		if err := rows.Scan(&ro.OrgID, &ro.OrgSlug, &ro.OrgName, &ro.ConsentedVersion, &ro.CurrentVersion); err != nil {
 			return nil, fmt.Errorf("scan repeater org: %w", err)
 		}
 		out = append(out, ro)

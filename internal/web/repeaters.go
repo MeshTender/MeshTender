@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/go-chi/chi/v5"
 	meshcore "github.com/meshcore-go/meshcore-go"
 
 	"github.com/jleight/meshtender/internal/config"
@@ -41,7 +40,7 @@ func (s *Server) pageAddRepeater(w http.ResponseWriter, r *http.Request) {
 // management; users with shared/org access see a read-only view plus console.
 func (s *Server) pageRepeater(w http.ResponseWriter, r *http.Request) {
 	uid := s.auth.CurrentUserID(r.Context())
-	id, ok := parseID(r)
+	id, ok := s.repeaterID(r)
 	if !ok {
 		http.NotFound(w, r)
 		return
@@ -91,7 +90,7 @@ func addErr(w http.ResponseWriter, r *http.Request, msg string) {
 // it to an organization the owner belongs to.
 func (s *Server) pageRepeaterAdded(w http.ResponseWriter, r *http.Request) {
 	uid := s.auth.CurrentUserID(r.Context())
-	id, ok := parseID(r)
+	id, ok := s.repeaterID(r)
 	if !ok {
 		http.NotFound(w, r)
 		return
@@ -156,7 +155,7 @@ func (s *Server) handleAddRepeater(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Continue the wizard: offer to confirm and contribute.
-	http.Redirect(w, r, "/repeaters/"+strconv.FormatInt(rep.ID, 10)+"/added", http.StatusSeeOther)
+	http.Redirect(w, r, "/repeaters/"+rep.PublicID+"/added", http.StatusSeeOther)
 }
 
 // parseRadioForm reads and validates the radio fields from a repeater form.
@@ -174,7 +173,7 @@ func parseRadioForm(r *http.Request) (freq, bw int64, sf, cr int16, ok bool) {
 // pageEditRepeater shows the edit form for an owned repeater.
 func (s *Server) pageEditRepeater(w http.ResponseWriter, r *http.Request) {
 	uid := s.auth.CurrentUserID(r.Context())
-	id, ok := parseID(r)
+	id, ok := s.repeaterID(r)
 	if !ok {
 		http.NotFound(w, r)
 		return
@@ -196,13 +195,13 @@ func (s *Server) pageEditRepeater(w http.ResponseWriter, r *http.Request) {
 // handleEditRepeater saves changes to an owned repeater's settings.
 func (s *Server) handleEditRepeater(w http.ResponseWriter, r *http.Request) {
 	uid := s.auth.CurrentUserID(r.Context())
-	id, ok := parseID(r)
+	id, ok := s.repeaterID(r)
 	if !ok {
 		http.NotFound(w, r)
 		return
 	}
 	editErr := func(msg string) {
-		http.Redirect(w, r, "/repeaters/"+strconv.FormatInt(id, 10)+"/edit?error="+url.QueryEscape(msg), http.StatusSeeOther)
+		http.Redirect(w, r, "/repeaters/"+repeaterParam(r)+"/edit?error="+url.QueryEscape(msg), http.StatusSeeOther)
 	}
 	name := strings.TrimSpace(r.FormValue("name"))
 	if name == "" {
@@ -228,7 +227,7 @@ func (s *Server) handleEditRepeater(w http.ResponseWriter, r *http.Request) {
 // the device.
 func (s *Server) pageDeleteRepeater(w http.ResponseWriter, r *http.Request) {
 	uid := s.auth.CurrentUserID(r.Context())
-	id, ok := parseID(r)
+	id, ok := s.repeaterID(r)
 	if !ok {
 		http.NotFound(w, r)
 		return
@@ -247,8 +246,8 @@ func (s *Server) pageDeleteRepeater(w http.ResponseWriter, r *http.Request) {
 // handleDeleteRepeater removes a repeater the current user owns.
 func (s *Server) handleDeleteRepeater(w http.ResponseWriter, r *http.Request) {
 	uid := s.auth.CurrentUserID(r.Context())
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
+	id, ok := s.repeaterID(r)
+	if !ok {
 		dashErr(w, r, "Invalid repeater.")
 		return
 	}

@@ -49,7 +49,7 @@
 </div>
 
 <script>
-  window.MESHTENDER_WS = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/repeaters/{{.Repeater.ID}}/console/ws";
+  window.MESHTENDER_WS = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/repeaters/{{.Repeater.PublicID}}/console/ws";
 </script>
 <script src="/static/console.js"></script>
 {{end}}

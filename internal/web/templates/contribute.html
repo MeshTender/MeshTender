@@ -46,10 +46,10 @@
     <p class="text-secondary">This org's policy currently grants no commands.</p>
     {{end}}
 
-    <form method="post" action="/repeaters/{{.Repeater.ID}}/orgs/{{.Org.ID}}/contribute">
+    <form method="post" action="/repeaters/{{.Repeater.PublicID}}/orgs/{{.Org.Slug}}/contribute">
       <div class="btn-list mt-3">
         <button type="submit" class="btn btn-primary">I consent — contribute this repeater</button>
-        <a class="btn" href="/repeaters/{{.Repeater.ID}}/share">Cancel</a>
+        <a class="btn" href="/repeaters/{{.Repeater.PublicID}}/share">Cancel</a>
       </div>
     </form>
   </div>

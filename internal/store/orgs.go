@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -11,7 +13,9 @@ import (
 
 // Org is an organization.
 type Org struct {
-	ID          int64
+	ID int64
+	// Slug is the admin-chosen, non-enumerable identifier used in URLs.
+	Slug        string
 	Name        string
 	Description string
 	Region      string
@@ -22,6 +26,7 @@ type Org struct {
 // OrgSummary is a public directory entry for an organization.
 type OrgSummary struct {
 	ID            int64
+	Slug          string
 	Name          string
 	Description   string
 	MemberCount   int
@@ -50,6 +55,53 @@ func (m OrgMemberInfo) Name() string {
 	return m.Username
 }
 
+// reservedSlugs are slugs that would collide with static /orgs routes or are
+// otherwise not allowed as org identifiers.
+var reservedSlugs = map[string]bool{"new": true}
+
+var slugCharRE = regexp.MustCompile(`[^a-z0-9]+`)
+var validSlugRE = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
+
+// slugify converts an arbitrary name into a slug candidate (lowercase, hyphen-
+// separated alphanumerics). Returns "" if the name has no usable characters.
+func slugify(name string) string {
+	return strings.Trim(slugCharRE.ReplaceAllString(strings.ToLower(name), "-"), "-")
+}
+
+// ValidOrgSlug reports whether s is an acceptable org slug: 3–40 chars, lowercase
+// alphanumerics with single internal hyphens, and not reserved.
+func ValidOrgSlug(s string) bool {
+	if len(s) < 3 || len(s) > 40 || reservedSlugs[s] {
+		return false
+	}
+	return validSlugRE.MatchString(s)
+}
+
+// rowQuerier is satisfied by both *pgxpool.Pool and pgx.Tx.
+type rowQuerier interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
+// uniqueOrgSlug returns base if free, else base-2, base-3, … finding the first
+// unused slug. base is sanitized and falls back to "org" when empty.
+func uniqueOrgSlug(ctx context.Context, q rowQuerier, base string) (string, error) {
+	if base == "" {
+		base = "org"
+	}
+	candidate := base
+	for n := 2; ; n++ {
+		var exists bool
+		if err := q.QueryRow(ctx,
+			`SELECT EXISTS(SELECT 1 FROM organizations WHERE slug = $1)`, candidate).Scan(&exists); err != nil {
+			return "", fmt.Errorf("check slug: %w", err)
+		}
+		if !exists {
+			return candidate, nil
+		}
+		candidate = fmt.Sprintf("%s-%d", base, n)
+	}
+}
+
 // CreateOrg creates an organization, makes the creator an admin, and seeds a v1
 // permission policy from the catalog org defaults — all atomically.
 func (s *Store) CreateOrg(ctx context.Context, name string, creatorID int64) (*Org, error) {
@@ -59,11 +111,16 @@ func (s *Store) CreateOrg(ctx context.Context, name string, creatorID int64) (*O
 	}
 	defer tx.Rollback(ctx)
 
+	slug, err := uniqueOrgSlug(ctx, tx, slugify(name))
+	if err != nil {
+		return nil, err
+	}
+
 	var o Org
 	if err := tx.QueryRow(ctx,
-		`INSERT INTO organizations (name, created_by) VALUES ($1, $2)
-		 RETURNING id, name, description, region, created_by, created_at`,
-		name, creatorID).Scan(&o.ID, &o.Name, &o.Description, &o.Region, &o.CreatedBy, &o.CreatedAt); err != nil {
+		`INSERT INTO organizations (slug, name, created_by) VALUES ($1, $2, $3)
+		 RETURNING id, slug, name, description, region, created_by, created_at`,
+		slug, name, creatorID).Scan(&o.ID, &o.Slug, &o.Name, &o.Description, &o.Region, &o.CreatedBy, &o.CreatedAt); err != nil {
 		return nil, fmt.Errorf("insert org: %w", err)
 	}
 	if _, err := tx.Exec(ctx,
@@ -101,8 +158,8 @@ func (s *Store) CreateOrg(ctx context.Context, name string, creatorID int64) (*O
 func (s *Store) GetOrg(ctx context.Context, id int64) (*Org, error) {
 	var o Org
 	err := s.pool.QueryRow(ctx,
-		`SELECT id, name, description, region, created_by, created_at FROM organizations WHERE id = $1`, id).
-		Scan(&o.ID, &o.Name, &o.Description, &o.Region, &o.CreatedBy, &o.CreatedAt)
+		`SELECT id, slug, name, description, region, created_by, created_at FROM organizations WHERE id = $1`, id).
+		Scan(&o.ID, &o.Slug, &o.Name, &o.Description, &o.Region, &o.CreatedBy, &o.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -112,11 +169,29 @@ func (s *Store) GetOrg(ctx context.Context, id int64) (*Org, error) {
 	return &o, nil
 }
 
-// UpdateOrg updates an org's name, description, and region.
-func (s *Store) UpdateOrg(ctx context.Context, orgID int64, name, description, region string) error {
+// OrgIDBySlug resolves a URL slug to the internal int64 primary key, or
+// ErrNotFound. Membership/role checks are enforced separately.
+func (s *Store) OrgIDBySlug(ctx context.Context, slug string) (int64, error) {
+	var id int64
+	err := s.pool.QueryRow(ctx, `SELECT id FROM organizations WHERE slug = $1`, slug).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, ErrNotFound
+	}
+	if err != nil {
+		return 0, fmt.Errorf("org by slug: %w", err)
+	}
+	return id, nil
+}
+
+// UpdateOrg updates an org's slug, name, description, and region. Returns
+// ErrDuplicate if the slug is already taken by another org.
+func (s *Store) UpdateOrg(ctx context.Context, orgID int64, slug, name, description, region string) error {
 	tag, err := s.pool.Exec(ctx,
-		`UPDATE organizations SET name = $2, description = $3, region = $4 WHERE id = $1`,
-		orgID, name, description, region)
+		`UPDATE organizations SET slug = $2, name = $3, description = $4, region = $5 WHERE id = $1`,
+		orgID, slug, name, description, region)
+	if isUniqueViolation(err) {
+		return ErrDuplicate
+	}
 	if err != nil {
 		return fmt.Errorf("update org: %w", err)
 	}
@@ -130,7 +205,7 @@ func (s *Store) UpdateOrg(ctx context.Context, orgID int64, name, description, r
 // public directory. Orgs are publicly listed by default.
 func (s *Store) ListPublicOrgs(ctx context.Context) ([]OrgSummary, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT o.id, o.name, o.description,
+		SELECT o.id, o.slug, o.name, o.description,
 		       (SELECT count(*) FROM org_members m WHERE m.org_id = o.id),
 		       (SELECT count(*) FROM org_repeaters orp WHERE orp.org_id = o.id)
 		FROM organizations o
@@ -142,7 +217,7 @@ func (s *Store) ListPublicOrgs(ctx context.Context) ([]OrgSummary, error) {
 	var out []OrgSummary
 	for rows.Next() {
 		var s OrgSummary
-		if err := rows.Scan(&s.ID, &s.Name, &s.Description, &s.MemberCount, &s.RepeaterCount); err != nil {
+		if err := rows.Scan(&s.ID, &s.Slug, &s.Name, &s.Description, &s.MemberCount, &s.RepeaterCount); err != nil {
 			return nil, fmt.Errorf("scan org summary: %w", err)
 		}
 		out = append(out, s)
@@ -165,7 +240,7 @@ func (s *Store) OrgCounts(ctx context.Context, orgID int64) (members, repeaters 
 // ListOrgsForUser returns the orgs a user belongs to with their role.
 func (s *Store) ListOrgsForUser(ctx context.Context, userID int64) ([]OrgMembership, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT o.id, o.name, o.description, o.created_by, o.created_at, m.role
+		SELECT o.id, o.slug, o.name, o.description, o.created_by, o.created_at, m.role
 		FROM org_members m JOIN organizations o ON o.id = m.org_id
 		WHERE m.user_id = $1 ORDER BY o.name`, userID)
 	if err != nil {
@@ -176,7 +251,7 @@ func (s *Store) ListOrgsForUser(ctx context.Context, userID int64) ([]OrgMembers
 	for rows.Next() {
 		var o Org
 		var role string
-		if err := rows.Scan(&o.ID, &o.Name, &o.Description, &o.CreatedBy, &o.CreatedAt, &role); err != nil {
+		if err := rows.Scan(&o.ID, &o.Slug, &o.Name, &o.Description, &o.CreatedBy, &o.CreatedAt, &role); err != nil {
 			return nil, fmt.Errorf("scan org: %w", err)
 		}
 		out = append(out, OrgMembership{Org: &o, Role: role})
@@ -356,9 +431,9 @@ func (s *Store) DeleteOrgInvite(ctx context.Context, orgID, inviteID int64) erro
 func (s *Store) OrgByInviteToken(ctx context.Context, token string) (*Org, error) {
 	var o Org
 	err := s.pool.QueryRow(ctx, `
-		SELECT o.id, o.name, o.description, o.created_by, o.created_at
+		SELECT o.id, o.slug, o.name, o.description, o.created_by, o.created_at
 		FROM org_invites i JOIN organizations o ON o.id = i.org_id
-		WHERE i.token = $1`, token).Scan(&o.ID, &o.Name, &o.Description, &o.CreatedBy, &o.CreatedAt)
+		WHERE i.token = $1`, token).Scan(&o.ID, &o.Slug, &o.Name, &o.Description, &o.CreatedBy, &o.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}

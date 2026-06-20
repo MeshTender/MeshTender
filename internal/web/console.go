@@ -80,7 +80,7 @@ func (s *Server) allowedCommands(ctx context.Context, rep *store.Repeater, userI
 
 func (s *Server) pageConsole(w http.ResponseWriter, r *http.Request) {
 	uid := s.auth.CurrentUserID(r.Context())
-	id, ok := parseID(r)
+	id, ok := s.repeaterID(r)
 	if !ok {
 		http.NotFound(w, r)
 		return
@@ -110,7 +110,7 @@ func (s *Server) pageConsole(w http.ResponseWriter, r *http.Request) {
 // wsConsole runs an interactive command session over the modem bridge.
 func (s *Server) wsConsole(w http.ResponseWriter, r *http.Request) {
 	uid := s.auth.CurrentUserID(r.Context())
-	id, ok := parseID(r)
+	id, ok := s.repeaterID(r)
 	if !ok {
 		http.NotFound(w, r)
 		return

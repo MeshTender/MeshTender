@@ -7,9 +7,9 @@
   </div>
   <div class="col-auto ms-auto d-print-none">
     <div class="btn-list">
-      {{if .IsAdmin}}<a class="btn" href="/orgs/{{.Org.ID}}/permissions">{{template "icon-settings" "me-1"}}Edit permissions</a>{{end}}
-      <a class="btn" href="/orgs/{{.Org.ID}}?view=public">{{template "icon-world" "me-1"}}Public page</a>
-      <form method="post" action="/orgs/{{.Org.ID}}/leave" class="m-0" onsubmit="return confirm('Leave this organization?')">
+      {{if .IsAdmin}}<a class="btn" href="/orgs/{{.Org.Slug}}/permissions">{{template "icon-settings" "me-1"}}Edit permissions</a>{{end}}
+      <a class="btn" href="/orgs/{{.Org.Slug}}?view=public">{{template "icon-world" "me-1"}}Public page</a>
+      <form method="post" action="/orgs/{{.Org.Slug}}/leave" class="m-0" onsubmit="return confirm('Leave this organization?')">
         <button type="submit" class="btn btn-ghost-danger">Leave</button>
       </form>
     </div>
@@ -94,10 +94,10 @@
         <div class="list-group-item d-flex align-items-center gap-2">
           <span class="text-secondary">{{template "icon-antenna" ""}}</span>
           <div class="flex-fill text-truncate">
-            <a class="fw-bold text-reset text-decoration-none" href="/repeaters/{{.RepeaterID}}">{{.Name}}</a>
+            <a class="fw-bold text-reset text-decoration-none" href="/repeaters/{{.RepeaterPublicID}}">{{.Name}}</a>
             <div class="text-secondary small">owner {{.OwnerName}}</div>
           </div>
-          <a class="btn btn-primary btn-sm" href="/repeaters/{{.RepeaterID}}/console">{{template "icon-terminal" "me-1"}}Console</a>
+          <a class="btn btn-primary btn-sm" href="/repeaters/{{.RepeaterPublicID}}/console">{{template "icon-terminal" "me-1"}}Console</a>
         </div>
         {{end}}
       </div>
@@ -117,7 +117,7 @@
           </div>
           {{if eq .Role "admin"}}<span class="badge bg-success-lt">admin</span>{{else}}<span class="badge bg-azure-lt">member</span>{{end}}
           {{if and $.IsAdmin (ne .UserID $.Self)}}
-          <form method="post" action="/orgs/{{$.Org.ID}}/members/{{.UserID}}" class="m-0 d-flex gap-2">
+          <form method="post" action="/orgs/{{$.Org.Slug}}/members/{{.UserID}}" class="m-0 d-flex gap-2">
             {{if eq .Role "admin"}}
             <button type="submit" name="action" value="demote" class="btn btn-sm">Demote</button>
             {{else}}
@@ -145,10 +145,19 @@
     <div class="card {{if .Org.Description}}mt-3{{end}}">
       <div class="card-header"><h3 class="card-title">Organization profile <span class="text-secondary">(public)</span></h3></div>
       <div class="card-body">
-        <form method="post" action="/orgs/{{.Org.ID}}/edit">
+        <form method="post" action="/orgs/{{.Org.Slug}}/edit">
           <div class="mb-3">
             <label class="form-label">Name</label>
             <input type="text" class="form-control" name="name" value="{{.Org.Name}}" maxlength="80" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">URL slug</label>
+            <div class="input-group">
+              <span class="input-group-text">/orgs/</span>
+              <input type="text" class="form-control font-monospace" name="slug" value="{{.Org.Slug}}"
+                     pattern="[a-z0-9]+(-[a-z0-9]+)*" minlength="3" maxlength="40" required>
+            </div>
+            <small class="form-hint">Lowercase letters, numbers, and hyphens. Changing this changes the org's URL.</small>
           </div>
           <div class="mb-3">
             <label class="form-label">Region <span class="text-secondary">(optional)</span></label>
@@ -159,6 +168,55 @@
             <textarea class="form-control" name="description" rows="3" maxlength="2000" placeholder="What this organization is about, where it operates, etc.">{{.Org.Description}}</textarea>
           </div>
           <button type="submit" class="btn btn-primary">Save profile</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-header"><h3 class="card-title">Custom domains</h3></div>
+      <div class="card-body">
+        <p class="text-secondary">
+          Point your own domain at MeshTender (CNAME it to this app). Once verified, visiting that
+          domain shows this organization's public page. Sign-in and management always happen on the
+          main site. TLS certificates for your domain are handled by your hosting/ops setup.
+        </p>
+        {{if .Domains}}
+        <div class="list-group list-group-flush mb-3">
+          {{range .Domains}}
+          <div class="list-group-item px-0">
+            <div class="d-flex align-items-center gap-2 mb-1">
+              <span class="fw-bold font-monospace">{{.Hostname}}</span>
+              {{if .Verified}}
+              <span class="badge bg-success-lt">verified</span>
+              {{else}}
+              <span class="badge bg-warning-lt">pending verification</span>
+              {{end}}
+              <form method="post" action="/orgs/{{$.Org.Slug}}/domains/delete" class="m-0 ms-auto">
+                <input type="hidden" name="domain_id" value="{{.ID}}">
+                <button type="submit" class="btn btn-sm btn-ghost-danger">Remove</button>
+              </form>
+            </div>
+            {{if not .Verified}}
+            <p class="text-secondary mb-2">Add this DNS TXT record, then click Verify:</p>
+            <div class="mb-2">
+              <code class="d-block">{{$.TXTName}}{{.Hostname}}</code>
+              <code class="d-block">TXT&nbsp;&nbsp;{{.VerificationToken}}</code>
+            </div>
+            <form method="post" action="/orgs/{{$.Org.Slug}}/domains/verify" class="m-0">
+              <input type="hidden" name="domain_id" value="{{.ID}}">
+              <button type="submit" class="btn btn-sm">Verify</button>
+            </form>
+            {{end}}
+          </div>
+          {{end}}
+        </div>
+        {{end}}
+        <form method="post" action="/orgs/{{.Org.Slug}}/domains">
+          <div class="mb-3">
+            <label class="form-label">Add a domain</label>
+            <input type="text" class="form-control font-monospace" name="hostname" placeholder="mesh.example.org" maxlength="253">
+          </div>
+          <button type="submit" class="btn btn-primary">Add domain</button>
         </form>
       </div>
     </div>
@@ -176,7 +234,7 @@
               <code class="form-control font-monospace" id="ol-{{.ID}}">{{.Link}}</code>
               <button type="button" class="btn" onclick="navigator.clipboard.writeText(document.getElementById('ol-{{.ID}}').textContent)">{{template "icon-copy" ""}}Copy</button>
             </div>
-            <form method="post" action="/orgs/{{$.Org.ID}}/invite/delete" class="m-0">
+            <form method="post" action="/orgs/{{$.Org.Slug}}/invite/delete" class="m-0">
               <input type="hidden" name="invite_id" value="{{.ID}}">
               <button type="submit" class="btn btn-sm btn-ghost-danger">Revoke</button>
             </form>
@@ -184,7 +242,7 @@
           {{end}}
         </div>
         {{end}}
-        <form method="post" action="/orgs/{{.Org.ID}}/invite">
+        <form method="post" action="/orgs/{{.Org.Slug}}/invite">
           <div class="mb-3">
             <label class="form-label">New link description <span class="text-secondary">(optional)</span></label>
             <input type="text" class="form-control" name="description" maxlength="100" placeholder="e.g. forum post">

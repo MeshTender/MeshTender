@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
-	"github.com/go-chi/chi/v5"
 	meshcore "github.com/meshcore-go/meshcore-go"
 	"github.com/meshcore-go/meshcore-go/hardware"
 
@@ -35,8 +34,8 @@ const maxSendTries = 4
 // pageConfirm renders the WebSerial confirm page for a repeater the user can access.
 func (s *Server) pageConfirm(w http.ResponseWriter, r *http.Request) {
 	uid := s.auth.CurrentUserID(r.Context())
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
+	id, ok := s.repeaterID(r)
+	if !ok {
 		http.NotFound(w, r)
 		return
 	}
@@ -59,8 +58,8 @@ func (s *Server) pageConfirm(w http.ResponseWriter, r *http.Request) {
 // browser's WebSerial-attached KISS modem.
 func (s *Server) wsConfirm(w http.ResponseWriter, r *http.Request) {
 	uid := s.auth.CurrentUserID(r.Context())
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
+	id, ok := s.repeaterID(r)
+	if !ok {
 		http.NotFound(w, r)
 		return
 	}

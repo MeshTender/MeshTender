@@ -17,7 +17,7 @@
       Admins effectively also get everything members get. Risky commands can take over or brick a node.
     </p>
 
-    <form method="post" action="/orgs/{{.Org.ID}}/permissions">
+    <form method="post" action="/orgs/{{.Org.Slug}}/permissions">
       {{range .Groups}}
       <fieldset class="form-fieldset">
         <div class="form-label fw-bold text-capitalize">{{.Name}}</div>
@@ -36,7 +36,7 @@
       </div>
       <div class="btn-list">
         <button type="submit" class="btn btn-primary">Publish new version</button>
-        <a class="btn" href="/orgs/{{.Org.ID}}">Cancel</a>
+        <a class="btn" href="/orgs/{{.Org.Slug}}">Cancel</a>
       </div>
     </form>
   </div>

@@ -25,7 +25,7 @@
         {{else if eq .State "already"}}
           <h2 class="card-title">Already a member</h2>
           <p>You're already in <strong>{{.Org.Name}}</strong>.</p>
-          <a class="btn btn-primary" href="/orgs/{{.Org.ID}}">Go to {{.Org.Name}}</a>
+          <a class="btn btn-primary" href="/orgs/{{.Org.Slug}}">Go to {{.Org.Name}}</a>
 
         {{else}}{{/* confirm */}}
           <h2 class="card-title">Join {{.Org.Name}}</h2>

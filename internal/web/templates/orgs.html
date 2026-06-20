@@ -24,7 +24,7 @@
     {{range .All}}
     <div class="list-group-item">
       <div class="d-flex align-items-center gap-2">
-        <a class="fw-bold text-reset text-decoration-none" href="/orgs/{{.ID}}">{{.Name}}</a>
+        <a class="fw-bold text-reset text-decoration-none" href="/orgs/{{.Slug}}">{{.Name}}</a>
         {{if $.LoggedIn}}{{$role := index $.MemberOf .ID}}{{if $role}}{{if eq $role "admin"}}<span class="badge bg-success-lt">admin</span>{{else}}<span class="badge bg-azure-lt">member</span>{{end}}{{end}}{{end}}
       </div>
       {{if .Description}}<p class="text-secondary mb-1 mt-1">{{.Description}}</p>{{end}}

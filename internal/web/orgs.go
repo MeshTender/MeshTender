@@ -12,13 +12,17 @@ import (
 	"github.com/jleight/meshtender/internal/store"
 )
 
-func orgIDParam(r *http.Request) (int64, bool) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+// orgID resolves the {id} URL param (a slug) to the internal int64 primary key.
+func (s *Server) orgID(r *http.Request) (int64, bool) {
+	id, err := s.store.OrgIDBySlug(r.Context(), chi.URLParam(r, "id"))
 	return id, err == nil
 }
 
-func orgErr(w http.ResponseWriter, r *http.Request, orgID int64, msg string) {
-	http.Redirect(w, r, "/orgs/"+strconv.FormatInt(orgID, 10)+"?error="+url.QueryEscape(msg), http.StatusSeeOther)
+// orgParam returns the raw slug from the {id} URL param, for building redirects.
+func orgParam(r *http.Request) string { return chi.URLParam(r, "id") }
+
+func orgErr(w http.ResponseWriter, r *http.Request, msg string) {
+	http.Redirect(w, r, "/orgs/"+orgParam(r)+"?error="+url.QueryEscape(msg), http.StatusSeeOther)
 }
 
 // pageOrgs is the public organization directory. Everyone sees the list; signed-
@@ -70,7 +74,7 @@ func (s *Server) handleCreateOrg(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/orgs/new?error="+url.QueryEscape("Could not create organization."), http.StatusSeeOther)
 		return
 	}
-	http.Redirect(w, r, "/orgs/"+strconv.FormatInt(org.ID, 10), http.StatusSeeOther)
+	http.Redirect(w, r, "/orgs/"+org.Slug, http.StatusSeeOther)
 }
 
 // pageOrg shows an org's home. Members get the full management view; everyone
@@ -78,7 +82,7 @@ func (s *Server) handleCreateOrg(w http.ResponseWriter, r *http.Request) {
 // public view with ?view=public.
 func (s *Server) pageOrg(w http.ResponseWriter, r *http.Request) {
 	uid := s.auth.CurrentUserID(r.Context())
-	id, ok := orgIDParam(r)
+	id, ok := s.orgID(r)
 	if !ok {
 		http.NotFound(w, r)
 		return
@@ -150,6 +154,14 @@ func (s *Server) pageOrg(w http.ResponseWriter, r *http.Request) {
 			views = append(views, inviteView{inv.ID, inv.Description, s.absoluteURL(r, "/org-invite/"+inv.Token)})
 		}
 		data["Invites"] = views
+
+		domains, err := s.store.ListOrgDomains(r.Context(), id)
+		if err != nil {
+			http.Error(w, "could not load domains", http.StatusInternalServerError)
+			return
+		}
+		data["Domains"] = domains
+		data["TXTName"] = txtRecordPrefix // org appends its hostname for the full record name
 	}
 	s.render(w, r, "org.html", data)
 }
@@ -189,17 +201,22 @@ func (s *Server) renderOrgPublic(w http.ResponseWriter, r *http.Request, org *st
 	})
 }
 
-// handleEditOrg updates an org's name and description (admin only).
+// handleEditOrg updates an org's slug, name, description, and region (admin only).
 func (s *Server) handleEditOrg(w http.ResponseWriter, r *http.Request) {
 	id, ok := s.requireOrgAdmin(w, r)
 	if !ok {
 		return
 	}
 	name := strings.TrimSpace(r.FormValue("name"))
+	slug := strings.ToLower(strings.TrimSpace(r.FormValue("slug")))
 	desc := strings.TrimSpace(r.FormValue("description"))
 	region := strings.TrimSpace(r.FormValue("region"))
 	if name == "" || len(name) > 80 {
-		orgErr(w, r, id, "Enter an organization name.")
+		orgErr(w, r, "Enter an organization name.")
+		return
+	}
+	if !store.ValidOrgSlug(slug) {
+		orgErr(w, r, "Slug must be 3–40 lowercase letters, numbers, and hyphens (and not reserved).")
 		return
 	}
 	if len(desc) > 2000 {
@@ -208,17 +225,21 @@ func (s *Server) handleEditOrg(w http.ResponseWriter, r *http.Request) {
 	if len(region) > 120 {
 		region = region[:120]
 	}
-	if err := s.store.UpdateOrg(r.Context(), id, name, desc, region); err != nil {
-		orgErr(w, r, id, "Could not save changes.")
+	if err := s.store.UpdateOrg(r.Context(), id, slug, name, desc, region); errors.Is(err, store.ErrDuplicate) {
+		orgErr(w, r, "That URL slug is already taken.")
+		return
+	} else if err != nil {
+		orgErr(w, r, "Could not save changes.")
 		return
 	}
-	http.Redirect(w, r, "/orgs/"+strconv.FormatInt(id, 10), http.StatusSeeOther)
+	// The slug may have changed; redirect to the new canonical URL.
+	http.Redirect(w, r, "/orgs/"+slug, http.StatusSeeOther)
 }
 
 // requireOrgAdmin resolves {id} and verifies the current user is an org admin.
 func (s *Server) requireOrgAdmin(w http.ResponseWriter, r *http.Request) (int64, bool) {
 	uid := s.auth.CurrentUserID(r.Context())
-	id, ok := orgIDParam(r)
+	id, ok := s.orgID(r)
 	if !ok {
 		http.NotFound(w, r)
 		return 0, false
@@ -233,18 +254,18 @@ func (s *Server) requireOrgAdmin(w http.ResponseWriter, r *http.Request) (int64,
 
 func (s *Server) handleLeaveOrg(w http.ResponseWriter, r *http.Request) {
 	uid := s.auth.CurrentUserID(r.Context())
-	id, ok := orgIDParam(r)
+	id, ok := s.orgID(r)
 	if !ok {
 		http.NotFound(w, r)
 		return
 	}
 	err := s.store.RemoveOrgMember(r.Context(), id, uid)
 	if errors.Is(err, store.ErrLastAdmin) {
-		orgErr(w, r, id, "You're the last admin — promote someone else first.")
+		orgErr(w, r, "You're the last admin — promote someone else first.")
 		return
 	}
 	if err != nil {
-		orgErr(w, r, id, "Could not leave.")
+		orgErr(w, r, "Could not leave.")
 		return
 	}
 	http.Redirect(w, r, "/orgs", http.StatusSeeOther)
@@ -260,10 +281,10 @@ func (s *Server) handleCreateOrgInvite(w http.ResponseWriter, r *http.Request) {
 		desc = desc[:100]
 	}
 	if _, err := s.store.CreateOrgInvite(r.Context(), id, desc); err != nil {
-		orgErr(w, r, id, "Could not create link.")
+		orgErr(w, r, "Could not create link.")
 		return
 	}
-	http.Redirect(w, r, "/orgs/"+strconv.FormatInt(id, 10), http.StatusSeeOther)
+	http.Redirect(w, r, "/orgs/"+orgParam(r), http.StatusSeeOther)
 }
 
 func (s *Server) handleDeleteOrgInvite(w http.ResponseWriter, r *http.Request) {
@@ -273,14 +294,14 @@ func (s *Server) handleDeleteOrgInvite(w http.ResponseWriter, r *http.Request) {
 	}
 	inviteID, err := strconv.ParseInt(r.FormValue("invite_id"), 10, 64)
 	if err != nil {
-		orgErr(w, r, id, "Invalid link.")
+		orgErr(w, r, "Invalid link.")
 		return
 	}
 	if err := s.store.DeleteOrgInvite(r.Context(), id, inviteID); err != nil {
-		orgErr(w, r, id, "Could not revoke link.")
+		orgErr(w, r, "Could not revoke link.")
 		return
 	}
-	http.Redirect(w, r, "/orgs/"+strconv.FormatInt(id, 10), http.StatusSeeOther)
+	http.Redirect(w, r, "/orgs/"+orgParam(r), http.StatusSeeOther)
 }
 
 // handleSetOrgMember promotes/demotes/removes a member (admin only).
@@ -302,18 +323,18 @@ func (s *Server) handleSetOrgMember(w http.ResponseWriter, r *http.Request) {
 	case "remove":
 		err = s.store.RemoveOrgMember(r.Context(), id, targetID)
 	default:
-		orgErr(w, r, id, "Unknown action.")
+		orgErr(w, r, "Unknown action.")
 		return
 	}
 	if errors.Is(err, store.ErrLastAdmin) {
-		orgErr(w, r, id, "That would leave the org with no admin.")
+		orgErr(w, r, "That would leave the org with no admin.")
 		return
 	}
 	if err != nil {
-		orgErr(w, r, id, "Could not update member.")
+		orgErr(w, r, "Could not update member.")
 		return
 	}
-	http.Redirect(w, r, "/orgs/"+strconv.FormatInt(id, 10), http.StatusSeeOther)
+	http.Redirect(w, r, "/orgs/"+orgParam(r), http.StatusSeeOther)
 }
 
 // --- join via invite ---
@@ -367,5 +388,5 @@ func (s *Server) handleAcceptOrgInvite(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not join", http.StatusInternalServerError)
 		return
 	}
-	http.Redirect(w, r, "/orgs/"+strconv.FormatInt(org.ID, 10), http.StatusSeeOther)
+	http.Redirect(w, r, "/orgs/"+org.Slug, http.StatusSeeOther)
 }

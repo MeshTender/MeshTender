@@ -11,7 +11,9 @@ import (
 
 // Repeater is a MeshCore repeater registered by a user.
 type Repeater struct {
-	ID           int64
+	ID int64
+	// PublicID is the opaque, non-enumerable identifier used in URLs.
+	PublicID     string
 	OwnerID      int64
 	Name         string
 	PublicKeyHex string
@@ -74,13 +76,17 @@ func (r *Repeater) OwnerName() string {
 // CreateRepeater inserts a repeater owned by ownerID. Returns ErrDuplicate if
 // the owner already registered a repeater with the same public key.
 func (s *Store) CreateRepeater(ctx context.Context, r *Repeater) (*Repeater, error) {
+	publicID, err := randomPublicID()
+	if err != nil {
+		return nil, err
+	}
 	var out Repeater
-	err := s.pool.QueryRow(ctx, `
-		INSERT INTO repeaters (owner_id, name, public_key_hex, radio_freq_hz, radio_bw_hz, radio_sf, radio_cr, store_location, public_map)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-		RETURNING id, owner_id, name, public_key_hex, radio_freq_hz, radio_bw_hz, radio_sf, radio_cr, confirmed, confirmed_at, created_at, store_location, public_map`,
-		r.OwnerID, r.Name, r.PublicKeyHex, r.RadioFreqHz, r.RadioBwHz, r.RadioSF, r.RadioCR, r.StoreLocation, r.PublicMap).
-		Scan(&out.ID, &out.OwnerID, &out.Name, &out.PublicKeyHex, &out.RadioFreqHz, &out.RadioBwHz,
+	err = s.pool.QueryRow(ctx, `
+		INSERT INTO repeaters (public_id, owner_id, name, public_key_hex, radio_freq_hz, radio_bw_hz, radio_sf, radio_cr, store_location, public_map)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		RETURNING id, public_id, owner_id, name, public_key_hex, radio_freq_hz, radio_bw_hz, radio_sf, radio_cr, confirmed, confirmed_at, created_at, store_location, public_map`,
+		publicID, r.OwnerID, r.Name, r.PublicKeyHex, r.RadioFreqHz, r.RadioBwHz, r.RadioSF, r.RadioCR, r.StoreLocation, r.PublicMap).
+		Scan(&out.ID, &out.PublicID, &out.OwnerID, &out.Name, &out.PublicKeyHex, &out.RadioFreqHz, &out.RadioBwHz,
 			&out.RadioSF, &out.RadioCR, &out.Confirmed, &out.ConfirmedAt, &out.CreatedAt, &out.StoreLocation, &out.PublicMap)
 	if isUniqueViolation(err) {
 		return nil, ErrDuplicate
@@ -94,7 +100,7 @@ func (s *Store) CreateRepeater(ctx context.Context, r *Repeater) (*Repeater, err
 // repeaterSelect joins the owner for display. $1 is always the querying user id
 // (used to compute the Shared flag).
 const repeaterSelect = `
-	SELECT r.id, r.owner_id, r.name, r.public_key_hex, r.radio_freq_hz, r.radio_bw_hz,
+	SELECT r.id, r.public_id, r.owner_id, r.name, r.public_key_hex, r.radio_freq_hz, r.radio_bw_hz,
 	       r.radio_sf, r.radio_cr, r.confirmed, r.confirmed_at, r.created_at,
 	       r.confirmed_admin, r.confirmed_perms,
 	       r.store_location, r.latitude, r.longitude, r.public_map,
@@ -108,7 +114,7 @@ const repeaterSelect = `
 
 func scanRepeater(row pgx.Row) (*Repeater, error) {
 	var r Repeater
-	err := row.Scan(&r.ID, &r.OwnerID, &r.Name, &r.PublicKeyHex, &r.RadioFreqHz, &r.RadioBwHz,
+	err := row.Scan(&r.ID, &r.PublicID, &r.OwnerID, &r.Name, &r.PublicKeyHex, &r.RadioFreqHz, &r.RadioBwHz,
 		&r.RadioSF, &r.RadioCR, &r.Confirmed, &r.ConfirmedAt, &r.CreatedAt,
 		&r.ConfirmedAdmin, &r.ConfirmedPerms,
 		&r.StoreLocation, &r.Latitude, &r.Longitude, &r.PublicMap,
@@ -163,6 +169,21 @@ func (s *Store) GetRepeaterForUser(ctx context.Context, userID, repeaterID int64
 		return nil, fmt.Errorf("get repeater: %w", err)
 	}
 	return r, nil
+}
+
+// RepeaterIDByPublicID resolves a URL public_id to the internal int64 primary
+// key, or ErrNotFound. Authorization is enforced separately by the per-user
+// GetRepeaterForUser / GetRepeaterOwned gates.
+func (s *Store) RepeaterIDByPublicID(ctx context.Context, publicID string) (int64, error) {
+	var id int64
+	err := s.pool.QueryRow(ctx, `SELECT id FROM repeaters WHERE public_id = $1`, publicID).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, ErrNotFound
+	}
+	if err != nil {
+		return 0, fmt.Errorf("repeater by public id: %w", err)
+	}
+	return id, nil
 }
 
 // SetRepeaterConfirmed marks a repeater confirmed by userID, recording the

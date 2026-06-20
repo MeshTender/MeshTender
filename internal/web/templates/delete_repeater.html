@@ -26,7 +26,7 @@
 
         {{template "revokedoc" .RevokeCommand}}
 
-        <form method="post" action="/repeaters/{{.Repeater.ID}}/delete" class="mt-3">
+        <form method="post" action="/repeaters/{{.Repeater.PublicID}}/delete" class="mt-3">
           <div class="btn-list">
             <button type="submit" class="btn btn-danger">{{template "icon-trash" "me-1"}}Delete repeater</button>
             <a class="btn" href="/">Cancel</a>

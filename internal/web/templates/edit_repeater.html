@@ -14,7 +14,7 @@
     <p class="text-secondary">The public key identifies the repeater and can't be changed — delete and re-add to change it.</p>
     <code class="pk">{{.Repeater.PublicKeyHex}}</code>
 
-    <form method="post" action="/repeaters/{{.Repeater.ID}}/edit" class="mt-3">
+    <form method="post" action="/repeaters/{{.Repeater.PublicID}}/edit" class="mt-3">
       <div class="mb-3">
         <label class="form-label">Name</label>
         <input type="text" class="form-control" name="name" value="{{.Repeater.Name}}" required>

@@ -2,7 +2,6 @@ package web
 
 import (
 	"net/http"
-	"strconv"
 
 	"github.com/go-chi/chi/v5"
 
@@ -12,8 +11,8 @@ import (
 // orgContext resolves the {id} repeater (owned) and {orgID} the user belongs to.
 func (s *Server) orgContext(w http.ResponseWriter, r *http.Request) (*store.Repeater, int64, bool) {
 	owner := s.auth.CurrentUserID(r.Context())
-	id, ok := parseID(r)
-	orgID, oerr := strconv.ParseInt(chi.URLParam(r, "orgID"), 10, 64)
+	id, ok := s.repeaterID(r)
+	orgID, oerr := s.store.OrgIDBySlug(r.Context(), chi.URLParam(r, "orgID"))
 	if !ok || oerr != nil {
 		http.NotFound(w, r)
 		return nil, 0, false
@@ -146,7 +145,7 @@ func (s *Server) handleContribute(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not contribute", http.StatusInternalServerError)
 		return
 	}
-	http.Redirect(w, r, "/repeaters/"+strconv.FormatInt(rep.ID, 10)+"/share", http.StatusSeeOther)
+	http.Redirect(w, r, "/repeaters/"+rep.PublicID+"/share", http.StatusSeeOther)
 }
 
 // handleWithdraw removes the repeater from the org.
@@ -159,5 +158,5 @@ func (s *Server) handleWithdraw(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not withdraw", http.StatusInternalServerError)
 		return
 	}
-	http.Redirect(w, r, "/repeaters/"+strconv.FormatInt(rep.ID, 10)+"/share", http.StatusSeeOther)
+	http.Redirect(w, r, "/repeaters/"+rep.PublicID+"/share", http.StatusSeeOther)
 }

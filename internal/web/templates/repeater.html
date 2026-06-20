@@ -7,21 +7,21 @@
   </div>
   <div class="col-auto ms-auto d-print-none">
     <div class="btn-list">
-      <a class="btn btn-primary" href="/repeaters/{{.Repeater.ID}}/console">{{template "icon-terminal" "me-1"}}Console</a>
+      <a class="btn btn-primary" href="/repeaters/{{.Repeater.PublicID}}/console">{{template "icon-terminal" "me-1"}}Console</a>
       {{if .IsOwner}}
       <div class="dropdown">
         <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">Manage</button>
         <div class="dropdown-menu dropdown-menu-end">
-          <a class="dropdown-item" href="/repeaters/{{.Repeater.ID}}/edit">{{template "icon-pencil" "dropdown-item-icon"}}Edit details</a>
-          <a class="dropdown-item" href="/repeaters/{{.Repeater.ID}}/confirm">{{template "icon-antenna" "dropdown-item-icon"}}Confirm access</a>
-          <a class="dropdown-item" href="/repeaters/{{.Repeater.ID}}/log">{{template "icon-list" "dropdown-item-icon"}}Command log</a>
-          <a class="dropdown-item" href="/repeaters/{{.Repeater.ID}}/share">{{template "icon-share" "dropdown-item-icon"}}Sharing</a>
+          <a class="dropdown-item" href="/repeaters/{{.Repeater.PublicID}}/edit">{{template "icon-pencil" "dropdown-item-icon"}}Edit details</a>
+          <a class="dropdown-item" href="/repeaters/{{.Repeater.PublicID}}/confirm">{{template "icon-antenna" "dropdown-item-icon"}}Confirm access</a>
+          <a class="dropdown-item" href="/repeaters/{{.Repeater.PublicID}}/log">{{template "icon-list" "dropdown-item-icon"}}Command log</a>
+          <a class="dropdown-item" href="/repeaters/{{.Repeater.PublicID}}/share">{{template "icon-share" "dropdown-item-icon"}}Sharing</a>
           <div class="dropdown-divider"></div>
-          <a class="dropdown-item text-danger" href="/repeaters/{{.Repeater.ID}}/delete">{{template "icon-trash" "dropdown-item-icon"}}Delete repeater</a>
+          <a class="dropdown-item text-danger" href="/repeaters/{{.Repeater.PublicID}}/delete">{{template "icon-trash" "dropdown-item-icon"}}Delete repeater</a>
         </div>
       </div>
       {{else}}
-      <a class="btn" href="/repeaters/{{.Repeater.ID}}/confirm">Confirm / test</a>
+      <a class="btn" href="/repeaters/{{.Repeater.PublicID}}/confirm">Confirm / test</a>
       {{end}}
     </div>
   </div>
@@ -89,7 +89,7 @@
     <div class="card mt-3">
       <div class="card-header">
         <h3 class="card-title">Recent activity</h3>
-        <div class="card-actions"><a href="/repeaters/{{.Repeater.ID}}/log" class="btn btn-sm">Full log</a></div>
+        <div class="card-actions"><a href="/repeaters/{{.Repeater.PublicID}}/log" class="btn btn-sm">Full log</a></div>
       </div>
       {{if .Recent}}
       <div class="table-responsive">
@@ -136,7 +136,7 @@
     <div class="card {{if .Repeater.Latitude}}mt-3{{end}}">
       <div class="card-header">
         <h3 class="card-title">Organizations</h3>
-        <div class="card-actions"><a href="/repeaters/{{.Repeater.ID}}/share" class="btn btn-sm">Manage</a></div>
+        <div class="card-actions"><a href="/repeaters/{{.Repeater.PublicID}}/share" class="btn btn-sm">Manage</a></div>
       </div>
       {{if .Orgs}}
       <div class="list-group list-group-flush">

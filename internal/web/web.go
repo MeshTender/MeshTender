@@ -6,8 +6,10 @@ import (
 	"embed"
 	"html/template"
 	"io/fs"
+	"net"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -32,6 +34,9 @@ type Server struct {
 	cfg       *config.Config
 	templates *template.Template
 	router    chi.Router
+	// lookupTXT resolves DNS TXT records; injectable so domain verification is
+	// testable. Defaults to net.LookupTXT.
+	lookupTXT func(name string) ([]string, error)
 }
 
 // NewServer constructs the HTTP server and its routes.
@@ -40,7 +45,7 @@ func NewServer(st *store.Store, authSvc *auth.Service, idSvc *identity.Service, 
 	if err != nil {
 		return nil, err
 	}
-	s := &Server{store: st, auth: authSvc, identity: idSvc, cfg: cfg, templates: tmpl}
+	s := &Server{store: st, auth: authSvc, identity: idSvc, cfg: cfg, templates: tmpl, lookupTXT: net.LookupTXT}
 	s.routes()
 	return s, nil
 }
@@ -55,6 +60,8 @@ func (s *Server) routes() {
 	r.Use(middleware.Recoverer)
 	// scs must wrap everything that touches the session.
 	r.Use(s.auth.Sessions.LoadAndSave)
+	// Custom org domains: a verified CNAMEd host serves that org's public page.
+	r.Use(s.customDomain)
 
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("ok"))
@@ -124,6 +131,9 @@ func (s *Server) routes() {
 		r.Post("/orgs/{id}/members/{userID}", s.handleSetOrgMember)
 		r.Get("/orgs/{id}/permissions", s.pageOrgPermissions)
 		r.Post("/orgs/{id}/permissions", s.handleSaveOrgPermissions)
+		r.Post("/orgs/{id}/domains", s.handleAddOrgDomain)
+		r.Post("/orgs/{id}/domains/verify", s.handleVerifyOrgDomain)
+		r.Post("/orgs/{id}/domains/delete", s.handleDeleteOrgDomain)
 		r.Post("/org-invite/{token}/accept", s.handleAcceptOrgInvite)
 
 		r.Route("/admin", func(r chi.Router) {
@@ -136,6 +146,37 @@ func (s *Server) routes() {
 	})
 
 	s.router = r
+}
+
+// customDomain serves an org's public page when the request arrives on one of
+// the org's verified custom domains. Any non-root path is redirected to the
+// canonical host, where auth and management (and the WebAuthn RP) live.
+func (s *Server) customDomain(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		host := hostWithoutPort(r.Host)
+		if host == "" || host == "localhost" || strings.EqualFold(host, s.cfg.PrimaryHost) {
+			next.ServeHTTP(w, r)
+			return
+		}
+		org, ok, err := s.store.OrgByVerifiedDomain(r.Context(), strings.ToLower(host))
+		if err != nil || !ok {
+			next.ServeHTTP(w, r) // unknown host: serve the app normally
+			return
+		}
+		if r.URL.Path == "/" {
+			s.renderOrgPublic(w, r, org, false)
+			return
+		}
+		http.Redirect(w, r, "https://"+s.cfg.PrimaryHost+r.URL.RequestURI(), http.StatusFound)
+	})
+}
+
+// hostWithoutPort strips a trailing :port from a request Host, if present.
+func hostWithoutPort(host string) string {
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		return h
+	}
+	return host
 }
 
 // render executes a content template within the base layout.
