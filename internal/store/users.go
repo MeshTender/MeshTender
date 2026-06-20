@@ -101,22 +101,39 @@ func (s *Store) CountManageUsers(ctx context.Context) (int, error) {
 	return n, nil
 }
 
-// ListUsers returns all users ordered by username (for the admin page).
-func (s *Store) ListUsers(ctx context.Context) ([]*User, error) {
-	rows, err := s.pool.Query(ctx, `SELECT `+userCols+` FROM users ORDER BY username`)
+// UsersPageSize is the number of users returned per admin-page request.
+const UsersPageSize = 50
+
+// ListUsersPage returns one keyset page of users for the admin page, ordered by
+// username, starting strictly after afterUsername (empty starts at the
+// beginning). It returns the page (capped at UsersPageSize) and whether more
+// rows follow. username is UNIQUE, so it's a stable single-column cursor and
+// the seek rides the existing unique index.
+func (s *Store) ListUsersPage(ctx context.Context, afterUsername string) ([]*User, bool, error) {
+	// Fetch one extra row to detect whether a further page exists.
+	rows, err := s.pool.Query(ctx,
+		`SELECT `+userCols+` FROM users WHERE username > $1 ORDER BY username LIMIT $2`,
+		afterUsername, UsersPageSize+1)
 	if err != nil {
-		return nil, fmt.Errorf("list users: %w", err)
+		return nil, false, fmt.Errorf("list users: %w", err)
 	}
 	defer rows.Close()
 	var out []*User
 	for rows.Next() {
 		u, err := scanUser(rows)
 		if err != nil {
-			return nil, fmt.Errorf("scan user: %w", err)
+			return nil, false, fmt.Errorf("scan user: %w", err)
 		}
 		out = append(out, u)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, false, err
+	}
+	hasMore := len(out) > UsersPageSize
+	if hasMore {
+		out = out[:UsersPageSize]
+	}
+	return out, hasMore, nil
 }
 
 // GetUserByUsername looks up a user by username, returning ErrNotFound if absent.

@@ -89,16 +89,21 @@ func (s *Server) handleUpdateCommand(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) pageUsers(w http.ResponseWriter, r *http.Request) {
-	users, err := s.store.ListUsers(r.Context())
+	after := r.URL.Query().Get("after")
+	users, hasMore, err := s.store.ListUsersPage(r.Context(), after)
 	if err != nil {
 		http.Error(w, "could not load users", http.StatusInternalServerError)
 		return
 	}
-	s.render(w, r, "admin_users.html", map[string]any{
+	data := map[string]any{
 		"Users": users,
 		"Self":  s.auth.CurrentUserID(r.Context()),
 		"Error": r.URL.Query().Get("error"),
-	})
+	}
+	if hasMore && len(users) > 0 {
+		data["NextAfter"] = users[len(users)-1].Username
+	}
+	s.render(w, r, "admin_users.html", data)
 }
 
 func (s *Server) handleSetUserCaps(w http.ResponseWriter, r *http.Request) {

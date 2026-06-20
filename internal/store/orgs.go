@@ -201,28 +201,47 @@ func (s *Store) UpdateOrg(ctx context.Context, orgID int64, slug, name, descript
 	return nil
 }
 
-// ListPublicOrgs returns every organization with member/repeater counts, for the
-// public directory. Orgs are publicly listed by default.
-func (s *Store) ListPublicOrgs(ctx context.Context) ([]OrgSummary, error) {
+// OrgsPageSize is the number of organizations returned per directory page.
+const OrgsPageSize = 50
+
+// ListPublicOrgsPage returns one keyset page of the public org directory,
+// ordered by (name, id), starting strictly after the given cursor. A zero
+// cursor (afterName == "" && afterID == 0) starts at the beginning. It returns
+// the page (capped at OrgsPageSize) and whether more rows follow.
+//
+// Keyset (seek) paging keeps every page cheap regardless of how far in it is —
+// the (name, id) comparison rides the sort order — and the per-row member/
+// repeater counts, formerly unbounded, are now capped at the page size.
+func (s *Store) ListPublicOrgsPage(ctx context.Context, afterName string, afterID int64) ([]OrgSummary, bool, error) {
+	// Fetch one extra row to detect whether a further page exists.
 	rows, err := s.pool.Query(ctx, `
 		SELECT o.id, o.slug, o.name, o.description,
 		       (SELECT count(*) FROM org_members m WHERE m.org_id = o.id),
 		       (SELECT count(*) FROM org_repeaters orp WHERE orp.org_id = o.id)
 		FROM organizations o
-		ORDER BY o.name`)
+		WHERE (o.name, o.id) > ($1, $2)
+		ORDER BY o.name, o.id
+		LIMIT $3`, afterName, afterID, OrgsPageSize+1)
 	if err != nil {
-		return nil, fmt.Errorf("list public orgs: %w", err)
+		return nil, false, fmt.Errorf("list public orgs: %w", err)
 	}
 	defer rows.Close()
 	var out []OrgSummary
 	for rows.Next() {
 		var s OrgSummary
 		if err := rows.Scan(&s.ID, &s.Slug, &s.Name, &s.Description, &s.MemberCount, &s.RepeaterCount); err != nil {
-			return nil, fmt.Errorf("scan org summary: %w", err)
+			return nil, false, fmt.Errorf("scan org summary: %w", err)
 		}
 		out = append(out, s)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, false, err
+	}
+	hasMore := len(out) > OrgsPageSize
+	if hasMore {
+		out = out[:OrgsPageSize]
+	}
+	return out, hasMore, nil
 }
 
 // OrgCounts returns the member and contributed-repeater counts for an org.
@@ -308,6 +327,30 @@ func (s *Store) ListOrgMembers(ctx context.Context, orgID int64) ([]OrgMemberInf
 			return nil, fmt.Errorf("scan member: %w", err)
 		}
 		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
+// ListOrgAdminNames returns just the display names of an org's admins, ordered
+// for display. The public org page only needs admin names, so this avoids
+// loading every member row via ListOrgMembers.
+func (s *Store) ListOrgAdminNames(ctx context.Context, orgID int64) ([]string, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT COALESCE(NULLIF(u.display_name, ''), u.username) AS name
+		FROM org_members m JOIN users u ON u.id = m.user_id
+		WHERE m.org_id = $1 AND m.role = 'admin'
+		ORDER BY name`, orgID)
+	if err != nil {
+		return nil, fmt.Errorf("list org admins: %w", err)
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, fmt.Errorf("scan admin name: %w", err)
+		}
+		out = append(out, name)
 	}
 	return out, rows.Err()
 }

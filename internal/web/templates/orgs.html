@@ -32,6 +32,11 @@
     </div>
     {{end}}
   </div>
+  {{if .NextCursor}}
+  <div class="card-body border-top text-center">
+    <a class="btn btn-outline-secondary" href="/orgs?cursor={{.NextCursor}}">Show more organizations</a>
+  </div>
+  {{end}}
   {{else}}
   <div class="card-body pt-0"><p class="text-secondary mb-0">No organizations yet.</p></div>
   {{end}}

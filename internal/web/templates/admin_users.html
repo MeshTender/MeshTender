@@ -33,6 +33,11 @@
       </form>
       {{end}}
     </div>
+    {{if .NextAfter}}
+    <div class="text-center mt-3">
+      <a class="btn btn-outline-secondary" href="/admin/users?after={{.NextAfter | urlquery}}">Show more users</a>
+    </div>
+    {{end}}
   </div>
 </div>
 <a class="back-link mt-3" href="/admin">{{template "icon-arrow-left" "me-1"}}Admin</a>

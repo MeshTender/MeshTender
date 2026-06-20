@@ -1,6 +1,8 @@
 package web
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/url"
@@ -26,10 +28,12 @@ func orgErr(w http.ResponseWriter, r *http.Request, msg string) {
 }
 
 // pageOrgs is the public organization directory. Everyone sees the list; signed-
-// in users also get the create form and a marker on orgs they belong to.
+// in users also get the create form and a marker on orgs they belong to. The
+// directory is keyset-paginated via an opaque ?cursor token.
 func (s *Server) pageOrgs(w http.ResponseWriter, r *http.Request) {
 	uid := s.auth.CurrentUserID(r.Context())
-	all, err := s.store.ListPublicOrgs(r.Context())
+	afterName, afterID := decodeOrgCursor(r.URL.Query().Get("cursor"))
+	all, hasMore, err := s.store.ListPublicOrgsPage(r.Context(), afterName, afterID)
 	if err != nil {
 		http.Error(w, "could not load orgs", http.StatusInternalServerError)
 		return
@@ -38,6 +42,10 @@ func (s *Server) pageOrgs(w http.ResponseWriter, r *http.Request) {
 		"All":      all,
 		"LoggedIn": uid != 0,
 		"Error":    r.URL.Query().Get("error"),
+	}
+	if hasMore && len(all) > 0 {
+		last := all[len(all)-1]
+		data["NextCursor"] = encodeOrgCursor(last.Name, last.ID)
 	}
 	if uid != 0 {
 		mine, err := s.store.ListOrgsForUser(r.Context(), uid)
@@ -52,6 +60,36 @@ func (s *Server) pageOrgs(w http.ResponseWriter, r *http.Request) {
 		data["MemberOf"] = memberOf
 	}
 	s.render(w, r, "orgs.html", data)
+}
+
+// orgCursor is the keyset position in the org directory: the (name, id) of the
+// last org on the current page. The next page seeks strictly past it.
+type orgCursor struct {
+	Name string `json:"n"`
+	ID   int64  `json:"i"`
+}
+
+// encodeOrgCursor packs a directory position into an opaque, URL-safe token.
+func encodeOrgCursor(name string, id int64) string {
+	b, _ := json.Marshal(orgCursor{Name: name, ID: id})
+	return base64.RawURLEncoding.EncodeToString(b)
+}
+
+// decodeOrgCursor reverses encodeOrgCursor. A missing or malformed cursor
+// decodes to the zero position ("", 0), i.e. the first page.
+func decodeOrgCursor(tok string) (name string, id int64) {
+	if tok == "" {
+		return "", 0
+	}
+	b, err := base64.RawURLEncoding.DecodeString(tok)
+	if err != nil {
+		return "", 0
+	}
+	var c orgCursor
+	if json.Unmarshal(b, &c) != nil {
+		return "", 0
+	}
+	return c.Name, c.ID
 }
 
 // pageNewOrg renders the standalone "create an organization" form.
@@ -152,16 +190,10 @@ func (s *Server) pageOrg(w http.ResponseWriter, r *http.Request) {
 // renderOrgPublic renders the public-facing org page (name, description, admins,
 // counts, and a map of repeaters opted into public display).
 func (s *Server) renderOrgPublic(w http.ResponseWriter, r *http.Request, org *store.Org, isMember bool) {
-	members, err := s.store.ListOrgMembers(r.Context(), org.ID)
+	admins, err := s.store.ListOrgAdminNames(r.Context(), org.ID)
 	if err != nil {
 		http.Error(w, "could not load org", http.StatusInternalServerError)
 		return
-	}
-	var admins []string
-	for _, m := range members {
-		if m.Role == "admin" {
-			admins = append(admins, m.Name())
-		}
 	}
 	memberCount, repeaterCount, err := s.store.OrgCounts(r.Context(), org.ID)
 	if err != nil {
