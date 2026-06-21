@@ -117,17 +117,9 @@ func (s *Store) ListUsersPage(ctx context.Context, afterUsername string) ([]*Use
 	if err != nil {
 		return nil, false, fmt.Errorf("list users: %w", err)
 	}
-	defer rows.Close()
-	var out []*User
-	for rows.Next() {
-		u, err := scanUser(rows)
-		if err != nil {
-			return nil, false, fmt.Errorf("scan user: %w", err)
-		}
-		out = append(out, u)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, false, err
+	out, err := collectRows(rows, scanUser)
+	if err != nil {
+		return nil, false, fmt.Errorf("scan user: %w", err)
 	}
 	hasMore := len(out) > UsersPageSize
 	if hasMore {
@@ -140,11 +132,8 @@ func (s *Store) ListUsersPage(ctx context.Context, afterUsername string) ([]*Use
 func (s *Store) GetUserByUsername(ctx context.Context, username string) (*User, error) {
 	u, err := scanUser(s.pool.QueryRow(ctx,
 		`SELECT `+userCols+` FROM users WHERE username = $1`, username))
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, ErrNotFound
-	}
 	if err != nil {
-		return nil, fmt.Errorf("get user by username: %w", err)
+		return nil, notFoundOr(err, "get user by username")
 	}
 	return u, nil
 }
@@ -153,11 +142,8 @@ func (s *Store) GetUserByUsername(ctx context.Context, username string) (*User, 
 func (s *Store) GetUserByID(ctx context.Context, id int64) (*User, error) {
 	u, err := scanUser(s.pool.QueryRow(ctx,
 		`SELECT `+userCols+` FROM users WHERE id = $1`, id))
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, ErrNotFound
-	}
 	if err != nil {
-		return nil, fmt.Errorf("get user by id: %w", err)
+		return nil, notFoundOr(err, "get user by id")
 	}
 	return u, nil
 }
@@ -215,17 +201,11 @@ func (s *Store) GetCredentials(ctx context.Context, userID int64) ([][]byte, err
 	if err != nil {
 		return nil, fmt.Errorf("get credentials: %w", err)
 	}
-	defer rows.Close()
-
-	var out [][]byte
-	for rows.Next() {
+	return collectRows(rows, func(r pgx.Row) ([]byte, error) {
 		var data []byte
-		if err := rows.Scan(&data); err != nil {
-			return nil, fmt.Errorf("scan credential: %w", err)
-		}
-		out = append(out, data)
-	}
-	return out, rows.Err()
+		err := r.Scan(&data)
+		return data, err
+	})
 }
 
 // CredentialInfo is display metadata for a registered passkey.
@@ -243,16 +223,11 @@ func (s *Store) ListCredentials(ctx context.Context, userID int64) ([]Credential
 	if err != nil {
 		return nil, fmt.Errorf("list credentials: %w", err)
 	}
-	defer rows.Close()
-	var out []CredentialInfo
-	for rows.Next() {
+	return collectRows(rows, func(r pgx.Row) (CredentialInfo, error) {
 		var c CredentialInfo
-		if err := rows.Scan(&c.ID, &c.CredentialID, &c.CreatedAt); err != nil {
-			return nil, fmt.Errorf("scan credential: %w", err)
-		}
-		out = append(out, c)
-	}
-	return out, rows.Err()
+		err := r.Scan(&c.ID, &c.CredentialID, &c.CreatedAt)
+		return c, err
+	})
 }
 
 // CountCredentials returns how many passkeys a user has registered.

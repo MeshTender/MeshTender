@@ -107,51 +107,46 @@ func uniqueOrgSlug(ctx context.Context, q rowQuerier, base string) (string, erro
 // CreateOrg creates an organization, makes the creator an admin, and seeds a v1
 // permission policy from the catalog org defaults — all atomically.
 func (s *Store) CreateOrg(ctx context.Context, name string, creatorID int64) (*Org, error) {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("begin: %w", err)
-	}
-	defer tx.Rollback(ctx)
+	var o Org
+	err := s.inTx(ctx, func(tx pgx.Tx) error {
+		slug, err := uniqueOrgSlug(ctx, tx, slugify(name))
+		if err != nil {
+			return err
+		}
+		if err := tx.QueryRow(ctx,
+			`INSERT INTO organizations (slug, name, created_by) VALUES ($1, $2, $3)
+			 RETURNING id, slug, name, description, region, created_by, created_at`,
+			slug, name, creatorID).Scan(&o.ID, &o.Slug, &o.Name, &o.Description, &o.Region, &o.CreatedBy, &o.CreatedAt); err != nil {
+			return fmt.Errorf("insert org: %w", err)
+		}
+		if _, err := tx.Exec(ctx,
+			`INSERT INTO org_members (org_id, user_id, role) VALUES ($1, $2, 'admin')`,
+			o.ID, creatorID); err != nil {
+			return fmt.Errorf("add creator: %w", err)
+		}
 
-	slug, err := uniqueOrgSlug(ctx, tx, slugify(name))
+		// Seed version 1 from the catalog default sets.
+		var versionID int64
+		if err := tx.QueryRow(ctx,
+			`INSERT INTO org_permission_versions (org_id, version, note, created_by)
+			 VALUES ($1, 1, 'Initial policy', $2) RETURNING id`,
+			o.ID, creatorID).Scan(&versionID); err != nil {
+			return fmt.Errorf("seed version: %w", err)
+		}
+		if _, err := tx.Exec(ctx,
+			`INSERT INTO org_permission_commands (version_id, command_id, tier)
+			 SELECT $1, id, 'admin' FROM command_catalog WHERE in_org_admin_default`, versionID); err != nil {
+			return fmt.Errorf("seed admin commands: %w", err)
+		}
+		if _, err := tx.Exec(ctx,
+			`INSERT INTO org_permission_commands (version_id, command_id, tier)
+			 SELECT $1, id, 'member' FROM command_catalog WHERE in_org_member_default`, versionID); err != nil {
+			return fmt.Errorf("seed member commands: %w", err)
+		}
+		return nil
+	})
 	if err != nil {
 		return nil, err
-	}
-
-	var o Org
-	if err := tx.QueryRow(ctx,
-		`INSERT INTO organizations (slug, name, created_by) VALUES ($1, $2, $3)
-		 RETURNING id, slug, name, description, region, created_by, created_at`,
-		slug, name, creatorID).Scan(&o.ID, &o.Slug, &o.Name, &o.Description, &o.Region, &o.CreatedBy, &o.CreatedAt); err != nil {
-		return nil, fmt.Errorf("insert org: %w", err)
-	}
-	if _, err := tx.Exec(ctx,
-		`INSERT INTO org_members (org_id, user_id, role) VALUES ($1, $2, 'admin')`,
-		o.ID, creatorID); err != nil {
-		return nil, fmt.Errorf("add creator: %w", err)
-	}
-
-	// Seed version 1 from the catalog default sets.
-	var versionID int64
-	if err := tx.QueryRow(ctx,
-		`INSERT INTO org_permission_versions (org_id, version, note, created_by)
-		 VALUES ($1, 1, 'Initial policy', $2) RETURNING id`,
-		o.ID, creatorID).Scan(&versionID); err != nil {
-		return nil, fmt.Errorf("seed version: %w", err)
-	}
-	if _, err := tx.Exec(ctx,
-		`INSERT INTO org_permission_commands (version_id, command_id, tier)
-		 SELECT $1, id, 'admin' FROM command_catalog WHERE in_org_admin_default`, versionID); err != nil {
-		return nil, fmt.Errorf("seed admin commands: %w", err)
-	}
-	if _, err := tx.Exec(ctx,
-		`INSERT INTO org_permission_commands (version_id, command_id, tier)
-		 SELECT $1, id, 'member' FROM command_catalog WHERE in_org_member_default`, versionID); err != nil {
-		return nil, fmt.Errorf("seed member commands: %w", err)
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return nil, fmt.Errorf("commit: %w", err)
 	}
 	return &o, nil
 }
@@ -162,11 +157,8 @@ func (s *Store) GetOrg(ctx context.Context, id int64) (*Org, error) {
 	err := s.pool.QueryRow(ctx,
 		`SELECT id, slug, name, description, region, created_by, created_at FROM organizations WHERE id = $1`, id).
 		Scan(&o.ID, &o.Slug, &o.Name, &o.Description, &o.Region, &o.CreatedBy, &o.CreatedAt)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, ErrNotFound
-	}
 	if err != nil {
-		return nil, fmt.Errorf("get org: %w", err)
+		return nil, notFoundOr(err, "get org")
 	}
 	return &o, nil
 }
@@ -176,11 +168,8 @@ func (s *Store) GetOrg(ctx context.Context, id int64) (*Org, error) {
 func (s *Store) OrgIDBySlug(ctx context.Context, slug string) (int64, error) {
 	var id int64
 	err := s.pool.QueryRow(ctx, `SELECT id FROM organizations WHERE slug = $1`, slug).Scan(&id)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return 0, ErrNotFound
-	}
 	if err != nil {
-		return 0, fmt.Errorf("org by slug: %w", err)
+		return 0, notFoundOr(err, "org by slug")
 	}
 	return id, nil
 }
@@ -325,17 +314,13 @@ func (s *Store) ListPublicOrgsPage(ctx context.Context, p OrgListParams) ([]OrgS
 	if err != nil {
 		return nil, false, fmt.Errorf("list public orgs: %w", err)
 	}
-	defer rows.Close()
-	var out []OrgSummary
-	for rows.Next() {
-		var s OrgSummary
-		if err := rows.Scan(&s.ID, &s.Slug, &s.Name, &s.Description, &s.Region, &s.MemberCount, &s.RepeaterCount, &s.CreatedAt); err != nil {
-			return nil, false, fmt.Errorf("scan org summary: %w", err)
-		}
-		out = append(out, s)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, false, err
+	out, err := collectRows(rows, func(r pgx.Row) (OrgSummary, error) {
+		var o OrgSummary
+		err := r.Scan(&o.ID, &o.Slug, &o.Name, &o.Description, &o.Region, &o.MemberCount, &o.RepeaterCount, &o.CreatedAt)
+		return o, err
+	})
+	if err != nil {
+		return nil, false, fmt.Errorf("scan org summary: %w", err)
 	}
 	hasMore := len(out) > OrgsPageSize
 	if hasMore {
@@ -365,17 +350,12 @@ func (s *Store) ListOrgsForUser(ctx context.Context, userID int64) ([]OrgMembers
 	if err != nil {
 		return nil, fmt.Errorf("list orgs: %w", err)
 	}
-	defer rows.Close()
-	var out []OrgMembership
-	for rows.Next() {
+	return collectRows(rows, func(r pgx.Row) (OrgMembership, error) {
 		var o Org
 		var role string
-		if err := rows.Scan(&o.ID, &o.Slug, &o.Name, &o.Description, &o.CreatedBy, &o.CreatedAt, &role); err != nil {
-			return nil, fmt.Errorf("scan org: %w", err)
-		}
-		out = append(out, OrgMembership{Org: &o, Role: role})
-	}
-	return out, rows.Err()
+		err := r.Scan(&o.ID, &o.Slug, &o.Name, &o.Description, &o.CreatedBy, &o.CreatedAt, &role)
+		return OrgMembership{Org: &o, Role: role}, err
+	})
 }
 
 // OrgRole returns the user's role in an org and whether they're a member.
@@ -419,16 +399,11 @@ func (s *Store) ListOrgMembers(ctx context.Context, orgID int64) ([]OrgMemberInf
 	if err != nil {
 		return nil, fmt.Errorf("list members: %w", err)
 	}
-	defer rows.Close()
-	var out []OrgMemberInfo
-	for rows.Next() {
+	return collectRows(rows, func(r pgx.Row) (OrgMemberInfo, error) {
 		var m OrgMemberInfo
-		if err := rows.Scan(&m.UserID, &m.Username, &m.DisplayName, &m.Role); err != nil {
-			return nil, fmt.Errorf("scan member: %w", err)
-		}
-		out = append(out, m)
-	}
-	return out, rows.Err()
+		err := r.Scan(&m.UserID, &m.Username, &m.DisplayName, &m.Role)
+		return m, err
+	})
 }
 
 // ListOrgAdminNames returns just the display names of an org's admins, ordered
@@ -443,16 +418,11 @@ func (s *Store) ListOrgAdminNames(ctx context.Context, orgID int64) ([]string, e
 	if err != nil {
 		return nil, fmt.Errorf("list org admins: %w", err)
 	}
-	defer rows.Close()
-	var out []string
-	for rows.Next() {
+	return collectRows(rows, func(r pgx.Row) (string, error) {
 		var name string
-		if err := rows.Scan(&name); err != nil {
-			return nil, fmt.Errorf("scan admin name: %w", err)
-		}
-		out = append(out, name)
-	}
-	return out, rows.Err()
+		err := r.Scan(&name)
+		return name, err
+	})
 }
 
 // countOrgAdmins returns the number of admins in an org.

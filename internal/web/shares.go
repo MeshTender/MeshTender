@@ -1,9 +1,9 @@
 package web
 
 import (
+	"context"
 	"errors"
 	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 
@@ -16,18 +16,8 @@ import (
 // share link (if any) and the list of people who have accepted.
 func (s *Server) pageShare(w http.ResponseWriter, r *http.Request) {
 	uid := s.auth.CurrentUserID(r.Context())
-	id, ok := s.repeaterID(r)
+	rep, id, ok := s.requireRepeaterOwned(w, r)
 	if !ok {
-		http.NotFound(w, r)
-		return
-	}
-	rep, err := s.store.GetRepeaterOwned(r.Context(), uid, id)
-	if errors.Is(err, store.ErrNotFound) {
-		http.NotFound(w, r) // not owner (or doesn't exist)
-		return
-	}
-	if err != nil {
-		http.Error(w, "could not load repeater", http.StatusInternalServerError)
 		return
 	}
 	shares, err := s.store.ListShares(r.Context(), id)
@@ -215,10 +205,7 @@ func (s *Server) handleAcceptInvite(w http.ResponseWriter, r *http.Request) {
 }
 
 // commandGroup is a category of catalog commands for the share-commands UI.
-type commandGroup struct {
-	Name     string
-	Commands []commandChoice
-}
+type commandGroup = categoryGroup[commandChoice]
 
 type commandChoice struct {
 	ID       int64
@@ -231,33 +218,21 @@ type commandChoice struct {
 // groupCommands buckets the catalog by category, marking those whose id is in
 // `checked`.
 func groupCommands(catalog []*store.Command, checked map[int64]bool) []commandGroup {
-	var groups []commandGroup
-	idx := map[string]int{}
-	for _, c := range catalog {
-		gi, ok := idx[c.Category]
-		if !ok {
-			gi = len(groups)
-			idx[c.Category] = gi
-			groups = append(groups, commandGroup{Name: c.Category})
-		}
-		groups[gi].Commands = append(groups[gi].Commands, commandChoice{
+	return groupByCategory(catalog, func(c *store.Command) commandChoice {
+		return commandChoice{
 			ID: c.ID, Template: c.Template, Args: c.Args, Risky: c.Risky, Checked: checked[c.ID],
-		})
-	}
-	return groups
+		}
+	})
 }
 
 // pageShareCommands lets a repeater owner choose which commands a shared user may run.
 func (s *Server) pageShareCommands(w http.ResponseWriter, r *http.Request) {
-	owner := s.auth.CurrentUserID(r.Context())
-	id, ok := s.repeaterID(r)
-	targetID, terr := strconv.ParseInt(chi.URLParam(r, "userID"), 10, 64)
-	if !ok || terr != nil {
-		http.NotFound(w, r)
+	rep, id, ok := s.requireRepeaterOwned(w, r)
+	if !ok {
 		return
 	}
-	rep, err := s.store.GetRepeaterOwned(r.Context(), owner, id)
-	if err != nil {
+	targetID, terr := strconv.ParseInt(chi.URLParam(r, "userID"), 10, 64)
+	if terr != nil {
 		http.NotFound(w, r)
 		return
 	}
@@ -289,14 +264,12 @@ func (s *Server) pageShareCommands(w http.ResponseWriter, r *http.Request) {
 
 // handleSetShareCommands saves the chosen command set for a shared user.
 func (s *Server) handleSetShareCommands(w http.ResponseWriter, r *http.Request) {
-	owner := s.auth.CurrentUserID(r.Context())
-	id, ok := s.repeaterID(r)
-	targetID, terr := strconv.ParseInt(chi.URLParam(r, "userID"), 10, 64)
-	if !ok || terr != nil {
-		http.NotFound(w, r)
+	id, ok := s.requireOwned(w, r)
+	if !ok {
 		return
 	}
-	if _, err := s.store.GetRepeaterOwned(r.Context(), owner, id); err != nil {
+	targetID, terr := strconv.ParseInt(chi.URLParam(r, "userID"), 10, 64)
+	if terr != nil {
 		http.NotFound(w, r)
 		return
 	}
@@ -323,20 +296,46 @@ func (s *Server) handleSetShareCommands(w http.ResponseWriter, r *http.Request) 
 
 // --- helpers ---
 
-// requireOwned resolves the {id} param and verifies the current user owns the
-// repeater, writing a 404 and returning ok=false otherwise.
-func (s *Server) requireOwned(w http.ResponseWriter, r *http.Request) (int64, bool) {
+// requireRepeaterAccess resolves the {id} param and loads the repeater if the
+// current user owns it or has shared/org access, writing the response (404 for an
+// unknown id or no access, 500 on an unexpected error) and returning ok=false
+// otherwise. It is the control-action gate for pages any authorized user can see.
+func (s *Server) requireRepeaterAccess(w http.ResponseWriter, r *http.Request) (*store.Repeater, int64, bool) {
+	return s.loadRepeater(w, r, s.store.GetRepeaterForUser)
+}
+
+// requireRepeaterOwned is the owner-only variant of requireRepeaterAccess.
+func (s *Server) requireRepeaterOwned(w http.ResponseWriter, r *http.Request) (*store.Repeater, int64, bool) {
+	return s.loadRepeater(w, r, s.store.GetRepeaterOwned)
+}
+
+// loadRepeater resolves {id} and loads the repeater via get (an access-scoped
+// lookup), mapping ErrNotFound to 404 and other failures to 500.
+func (s *Server) loadRepeater(w http.ResponseWriter, r *http.Request,
+	get func(ctx context.Context, userID, repeaterID int64) (*store.Repeater, error),
+) (*store.Repeater, int64, bool) {
 	uid := s.auth.CurrentUserID(r.Context())
 	id, ok := s.repeaterID(r)
 	if !ok {
 		http.NotFound(w, r)
-		return 0, false
+		return nil, 0, false
 	}
-	if _, err := s.store.GetRepeaterOwned(r.Context(), uid, id); err != nil {
+	rep, err := get(r.Context(), uid, id)
+	if errors.Is(err, store.ErrNotFound) {
 		http.NotFound(w, r)
-		return 0, false
+		return nil, 0, false
 	}
-	return id, true
+	if err != nil {
+		http.Error(w, "could not load repeater", http.StatusInternalServerError)
+		return nil, 0, false
+	}
+	return rep, id, true
+}
+
+// requireOwned is requireRepeaterOwned for callers that only need the id.
+func (s *Server) requireOwned(w http.ResponseWriter, r *http.Request) (int64, bool) {
+	_, id, ok := s.requireRepeaterOwned(w, r)
+	return id, ok
 }
 
 // repeaterID resolves the opaque {id} URL param (a public_id) to the internal
@@ -353,7 +352,7 @@ func repeaterParam(r *http.Request) string { return chi.URLParam(r, "id") }
 func sharePath(publicID string) string { return "/repeaters/" + publicID + "/share" }
 
 func shareErr(w http.ResponseWriter, r *http.Request, msg string) {
-	http.Redirect(w, r, sharePath(repeaterParam(r))+"?error="+url.QueryEscape(msg), http.StatusSeeOther)
+	redirectErr(w, r, sharePath(repeaterParam(r)), msg)
 }
 
 // absoluteURL builds an absolute URL for a path using the request's scheme/host.

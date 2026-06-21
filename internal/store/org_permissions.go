@@ -2,7 +2,6 @@ package store
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
@@ -13,11 +12,8 @@ func (s *Store) CurrentVersion(ctx context.Context, orgID int64) (id int64, vers
 	err = s.pool.QueryRow(ctx,
 		`SELECT id, version FROM org_permission_versions WHERE org_id = $1 ORDER BY version DESC LIMIT 1`,
 		orgID).Scan(&id, &version)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return 0, 0, ErrNotFound
-	}
 	if err != nil {
-		return 0, 0, fmt.Errorf("current version: %w", err)
+		return 0, 0, notFoundOr(err, "current version")
 	}
 	return id, version, nil
 }
@@ -50,11 +46,8 @@ func (s *Store) VersionNumber(ctx context.Context, versionID int64) (int, error)
 	var v int
 	err := s.pool.QueryRow(ctx,
 		`SELECT version FROM org_permission_versions WHERE id = $1`, versionID).Scan(&v)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return 0, ErrNotFound
-	}
 	if err != nil {
-		return 0, fmt.Errorf("version number: %w", err)
+		return 0, notFoundOr(err, "version number")
 	}
 	return v, nil
 }
@@ -74,58 +67,50 @@ func (s *Store) VersionNotesSince(ctx context.Context, orgID int64, afterVersion
 	if err != nil {
 		return nil, fmt.Errorf("version notes: %w", err)
 	}
-	defer rows.Close()
-	var out []VersionNote
-	for rows.Next() {
+	return collectRows(rows, func(r pgx.Row) (VersionNote, error) {
 		var n VersionNote
-		if err := rows.Scan(&n.Version, &n.Note); err != nil {
-			return nil, err
-		}
-		out = append(out, n)
-	}
-	return out, rows.Err()
+		err := r.Scan(&n.Version, &n.Note)
+		return n, err
+	})
 }
 
 // PublishVersion creates the org's next permission version with the given
 // admin/member command sets, returning the new version number.
 func (s *Store) PublishVersion(ctx context.Context, orgID int64, note string, createdBy int64, adminIDs, memberIDs []int64) (int, error) {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return 0, fmt.Errorf("begin: %w", err)
-	}
-	defer tx.Rollback(ctx)
-
 	var next int
-	if err := tx.QueryRow(ctx,
-		`SELECT COALESCE(max(version), 0) + 1 FROM org_permission_versions WHERE org_id = $1`,
-		orgID).Scan(&next); err != nil {
-		return 0, fmt.Errorf("next version: %w", err)
-	}
-	var versionID int64
-	if err := tx.QueryRow(ctx,
-		`INSERT INTO org_permission_versions (org_id, version, note, created_by)
-		 VALUES ($1, $2, $3, $4) RETURNING id`,
-		orgID, next, note, createdBy).Scan(&versionID); err != nil {
-		return 0, fmt.Errorf("insert version: %w", err)
-	}
-	insert := func(ids []int64, tier string) error {
-		for _, id := range ids {
-			if _, err := tx.Exec(ctx,
-				`INSERT INTO org_permission_commands (version_id, command_id, tier) VALUES ($1, $2, $3)
-				 ON CONFLICT DO NOTHING`, versionID, id, tier); err != nil {
-				return err
+	err := s.inTx(ctx, func(tx pgx.Tx) error {
+		if err := tx.QueryRow(ctx,
+			`SELECT COALESCE(max(version), 0) + 1 FROM org_permission_versions WHERE org_id = $1`,
+			orgID).Scan(&next); err != nil {
+			return fmt.Errorf("next version: %w", err)
+		}
+		var versionID int64
+		if err := tx.QueryRow(ctx,
+			`INSERT INTO org_permission_versions (org_id, version, note, created_by)
+			 VALUES ($1, $2, $3, $4) RETURNING id`,
+			orgID, next, note, createdBy).Scan(&versionID); err != nil {
+			return fmt.Errorf("insert version: %w", err)
+		}
+		insert := func(ids []int64, tier string) error {
+			for _, id := range ids {
+				if _, err := tx.Exec(ctx,
+					`INSERT INTO org_permission_commands (version_id, command_id, tier) VALUES ($1, $2, $3)
+					 ON CONFLICT DO NOTHING`, versionID, id, tier); err != nil {
+					return err
+				}
 			}
+			return nil
+		}
+		if err := insert(adminIDs, "admin"); err != nil {
+			return fmt.Errorf("insert admin commands: %w", err)
+		}
+		if err := insert(memberIDs, "member"); err != nil {
+			return fmt.Errorf("insert member commands: %w", err)
 		}
 		return nil
-	}
-	if err := insert(adminIDs, "admin"); err != nil {
-		return 0, fmt.Errorf("insert admin commands: %w", err)
-	}
-	if err := insert(memberIDs, "member"); err != nil {
-		return 0, fmt.Errorf("insert member commands: %w", err)
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return 0, fmt.Errorf("commit: %w", err)
+	})
+	if err != nil {
+		return 0, err
 	}
 	return next, nil
 }

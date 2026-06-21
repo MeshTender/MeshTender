@@ -28,25 +28,37 @@ func capAny(u *store.User) bool     { return u.CapManageUsers || u.CapManageCata
 func capCatalog(u *store.User) bool { return u.CapManageCatalog }
 func capUsers(u *store.User) bool   { return u.CapManageUsers }
 
-// catalogGroup buckets the catalog by category for the admin catalog page.
-type catalogGroup struct {
+// categoryGroup is a list of per-command view models bucketed under a catalog
+// category name. The element type varies per page (raw command, share checkbox,
+// per-tier checkbox); groupByCategory builds them all.
+type categoryGroup[T any] struct {
 	Name     string
-	Commands []*store.Command
+	Commands []T
 }
 
-func groupCatalog(catalog []*store.Command) []catalogGroup {
-	var groups []catalogGroup
+// groupByCategory buckets the catalog by category in catalog order, mapping each
+// command to a per-page view model via mk. It is the one grouping loop shared by
+// the catalog, share-commands, and org-permission editors.
+func groupByCategory[T any](catalog []*store.Command, mk func(*store.Command) T) []categoryGroup[T] {
+	var groups []categoryGroup[T]
 	idx := map[string]int{}
 	for _, c := range catalog {
 		gi, ok := idx[c.Category]
 		if !ok {
 			gi = len(groups)
 			idx[c.Category] = gi
-			groups = append(groups, catalogGroup{Name: c.Category})
+			groups = append(groups, categoryGroup[T]{Name: c.Category})
 		}
-		groups[gi].Commands = append(groups[gi].Commands, c)
+		groups[gi].Commands = append(groups[gi].Commands, mk(c))
 	}
 	return groups
+}
+
+// catalogGroup buckets raw catalog commands for the admin catalog page.
+type catalogGroup = categoryGroup[*store.Command]
+
+func groupCatalog(catalog []*store.Command) []catalogGroup {
+	return groupByCategory(catalog, func(c *store.Command) *store.Command { return c })
 }
 
 func (s *Server) pageAdmin(w http.ResponseWriter, r *http.Request) {
@@ -129,8 +141,7 @@ func (s *Server) handleSetUserCaps(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			if n <= 1 {
-				http.Redirect(w, r, "/admin/users?error="+
-					"Can%27t+remove+the+last+user+manager.", http.StatusSeeOther)
+				redirectErr(w, r, "/admin/users", "Can't remove the last user manager.")
 				return
 			}
 		}

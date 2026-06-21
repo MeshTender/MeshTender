@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // CommandLogEntry is one row of the command audit log, joined with the sender's
@@ -104,18 +106,13 @@ func (s *Store) ListCommandLogSessionsPage(ctx context.Context, repeaterID int64
 	if err != nil {
 		return nil, false, fmt.Errorf("list command sessions: %w", err)
 	}
-	defer headers.Close()
-
-	var groups []*CommandSession
-	for headers.Next() {
+	groups, err := collectRows(headers, func(r pgx.Row) (*CommandSession, error) {
 		var g CommandSession
-		if err := headers.Scan(&g.ID, &g.StartedAt, &g.EndedAt, &g.SenderName); err != nil {
-			return nil, false, fmt.Errorf("scan session: %w", err)
-		}
-		groups = append(groups, &g)
-	}
-	if err := headers.Err(); err != nil {
-		return nil, false, err
+		err := r.Scan(&g.ID, &g.StartedAt, &g.EndedAt, &g.SenderName)
+		return &g, err
+	})
+	if err != nil {
+		return nil, false, fmt.Errorf("scan session: %w", err)
 	}
 
 	hasMore := len(groups) > CommandLogPageSize
@@ -186,17 +183,12 @@ func (s *Store) ListRecentCommandsForOwner(ctx context.Context, ownerID int64, l
 	if err != nil {
 		return nil, fmt.Errorf("list owner commands: %w", err)
 	}
-	defer rows.Close()
-	var out []OwnerCommandLogEntry
-	for rows.Next() {
+	return collectRows(rows, func(r pgx.Row) (OwnerCommandLogEntry, error) {
 		var e OwnerCommandLogEntry
-		if err := rows.Scan(&e.RepeaterID, &e.RepeaterPublicID, &e.RepeaterName, &e.SenderName,
-			&e.CommandText, &e.SentAt, &e.AckReceived, &e.ResponseText); err != nil {
-			return nil, fmt.Errorf("scan owner command: %w", err)
-		}
-		out = append(out, e)
-	}
-	return out, rows.Err()
+		err := r.Scan(&e.RepeaterID, &e.RepeaterPublicID, &e.RepeaterName, &e.SenderName,
+			&e.CommandText, &e.SentAt, &e.AckReceived, &e.ResponseText)
+		return e, err
+	})
 }
 
 // ListCommandLog returns recent log entries for a repeater, newest first.
@@ -213,15 +205,10 @@ func (s *Store) ListCommandLog(ctx context.Context, repeaterID int64, limit int)
 	if err != nil {
 		return nil, fmt.Errorf("list command log: %w", err)
 	}
-	defer rows.Close()
-	var out []*CommandLogEntry
-	for rows.Next() {
+	return collectRows(rows, func(r pgx.Row) (*CommandLogEntry, error) {
 		var e CommandLogEntry
-		if err := rows.Scan(&e.ID, &e.RepeaterID, &e.UserID, &e.SenderName,
-			&e.CommandText, &e.SentAt, &e.AckReceived, &e.ResponseText); err != nil {
-			return nil, fmt.Errorf("scan log: %w", err)
-		}
-		out = append(out, &e)
-	}
-	return out, rows.Err()
+		err := r.Scan(&e.ID, &e.RepeaterID, &e.UserID, &e.SenderName,
+			&e.CommandText, &e.SentAt, &e.AckReceived, &e.ResponseText)
+		return &e, err
+	})
 }

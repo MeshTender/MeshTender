@@ -22,6 +22,14 @@ type OrgDomain struct {
 // Verified reports whether the domain's ownership has been confirmed.
 func (d OrgDomain) Verified() bool { return d.VerifiedAt != nil }
 
+const orgDomainCols = `id, hostname, verification_token, verified_at, created_at`
+
+func scanOrgDomain(row pgx.Row) (OrgDomain, error) {
+	var d OrgDomain
+	err := row.Scan(&d.ID, &d.Hostname, &d.VerificationToken, &d.VerifiedAt, &d.CreatedAt)
+	return d, err
+}
+
 // CreateOrgDomain registers a custom hostname for an org with a fresh
 // verification token. Returns ErrDuplicate if the hostname is already claimed.
 func (s *Store) CreateOrgDomain(ctx context.Context, orgID int64, hostname string) (*OrgDomain, error) {
@@ -29,12 +37,10 @@ func (s *Store) CreateOrgDomain(ctx context.Context, orgID int64, hostname strin
 	if err != nil {
 		return nil, err
 	}
-	var d OrgDomain
-	err = s.pool.QueryRow(ctx,
+	d, err := scanOrgDomain(s.pool.QueryRow(ctx,
 		`INSERT INTO org_domains (org_id, hostname, verification_token) VALUES ($1, $2, $3)
-		 RETURNING id, hostname, verification_token, verified_at, created_at`,
-		orgID, hostname, token).
-		Scan(&d.ID, &d.Hostname, &d.VerificationToken, &d.VerifiedAt, &d.CreatedAt)
+		 RETURNING `+orgDomainCols,
+		orgID, hostname, token))
 	if isUniqueViolation(err) {
 		return nil, ErrDuplicate
 	}
@@ -47,35 +53,19 @@ func (s *Store) CreateOrgDomain(ctx context.Context, orgID int64, hostname strin
 // ListOrgDomains returns an org's custom domains, newest first.
 func (s *Store) ListOrgDomains(ctx context.Context, orgID int64) ([]OrgDomain, error) {
 	rows, err := s.pool.Query(ctx,
-		`SELECT id, hostname, verification_token, verified_at, created_at
-		 FROM org_domains WHERE org_id = $1 ORDER BY created_at DESC`, orgID)
+		`SELECT `+orgDomainCols+` FROM org_domains WHERE org_id = $1 ORDER BY created_at DESC`, orgID)
 	if err != nil {
 		return nil, fmt.Errorf("list org domains: %w", err)
 	}
-	defer rows.Close()
-	var out []OrgDomain
-	for rows.Next() {
-		var d OrgDomain
-		if err := rows.Scan(&d.ID, &d.Hostname, &d.VerificationToken, &d.VerifiedAt, &d.CreatedAt); err != nil {
-			return nil, fmt.Errorf("scan org domain: %w", err)
-		}
-		out = append(out, d)
-	}
-	return out, rows.Err()
+	return collectRows(rows, scanOrgDomain)
 }
 
 // GetOrgDomain returns a single domain scoped to its org, or ErrNotFound.
 func (s *Store) GetOrgDomain(ctx context.Context, orgID, domainID int64) (*OrgDomain, error) {
-	var d OrgDomain
-	err := s.pool.QueryRow(ctx,
-		`SELECT id, hostname, verification_token, verified_at, created_at
-		 FROM org_domains WHERE id = $1 AND org_id = $2`, domainID, orgID).
-		Scan(&d.ID, &d.Hostname, &d.VerificationToken, &d.VerifiedAt, &d.CreatedAt)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, ErrNotFound
-	}
+	d, err := scanOrgDomain(s.pool.QueryRow(ctx,
+		`SELECT `+orgDomainCols+` FROM org_domains WHERE id = $1 AND org_id = $2`, domainID, orgID))
 	if err != nil {
-		return nil, fmt.Errorf("get org domain: %w", err)
+		return nil, notFoundOr(err, "get org domain")
 	}
 	return &d, nil
 }

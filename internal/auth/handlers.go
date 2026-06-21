@@ -343,13 +343,20 @@ func ValidUsername(s string) bool {
 	return true
 }
 
-func writeJSON(w http.ResponseWriter, v any) {
+// writeJSONStatus writes v as a JSON response with the given status code. A code
+// of 0 leaves the default 200 (so the body sets it implicitly on first write).
+func writeJSONStatus(w http.ResponseWriter, code int, v any) {
 	w.Header().Set("Content-Type", "application/json")
+	if code != 0 {
+		w.WriteHeader(code)
+	}
 	_ = json.NewEncoder(w).Encode(v)
 }
 
+func writeJSON(w http.ResponseWriter, v any) {
+	writeJSONStatus(w, 0, v)
+}
+
 func httpError(w http.ResponseWriter, code int, msg string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
-	_ = json.NewEncoder(w).Encode(map[string]string{"error": msg})
+	writeJSONStatus(w, code, map[string]string{"error": msg})
 }

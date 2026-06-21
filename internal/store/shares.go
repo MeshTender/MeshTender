@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"time"
 
@@ -17,11 +16,8 @@ func (s *Store) GetRepeaterOwned(ctx context.Context, ownerID, repeaterID int64)
 	row := s.pool.QueryRow(ctx, repeaterSelect+`
 		WHERE r.id = $2 AND r.owner_id = $1`, ownerID, repeaterID)
 	r, err := scanRepeater(row)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, ErrNotFound
-	}
 	if err != nil {
-		return nil, fmt.Errorf("get owned repeater: %w", err)
+		return nil, notFoundOr(err, "get owned repeater")
 	}
 	return r, nil
 }
@@ -116,17 +112,11 @@ func (s *Store) ListShares(ctx context.Context, repeaterID int64) ([]ShareInfo, 
 	if err != nil {
 		return nil, fmt.Errorf("list shares: %w", err)
 	}
-	defer rows.Close()
-
-	var out []ShareInfo
-	for rows.Next() {
+	return collectRows(rows, func(r pgx.Row) (ShareInfo, error) {
 		var si ShareInfo
-		if err := rows.Scan(&si.UserID, &si.Username, &si.DisplayName); err != nil {
-			return nil, fmt.Errorf("scan share: %w", err)
-		}
-		out = append(out, si)
-	}
-	return out, rows.Err()
+		err := r.Scan(&si.UserID, &si.Username, &si.DisplayName)
+		return si, err
+	})
 }
 
 // --- share links (single-use invites) ---
@@ -170,17 +160,11 @@ func (s *Store) ListInvites(ctx context.Context, repeaterID int64) ([]Invite, er
 	if err != nil {
 		return nil, fmt.Errorf("list invites: %w", err)
 	}
-	defer rows.Close()
-
-	var out []Invite
-	for rows.Next() {
+	return collectRows(rows, func(r pgx.Row) (Invite, error) {
 		var inv Invite
-		if err := rows.Scan(&inv.ID, &inv.Token, &inv.Description, &inv.CreatedAt, &inv.UsedAt, &inv.UsedByName); err != nil {
-			return nil, fmt.Errorf("scan invite: %w", err)
-		}
-		out = append(out, inv)
-	}
-	return out, rows.Err()
+		err := r.Scan(&inv.ID, &inv.Token, &inv.Description, &inv.CreatedAt, &inv.UsedAt, &inv.UsedByName)
+		return inv, err
+	})
 }
 
 // DeleteInvite removes an invite by id, scoped to its repeater (so an owner can
@@ -202,11 +186,8 @@ func (s *Store) RepeaterByInviteToken(ctx context.Context, queryUserID int64, to
 		WHERE r.id = (SELECT repeater_id FROM repeater_invites WHERE token = $2 AND used_at IS NULL)`,
 		queryUserID, token)
 	r, err := scanRepeater(row)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, ErrNotFound
-	}
 	if err != nil {
-		return nil, fmt.Errorf("repeater by invite: %w", err)
+		return nil, notFoundOr(err, "repeater by invite")
 	}
 	return r, nil
 }
@@ -220,11 +201,8 @@ func (s *Store) ConsumeInvite(ctx context.Context, token string, userID int64) (
 		`UPDATE repeater_invites SET used_at = now(), used_by = $2
 		 WHERE token = $1 AND used_at IS NULL
 		 RETURNING repeater_id`, token, userID).Scan(&repeaterID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return 0, ErrNotFound
-	}
 	if err != nil {
-		return 0, fmt.Errorf("consume invite: %w", err)
+		return 0, notFoundOr(err, "consume invite")
 	}
 	return repeaterID, nil
 }

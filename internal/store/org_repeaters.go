@@ -3,6 +3,8 @@ package store
 import (
 	"context"
 	"fmt"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // RepeaterOrg describes an org a repeater is contributed to, with the version
@@ -70,20 +72,21 @@ func (s *Store) ListOrgRepeaters(ctx context.Context, orgID int64) ([]OrgRepeate
 	if err != nil {
 		return nil, fmt.Errorf("list org repeaters: %w", err)
 	}
-	defer rows.Close()
-	var out []OrgRepeaterInfo
-	for rows.Next() {
+	return collectRows(rows, func(r pgx.Row) (OrgRepeaterInfo, error) {
 		var ri OrgRepeaterInfo
 		var lat, lon *float64
-		if err := rows.Scan(&ri.RepeaterID, &ri.RepeaterPublicID, &ri.Name, &ri.OwnerName, &lat, &lon); err != nil {
-			return nil, fmt.Errorf("scan org repeater: %w", err)
-		}
-		if lat != nil && lon != nil {
-			ri.HasLocation, ri.Lat, ri.Lon = true, *lat, *lon
-		}
-		out = append(out, ri)
+		err := r.Scan(&ri.RepeaterID, &ri.RepeaterPublicID, &ri.Name, &ri.OwnerName, &lat, &lon)
+		setLocation(&ri, lat, lon)
+		return ri, err
+	})
+}
+
+// setLocation fills the optional location fields on ri when both coordinates are
+// present (the owner consented to storing them).
+func setLocation(ri *OrgRepeaterInfo, lat, lon *float64) {
+	if lat != nil && lon != nil {
+		ri.HasLocation, ri.Lat, ri.Lon = true, *lat, *lon
 	}
-	return out, rows.Err()
 }
 
 // ListPublicMapRepeaters returns the contributed repeaters an org may show on
@@ -100,20 +103,13 @@ func (s *Store) ListPublicMapRepeaters(ctx context.Context, orgID int64) ([]OrgR
 	if err != nil {
 		return nil, fmt.Errorf("list public map repeaters: %w", err)
 	}
-	defer rows.Close()
-	var out []OrgRepeaterInfo
-	for rows.Next() {
+	return collectRows(rows, func(r pgx.Row) (OrgRepeaterInfo, error) {
 		var ri OrgRepeaterInfo
 		var lat, lon *float64
-		if err := rows.Scan(&ri.RepeaterID, &ri.Name, &ri.OwnerName, &lat, &lon); err != nil {
-			return nil, fmt.Errorf("scan public map repeater: %w", err)
-		}
-		if lat != nil && lon != nil {
-			ri.HasLocation, ri.Lat, ri.Lon = true, *lat, *lon
-		}
-		out = append(out, ri)
-	}
-	return out, rows.Err()
+		err := r.Scan(&ri.RepeaterID, &ri.Name, &ri.OwnerName, &lat, &lon)
+		setLocation(&ri, lat, lon)
+		return ri, err
+	})
 }
 
 // ConsentedVersionID returns the permission version a repeater is pinned to for
@@ -169,14 +165,9 @@ func (s *Store) ListRepeaterOrgs(ctx context.Context, repeaterID int64) ([]Repea
 	if err != nil {
 		return nil, fmt.Errorf("list repeater orgs: %w", err)
 	}
-	defer rows.Close()
-	var out []RepeaterOrg
-	for rows.Next() {
+	return collectRows(rows, func(r pgx.Row) (RepeaterOrg, error) {
 		var ro RepeaterOrg
-		if err := rows.Scan(&ro.OrgID, &ro.OrgSlug, &ro.OrgName, &ro.ConsentedVersion, &ro.CurrentVersion); err != nil {
-			return nil, fmt.Errorf("scan repeater org: %w", err)
-		}
-		out = append(out, ro)
-	}
-	return out, rows.Err()
+		err := r.Scan(&ro.OrgID, &ro.OrgSlug, &ro.OrgName, &ro.ConsentedVersion, &ro.CurrentVersion)
+		return ro, err
+	})
 }

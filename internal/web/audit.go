@@ -12,15 +12,8 @@ import (
 // pageCommandLog shows the command audit log for a repeater (owner only),
 // keyset-paginated by console session via an opaque ?before token.
 func (s *Server) pageCommandLog(w http.ResponseWriter, r *http.Request) {
-	owner := s.auth.CurrentUserID(r.Context())
-	id, ok := s.repeaterID(r)
+	rep, id, ok := s.requireRepeaterOwned(w, r)
 	if !ok {
-		http.NotFound(w, r)
-		return
-	}
-	rep, err := s.store.GetRepeaterOwned(r.Context(), owner, id)
-	if err != nil {
-		http.NotFound(w, r) // owner-only
 		return
 	}
 	sessions, hasMore, err := s.store.ListCommandLogSessionsPage(r.Context(), id, decodeLogCursor(r.URL.Query().Get("before")))

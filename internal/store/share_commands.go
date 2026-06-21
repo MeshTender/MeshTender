@@ -3,6 +3,8 @@ package store
 import (
 	"context"
 	"fmt"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // CanSendCommand reports whether userID may send the catalog command commandID
@@ -51,38 +53,25 @@ func (s *Store) ListShareCommandIDs(ctx context.Context, repeaterID, userID int6
 	if err != nil {
 		return nil, fmt.Errorf("list share commands: %w", err)
 	}
-	defer rows.Close()
-	var ids []int64
-	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		ids = append(ids, id)
-	}
-	return ids, rows.Err()
+	return collectRows(rows, scanID)
 }
 
 // SetShareCommands replaces the command grants for a shared user on a repeater.
 func (s *Store) SetShareCommands(ctx context.Context, repeaterID, userID int64, commandIDs []int64) error {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("begin: %w", err)
-	}
-	defer tx.Rollback(ctx)
-
-	if _, err := tx.Exec(ctx,
-		`DELETE FROM share_commands WHERE repeater_id = $1 AND user_id = $2`, repeaterID, userID); err != nil {
-		return fmt.Errorf("clear share commands: %w", err)
-	}
-	for _, id := range commandIDs {
+	return s.inTx(ctx, func(tx pgx.Tx) error {
 		if _, err := tx.Exec(ctx,
-			`INSERT INTO share_commands (repeater_id, user_id, command_id) VALUES ($1, $2, $3)
-			 ON CONFLICT DO NOTHING`, repeaterID, userID, id); err != nil {
-			return fmt.Errorf("insert share command: %w", err)
+			`DELETE FROM share_commands WHERE repeater_id = $1 AND user_id = $2`, repeaterID, userID); err != nil {
+			return fmt.Errorf("clear share commands: %w", err)
 		}
-	}
-	return tx.Commit(ctx)
+		for _, id := range commandIDs {
+			if _, err := tx.Exec(ctx,
+				`INSERT INTO share_commands (repeater_id, user_id, command_id) VALUES ($1, $2, $3)
+				 ON CONFLICT DO NOTHING`, repeaterID, userID, id); err != nil {
+				return fmt.Errorf("insert share command: %w", err)
+			}
+		}
+		return nil
+	})
 }
 
 // SeedShareCommands grants the share-default command set to a newly shared user,

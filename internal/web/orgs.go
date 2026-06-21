@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -25,7 +24,7 @@ func (s *Server) orgID(r *http.Request) (int64, bool) {
 func orgParam(r *http.Request) string { return chi.URLParam(r, "id") }
 
 func orgErr(w http.ResponseWriter, r *http.Request, msg string) {
-	http.Redirect(w, r, "/orgs/"+orgParam(r)+"?error="+url.QueryEscape(msg), http.StatusSeeOther)
+	redirectErr(w, r, "/orgs/"+orgParam(r), msg)
 }
 
 // pageOrgs is the public organization directory. Everyone sees the list; signed-
@@ -154,12 +153,12 @@ func (s *Server) handleCreateOrg(w http.ResponseWriter, r *http.Request) {
 	uid := s.auth.CurrentUserID(r.Context())
 	name := strings.TrimSpace(r.FormValue("name"))
 	if name == "" || len(name) > 80 {
-		http.Redirect(w, r, "/orgs/new?error="+url.QueryEscape("Enter an organization name."), http.StatusSeeOther)
+		redirectErr(w, r, "/orgs/new", "Enter an organization name.")
 		return
 	}
 	org, err := s.store.CreateOrg(r.Context(), name, uid)
 	if err != nil {
-		http.Redirect(w, r, "/orgs/new?error="+url.QueryEscape("Could not create organization."), http.StatusSeeOther)
+		redirectErr(w, r, "/orgs/new", "Could not create organization.")
 		return
 	}
 	http.Redirect(w, r, "/orgs/"+org.Slug, http.StatusSeeOther)

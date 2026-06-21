@@ -3,7 +3,6 @@ package web
 import (
 	"encoding/hex"
 	"net/http"
-	"net/url"
 	"strconv"
 	"time"
 
@@ -17,9 +16,10 @@ type passkeyView struct {
 	Added   time.Time
 }
 
-// accountRedirect bounces back to the account page with a flash message.
+// accountRedirect bounces back to the account page with a flash message under
+// the given key ("ok" or "error").
 func accountRedirect(w http.ResponseWriter, r *http.Request, key, msg string) {
-	http.Redirect(w, r, "/account?"+key+"="+url.QueryEscape(msg), http.StatusSeeOther)
+	redirectFlash(w, r, "/account", key, msg)
 }
 
 // pageAccount renders the current user's account-settings page.

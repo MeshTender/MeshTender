@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 
@@ -39,19 +38,8 @@ func (s *Server) pageAddRepeater(w http.ResponseWriter, r *http.Request) {
 // recent activity, and the actions available to the viewer. Owners get full
 // management; users with shared/org access see a read-only view plus console.
 func (s *Server) pageRepeater(w http.ResponseWriter, r *http.Request) {
-	uid := s.auth.CurrentUserID(r.Context())
-	id, ok := s.repeaterID(r)
+	rep, id, ok := s.requireRepeaterAccess(w, r)
 	if !ok {
-		http.NotFound(w, r)
-		return
-	}
-	rep, err := s.store.GetRepeaterForUser(r.Context(), uid, id)
-	if errors.Is(err, store.ErrNotFound) {
-		http.NotFound(w, r)
-		return
-	}
-	if err != nil {
-		http.Error(w, "could not load repeater", http.StatusInternalServerError)
 		return
 	}
 
@@ -82,7 +70,7 @@ func (s *Server) pageRepeater(w http.ResponseWriter, r *http.Request) {
 }
 
 func addErr(w http.ResponseWriter, r *http.Request, msg string) {
-	http.Redirect(w, r, "/repeaters/add?step=details&error="+url.QueryEscape(msg), http.StatusSeeOther)
+	redirectErr(w, r, "/repeaters/add?step=details", msg)
 }
 
 // pageRepeaterAdded is the wizard's final two steps for a freshly-added
@@ -90,14 +78,8 @@ func addErr(w http.ResponseWriter, r *http.Request, msg string) {
 // it to an organization the owner belongs to.
 func (s *Server) pageRepeaterAdded(w http.ResponseWriter, r *http.Request) {
 	uid := s.auth.CurrentUserID(r.Context())
-	id, ok := s.repeaterID(r)
+	rep, _, ok := s.requireRepeaterOwned(w, r)
 	if !ok {
-		http.NotFound(w, r)
-		return
-	}
-	rep, err := s.store.GetRepeaterOwned(r.Context(), uid, id)
-	if err != nil {
-		http.NotFound(w, r)
 		return
 	}
 	orgs, err := s.store.ListOrgsForUser(r.Context(), uid)
@@ -172,15 +154,8 @@ func parseRadioForm(r *http.Request) (freq, bw int64, sf, cr int16, ok bool) {
 
 // pageEditRepeater shows the edit form for an owned repeater.
 func (s *Server) pageEditRepeater(w http.ResponseWriter, r *http.Request) {
-	uid := s.auth.CurrentUserID(r.Context())
-	id, ok := s.repeaterID(r)
+	rep, _, ok := s.requireRepeaterOwned(w, r)
 	if !ok {
-		http.NotFound(w, r)
-		return
-	}
-	rep, err := s.store.GetRepeaterOwned(r.Context(), uid, id)
-	if err != nil {
-		http.NotFound(w, r)
 		return
 	}
 	s.render(w, r, "edit_repeater.html", map[string]any{
@@ -201,7 +176,7 @@ func (s *Server) handleEditRepeater(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	editErr := func(msg string) {
-		http.Redirect(w, r, "/repeaters/"+repeaterParam(r)+"/edit?error="+url.QueryEscape(msg), http.StatusSeeOther)
+		redirectErr(w, r, "/repeaters/"+repeaterParam(r)+"/edit", msg)
 	}
 	name := strings.TrimSpace(r.FormValue("name"))
 	if name == "" {
@@ -226,15 +201,8 @@ func (s *Server) handleEditRepeater(w http.ResponseWriter, r *http.Request) {
 // owner that removing the repeater here does not revoke MeshTender's access on
 // the device.
 func (s *Server) pageDeleteRepeater(w http.ResponseWriter, r *http.Request) {
-	uid := s.auth.CurrentUserID(r.Context())
-	id, ok := s.repeaterID(r)
+	rep, _, ok := s.requireRepeaterOwned(w, r)
 	if !ok {
-		http.NotFound(w, r)
-		return
-	}
-	rep, err := s.store.GetRepeaterOwned(r.Context(), uid, id)
-	if err != nil {
-		http.NotFound(w, r)
 		return
 	}
 	s.render(w, r, "delete_repeater.html", map[string]any{
@@ -259,5 +227,5 @@ func (s *Server) handleDeleteRepeater(w http.ResponseWriter, r *http.Request) {
 }
 
 func dashErr(w http.ResponseWriter, r *http.Request, msg string) {
-	http.Redirect(w, r, "/?error="+url.QueryEscape(msg), http.StatusSeeOther)
+	redirectErr(w, r, "/", msg)
 }

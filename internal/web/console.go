@@ -80,18 +80,8 @@ func (s *Server) allowedCommands(ctx context.Context, rep *store.Repeater, userI
 
 func (s *Server) pageConsole(w http.ResponseWriter, r *http.Request) {
 	uid := s.auth.CurrentUserID(r.Context())
-	id, ok := s.repeaterID(r)
+	rep, _, ok := s.requireRepeaterAccess(w, r)
 	if !ok {
-		http.NotFound(w, r)
-		return
-	}
-	rep, err := s.store.GetRepeaterForUser(r.Context(), uid, id)
-	if errors.Is(err, store.ErrNotFound) {
-		http.NotFound(w, r)
-		return
-	}
-	if err != nil {
-		http.Error(w, "could not load repeater", http.StatusInternalServerError)
 		return
 	}
 	catalog, err := s.store.ListCommands(r.Context())

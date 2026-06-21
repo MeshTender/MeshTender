@@ -224,6 +224,22 @@ func hostWithoutPort(host string) string {
 	return host
 }
 
+// redirectFlash 303-redirects to path with a single flash query param (key=msg,
+// the value escaped), picking ? or & as the separator. The per-page error/flash
+// helpers (orgErr, shareErr, accountRedirect, …) all build on it.
+func redirectFlash(w http.ResponseWriter, r *http.Request, path, key, msg string) {
+	sep := "?"
+	if strings.Contains(path, "?") {
+		sep = "&"
+	}
+	http.Redirect(w, r, path+sep+key+"="+url.QueryEscape(msg), http.StatusSeeOther)
+}
+
+// redirectErr is redirectFlash with the conventional "error" key.
+func redirectErr(w http.ResponseWriter, r *http.Request, path, msg string) {
+	redirectFlash(w, r, path, "error", msg)
+}
+
 // render executes a content template within the base layout.
 func (s *Server) render(w http.ResponseWriter, r *http.Request, page string, data map[string]any) {
 	if data == nil {
@@ -372,9 +388,9 @@ func (s *Server) pageDashboard(w http.ResponseWriter, r *http.Request) {
 		"OrgCount":    len(orgs),
 		"Confirmed":   confirmed,
 		"Unconfirmed": unconfirmed,
-		"Owned":       firstRepeaters(owned, 5),
-		"Shared":      firstRepeaters(shared, 5),
-		"Orgs":        firstOrgs(orgs, 5),
+		"Owned":       first(owned, 5),
+		"Shared":      first(shared, 5),
+		"Orgs":        first(orgs, 5),
 		"Mapped":      mapped,
 		"Recent":      recent,
 		"Reconsent":   reconsent,
@@ -395,18 +411,12 @@ func splitOwnedShared(repeaters []*store.Repeater) (owned, shared []*store.Repea
 	return owned, shared
 }
 
-func firstRepeaters(rs []*store.Repeater, n int) []*store.Repeater {
-	if len(rs) > n {
-		return rs[:n]
+// first returns the first n elements of s, or all of them if there are fewer.
+func first[T any](s []T, n int) []T {
+	if len(s) > n {
+		return s[:n]
 	}
-	return rs
-}
-
-func firstOrgs(os []store.OrgMembership, n int) []store.OrgMembership {
-	if len(os) > n {
-		return os[:n]
-	}
-	return os
+	return s
 }
 
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {

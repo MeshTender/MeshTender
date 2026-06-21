@@ -9,10 +9,7 @@ import (
 
 // permGroup is a category of catalog commands for the org permission editor,
 // with per-tier checkbox state.
-type permGroup struct {
-	Name     string
-	Commands []permChoice
-}
+type permGroup = categoryGroup[permChoice]
 
 type permChoice struct {
 	ID            int64
@@ -24,21 +21,12 @@ type permChoice struct {
 }
 
 func groupPermissions(catalog []*store.Command, admin, member map[int64]bool) []permGroup {
-	var groups []permGroup
-	idx := map[string]int{}
-	for _, c := range catalog {
-		gi, ok := idx[c.Category]
-		if !ok {
-			gi = len(groups)
-			idx[c.Category] = gi
-			groups = append(groups, permGroup{Name: c.Category})
-		}
-		groups[gi].Commands = append(groups[gi].Commands, permChoice{
+	return groupByCategory(catalog, func(c *store.Command) permChoice {
+		return permChoice{
 			ID: c.ID, Template: c.Template, Args: c.Args, Risky: c.Risky,
 			AdminChecked: admin[c.ID], MemberChecked: member[c.ID],
-		})
-	}
-	return groups
+		}
+	})
 }
 
 func idSet(ids []int64) map[int64]bool {

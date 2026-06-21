@@ -2,7 +2,6 @@ package store
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -138,17 +137,11 @@ func (s *Store) ListRepeatersForUser(ctx context.Context, userID int64) ([]*Repe
 	if err != nil {
 		return nil, fmt.Errorf("list repeaters: %w", err)
 	}
-	defer rows.Close()
-
-	var out []*Repeater
-	for rows.Next() {
-		r, err := scanRepeater(rows)
-		if err != nil {
-			return nil, fmt.Errorf("scan repeater: %w", err)
-		}
-		out = append(out, r)
+	out, err := collectRows(rows, scanRepeater)
+	if err != nil {
+		return nil, fmt.Errorf("scan repeater: %w", err)
 	}
-	return out, rows.Err()
+	return out, nil
 }
 
 // GetRepeaterForUser returns a single repeater if the user owns it or has a
@@ -162,11 +155,8 @@ func (s *Store) GetRepeaterForUser(ctx context.Context, userID, repeaterID int64
 		                   JOIN org_members om ON om.org_id = orp.org_id AND om.user_id = $1))`,
 		userID, repeaterID)
 	r, err := scanRepeater(row)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, ErrNotFound
-	}
 	if err != nil {
-		return nil, fmt.Errorf("get repeater: %w", err)
+		return nil, notFoundOr(err, "get repeater")
 	}
 	return r, nil
 }
@@ -177,11 +167,8 @@ func (s *Store) GetRepeaterForUser(ctx context.Context, userID, repeaterID int64
 func (s *Store) RepeaterIDByPublicID(ctx context.Context, publicID string) (int64, error) {
 	var id int64
 	err := s.pool.QueryRow(ctx, `SELECT id FROM repeaters WHERE public_id = $1`, publicID).Scan(&id)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return 0, ErrNotFound
-	}
 	if err != nil {
-		return 0, fmt.Errorf("repeater by public id: %w", err)
+		return 0, notFoundOr(err, "repeater by public id")
 	}
 	return id, nil
 }
@@ -192,27 +179,20 @@ func (s *Store) RepeaterIDByPublicID(ctx context.Context, publicID string) (int6
 // non-owner confirmation can corroborate the owner's own). Both writes happen
 // in one transaction.
 func (s *Store) SetRepeaterConfirmed(ctx context.Context, repeaterID, userID int64, admin bool, perms int16) error {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("begin: %w", err)
-	}
-	defer tx.Rollback(ctx)
-
-	if _, err := tx.Exec(ctx, `
-		UPDATE repeaters
-		SET confirmed = TRUE, confirmed_at = now(), confirmed_admin = $2, confirmed_perms = $3
-		WHERE id = $1`, repeaterID, admin, perms); err != nil {
-		return fmt.Errorf("set confirmed: %w", err)
-	}
-	if _, err := tx.Exec(ctx, `
-		INSERT INTO repeater_confirmations (repeater_id, user_id, is_admin, perms)
-		VALUES ($1, $2, $3, $4)`, repeaterID, userID, admin, perms); err != nil {
-		return fmt.Errorf("record confirmation: %w", err)
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("commit: %w", err)
-	}
-	return nil
+	return s.inTx(ctx, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `
+			UPDATE repeaters
+			SET confirmed = TRUE, confirmed_at = now(), confirmed_admin = $2, confirmed_perms = $3
+			WHERE id = $1`, repeaterID, admin, perms); err != nil {
+			return fmt.Errorf("set confirmed: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO repeater_confirmations (repeater_id, user_id, is_admin, perms)
+			VALUES ($1, $2, $3, $4)`, repeaterID, userID, admin, perms); err != nil {
+			return fmt.Errorf("record confirmation: %w", err)
+		}
+		return nil
+	})
 }
 
 // UpdateRepeater updates an owned repeater's settings (the public key is fixed).

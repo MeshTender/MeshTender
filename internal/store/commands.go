@@ -2,7 +2,6 @@ package store
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
@@ -41,26 +40,14 @@ func (s *Store) ListCommands(ctx context.Context) ([]*Command, error) {
 	if err != nil {
 		return nil, fmt.Errorf("list commands: %w", err)
 	}
-	defer rows.Close()
-	var out []*Command
-	for rows.Next() {
-		c, err := scanCommand(rows)
-		if err != nil {
-			return nil, fmt.Errorf("scan command: %w", err)
-		}
-		out = append(out, c)
-	}
-	return out, rows.Err()
+	return collectRows(rows, scanCommand)
 }
 
 // GetCommand returns a single catalog command by id.
 func (s *Store) GetCommand(ctx context.Context, id int64) (*Command, error) {
 	c, err := scanCommand(s.pool.QueryRow(ctx, `SELECT `+commandCols+` FROM command_catalog WHERE id = $1`, id))
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, ErrNotFound
-	}
 	if err != nil {
-		return nil, fmt.Errorf("get command: %w", err)
+		return nil, notFoundOr(err, "get command")
 	}
 	return c, nil
 }
@@ -84,14 +71,5 @@ func (s *Store) DefaultShareCommandIDs(ctx context.Context) ([]int64, error) {
 	if err != nil {
 		return nil, fmt.Errorf("default share commands: %w", err)
 	}
-	defer rows.Close()
-	var ids []int64
-	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		ids = append(ids, id)
-	}
-	return ids, rows.Err()
+	return collectRows(rows, scanID)
 }

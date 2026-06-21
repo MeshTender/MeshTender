@@ -15,7 +15,6 @@ import (
 	"github.com/meshcore-go/meshcore-go/hardware"
 
 	"github.com/jleight/meshtender/internal/mesh"
-	"github.com/jleight/meshtender/internal/store"
 	"github.com/jleight/meshtender/internal/wsbridge"
 )
 
@@ -33,19 +32,8 @@ const maxSendTries = 4
 
 // pageConfirm renders the WebSerial confirm page for a repeater the user can access.
 func (s *Server) pageConfirm(w http.ResponseWriter, r *http.Request) {
-	uid := s.auth.CurrentUserID(r.Context())
-	id, ok := s.repeaterID(r)
+	rep, _, ok := s.requireRepeaterAccess(w, r)
 	if !ok {
-		http.NotFound(w, r)
-		return
-	}
-	rep, err := s.store.GetRepeaterForUser(r.Context(), uid, id)
-	if errors.Is(err, store.ErrNotFound) {
-		http.NotFound(w, r)
-		return
-	}
-	if err != nil {
-		http.Error(w, "could not load repeater", http.StatusInternalServerError)
 		return
 	}
 	s.render(w, r, "confirm.html", map[string]any{
