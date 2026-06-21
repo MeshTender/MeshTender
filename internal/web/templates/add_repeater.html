@@ -42,11 +42,11 @@
     </div>
 
     <div class="mb-3">
-      <label class="form-label">MeshTender server public key</label>
+      <div class="form-label">MeshTender server public key</div>
       <code class="pubkey">{{.ServerPubKey}}</code>
     </div>
     <div class="mb-3">
-      <label class="form-label">Grant-access command — run this on your repeater</label>
+      <div class="form-label">Grant-access command — run this on your repeater</div>
       <div class="input-group">
         <code class="form-control font-monospace">{{.SetPermCommand}}</code>
         <button type="button" class="btn" onclick="navigator.clipboard.writeText(this.previousElementSibling.textContent)">{{template "icon-copy" ""}}Copy</button>
@@ -56,12 +56,12 @@
     {{template "revokedoc" .RevokeCommand}}
 
     <label class="form-check mt-3">
-      <input class="form-check-input" type="checkbox" id="ack" onchange="var c=document.getElementById('continue');c.classList.toggle('disabled', !this.checked);c.toggleAttribute('disabled', !this.checked);">
+      <input class="form-check-input" type="checkbox" id="ack" aria-controls="continue" onchange="var c=document.getElementById('continue');var off=!this.checked;c.classList.toggle('disabled',off);c.setAttribute('aria-disabled',off);if(off){c.setAttribute('tabindex','-1');}else{c.removeAttribute('tabindex');}">
       <span class="form-check-label">I've granted MeshTender admin on this repeater (or I understand I must, before it will work here).</span>
     </label>
     <div class="btn-list mt-3">
-      <a class="btn btn-primary disabled" id="continue" href="/repeaters/add?step=details" disabled
-         onclick="if(this.hasAttribute('disabled')){return false;}">Continue →</a>
+      <a class="btn btn-primary disabled" id="continue" href="/repeaters/add?step=details" aria-disabled="true" tabindex="-1"
+         onclick="if(this.getAttribute('aria-disabled')==='true'){return false;}">Continue →</a>
       <a class="btn" href="/">Cancel</a>
     </div>
   </div>
@@ -74,15 +74,15 @@
     <p class="text-secondary">Tell MeshTender which repeater you just granted access to, and how its radio is configured.</p>
     <form method="post" action="/repeaters">
       <div class="mb-3">
-        <label class="form-label">Name</label>
-        <input type="text" class="form-control" name="name" placeholder="Hilltop repeater" required autofocus>
+        <label class="form-label" for="name">Name</label>
+        <input type="text" class="form-control" id="name" name="name" placeholder="Hilltop repeater" required autofocus>
       </div>
       <div class="mb-3">
-        <label class="form-label">Repeater public key (64 hex chars)</label>
-        <input type="text" class="form-control font-monospace" name="public_key" pattern="[0-9a-fA-F]{64}" placeholder="a1b2…" required>
+        <label class="form-label" for="public_key">Repeater public key (64 hex chars)</label>
+        <input type="text" class="form-control font-monospace" id="public_key" name="public_key" pattern="[0-9a-fA-F]{64}" placeholder="a1b2…" required>
       </div>
       <div class="mb-3">
-        <label class="form-label">Region preset</label>
+        <label class="form-label" for="region">Region preset</label>
         <select class="form-select" id="region" onchange="applyRegion()">
           {{range .Presets}}
           <option value="{{.ID}}" data-freq="{{.FreqHz}}" data-bw="{{.BwHz}}" data-sf="{{.SF}}" data-cr="{{.CR}}"{{if eq .ID $.DefaultPresetID}} selected{{end}}>{{.Label}}</option>
@@ -91,10 +91,10 @@
         </select>
       </div>
       <div class="row g-2">
-        <div class="col-6 col-md-3"><label class="form-label">Freq (Hz)</label><input type="number" class="form-control" id="radio_freq_hz" name="radio_freq_hz" value="{{.Defaults.FreqHz}}" required></div>
-        <div class="col-6 col-md-3"><label class="form-label">Bandwidth (Hz)</label><input type="number" class="form-control" id="radio_bw_hz" name="radio_bw_hz" value="{{.Defaults.BwHz}}" required></div>
-        <div class="col-6 col-md-3"><label class="form-label">SF</label><input type="number" class="form-control" id="radio_sf" name="radio_sf" value="{{.Defaults.SF}}" min="5" max="12" required></div>
-        <div class="col-6 col-md-3"><label class="form-label">CR</label><input type="number" class="form-control" id="radio_cr" name="radio_cr" value="{{.Defaults.CR}}" min="5" max="8" required></div>
+        <div class="col-6 col-md-3"><label class="form-label" for="radio_freq_hz">Freq (Hz)</label><input type="number" class="form-control" id="radio_freq_hz" name="radio_freq_hz" value="{{.Defaults.FreqHz}}" required></div>
+        <div class="col-6 col-md-3"><label class="form-label" for="radio_bw_hz">Bandwidth (Hz)</label><input type="number" class="form-control" id="radio_bw_hz" name="radio_bw_hz" value="{{.Defaults.BwHz}}" required></div>
+        <div class="col-6 col-md-3"><label class="form-label" for="radio_sf">SF</label><input type="number" class="form-control" id="radio_sf" name="radio_sf" value="{{.Defaults.SF}}" min="5" max="12" required></div>
+        <div class="col-6 col-md-3"><label class="form-label" for="radio_cr">CR</label><input type="number" class="form-control" id="radio_cr" name="radio_cr" value="{{.Defaults.CR}}" min="5" max="8" required></div>
       </div>
 
       <label class="form-check mt-3">

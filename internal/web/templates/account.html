@@ -19,13 +19,13 @@
       <div class="card-body">
         <form method="post" action="/account/profile">
           <div class="mb-3">
-            <label class="form-label">Username</label>
-            <input type="text" class="form-control" value="{{.User.Username}}" disabled>
+            <label class="form-label" for="acct_username">Username</label>
+            <input type="text" class="form-control" id="acct_username" value="{{.User.Username}}" disabled>
             <small class="form-hint">Your username can't be changed.</small>
           </div>
           <div class="mb-3">
-            <label class="form-label">Display name <span class="form-label-description">optional</span></label>
-            <input type="text" class="form-control" name="display_name" maxlength="64" value="{{if .DisplayName}}{{.DisplayName}}{{end}}" placeholder="Shown to people you share with">
+            <label class="form-label" for="acct_display_name">Display name <span class="form-label-description">optional</span></label>
+            <input type="text" class="form-control" id="acct_display_name" name="display_name" maxlength="64" value="{{if .DisplayName}}{{.DisplayName}}{{end}}" placeholder="Shown to people you share with">
           </div>
           <button type="submit" class="btn btn-primary">Save profile</button>
         </form>
@@ -81,18 +81,18 @@
         <form method="post" action="/account/password">
           {{if .HasPassword}}
           <div class="mb-3">
-            <label class="form-label">Current password</label>
+            <label class="form-label" for="cur_pw">Current password</label>
             <div class="input-group input-group-flat">
               <input type="password" class="form-control" id="cur_pw" name="current_password" autocomplete="current-password" required>
-              <span class="input-group-text"><a href="#" class="link-secondary" title="Show password" data-pwtoggle="cur_pw" aria-label="Show password">{{template "icon-eye" ""}}</a></span>
+              <span class="input-group-text"><a href="#" class="link-secondary" role="button" aria-pressed="false" title="Show password" data-pwtoggle="cur_pw" aria-label="Show password">{{template "icon-eye" ""}}</a></span>
             </div>
           </div>
           {{end}}
           <div class="mb-3">
-            <label class="form-label">{{if .HasPassword}}New password{{else}}Password{{end}} <span class="form-label-description">min 8 characters</span></label>
+            <label class="form-label" for="new_pw">{{if .HasPassword}}New password{{else}}Password{{end}} <span class="form-label-description">min 8 characters</span></label>
             <div class="input-group input-group-flat">
               <input type="password" class="form-control" id="new_pw" name="new_password" autocomplete="new-password" minlength="8" required>
-              <span class="input-group-text"><a href="#" class="link-secondary" title="Show password" data-pwtoggle="new_pw" aria-label="Show password">{{template "icon-eye" ""}}</a></span>
+              <span class="input-group-text"><a href="#" class="link-secondary" role="button" aria-pressed="false" title="Show password" data-pwtoggle="new_pw" aria-label="Show password">{{template "icon-eye" ""}}</a></span>
             </div>
           </div>
           <button type="submit" class="btn btn-primary">{{if .HasPassword}}Change password{{else}}Set password{{end}}</button>

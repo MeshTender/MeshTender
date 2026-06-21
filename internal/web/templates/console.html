@@ -16,7 +16,7 @@
     </p>
     <code class="pk">{{.Repeater.PublicKeyHex}}</code>
 
-    <div id="unsupported" class="alert alert-danger mt-3" hidden>
+    <div id="unsupported" class="alert alert-danger mt-3" role="alert" hidden>
       This browser does not support WebSerial. Use Chrome, Edge, or another Chromium-based browser over HTTPS or on localhost.
     </div>
 
@@ -24,9 +24,9 @@
 
     <div class="row mt-3">
       <div class="col-12 col-md-8">
-        <ul id="log" class="evlog console"></ul>
+        <ul id="log" class="evlog console" role="log" aria-live="polite" aria-label="Console activity"></ul>
         <form id="cmdform" class="input-group mt-3" autocomplete="off" hidden>
-          <input type="text" id="cmdinput" class="form-control font-monospace" placeholder="type a command, e.g. ver">
+          <input type="text" id="cmdinput" class="form-control font-monospace" placeholder="type a command, e.g. ver" aria-label="Command to send">
           <button type="submit" id="cmdsend" class="btn btn-primary">Send</button>
         </form>
       </div>

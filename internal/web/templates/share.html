@@ -77,8 +77,8 @@
     <p class="text-secondary">Each link works once. Mint one per person and label it so you remember who it's for.</p>
     <form method="post" action="/repeaters/{{.Repeater.PublicID}}/share/link">
       <div class="mb-3">
-        <label class="form-label">Description <span class="text-secondary">(optional)</span></label>
-        <input type="text" class="form-control" name="description" placeholder="e.g. for Bob's modem" maxlength="100">
+        <label class="form-label" for="share_description">Description <span class="text-secondary">(optional)</span></label>
+        <input type="text" class="form-control" id="share_description" name="description" placeholder="e.g. for Bob's modem" maxlength="100">
       </div>
       <button type="submit" class="btn btn-primary">Create single-use link</button>
     </form>

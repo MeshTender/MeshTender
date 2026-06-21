@@ -8,7 +8,7 @@
     <form method="post" action="/login/password" id="signin-form">
       {{if .Next}}<input type="hidden" name="next" value="{{.Next}}">{{end}}
       <div class="mb-3">
-        <label class="form-label">Username</label>
+        <label class="form-label" for="username">Username</label>
         <input type="text" class="form-control" id="username" name="username" autocomplete="username webauthn" autocapitalize="none" placeholder="your-username" required>
       </div>
 
@@ -20,11 +20,11 @@
       <div class="hr-text">or use your password</div>
 
       <div class="mb-3">
-        <label class="form-label">Password</label>
+        <label class="form-label" for="password">Password</label>
         <div class="input-group input-group-flat">
           <input type="password" class="form-control" id="password" name="password" autocomplete="current-password" placeholder="Your password" required>
           <span class="input-group-text">
-            <a href="#" class="link-secondary" title="Show password" data-pwtoggle="password" aria-label="Show password">{{template "icon-eye" ""}}</a>
+            <a href="#" class="link-secondary" role="button" aria-pressed="false" title="Show password" data-pwtoggle="password" aria-label="Show password">{{template "icon-eye" ""}}</a>
           </span>
         </div>
       </div>

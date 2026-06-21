@@ -74,7 +74,7 @@
       <div class="card-header"><h3 class="card-title">Repeater map</h3></div>
       <div class="card-body p-2">
         <link rel="stylesheet" href="/static/leaflet.css">
-        <div id="map" style="height:300px"></div>
+        <div id="map" style="height:300px" role="region" aria-label="Map of organization repeater locations"></div>
         <script src="/static/leaflet.js"></script>
         <script src="/static/meshmap.js"></script>
         <script>
@@ -147,25 +147,25 @@
       <div class="card-body">
         <form method="post" action="/orgs/{{.Org.Slug}}/edit">
           <div class="mb-3">
-            <label class="form-label">Name</label>
-            <input type="text" class="form-control" name="name" value="{{.Org.Name}}" maxlength="80" required>
+            <label class="form-label" for="org_name">Name</label>
+            <input type="text" class="form-control" id="org_name" name="name" value="{{.Org.Name}}" maxlength="80" required>
           </div>
           <div class="mb-3">
-            <label class="form-label">URL slug</label>
+            <label class="form-label" for="org_slug">URL slug</label>
             <div class="input-group">
               <span class="input-group-text">/orgs/</span>
-              <input type="text" class="form-control font-monospace" name="slug" value="{{.Org.Slug}}"
+              <input type="text" class="form-control font-monospace" id="org_slug" name="slug" value="{{.Org.Slug}}"
                      pattern="[a-z0-9]+(-[a-z0-9]+)*" minlength="3" maxlength="40" required>
             </div>
             <small class="form-hint">Lowercase letters, numbers, and hyphens. Changing this changes the org's URL.</small>
           </div>
           <div class="mb-3">
-            <label class="form-label">Region <span class="text-secondary">(optional)</span></label>
-            <input type="text" class="form-control" name="region" value="{{.Org.Region}}" maxlength="120" placeholder="e.g. Buffalo, NY">
+            <label class="form-label" for="org_region">Region <span class="text-secondary">(optional)</span></label>
+            <input type="text" class="form-control" id="org_region" name="region" value="{{.Org.Region}}" maxlength="120" placeholder="e.g. Buffalo, NY">
           </div>
           <div class="mb-3">
-            <label class="form-label">Description</label>
-            <textarea class="form-control" name="description" rows="3" maxlength="2000" placeholder="What this organization is about, where it operates, etc.">{{.Org.Description}}</textarea>
+            <label class="form-label" for="org_description">Description</label>
+            <textarea class="form-control" id="org_description" name="description" rows="3" maxlength="2000" placeholder="What this organization is about, where it operates, etc.">{{.Org.Description}}</textarea>
           </div>
           <button type="submit" class="btn btn-primary">Save profile</button>
         </form>
@@ -213,8 +213,8 @@
         {{end}}
         <form method="post" action="/orgs/{{.Org.Slug}}/domains">
           <div class="mb-3">
-            <label class="form-label">Add a domain</label>
-            <input type="text" class="form-control font-monospace" name="hostname" placeholder="mesh.example.org" maxlength="253">
+            <label class="form-label" for="add_domain">Add a domain</label>
+            <input type="text" class="form-control font-monospace" id="add_domain" name="hostname" placeholder="mesh.example.org" maxlength="253">
           </div>
           <button type="submit" class="btn btn-primary">Add domain</button>
         </form>

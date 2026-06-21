@@ -10,6 +10,7 @@
   <script src="/static/htmx.min.js" defer></script>
 </head>
 <body>
+  <a href="#main-content" class="visually-hidden-focusable btn btn-primary position-absolute top-0 start-0 m-2" style="z-index:1080">Skip to main content</a>
   <div class="page">
     <header class="navbar navbar-expand-md navbar-overlap d-print-none" data-bs-theme="dark">
       <div class="container-xl">
@@ -85,7 +86,7 @@
         </div>
       </div>
       <div class="page-body">
-        <div class="container-xl">
+        <div class="container-xl" id="main-content" tabindex="-1">
           {{block "content" .}}{{end}}
         </div>
       </div>

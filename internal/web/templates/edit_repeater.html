@@ -16,11 +16,11 @@
 
     <form method="post" action="/repeaters/{{.Repeater.PublicID}}/edit" class="mt-3">
       <div class="mb-3">
-        <label class="form-label">Name</label>
-        <input type="text" class="form-control" name="name" value="{{.Repeater.Name}}" required>
+        <label class="form-label" for="name">Name</label>
+        <input type="text" class="form-control" id="name" name="name" value="{{.Repeater.Name}}" required>
       </div>
       <div class="mb-3">
-        <label class="form-label">Region preset</label>
+        <label class="form-label" for="region">Region preset</label>
         <select class="form-select" id="region" onchange="applyRegion()">
           {{range .Presets}}
           <option value="{{.ID}}" data-freq="{{.FreqHz}}" data-bw="{{.BwHz}}" data-sf="{{.SF}}" data-cr="{{.CR}}"{{if eq .ID $.SelectedPreset}} selected{{end}}>{{.Label}}</option>
@@ -29,10 +29,10 @@
         </select>
       </div>
       <div class="row g-2">
-        <div class="col-6 col-md-3"><label class="form-label">Freq (Hz)</label><input type="number" class="form-control" id="radio_freq_hz" name="radio_freq_hz" value="{{.Repeater.RadioFreqHz}}" required></div>
-        <div class="col-6 col-md-3"><label class="form-label">Bandwidth (Hz)</label><input type="number" class="form-control" id="radio_bw_hz" name="radio_bw_hz" value="{{.Repeater.RadioBwHz}}" required></div>
-        <div class="col-6 col-md-3"><label class="form-label">SF</label><input type="number" class="form-control" id="radio_sf" name="radio_sf" value="{{.Repeater.RadioSF}}" min="5" max="12" required></div>
-        <div class="col-6 col-md-3"><label class="form-label">CR</label><input type="number" class="form-control" id="radio_cr" name="radio_cr" value="{{.Repeater.RadioCR}}" min="5" max="8" required></div>
+        <div class="col-6 col-md-3"><label class="form-label" for="radio_freq_hz">Freq (Hz)</label><input type="number" class="form-control" id="radio_freq_hz" name="radio_freq_hz" value="{{.Repeater.RadioFreqHz}}" required></div>
+        <div class="col-6 col-md-3"><label class="form-label" for="radio_bw_hz">Bandwidth (Hz)</label><input type="number" class="form-control" id="radio_bw_hz" name="radio_bw_hz" value="{{.Repeater.RadioBwHz}}" required></div>
+        <div class="col-6 col-md-3"><label class="form-label" for="radio_sf">SF</label><input type="number" class="form-control" id="radio_sf" name="radio_sf" value="{{.Repeater.RadioSF}}" min="5" max="12" required></div>
+        <div class="col-6 col-md-3"><label class="form-label" for="radio_cr">CR</label><input type="number" class="form-control" id="radio_cr" name="radio_cr" value="{{.Repeater.RadioCR}}" min="5" max="8" required></div>
       </div>
 
       <label class="form-check mt-3">

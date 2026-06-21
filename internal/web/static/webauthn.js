@@ -207,5 +207,12 @@ document.addEventListener("click", function (e) {
   if (!t) return;
   e.preventDefault();
   const input = document.getElementById(t.getAttribute("data-pwtoggle"));
-  if (input) input.type = input.type === "password" ? "text" : "password";
+  if (!input) return;
+  const showing = input.type !== "password";
+  input.type = showing ? "password" : "text";
+  // Keep the control's state in sync for screen readers: pressed = revealed.
+  const nowShowing = !showing;
+  t.setAttribute("aria-pressed", String(nowShowing));
+  t.setAttribute("aria-label", nowShowing ? "Hide password" : "Show password");
+  t.setAttribute("title", nowShowing ? "Hide password" : "Show password");
 });
