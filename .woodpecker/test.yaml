@@ -1,0 +1,24 @@
+# Runs on every push and pull request: vet + full test suite, including the
+# Postgres-backed integration test (gated on MESHTENDER_TEST_DATABASE_URL).
+when:
+  - event: [push, pull_request]
+
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: meshtender
+      POSTGRES_PASSWORD: meshtender
+      POSTGRES_DB: meshtender_test
+
+steps:
+  test:
+    image: golang:1.26.4
+    environment:
+      MESHTENDER_TEST_DATABASE_URL: postgres://meshtender:meshtender@postgres:5432/meshtender_test?sslmode=disable
+    commands:
+      - until bash -c 'echo > /dev/tcp/postgres/5432' 2>/dev/null; do sleep 1; done
+      - go vet ./...
+      - go test -race -p 1 ./...
+
+depends_on: []
