@@ -1,4 +1,4 @@
-package web
+package core
 
 import "github.com/jleight/meshtender/internal/config"
 

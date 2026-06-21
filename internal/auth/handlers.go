@@ -14,10 +14,29 @@ import (
 	"github.com/jleight/meshtender/internal/store"
 )
 
-// RequireUser is middleware that redirects unauthenticated requests to /login.
+// RequireUser is middleware that sends unauthenticated requests to the sign-in
+// page — local in single-host mode, or the auth host (with a handoff back) when
+// auth lives on a dedicated host.
 func (s *Service) RequireUser(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if s.CurrentUserID(r.Context()) == 0 {
+			s.StartLogin(w, r, r.URL.RequestURI())
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// RequireSSO guards auth-host-local pages (e.g. account settings) against the
+// auth host's own SSO session. Unlike RequireUser it does NOT hand off to the
+// app afterward: it flags the login as auth-local so PostAuthRedirect returns to
+// the requested path on the auth host once the SSO session exists.
+func (s *Service) RequireSSO(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		if s.CurrentUserID(ctx) == 0 {
+			s.Sessions.Put(ctx, sessKeyAuthLocal, true)
+			s.SetNext(ctx, r.URL.RequestURI())
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
 			return
 		}
@@ -118,7 +137,7 @@ func (s *Service) RegisterFinish(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, "login")
 		return
 	}
-	writeJSON(w, map[string]any{"ok": true, "redirect": s.PopNext(ctx)})
+	writeJSON(w, map[string]any{"ok": true, "redirect": s.PostAuthRedirect(r, u.ID)})
 }
 
 // --- Passkey login ---
@@ -194,7 +213,7 @@ func (s *Service) LoginFinish(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, "login")
 		return
 	}
-	writeJSON(w, map[string]any{"ok": true, "redirect": s.PopNext(ctx)})
+	writeJSON(w, map[string]any{"ok": true, "redirect": s.PostAuthRedirect(r, u.ID)})
 }
 
 // --- usernameless (discoverable) passkey login ---
@@ -266,7 +285,7 @@ func (s *Service) LoginDiscoverableFinish(w http.ResponseWriter, r *http.Request
 		httpError(w, http.StatusInternalServerError, "login")
 		return
 	}
-	writeJSON(w, map[string]any{"ok": true, "redirect": s.PopNext(ctx)})
+	writeJSON(w, map[string]any{"ok": true, "redirect": s.PostAuthRedirect(r, resolved.ID)})
 }
 
 // --- ceremony state helpers ---

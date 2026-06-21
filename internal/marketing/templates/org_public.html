@@ -13,7 +13,7 @@
       <button type="submit" class="btn btn-primary">{{template "icon-users" "me-1"}}Join organization</button>
     </form>
     {{else}}
-    <a class="btn btn-primary" href="/login?next=/orgs/{{.Org.Slug}}">Sign in to join</a>
+    <a class="btn btn-primary" href="{{.AppURL}}/orgs/{{.Org.Slug}}">Sign in to join</a>
     {{end}}
   </div>
 </div>

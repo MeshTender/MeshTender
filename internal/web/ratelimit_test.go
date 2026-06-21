@@ -7,7 +7,7 @@ import (
 
 func TestRateLimiterBurstThenThrottle(t *testing.T) {
 	now := time.Unix(0, 0)
-	l := newRateLimiter(3, time.Second)
+	l := NewRateLimiter(3, time.Second)
 	l.now = func() time.Time { return now }
 
 	// Burst of 3 is allowed from a cold start.
@@ -36,7 +36,7 @@ func TestRateLimiterBurstThenThrottle(t *testing.T) {
 
 func TestRateLimiterSweepReclaims(t *testing.T) {
 	now := time.Unix(0, 0)
-	l := newRateLimiter(2, time.Second)
+	l := NewRateLimiter(2, time.Second)
 	l.now = func() time.Time { return now }
 
 	l.allow("1.2.3.4")

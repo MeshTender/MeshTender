@@ -1,4 +1,4 @@
-package web
+package core
 
 import (
 	"context"
@@ -57,11 +57,11 @@ func resolveCommand(typed string, catalog []*store.Command) *store.Command {
 
 // allowedCommands returns the catalog commands the user may run on the repeater:
 // all of them for the owner, else the share-granted subset.
-func (s *Server) allowedCommands(ctx context.Context, rep *store.Repeater, userID int64, catalog []*store.Command) []*store.Command {
+func (s *Handlers) allowedCommands(ctx context.Context, rep *store.Repeater, userID int64, catalog []*store.Command) []*store.Command {
 	if rep.OwnerID == userID {
 		return catalog
 	}
-	ids, err := s.store.ListShareCommandIDs(ctx, rep.ID, userID)
+	ids, err := s.Store.ListShareCommandIDs(ctx, rep.ID, userID)
 	if err != nil {
 		return nil
 	}
@@ -78,34 +78,34 @@ func (s *Server) allowedCommands(ctx context.Context, rep *store.Repeater, userI
 	return out
 }
 
-func (s *Server) pageConsole(w http.ResponseWriter, r *http.Request) {
-	uid := s.auth.CurrentUserID(r.Context())
+func (s *Handlers) pageConsole(w http.ResponseWriter, r *http.Request) {
+	uid := s.Auth.CurrentUserID(r.Context())
 	rep, _, ok := s.requireRepeaterAccess(w, r)
 	if !ok {
 		return
 	}
-	catalog, err := s.store.ListCommands(r.Context())
+	catalog, err := s.Store.ListCommands(r.Context())
 	if err != nil {
 		http.Error(w, "could not load commands", http.StatusInternalServerError)
 		return
 	}
 	allowed := s.allowedCommands(r.Context(), rep, uid, catalog)
 	sort.Slice(allowed, func(i, j int) bool { return allowed[i].Template < allowed[j].Template })
-	s.render(w, r, "console.html", map[string]any{
+	s.Render(w, r, "console.html", map[string]any{
 		"Repeater": rep,
 		"Commands": allowed,
 	})
 }
 
 // wsConsole runs an interactive command session over the modem bridge.
-func (s *Server) wsConsole(w http.ResponseWriter, r *http.Request) {
-	uid := s.auth.CurrentUserID(r.Context())
+func (s *Handlers) wsConsole(w http.ResponseWriter, r *http.Request) {
+	uid := s.Auth.CurrentUserID(r.Context())
 	id, ok := s.repeaterID(r)
 	if !ok {
 		http.NotFound(w, r)
 		return
 	}
-	rep, err := s.store.GetRepeaterForUser(r.Context(), uid, id)
+	rep, err := s.Store.GetRepeaterForUser(r.Context(), uid, id)
 	if err != nil {
 		http.Error(w, "no access", http.StatusForbidden)
 		return
@@ -115,7 +115,7 @@ func (s *Server) wsConsole(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "stored repeater key invalid", http.StatusInternalServerError)
 		return
 	}
-	catalog, err := s.store.ListCommands(r.Context())
+	catalog, err := s.Store.ListCommands(r.Context())
 	if err != nil {
 		http.Error(w, "could not load commands", http.StatusInternalServerError)
 		return
@@ -133,7 +133,7 @@ func (s *Server) wsConsole(w http.ResponseWriter, r *http.Request) {
 	bridge := wsbridge.New(ctx, ws)
 	modem := hardware.NewKissModem(bridge, hardware.WithTxFlowControl(0))
 	defer modem.Close()
-	server := s.identity.Local()
+	server := s.Identity.Local()
 
 	// All commands go through one exchanger: rate-limited, monotonic timestamps,
 	// automatic retry of lost packets.
@@ -143,7 +143,7 @@ func (s *Server) wsConsole(w http.ResponseWriter, r *http.Request) {
 	})
 
 	// Group this connection's commands into a session (required for logging).
-	sessionID, err := s.store.StartConsoleSession(ctx, id, uid)
+	sessionID, err := s.Store.StartConsoleSession(ctx, id, uid)
 	if err != nil {
 		_ = bridge.Status("error", "could not start session")
 		return
@@ -151,7 +151,7 @@ func (s *Server) wsConsole(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		endCtx, c := context.WithTimeout(context.Background(), 5*time.Second)
 		defer c()
-		_ = s.store.EndConsoleSession(endCtx, sessionID)
+		_ = s.Store.EndConsoleSession(endCtx, sessionID)
 	}()
 
 	if err := modem.Connect(ctx); err != nil {
@@ -238,7 +238,7 @@ func (s *Server) wsConsole(w http.ResponseWriter, r *http.Request) {
 			_ = bridge.Status("denied", "Unknown command: "+text)
 			return
 		}
-		allowed, err := s.store.CanSendCommand(ctx, uid, id, cmd.ID)
+		allowed, err := s.Store.CanSendCommand(ctx, uid, id, cmd.ID)
 		if err != nil {
 			_ = bridge.Status("error", "permission check failed")
 			return
@@ -248,7 +248,7 @@ func (s *Server) wsConsole(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		logID, _ := s.store.LogCommand(ctx, id, uid, sessionID, cmd.ID, text)
+		logID, _ := s.Store.LogCommand(ctx, id, uid, sessionID, cmd.ID, text)
 
 		reply, err := ex.Command(ctx, text, func(attempt, max int) {
 			if attempt == 1 {
@@ -260,7 +260,7 @@ func (s *Server) wsConsole(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case err == nil:
 			if logID != 0 {
-				_ = s.store.MarkCommandReply(ctx, logID, reply)
+				_ = s.Store.MarkCommandReply(ctx, logID, reply)
 			}
 			_ = bridge.Status("reply", reply)
 		case errors.Is(err, mesh.ErrNoReply):

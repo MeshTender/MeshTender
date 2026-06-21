@@ -27,6 +27,13 @@ type Service struct {
 	wa       *webauthn.WebAuthn
 	store    *store.Store
 	Sessions *scs.SessionManager
+
+	// Host split: when authHost is set, sign-in happens on a dedicated host and
+	// hands off to appHost via a single-use code. Empty authHost ⇒ single-host
+	// mode (auth served from appHost, no cross-host handoff).
+	appHost  string
+	authHost string
+	secure   bool
 }
 
 // Config configures the auth service.
@@ -34,7 +41,12 @@ type Config struct {
 	RPID          string
 	RPDisplayName string
 	RPOrigins     []string
-	// Secure marks the session cookie Secure (set false for plain-HTTP localhost dev).
+	// AppHost serves the product; AuthHost (optional) serves the login UI and
+	// runs ceremonies, handing off to AppHost. Both are bare hostnames (no
+	// scheme/port). Empty AuthHost selects single-host mode.
+	AppHost  string
+	AuthHost string
+	// Secure marks cookies Secure (set false for plain-HTTP localhost dev).
 	Secure bool
 }
 
@@ -53,12 +65,34 @@ func New(st *store.Store, pool *pgxpool.Pool, cfg Config) (*Service, error) {
 	sm := scs.New()
 	sm.Store = pgxstore.New(pool)
 	sm.Lifetime = 7 * 24 * time.Hour
-	sm.Cookie.Name = "meshtender_session"
+	// Host-only cookie: no Domain attribute, so the auth and app hosts each get
+	// their own independent session — the browser never sends one host's cookie
+	// to the other. Over HTTPS we use the __Host- prefix, which the browser
+	// enforces as host-only + Secure + Path=/ (and blocks subdomain injection).
+	// The prefix is illegal over plain HTTP, so dev falls back to a bare name.
+	sm.Cookie.Name = cookieName("meshtender_session", cfg.Secure)
 	sm.Cookie.HttpOnly = true
 	sm.Cookie.SameSite = http.SameSiteLaxMode
 	sm.Cookie.Secure = cfg.Secure
+	sm.Cookie.Path = "/"
 
-	return &Service{wa: wa, store: st, Sessions: sm}, nil
+	return &Service{
+		wa:       wa,
+		store:    st,
+		Sessions: sm,
+		appHost:  cfg.AppHost,
+		authHost: cfg.AuthHost,
+		secure:   cfg.Secure,
+	}, nil
+}
+
+// cookieName applies the __Host- prefix over HTTPS (where browsers enforce it)
+// and a bare name over plain-HTTP dev (where the prefix is rejected).
+func cookieName(base string, secure bool) string {
+	if secure {
+		return "__Host-" + base
+	}
+	return base
 }
 
 // CurrentUserID returns the authenticated user id from the session, or 0.

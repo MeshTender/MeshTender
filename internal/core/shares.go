@@ -1,4 +1,4 @@
-package web
+package core
 
 import (
 	"context"
@@ -10,34 +10,35 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/jleight/meshtender/internal/store"
+	"github.com/jleight/meshtender/internal/web"
 )
 
 // pageShare renders the sharing page for a repeater the user owns: the current
 // share link (if any) and the list of people who have accepted.
-func (s *Server) pageShare(w http.ResponseWriter, r *http.Request) {
-	uid := s.auth.CurrentUserID(r.Context())
+func (s *Handlers) pageShare(w http.ResponseWriter, r *http.Request) {
+	uid := s.Auth.CurrentUserID(r.Context())
 	rep, id, ok := s.requireRepeaterOwned(w, r)
 	if !ok {
 		return
 	}
-	shares, err := s.store.ListShares(r.Context(), id)
+	shares, err := s.Store.ListShares(r.Context(), id)
 	if err != nil {
 		http.Error(w, "could not load shares", http.StatusInternalServerError)
 		return
 	}
-	invites, err := s.store.ListInvites(r.Context(), id)
+	invites, err := s.Store.ListInvites(r.Context(), id)
 	if err != nil {
 		http.Error(w, "could not load links", http.StatusInternalServerError)
 		return
 	}
 	// Organizations section: orgs this repeater is contributed to, plus orgs the
 	// owner belongs to but hasn't contributed it to yet.
-	contributed, err := s.store.ListRepeaterOrgs(r.Context(), id)
+	contributed, err := s.Store.ListRepeaterOrgs(r.Context(), id)
 	if err != nil {
 		http.Error(w, "could not load orgs", http.StatusInternalServerError)
 		return
 	}
-	memberships, err := s.store.ListOrgsForUser(r.Context(), uid)
+	memberships, err := s.Store.ListOrgsForUser(r.Context(), uid)
 	if err != nil {
 		http.Error(w, "could not load memberships", http.StatusInternalServerError)
 		return
@@ -52,7 +53,7 @@ func (s *Server) pageShare(w http.ResponseWriter, r *http.Request) {
 			available = append(available, m.Org)
 		}
 	}
-	s.render(w, r, "share.html", map[string]any{
+	s.Render(w, r, "share.html", map[string]any{
 		"Repeater":    rep,
 		"Shares":      shares,
 		"Invites":     invites,
@@ -64,7 +65,7 @@ func (s *Server) pageShare(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleCreateLink mints a new single-use share link with a description (owner only).
-func (s *Server) handleCreateLink(w http.ResponseWriter, r *http.Request) {
+func (s *Handlers) handleCreateLink(w http.ResponseWriter, r *http.Request) {
 	id, ok := s.requireOwned(w, r)
 	if !ok {
 		return
@@ -73,7 +74,7 @@ func (s *Server) handleCreateLink(w http.ResponseWriter, r *http.Request) {
 	if len(description) > 100 {
 		description = description[:100]
 	}
-	if _, err := s.store.CreateInvite(r.Context(), id, description); err != nil {
+	if _, err := s.Store.CreateInvite(r.Context(), id, description); err != nil {
 		shareErr(w, r, "Could not create share link.")
 		return
 	}
@@ -81,7 +82,7 @@ func (s *Server) handleCreateLink(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleDeleteInvite revokes (or clears) a single share link by id (owner only).
-func (s *Server) handleDeleteInvite(w http.ResponseWriter, r *http.Request) {
+func (s *Handlers) handleDeleteInvite(w http.ResponseWriter, r *http.Request) {
 	id, ok := s.requireOwned(w, r)
 	if !ok {
 		return
@@ -91,7 +92,7 @@ func (s *Server) handleDeleteInvite(w http.ResponseWriter, r *http.Request) {
 		shareErr(w, r, "Invalid link.")
 		return
 	}
-	if err := s.store.DeleteInvite(r.Context(), id, inviteID); err != nil {
+	if err := s.Store.DeleteInvite(r.Context(), id, inviteID); err != nil {
 		shareErr(w, r, "Could not remove link.")
 		return
 	}
@@ -99,7 +100,7 @@ func (s *Server) handleDeleteInvite(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleUnshare revokes a user's access (owner only).
-func (s *Server) handleUnshare(w http.ResponseWriter, r *http.Request) {
+func (s *Handlers) handleUnshare(w http.ResponseWriter, r *http.Request) {
 	id, ok := s.requireOwned(w, r)
 	if !ok {
 		return
@@ -109,7 +110,7 @@ func (s *Server) handleUnshare(w http.ResponseWriter, r *http.Request) {
 		shareErr(w, r, "Invalid user.")
 		return
 	}
-	if err := s.store.RemoveShare(r.Context(), id, targetID); err != nil {
+	if err := s.Store.RemoveShare(r.Context(), id, targetID); err != nil {
 		shareErr(w, r, "Could not revoke access.")
 		return
 	}
@@ -121,14 +122,14 @@ func (s *Server) handleUnshare(w http.ResponseWriter, r *http.Request) {
 // pageInvite shows the accept page for a share link. It handles logged-out
 // users (offer login/register), the owner, already-shared users, and the
 // confirm-and-accept case.
-func (s *Server) pageInvite(w http.ResponseWriter, r *http.Request) {
+func (s *Handlers) pageInvite(w http.ResponseWriter, r *http.Request) {
 	token := chi.URLParam(r, "token")
-	uid := s.auth.CurrentUserID(r.Context())
+	uid := s.Auth.CurrentUserID(r.Context())
 
 	// queryUserID drives the Shared flag; 0 when logged out is fine.
-	rep, err := s.store.RepeaterByInviteToken(r.Context(), uid, token)
+	rep, err := s.Store.RepeaterByInviteToken(r.Context(), uid, token)
 	if errors.Is(err, store.ErrNotFound) {
-		s.render(w, r, "invite.html", map[string]any{"State": "invalid"})
+		s.Render(w, r, "invite.html", map[string]any{"State": "invalid"})
 		return
 	}
 	if err != nil {
@@ -144,7 +145,7 @@ func (s *Server) pageInvite(w http.ResponseWriter, r *http.Request) {
 	case rep.OwnerID == uid:
 		data["State"] = "owner"
 	default:
-		shared, err := s.store.IsShared(r.Context(), rep.ID, uid)
+		shared, err := s.Store.IsShared(r.Context(), rep.ID, uid)
 		if err != nil {
 			http.Error(w, "could not check access", http.StatusInternalServerError)
 			return
@@ -155,18 +156,18 @@ func (s *Server) pageInvite(w http.ResponseWriter, r *http.Request) {
 			data["State"] = "confirm"
 		}
 	}
-	s.render(w, r, "invite.html", data)
+	s.Render(w, r, "invite.html", data)
 }
 
 // handleAcceptInvite grants the logged-in user access via a single-use share
 // link, consuming the link atomically.
-func (s *Server) handleAcceptInvite(w http.ResponseWriter, r *http.Request) {
+func (s *Handlers) handleAcceptInvite(w http.ResponseWriter, r *http.Request) {
 	token := chi.URLParam(r, "token")
-	uid := s.auth.CurrentUserID(r.Context())
+	uid := s.Auth.CurrentUserID(r.Context())
 
-	rep, err := s.store.RepeaterByInviteToken(r.Context(), uid, token)
+	rep, err := s.Store.RepeaterByInviteToken(r.Context(), uid, token)
 	if errors.Is(err, store.ErrNotFound) {
-		s.render(w, r, "invite.html", map[string]any{"State": "invalid"})
+		s.Render(w, r, "invite.html", map[string]any{"State": "invalid"})
 		return
 	}
 	if err != nil {
@@ -179,27 +180,27 @@ func (s *Server) handleAcceptInvite(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 		return
 	}
-	if shared, err := s.store.IsShared(r.Context(), rep.ID, uid); err == nil && shared {
+	if shared, err := s.Store.IsShared(r.Context(), rep.ID, uid); err == nil && shared {
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 		return
 	}
 
 	// Atomically consume the link (single-use guard against concurrent accepts).
-	if _, err := s.store.ConsumeInvite(r.Context(), token, uid); errors.Is(err, store.ErrNotFound) {
-		s.render(w, r, "invite.html", map[string]any{"State": "invalid"})
+	if _, err := s.Store.ConsumeInvite(r.Context(), token, uid); errors.Is(err, store.ErrNotFound) {
+		s.Render(w, r, "invite.html", map[string]any{"State": "invalid"})
 		return
 	} else if err != nil {
 		http.Error(w, "could not accept invite", http.StatusInternalServerError)
 		return
 	}
-	added, err := s.store.AddShare(r.Context(), rep.ID, uid)
+	added, err := s.Store.AddShare(r.Context(), rep.ID, uid)
 	if err != nil {
 		http.Error(w, "could not accept invite", http.StatusInternalServerError)
 		return
 	}
 	if added {
 		// Seed the new share with the default command set; owner can adjust.
-		_ = s.store.SeedShareCommands(r.Context(), rep.ID, uid)
+		_ = s.Store.SeedShareCommands(r.Context(), rep.ID, uid)
 	}
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
@@ -226,7 +227,7 @@ func groupCommands(catalog []*store.Command, checked map[int64]bool) []commandGr
 }
 
 // pageShareCommands lets a repeater owner choose which commands a shared user may run.
-func (s *Server) pageShareCommands(w http.ResponseWriter, r *http.Request) {
+func (s *Handlers) pageShareCommands(w http.ResponseWriter, r *http.Request) {
 	rep, id, ok := s.requireRepeaterOwned(w, r)
 	if !ok {
 		return
@@ -236,26 +237,26 @@ func (s *Server) pageShareCommands(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	if shared, err := s.store.IsShared(r.Context(), id, targetID); err != nil || !shared {
+	if shared, err := s.Store.IsShared(r.Context(), id, targetID); err != nil || !shared {
 		http.NotFound(w, r)
 		return
 	}
-	target, err := s.store.GetUserByID(r.Context(), targetID)
+	target, err := s.Store.GetUserByID(r.Context(), targetID)
 	if err != nil {
 		http.NotFound(w, r)
 		return
 	}
-	catalog, err := s.store.ListCommands(r.Context())
+	catalog, err := s.Store.ListCommands(r.Context())
 	if err != nil {
 		http.Error(w, "could not load commands", http.StatusInternalServerError)
 		return
 	}
-	ids, _ := s.store.ListShareCommandIDs(r.Context(), id, targetID)
+	ids, _ := s.Store.ListShareCommandIDs(r.Context(), id, targetID)
 	checked := make(map[int64]bool, len(ids))
 	for _, cid := range ids {
 		checked[cid] = true
 	}
-	s.render(w, r, "share_commands.html", map[string]any{
+	s.Render(w, r, "share_commands.html", map[string]any{
 		"Repeater": rep,
 		"Target":   target,
 		"Groups":   groupCommands(catalog, checked),
@@ -263,7 +264,7 @@ func (s *Server) pageShareCommands(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleSetShareCommands saves the chosen command set for a shared user.
-func (s *Server) handleSetShareCommands(w http.ResponseWriter, r *http.Request) {
+func (s *Handlers) handleSetShareCommands(w http.ResponseWriter, r *http.Request) {
 	id, ok := s.requireOwned(w, r)
 	if !ok {
 		return
@@ -273,7 +274,7 @@ func (s *Server) handleSetShareCommands(w http.ResponseWriter, r *http.Request) 
 		http.NotFound(w, r)
 		return
 	}
-	if shared, err := s.store.IsShared(r.Context(), id, targetID); err != nil || !shared {
+	if shared, err := s.Store.IsShared(r.Context(), id, targetID); err != nil || !shared {
 		http.NotFound(w, r)
 		return
 	}
@@ -287,7 +288,7 @@ func (s *Server) handleSetShareCommands(w http.ResponseWriter, r *http.Request) 
 			cmdIDs = append(cmdIDs, cid)
 		}
 	}
-	if err := s.store.SetShareCommands(r.Context(), id, targetID, cmdIDs); err != nil {
+	if err := s.Store.SetShareCommands(r.Context(), id, targetID, cmdIDs); err != nil {
 		http.Error(w, "could not save commands", http.StatusInternalServerError)
 		return
 	}
@@ -300,21 +301,21 @@ func (s *Server) handleSetShareCommands(w http.ResponseWriter, r *http.Request) 
 // current user owns it or has shared/org access, writing the response (404 for an
 // unknown id or no access, 500 on an unexpected error) and returning ok=false
 // otherwise. It is the control-action gate for pages any authorized user can see.
-func (s *Server) requireRepeaterAccess(w http.ResponseWriter, r *http.Request) (*store.Repeater, int64, bool) {
-	return s.loadRepeater(w, r, s.store.GetRepeaterForUser)
+func (s *Handlers) requireRepeaterAccess(w http.ResponseWriter, r *http.Request) (*store.Repeater, int64, bool) {
+	return s.loadRepeater(w, r, s.Store.GetRepeaterForUser)
 }
 
 // requireRepeaterOwned is the owner-only variant of requireRepeaterAccess.
-func (s *Server) requireRepeaterOwned(w http.ResponseWriter, r *http.Request) (*store.Repeater, int64, bool) {
-	return s.loadRepeater(w, r, s.store.GetRepeaterOwned)
+func (s *Handlers) requireRepeaterOwned(w http.ResponseWriter, r *http.Request) (*store.Repeater, int64, bool) {
+	return s.loadRepeater(w, r, s.Store.GetRepeaterOwned)
 }
 
 // loadRepeater resolves {id} and loads the repeater via get (an access-scoped
 // lookup), mapping ErrNotFound to 404 and other failures to 500.
-func (s *Server) loadRepeater(w http.ResponseWriter, r *http.Request,
+func (s *Handlers) loadRepeater(w http.ResponseWriter, r *http.Request,
 	get func(ctx context.Context, userID, repeaterID int64) (*store.Repeater, error),
 ) (*store.Repeater, int64, bool) {
-	uid := s.auth.CurrentUserID(r.Context())
+	uid := s.Auth.CurrentUserID(r.Context())
 	id, ok := s.repeaterID(r)
 	if !ok {
 		http.NotFound(w, r)
@@ -333,15 +334,15 @@ func (s *Server) loadRepeater(w http.ResponseWriter, r *http.Request,
 }
 
 // requireOwned is requireRepeaterOwned for callers that only need the id.
-func (s *Server) requireOwned(w http.ResponseWriter, r *http.Request) (int64, bool) {
+func (s *Handlers) requireOwned(w http.ResponseWriter, r *http.Request) (int64, bool) {
 	_, id, ok := s.requireRepeaterOwned(w, r)
 	return id, ok
 }
 
 // repeaterID resolves the opaque {id} URL param (a public_id) to the internal
 // int64 primary key used by the store. Returns ok=false for unknown ids.
-func (s *Server) repeaterID(r *http.Request) (int64, bool) {
-	id, err := s.store.RepeaterIDByPublicID(r.Context(), chi.URLParam(r, "id"))
+func (s *Handlers) repeaterID(r *http.Request) (int64, bool) {
+	id, err := s.Store.RepeaterIDByPublicID(r.Context(), chi.URLParam(r, "id"))
 	return id, err == nil
 }
 
@@ -352,11 +353,11 @@ func repeaterParam(r *http.Request) string { return chi.URLParam(r, "id") }
 func sharePath(publicID string) string { return "/repeaters/" + publicID + "/share" }
 
 func shareErr(w http.ResponseWriter, r *http.Request, msg string) {
-	redirectErr(w, r, sharePath(repeaterParam(r)), msg)
+	web.RedirectErr(w, r, sharePath(repeaterParam(r)), msg)
 }
 
 // absoluteURL builds an absolute URL for a path using the request's scheme/host.
-func (s *Server) absoluteURL(r *http.Request, path string) string {
+func (s *Handlers) absoluteURL(r *http.Request, path string) string {
 	scheme := "http"
 	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
 		scheme = "https"

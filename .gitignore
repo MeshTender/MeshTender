@@ -1,4 +1,6 @@
-/meshtender
-/cmd/meshtender/meshtender
-*.exe
 .env
+/certs/
+/cmd/meshtender/meshtender
+/meshtender
+
+*.exe

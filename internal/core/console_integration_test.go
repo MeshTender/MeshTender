@@ -1,4 +1,4 @@
-package web
+package core
 
 import (
 	"context"
@@ -71,16 +71,7 @@ func TestConsoleRoundTrip(t *testing.T) {
 	defer ts.Close()
 
 	jar, _ := cookiejar.New(nil)
-	client := &http.Client{Jar: jar}
-	resp, err := client.PostForm(ts.URL+"/signup/password", url.Values{"username": {"alice"}, "password": {"supersecret"}})
-	if err != nil {
-		t.Fatalf("signup: %v", err)
-	}
-	resp.Body.Close()
-	user, err := st.GetUserByUsername(ctx, "alice")
-	if err != nil {
-		t.Fatalf("get user: %v", err)
-	}
+	user := seedSession(t, ts, st, ctx, jar, "alice")
 
 	repeater, err := meshcore.GenerateLocalIdentity(rand.Reader)
 	if err != nil {

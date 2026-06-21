@@ -1,4 +1,4 @@
-package web
+package core
 
 import (
 	"net/http"
@@ -7,14 +7,15 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/jleight/meshtender/internal/store"
+	"github.com/jleight/meshtender/internal/web"
 )
 
 // requireCap is middleware that allows the request only if the current user
 // satisfies pick; otherwise it 404s (without revealing the admin area exists).
-func (s *Server) requireCap(pick func(*store.User) bool) func(http.Handler) http.Handler {
+func (s *Handlers) requireCap(pick func(*store.User) bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			u, err := s.store.GetUserByID(r.Context(), s.auth.CurrentUserID(r.Context()))
+			u, err := s.Store.GetUserByID(r.Context(), s.Auth.CurrentUserID(r.Context()))
 			if err != nil || !pick(u) {
 				http.NotFound(w, r)
 				return
@@ -61,27 +62,27 @@ func groupCatalog(catalog []*store.Command) []catalogGroup {
 	return groupByCategory(catalog, func(c *store.Command) *store.Command { return c })
 }
 
-func (s *Server) pageAdmin(w http.ResponseWriter, r *http.Request) {
-	u, _ := s.store.GetUserByID(r.Context(), s.auth.CurrentUserID(r.Context()))
-	s.render(w, r, "admin.html", map[string]any{
+func (s *Handlers) pageAdmin(w http.ResponseWriter, r *http.Request) {
+	u, _ := s.Store.GetUserByID(r.Context(), s.Auth.CurrentUserID(r.Context()))
+	s.Render(w, r, "admin.html", map[string]any{
 		"CanCatalog": u.CapManageCatalog,
 		"CanUsers":   u.CapManageUsers,
 	})
 }
 
-func (s *Server) pageCatalog(w http.ResponseWriter, r *http.Request) {
-	catalog, err := s.store.ListCommands(r.Context())
+func (s *Handlers) pageCatalog(w http.ResponseWriter, r *http.Request) {
+	catalog, err := s.Store.ListCommands(r.Context())
 	if err != nil {
 		http.Error(w, "could not load catalog", http.StatusInternalServerError)
 		return
 	}
-	s.render(w, r, "admin_catalog.html", map[string]any{
+	s.Render(w, r, "admin_catalog.html", map[string]any{
 		"Groups": groupCatalog(catalog),
 		"Saved":  r.URL.Query().Get("saved") != "",
 	})
 }
 
-func (s *Server) handleUpdateCommand(w http.ResponseWriter, r *http.Request) {
+func (s *Handlers) handleUpdateCommand(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
 		http.NotFound(w, r)
@@ -92,7 +93,7 @@ func (s *Server) handleUpdateCommand(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	on := func(name string) bool { return r.FormValue(name) != "" }
-	if err := s.store.UpdateCommandFlags(r.Context(), id,
+	if err := s.Store.UpdateCommandFlags(r.Context(), id,
 		on("risky"), on("share"), on("org_member"), on("org_admin")); err != nil {
 		http.Error(w, "could not save", http.StatusInternalServerError)
 		return
@@ -100,25 +101,25 @@ func (s *Server) handleUpdateCommand(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/admin/catalog?saved=1", http.StatusSeeOther)
 }
 
-func (s *Server) pageUsers(w http.ResponseWriter, r *http.Request) {
+func (s *Handlers) pageUsers(w http.ResponseWriter, r *http.Request) {
 	after := r.URL.Query().Get("after")
-	users, hasMore, err := s.store.ListUsersPage(r.Context(), after)
+	users, hasMore, err := s.Store.ListUsersPage(r.Context(), after)
 	if err != nil {
 		http.Error(w, "could not load users", http.StatusInternalServerError)
 		return
 	}
 	data := map[string]any{
 		"Users": users,
-		"Self":  s.auth.CurrentUserID(r.Context()),
+		"Self":  s.Auth.CurrentUserID(r.Context()),
 		"Error": r.URL.Query().Get("error"),
 	}
 	if hasMore && len(users) > 0 {
 		data["NextAfter"] = users[len(users)-1].Username
 	}
-	s.render(w, r, "admin_users.html", data)
+	s.Render(w, r, "admin_users.html", data)
 }
 
-func (s *Server) handleSetUserCaps(w http.ResponseWriter, r *http.Request) {
+func (s *Handlers) handleSetUserCaps(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
 		http.NotFound(w, r)
@@ -129,24 +130,24 @@ func (s *Server) handleSetUserCaps(w http.ResponseWriter, r *http.Request) {
 
 	// Guard against removing the last user-manager.
 	if !manageUsers {
-		target, err := s.store.GetUserByID(r.Context(), id)
+		target, err := s.Store.GetUserByID(r.Context(), id)
 		if err != nil {
 			http.NotFound(w, r)
 			return
 		}
 		if target.CapManageUsers {
-			n, err := s.store.CountManageUsers(r.Context())
+			n, err := s.Store.CountManageUsers(r.Context())
 			if err != nil {
 				http.Error(w, "error", http.StatusInternalServerError)
 				return
 			}
 			if n <= 1 {
-				redirectErr(w, r, "/admin/users", "Can't remove the last user manager.")
+				web.RedirectErr(w, r, "/admin/users", "Can't remove the last user manager.")
 				return
 			}
 		}
 	}
-	if err := s.store.SetCapabilities(r.Context(), id, manageUsers, manageCatalog); err != nil {
+	if err := s.Store.SetCapabilities(r.Context(), id, manageUsers, manageCatalog); err != nil {
 		http.Error(w, "could not save", http.StatusInternalServerError)
 		return
 	}

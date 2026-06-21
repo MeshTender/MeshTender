@@ -1,4 +1,4 @@
-package web
+package core
 
 import (
 	"context"
@@ -75,10 +75,7 @@ func TestConfirmFetchesLocation(t *testing.T) {
 	defer ts.Close()
 
 	jar, _ := cookiejar.New(nil)
-	client := &http.Client{Jar: jar}
-	resp, _ := client.PostForm(ts.URL+"/signup/password", url.Values{"username": {"alice"}, "password": {"supersecret"}})
-	resp.Body.Close()
-	user, _ := st.GetUserByUsername(ctx, "alice")
+	user := seedSession(t, ts, st, ctx, jar, "alice")
 
 	repeater, _ := meshcore.GenerateLocalIdentity(rand.Reader)
 	rep, err := st.CreateRepeater(ctx, &store.Repeater{

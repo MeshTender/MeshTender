@@ -27,7 +27,7 @@ type tokenBucket struct {
 
 // newRateLimiter builds a limiter allowing bursts up to burst requests, then
 // one further request every refill interval.
-func newRateLimiter(burst float64, refill time.Duration) *rateLimiter {
+func NewRateLimiter(burst float64, refill time.Duration) *rateLimiter {
 	return &rateLimiter{
 		buckets:    map[string]*tokenBucket{},
 		ratePerSec: 1 / refill.Seconds(),
@@ -76,7 +76,7 @@ func (l *rateLimiter) sweep(now time.Time) {
 
 // middleware rejects requests from a client that has exceeded its rate, keyed by
 // client IP.
-func (l *rateLimiter) middleware(next http.Handler) http.Handler {
+func (l *rateLimiter) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !l.allow(clientIP(r)) {
 			http.Error(w, "Too many attempts. Please wait a moment and try again.", http.StatusTooManyRequests)

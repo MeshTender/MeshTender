@@ -8,15 +8,14 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
 	"github.com/jleight/meshtender/internal/auth"
 	"github.com/jleight/meshtender/internal/config"
+	"github.com/jleight/meshtender/internal/core"
 	"github.com/jleight/meshtender/internal/identity"
 	"github.com/jleight/meshtender/internal/store"
-	"github.com/jleight/meshtender/internal/web"
 )
 
 func main() {
@@ -53,23 +52,19 @@ func run(logger *slog.Logger) error {
 	}
 	logger.Info("server identity ready", "pubkey", idSvc.PublicKeyHex())
 
-	secure := false
-	for _, o := range cfg.RPOrigins {
-		if strings.HasPrefix(o, "https://") {
-			secure = true
-		}
-	}
 	authSvc, err := auth.New(st, st.Pool(), auth.Config{
 		RPID:          cfg.RPID,
 		RPDisplayName: cfg.RPDisplayName,
 		RPOrigins:     cfg.RPOrigins,
-		Secure:        secure,
+		AppHost:       cfg.PrimaryHost,
+		AuthHost:      cfg.AuthHost,
+		Secure:        cfg.Secure,
 	})
 	if err != nil {
 		return err
 	}
 
-	srv, err := web.NewServer(st, authSvc, idSvc, cfg)
+	srv, err := core.NewServer(st, authSvc, idSvc, cfg)
 	if err != nil {
 		return err
 	}
@@ -80,10 +75,17 @@ func run(logger *slog.Logger) error {
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
+	tls := cfg.TLSCert != "" && cfg.TLSKey != ""
 	errCh := make(chan error, 1)
 	go func() {
-		logger.Info("listening", "addr", cfg.Addr)
-		if err := httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		logger.Info("listening", "addr", cfg.Addr, "tls", tls)
+		var err error
+		if tls {
+			err = httpSrv.ListenAndServeTLS(cfg.TLSCert, cfg.TLSKey)
+		} else {
+			err = httpSrv.ListenAndServe()
+		}
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errCh <- err
 		}
 	}()

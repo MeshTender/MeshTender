@@ -1,4 +1,4 @@
-package web
+package core
 
 import (
 	"encoding/base64"
@@ -11,12 +11,12 @@ import (
 
 // pageCommandLog shows the command audit log for a repeater (owner only),
 // keyset-paginated by console session via an opaque ?before token.
-func (s *Server) pageCommandLog(w http.ResponseWriter, r *http.Request) {
+func (s *Handlers) pageCommandLog(w http.ResponseWriter, r *http.Request) {
 	rep, id, ok := s.requireRepeaterOwned(w, r)
 	if !ok {
 		return
 	}
-	sessions, hasMore, err := s.store.ListCommandLogSessionsPage(r.Context(), id, decodeLogCursor(r.URL.Query().Get("before")))
+	sessions, hasMore, err := s.Store.ListCommandLogSessionsPage(r.Context(), id, decodeLogCursor(r.URL.Query().Get("before")))
 	if err != nil {
 		http.Error(w, "could not load log", http.StatusInternalServerError)
 		return
@@ -29,7 +29,7 @@ func (s *Server) pageCommandLog(w http.ResponseWriter, r *http.Request) {
 		last := sessions[len(sessions)-1]
 		data["NextBefore"] = encodeLogCursor(last.StartedAt, last.ID)
 	}
-	s.render(w, r, "command_log.html", data)
+	s.Render(w, r, "command_log.html", data)
 }
 
 // logCursor is the wire form of a command-log keyset position.

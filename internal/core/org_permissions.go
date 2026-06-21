@@ -1,4 +1,4 @@
-package web
+package core
 
 import (
 	"net/http"
@@ -37,39 +37,39 @@ func idSet(ids []int64) map[int64]bool {
 	return m
 }
 
-func (s *Server) pageOrgPermissions(w http.ResponseWriter, r *http.Request) {
+func (s *Handlers) pageOrgPermissions(w http.ResponseWriter, r *http.Request) {
 	id, ok := s.requireOrgAdmin(w, r)
 	if !ok {
 		return
 	}
-	org, err := s.store.GetOrg(r.Context(), id)
+	org, err := s.Store.GetOrg(r.Context(), id)
 	if err != nil {
 		http.NotFound(w, r)
 		return
 	}
-	versionID, version, err := s.store.CurrentVersion(r.Context(), id)
+	versionID, version, err := s.Store.CurrentVersion(r.Context(), id)
 	if err != nil {
 		http.Error(w, "could not load policy", http.StatusInternalServerError)
 		return
 	}
-	adminIDs, memberIDs, err := s.store.VersionCommandIDs(r.Context(), versionID)
+	adminIDs, memberIDs, err := s.Store.VersionCommandIDs(r.Context(), versionID)
 	if err != nil {
 		http.Error(w, "could not load policy", http.StatusInternalServerError)
 		return
 	}
-	catalog, err := s.store.ListCommands(r.Context())
+	catalog, err := s.Store.ListCommands(r.Context())
 	if err != nil {
 		http.Error(w, "could not load commands", http.StatusInternalServerError)
 		return
 	}
-	s.render(w, r, "org_permissions.html", map[string]any{
+	s.Render(w, r, "org_permissions.html", map[string]any{
 		"Org":     org,
 		"Version": version,
 		"Groups":  groupPermissions(catalog, idSet(adminIDs), idSet(memberIDs)),
 	})
 }
 
-func (s *Server) handleSaveOrgPermissions(w http.ResponseWriter, r *http.Request) {
+func (s *Handlers) handleSaveOrgPermissions(w http.ResponseWriter, r *http.Request) {
 	id, ok := s.requireOrgAdmin(w, r)
 	if !ok {
 		return
@@ -87,9 +87,9 @@ func (s *Server) handleSaveOrgPermissions(w http.ResponseWriter, r *http.Request
 		}
 		return ids
 	}
-	uid := s.auth.CurrentUserID(r.Context())
+	uid := s.Auth.CurrentUserID(r.Context())
 	note := r.FormValue("note")
-	if _, err := s.store.PublishVersion(r.Context(), id, note, uid, parse("admin"), parse("member")); err != nil {
+	if _, err := s.Store.PublishVersion(r.Context(), id, note, uid, parse("admin"), parse("member")); err != nil {
 		http.Error(w, "could not publish", http.StatusInternalServerError)
 		return
 	}

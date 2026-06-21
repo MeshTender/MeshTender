@@ -1,4 +1,4 @@
-package web
+package auth
 
 import (
 	"encoding/hex"
@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/jleight/meshtender/internal/auth"
+	"github.com/jleight/meshtender/internal/web"
 )
 
 // passkeyView is display metadata for one registered passkey.
@@ -17,20 +17,27 @@ type passkeyView struct {
 }
 
 // accountRedirect bounces back to the account page with a flash message under
-// the given key ("ok" or "error").
+// the given key ("ok" or "error"), shown in the page-level banner.
 func accountRedirect(w http.ResponseWriter, r *http.Request, key, msg string) {
-	redirectFlash(w, r, "/account", key, msg)
+	web.RedirectFlash(w, r, "/account", key, msg)
+}
+
+// passkeyRedirect bounces back to the account page with a flash shown inside the
+// Passkeys card ("pk" for success, "pkerr" for failure), so passkey messages
+// stay next to the passkey controls rather than in the top banner.
+func passkeyRedirect(w http.ResponseWriter, r *http.Request, key, msg string) {
+	web.RedirectFlash(w, r, "/account", key, msg)
 }
 
 // pageAccount renders the current user's account-settings page.
-func (s *Server) pageAccount(w http.ResponseWriter, r *http.Request) {
-	uid := s.auth.CurrentUserID(r.Context())
-	u, err := s.store.GetUserByID(r.Context(), uid)
+func (s *Handlers) pageAccount(w http.ResponseWriter, r *http.Request) {
+	uid := s.Auth.CurrentUserID(r.Context())
+	u, err := s.Store.GetUserByID(r.Context(), uid)
 	if err != nil {
 		http.Error(w, "could not load account", http.StatusInternalServerError)
 		return
 	}
-	creds, err := s.store.ListCredentials(r.Context(), uid)
+	creds, err := s.Store.ListCredentials(r.Context(), uid)
 	if err != nil {
 		http.Error(w, "could not load passkeys", http.StatusInternalServerError)
 		return
@@ -43,21 +50,23 @@ func (s *Server) pageAccount(w http.ResponseWriter, r *http.Request) {
 		}
 		views = append(views, passkeyView{ID: c.ID, ShortID: short, Added: c.CreatedAt})
 	}
-	s.render(w, r, "account.html", map[string]any{
+	s.Render(w, r, "account.html", map[string]any{
 		"User":        u,
 		"DisplayName": u.DisplayName, // nil when unset
 		"HasPassword": u.PasswordHash != nil,
 		"Passkeys":    views,
 		"Error":       r.URL.Query().Get("error"),
 		"OK":          r.URL.Query().Get("ok"),
+		"PKMsg":       r.URL.Query().Get("pk"),
+		"PKErr":       r.URL.Query().Get("pkerr"),
 	})
 }
 
 // handleUpdateProfile saves the user's display name.
-func (s *Server) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
-	uid := s.auth.CurrentUserID(r.Context())
-	displayName := auth.NormalizeDisplayName(r.FormValue("display_name"))
-	if err := s.store.SetDisplayName(r.Context(), uid, displayName); err != nil {
+func (s *Handlers) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
+	uid := s.Auth.CurrentUserID(r.Context())
+	displayName := NormalizeDisplayName(r.FormValue("display_name"))
+	if err := s.Store.SetDisplayName(r.Context(), uid, displayName); err != nil {
 		accountRedirect(w, r, "error", "Could not save your profile.")
 		return
 	}
@@ -65,10 +74,10 @@ func (s *Server) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleChangePassword sets, changes, or removes the user's password.
-func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
+func (s *Handlers) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	uid := s.auth.CurrentUserID(ctx)
-	u, err := s.store.GetUserByID(ctx, uid)
+	uid := s.Auth.CurrentUserID(ctx)
+	u, err := s.Store.GetUserByID(ctx, uid)
 	if err != nil {
 		accountRedirect(w, r, "error", "Could not load account.")
 		return
@@ -79,7 +88,7 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 			accountRedirect(w, r, "error", "No password to remove.")
 			return
 		}
-		n, err := s.store.CountCredentials(ctx, uid)
+		n, err := s.Store.CountCredentials(ctx, uid)
 		if err != nil {
 			accountRedirect(w, r, "error", "Could not load passkeys.")
 			return
@@ -88,7 +97,7 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 			accountRedirect(w, r, "error", "Add a passkey before removing your password — it's your only way to sign in.")
 			return
 		}
-		if err := s.store.ClearPassword(ctx, uid); err != nil {
+		if err := s.Store.ClearPassword(ctx, uid); err != nil {
 			accountRedirect(w, r, "error", "Could not remove password.")
 			return
 		}
@@ -102,11 +111,11 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// When a password already exists, require the current one to change it.
-	if u.PasswordHash != nil && !s.auth.PasswordMatches(u, r.FormValue("current_password")) {
+	if u.PasswordHash != nil && !s.Auth.PasswordMatches(u, r.FormValue("current_password")) {
 		accountRedirect(w, r, "error", "Current password is incorrect.")
 		return
 	}
-	if err := s.auth.SetPassword(ctx, uid, newPassword); err != nil {
+	if err := s.Auth.SetPassword(ctx, uid, newPassword); err != nil {
 		accountRedirect(w, r, "error", "Could not update password.")
 		return
 	}
@@ -115,32 +124,32 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 
 // handleDeletePasskey removes one of the user's passkeys, refusing to remove
 // the last sign-in method.
-func (s *Server) handleDeletePasskey(w http.ResponseWriter, r *http.Request) {
+func (s *Handlers) handleDeletePasskey(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	uid := s.auth.CurrentUserID(ctx)
+	uid := s.Auth.CurrentUserID(ctx)
 	credID, err := strconv.ParseInt(r.FormValue("credential_id"), 10, 64)
 	if err != nil {
-		accountRedirect(w, r, "error", "Invalid passkey.")
+		passkeyRedirect(w, r, "pkerr", "Invalid passkey.")
 		return
 	}
-	u, err := s.store.GetUserByID(ctx, uid)
+	u, err := s.Store.GetUserByID(ctx, uid)
 	if err != nil {
-		accountRedirect(w, r, "error", "Could not load account.")
+		passkeyRedirect(w, r, "pkerr", "Could not load account.")
 		return
 	}
-	n, err := s.store.CountCredentials(ctx, uid)
+	n, err := s.Store.CountCredentials(ctx, uid)
 	if err != nil {
-		accountRedirect(w, r, "error", "Could not load passkeys.")
+		passkeyRedirect(w, r, "pkerr", "Could not load passkeys.")
 		return
 	}
 	// After removal the user must retain at least one way to sign in.
 	if n-1 < 1 && u.PasswordHash == nil {
-		accountRedirect(w, r, "error", "You can't remove your only sign-in method. Add another passkey or set a password first.")
+		passkeyRedirect(w, r, "pkerr", "You can't remove your only sign-in method. Add another passkey or set a password first.")
 		return
 	}
-	if err := s.store.DeleteCredential(ctx, uid, credID); err != nil {
-		accountRedirect(w, r, "error", "Could not remove that passkey.")
+	if err := s.Store.DeleteCredential(ctx, uid, credID); err != nil {
+		passkeyRedirect(w, r, "pkerr", "Could not remove that passkey.")
 		return
 	}
-	accountRedirect(w, r, "ok", "Passkey removed.")
+	passkeyRedirect(w, r, "pk", "Passkey removed.")
 }

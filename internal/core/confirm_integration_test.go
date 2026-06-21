@@ -1,4 +1,4 @@
-package web
+package core
 
 import (
 	"context"
@@ -77,18 +77,7 @@ func TestConfirmRoundTrip(t *testing.T) {
 
 	// --- sign up a user (password) and capture the session cookie ---
 	jar, _ := cookiejar.New(nil)
-	client := &http.Client{Jar: jar}
-	form := url.Values{"username": {"tester"}, "password": {"supersecret"}}
-	resp, err := client.PostForm(ts.URL+"/signup/password", form)
-	if err != nil {
-		t.Fatalf("signup: %v", err)
-	}
-	resp.Body.Close()
-
-	user, err := st.GetUserByUsername(ctx, "tester")
-	if err != nil {
-		t.Fatalf("get user: %v", err)
-	}
+	user := seedSession(t, ts, st, ctx, jar, "tester")
 
 	// --- register a repeater whose private key we (the test) hold ---
 	repeater, err := meshcore.GenerateLocalIdentity(rand.Reader)

@@ -1,4 +1,4 @@
-package web
+package core
 
 import (
 	"context"
@@ -31,12 +31,12 @@ var perTryReply = 10 * time.Second
 const maxSendTries = 4
 
 // pageConfirm renders the WebSerial confirm page for a repeater the user can access.
-func (s *Server) pageConfirm(w http.ResponseWriter, r *http.Request) {
+func (s *Handlers) pageConfirm(w http.ResponseWriter, r *http.Request) {
 	rep, _, ok := s.requireRepeaterAccess(w, r)
 	if !ok {
 		return
 	}
-	s.render(w, r, "confirm.html", map[string]any{
+	s.Render(w, r, "confirm.html", map[string]any{
 		"Repeater": rep,
 		"Debug":    r.URL.Query().Get("debug") == "1",
 	})
@@ -44,14 +44,14 @@ func (s *Server) pageConfirm(w http.ResponseWriter, r *http.Request) {
 
 // wsConfirm runs the live login round-trip over a WebSocket bridged to the
 // browser's WebSerial-attached KISS modem.
-func (s *Server) wsConfirm(w http.ResponseWriter, r *http.Request) {
-	uid := s.auth.CurrentUserID(r.Context())
+func (s *Handlers) wsConfirm(w http.ResponseWriter, r *http.Request) {
+	uid := s.Auth.CurrentUserID(r.Context())
 	id, ok := s.repeaterID(r)
 	if !ok {
 		http.NotFound(w, r)
 		return
 	}
-	rep, err := s.store.GetRepeaterForUser(r.Context(), uid, id)
+	rep, err := s.Store.GetRepeaterForUser(r.Context(), uid, id)
 	if err != nil {
 		http.Error(w, "no access", http.StatusForbidden)
 		return
@@ -80,7 +80,7 @@ func (s *Server) wsConfirm(w http.ResponseWriter, r *http.Request) {
 	modem := hardware.NewKissModem(bridge, hardware.WithTxFlowControl(0))
 	defer modem.Close()
 
-	server := s.identity.Local()
+	server := s.Identity.Local()
 	debug := r.URL.Query().Get("debug") == "1"
 
 	// All sends (login + location queries) go through one exchanger: rate-limited,
@@ -164,7 +164,7 @@ func (s *Server) wsConfirm(w http.ResponseWriter, r *http.Request) {
 		return // context cancelled or a build/transmit error already reported
 	}
 
-	if err := s.store.SetRepeaterConfirmed(ctx, id, uid, lr.IsAdmin, int16(lr.Permissions)); err != nil {
+	if err := s.Store.SetRepeaterConfirmed(ctx, id, uid, lr.IsAdmin, int16(lr.Permissions)); err != nil {
 		_ = bridge.Status("error", "could not save confirmation: "+err.Error())
 		return
 	}
@@ -198,7 +198,7 @@ func (s *Server) wsConfirm(w http.ResponseWriter, r *http.Request) {
 		lat, okLat := fetchCoord("latitude", "get lat")
 		lon, okLon := fetchCoord("longitude", "get lon")
 		if okLat && okLon {
-			if err := s.store.SetRepeaterLocation(ctx, id, lat, lon); err != nil {
+			if err := s.Store.SetRepeaterLocation(ctx, id, lat, lon); err != nil {
 				_ = bridge.Status("error", "could not store location: "+err.Error())
 			} else {
 				_ = bridge.Status("info", fmt.Sprintf("Stored location: %.5f, %.5f", lat, lon))

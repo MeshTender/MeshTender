@@ -1,0 +1,39 @@
+{{define "title"}}Your organizations · MeshTender{{end}}
+{{define "header"}}
+<div class="row g-2 align-items-center">
+  <div class="col"><h2 class="page-title">Your organizations</h2></div>
+  <div class="col-auto ms-auto d-print-none">
+    <div class="btn-list">
+      <a class="btn" href="{{.RootURL}}/orgs">{{template "icon-world" "me-1"}}Discover organizations</a>
+      <a class="btn btn-primary" href="/orgs/new">{{template "icon-plus" "me-1"}}Create organization</a>
+    </div>
+  </div>
+</div>
+{{end}}
+{{define "content"}}
+{{if .Error}}<div class="alert alert-danger">{{.Error}}</div>{{end}}
+<div class="card">
+  {{if .Orgs}}
+  <div class="list-group list-group-flush">
+    {{range .Orgs}}
+    <a class="list-group-item list-group-item-action" href="/orgs/{{.Org.Slug}}">
+      <div class="d-flex align-items-center gap-2">
+        <span class="fw-bold">{{.Org.Name}}</span>
+        {{if .Org.Region}}<span class="badge bg-secondary-lt">{{.Org.Region}}</span>{{end}}
+        {{if eq .Role "admin"}}<span class="badge bg-success-lt">admin</span>{{else}}<span class="badge bg-azure-lt">member</span>{{end}}
+      </div>
+      {{if .Org.Description}}<p class="text-secondary mb-0 mt-1">{{.Org.Description}}</p>{{end}}
+    </a>
+    {{end}}
+  </div>
+  {{else}}
+  <div class="card-body text-center py-5">
+    <p class="text-secondary mb-3">You're not a member of any organizations yet.</p>
+    <div class="btn-list justify-content-center">
+      <a class="btn" href="{{.RootURL}}/orgs">{{template "icon-world" "me-1"}}Discover organizations</a>
+      <a class="btn btn-primary" href="/orgs/new">{{template "icon-plus" "me-1"}}Create one</a>
+    </div>
+  </div>
+  {{end}}
+</div>
+{{end}}

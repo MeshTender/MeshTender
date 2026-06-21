@@ -1,4 +1,4 @@
-package web
+package core
 
 import (
 	"net/http"
@@ -9,20 +9,20 @@ import (
 )
 
 // orgContext resolves the {id} repeater (owned) and {orgID} the user belongs to.
-func (s *Server) orgContext(w http.ResponseWriter, r *http.Request) (*store.Repeater, int64, bool) {
-	owner := s.auth.CurrentUserID(r.Context())
+func (s *Handlers) orgContext(w http.ResponseWriter, r *http.Request) (*store.Repeater, int64, bool) {
+	owner := s.Auth.CurrentUserID(r.Context())
 	id, ok := s.repeaterID(r)
-	orgID, oerr := s.store.OrgIDBySlug(r.Context(), chi.URLParam(r, "orgID"))
+	orgID, oerr := s.Store.OrgIDBySlug(r.Context(), chi.URLParam(r, "orgID"))
 	if !ok || oerr != nil {
 		http.NotFound(w, r)
 		return nil, 0, false
 	}
-	rep, err := s.store.GetRepeaterOwned(r.Context(), owner, id)
+	rep, err := s.Store.GetRepeaterOwned(r.Context(), owner, id)
 	if err != nil {
 		http.NotFound(w, r)
 		return nil, 0, false
 	}
-	if _, isMember, err := s.store.OrgRole(r.Context(), orgID, owner); err != nil || !isMember {
+	if _, isMember, err := s.Store.OrgRole(r.Context(), orgID, owner); err != nil || !isMember {
 		http.NotFound(w, r) // can only contribute to orgs you belong to
 		return nil, 0, false
 	}
@@ -31,27 +31,27 @@ func (s *Server) orgContext(w http.ResponseWriter, r *http.Request) (*store.Repe
 
 // pageContribute shows the org's current permission envelope for the owner to
 // review before consenting (also used for re-consent).
-func (s *Server) pageContribute(w http.ResponseWriter, r *http.Request) {
+func (s *Handlers) pageContribute(w http.ResponseWriter, r *http.Request) {
 	rep, orgID, ok := s.orgContext(w, r)
 	if !ok {
 		return
 	}
-	org, err := s.store.GetOrg(r.Context(), orgID)
+	org, err := s.Store.GetOrg(r.Context(), orgID)
 	if err != nil {
 		http.NotFound(w, r)
 		return
 	}
-	versionID, version, err := s.store.CurrentVersion(r.Context(), orgID)
+	versionID, version, err := s.Store.CurrentVersion(r.Context(), orgID)
 	if err != nil {
 		http.Error(w, "could not load policy", http.StatusInternalServerError)
 		return
 	}
-	adminIDs, memberIDs, err := s.store.VersionCommandIDs(r.Context(), versionID)
+	adminIDs, memberIDs, err := s.Store.VersionCommandIDs(r.Context(), versionID)
 	if err != nil {
 		http.Error(w, "could not load policy", http.StatusInternalServerError)
 		return
 	}
-	catalog, err := s.store.ListCommands(r.Context())
+	catalog, err := s.Store.ListCommands(r.Context())
 	if err != nil {
 		http.Error(w, "could not load commands", http.StatusInternalServerError)
 		return
@@ -80,10 +80,10 @@ func (s *Server) pageContribute(w http.ResponseWriter, r *http.Request) {
 
 	// If already contributed and behind the current version, show what changed
 	// since the owner last consented.
-	cvID, contributed, _ := s.store.ConsentedVersionID(r.Context(), orgID, rep.ID)
+	cvID, contributed, _ := s.Store.ConsentedVersionID(r.Context(), orgID, rep.ID)
 	if contributed && cvID != versionID {
-		cAdmin, cMember, err1 := s.store.VersionCommandIDs(r.Context(), cvID)
-		consentedNum, err2 := s.store.VersionNumber(r.Context(), cvID)
+		cAdmin, cMember, err1 := s.Store.VersionCommandIDs(r.Context(), cvID)
+		consentedNum, err2 := s.Store.VersionNumber(r.Context(), cvID)
 		if err1 == nil && err2 == nil {
 			tmpl := map[int64]string{}
 			for _, c := range catalog {
@@ -95,13 +95,13 @@ func (s *Server) pageContribute(w http.ResponseWriter, r *http.Request) {
 			data["ConsentedVersion"] = consentedNum
 			data["Added"] = templatesFor(current, consented, tmpl)   // newly granted
 			data["Removed"] = templatesFor(consented, current, tmpl) // no longer granted
-			if notes, err := s.store.VersionNotesSince(r.Context(), orgID, consentedNum); err == nil {
+			if notes, err := s.Store.VersionNotesSince(r.Context(), orgID, consentedNum); err == nil {
 				data["Notes"] = notes
 			}
 		}
 	}
 
-	s.render(w, r, "contribute.html", data)
+	s.Render(w, r, "contribute.html", data)
 }
 
 // union returns the set union of two id sets.
@@ -130,18 +130,18 @@ func templatesFor(in, notIn map[int64]bool, tmpl map[int64]string) []string {
 }
 
 // handleContribute pins the repeater to the org's current permission version.
-func (s *Server) handleContribute(w http.ResponseWriter, r *http.Request) {
+func (s *Handlers) handleContribute(w http.ResponseWriter, r *http.Request) {
 	rep, orgID, ok := s.orgContext(w, r)
 	if !ok {
 		return
 	}
-	versionID, _, err := s.store.CurrentVersion(r.Context(), orgID)
+	versionID, _, err := s.Store.CurrentVersion(r.Context(), orgID)
 	if err != nil {
 		http.Error(w, "could not load policy", http.StatusInternalServerError)
 		return
 	}
-	owner := s.auth.CurrentUserID(r.Context())
-	if err := s.store.ContributeRepeater(r.Context(), orgID, rep.ID, versionID, owner); err != nil {
+	owner := s.Auth.CurrentUserID(r.Context())
+	if err := s.Store.ContributeRepeater(r.Context(), orgID, rep.ID, versionID, owner); err != nil {
 		http.Error(w, "could not contribute", http.StatusInternalServerError)
 		return
 	}
@@ -149,12 +149,12 @@ func (s *Server) handleContribute(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleWithdraw removes the repeater from the org.
-func (s *Server) handleWithdraw(w http.ResponseWriter, r *http.Request) {
+func (s *Handlers) handleWithdraw(w http.ResponseWriter, r *http.Request) {
 	rep, orgID, ok := s.orgContext(w, r)
 	if !ok {
 		return
 	}
-	if err := s.store.WithdrawRepeater(r.Context(), orgID, rep.ID); err != nil {
+	if err := s.Store.WithdrawRepeater(r.Context(), orgID, rep.ID); err != nil {
 		http.Error(w, "could not withdraw", http.StatusInternalServerError)
 		return
 	}

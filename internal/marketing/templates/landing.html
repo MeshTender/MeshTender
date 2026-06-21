@@ -11,7 +11,7 @@
           in sync without needing to share admin passwords.
         </p>
         <div class="btn-list">
-          <a href="/signup" class="btn btn-primary btn-lg">{{template "icon-key" "me-2"}}Get started</a>
+          <a href="{{.AppURL}}/signup" class="btn btn-primary btn-lg">{{template "icon-key" "me-2"}}Get started</a>
           <a href="/orgs" class="btn btn-lg">Browse organizations</a>
         </div>
       </div>
@@ -102,8 +102,8 @@
         <h2 class="mb-3">Ready to tend your mesh?</h2>
         <p class="text-secondary mb-4">Register a repeater in minutes and bring your team along.</p>
         <div class="btn-list justify-content-center">
-          <a href="/signup" class="btn btn-primary btn-lg">Create your account</a>
-          <a href="/login" class="btn btn-lg">Sign in</a>
+          <a href="{{.AppURL}}/signup" class="btn btn-primary btn-lg">Create your account</a>
+          <a href="{{.AppURL}}/login" class="btn btn-lg">Sign in</a>
         </div>
       </div>
     </div>

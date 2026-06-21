@@ -1,9 +1,12 @@
-package web
+package core
 
 import (
 	"io"
 	"strings"
 	"testing"
+
+	"github.com/jleight/meshtender/internal/config"
+	"github.com/jleight/meshtender/internal/web"
 )
 
 // TestBuildPagesComposeAndExecute verifies every content page is pre-built with
@@ -11,12 +14,13 @@ import (
 // or template-resolution error. This guards the startup-time template
 // composition (each page redefines content/title/header onto the base set).
 func TestBuildPagesComposeAndExecute(t *testing.T) {
-	pages, err := buildPages()
+	rn, err := web.NewRenderer(&config.Config{}, templatesFS)
 	if err != nil {
-		t.Fatalf("buildPages: %v", err)
+		t.Fatalf("NewRenderer: %v", err)
 	}
+	pages := rn.Pages()
 	if len(pages) == 0 {
-		t.Fatal("buildPages returned no pages")
+		t.Fatal("renderer built no pages")
 	}
 	// The shared partials are not pages and must not be rendered directly.
 	for _, name := range []string{"base.html", "icons.html"} {

@@ -17,7 +17,7 @@
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar-menu" aria-controls="navbar-menu" aria-expanded="false" aria-label="Toggle navigation">
           <span class="navbar-toggler-icon"></span>
         </button>
-        <a href="/" class="navbar-brand navbar-brand-autodark d-flex align-items-center text-reset text-decoration-none pe-0 pe-md-3">
+        <a href="{{if .UserName}}{{.AppURL}}{{else}}{{.RootURL}}{{end}}/" class="navbar-brand navbar-brand-autodark d-flex align-items-center text-reset text-decoration-none pe-0 pe-md-3">
           {{template "icon-tower" "me-1"}}<span class="fw-bold fs-3">MeshTender</span>
         </a>
         <div class="navbar-nav flex-row order-md-last align-items-center gap-2">
@@ -28,42 +28,42 @@
               <div class="d-none d-xl-block ps-2"><div>{{.UserName}}</div></div>
             </a>
             <div class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
-              <a class="dropdown-item" href="/account">{{template "icon-settings" "dropdown-item-icon"}}Account settings</a>
+              <a class="dropdown-item" href="{{.AuthURL}}/account">{{template "icon-settings" "dropdown-item-icon"}}Account settings</a>
               <div class="dropdown-divider"></div>
-              <form method="post" action="/logout" class="m-0">
+              <form method="post" action="{{.AppURL}}/logout" class="m-0">
                 <button type="submit" class="dropdown-item text-danger">{{template "icon-logout" "dropdown-item-icon"}}Sign out</button>
               </form>
             </div>
           </div>
           {{else}}
-          <a href="/login" class="btn btn-primary">{{template "icon-login" "me-1"}}Sign in</a>
+          <a href="{{.AppURL}}/login" class="btn btn-primary">{{template "icon-login" "me-1"}}Sign in</a>
           {{end}}
         </div>
         <div class="collapse navbar-collapse" id="navbar-menu">
           <ul class="navbar-nav">
             {{if .UserName}}
             <li class="nav-item">
-              <a class="nav-link" href="/">
+              <a class="nav-link" href="{{.AppURL}}/">
                 <span class="nav-link-icon d-md-none d-lg-inline-block">{{template "icon-home" ""}}</span>
                 <span class="nav-link-title">Dashboard</span>
               </a>
             </li>
             <li class="nav-item">
-              <a class="nav-link" href="/repeaters">
+              <a class="nav-link" href="{{.AppURL}}/repeaters">
                 <span class="nav-link-icon d-md-none d-lg-inline-block">{{template "icon-antenna" ""}}</span>
                 <span class="nav-link-title">Repeaters</span>
               </a>
             </li>
             {{end}}
             <li class="nav-item">
-              <a class="nav-link" href="/orgs">
+              <a class="nav-link" href="{{if .UserName}}{{.AppURL}}{{else}}{{.RootURL}}{{end}}/orgs">
                 <span class="nav-link-icon d-md-none d-lg-inline-block">{{template "icon-world" ""}}</span>
                 <span class="nav-link-title">Organizations</span>
               </a>
             </li>
             {{if .CanAdmin}}
             <li class="nav-item">
-              <a class="nav-link" href="/admin">
+              <a class="nav-link" href="{{.AppURL}}/admin">
                 <span class="nav-link-icon d-md-none d-lg-inline-block">{{template "icon-settings" ""}}</span>
                 <span class="nav-link-title">Admin</span>
               </a>
@@ -151,8 +151,8 @@
         {{template "icon-tower" "me-1"}}<span class="fw-bold fs-3">MeshTender</span>
       </a>
       <div class="navbar-nav flex-row order-md-last align-items-center gap-2">
-        <a href="/login" class="btn btn-ghost-secondary">Sign in</a>
-        <a href="/signup" class="btn btn-primary">Create account</a>
+        <a href="{{.AppURL}}/login" class="btn btn-ghost-secondary">Sign in</a>
+        <a href="{{.AppURL}}/signup" class="btn btn-primary">Create account</a>
       </div>
     </div>
   </header>

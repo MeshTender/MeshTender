@@ -129,7 +129,7 @@ async function addPasskey() {
     });
     const data = await result.json().catch(() => ({}));
     if (!result.ok) throw new Error(data.error || "could not add passkey");
-    window.location = "/account?ok=" + encodeURIComponent("Passkey added.");
+    window.location = "/account?pk=" + encodeURIComponent("Passkey added.");
   } catch (e) {
     setStatus("Error: " + e.message);
   }

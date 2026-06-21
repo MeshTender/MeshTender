@@ -1,4 +1,4 @@
-package web
+package core
 
 import (
 	"errors"
@@ -35,7 +35,7 @@ func normalizeHostname(raw string) string {
 }
 
 // handleAddOrgDomain registers a new custom domain for an org (admin only).
-func (s *Server) handleAddOrgDomain(w http.ResponseWriter, r *http.Request) {
+func (s *Handlers) handleAddOrgDomain(w http.ResponseWriter, r *http.Request) {
 	id, ok := s.requireOrgAdmin(w, r)
 	if !ok {
 		return
@@ -45,7 +45,7 @@ func (s *Server) handleAddOrgDomain(w http.ResponseWriter, r *http.Request) {
 		orgErr(w, r, "Enter a valid domain (e.g. mesh.example.org).")
 		return
 	}
-	if _, err := s.store.CreateOrgDomain(r.Context(), id, host); errors.Is(err, store.ErrDuplicate) {
+	if _, err := s.Store.CreateOrgDomain(r.Context(), id, host); errors.Is(err, store.ErrDuplicate) {
 		orgErr(w, r, "That domain is already claimed.")
 		return
 	} else if err != nil {
@@ -57,7 +57,7 @@ func (s *Server) handleAddOrgDomain(w http.ResponseWriter, r *http.Request) {
 
 // handleVerifyOrgDomain checks the org's DNS TXT record carries the domain's
 // verification token, then marks it verified (admin only).
-func (s *Server) handleVerifyOrgDomain(w http.ResponseWriter, r *http.Request) {
+func (s *Handlers) handleVerifyOrgDomain(w http.ResponseWriter, r *http.Request) {
 	id, ok := s.requireOrgAdmin(w, r)
 	if !ok {
 		return
@@ -67,12 +67,12 @@ func (s *Server) handleVerifyOrgDomain(w http.ResponseWriter, r *http.Request) {
 		orgErr(w, r, "Invalid domain.")
 		return
 	}
-	d, err := s.store.GetOrgDomain(r.Context(), id, domainID)
+	d, err := s.Store.GetOrgDomain(r.Context(), id, domainID)
 	if err != nil {
 		orgErr(w, r, "Unknown domain.")
 		return
 	}
-	records, err := s.lookupTXT(txtRecordPrefix + d.Hostname)
+	records, err := s.LookupTXT(txtRecordPrefix + d.Hostname)
 	if err != nil {
 		orgErr(w, r, "Could not read DNS TXT records yet — they may still be propagating.")
 		return
@@ -81,7 +81,7 @@ func (s *Server) handleVerifyOrgDomain(w http.ResponseWriter, r *http.Request) {
 		orgErr(w, r, "TXT record not found yet. Double-check the value, then retry.")
 		return
 	}
-	if err := s.store.MarkOrgDomainVerified(r.Context(), id, domainID); err != nil {
+	if err := s.Store.MarkOrgDomainVerified(r.Context(), id, domainID); err != nil {
 		orgErr(w, r, "Could not save verification.")
 		return
 	}
@@ -100,7 +100,7 @@ func txtRecordsHaveToken(records []string, token string) bool {
 }
 
 // handleDeleteOrgDomain removes a custom domain (admin only).
-func (s *Server) handleDeleteOrgDomain(w http.ResponseWriter, r *http.Request) {
+func (s *Handlers) handleDeleteOrgDomain(w http.ResponseWriter, r *http.Request) {
 	id, ok := s.requireOrgAdmin(w, r)
 	if !ok {
 		return
@@ -110,7 +110,7 @@ func (s *Server) handleDeleteOrgDomain(w http.ResponseWriter, r *http.Request) {
 		orgErr(w, r, "Invalid domain.")
 		return
 	}
-	if err := s.store.DeleteOrgDomain(r.Context(), id, domainID); err != nil {
+	if err := s.Store.DeleteOrgDomain(r.Context(), id, domainID); err != nil {
 		orgErr(w, r, "Could not remove domain.")
 		return
 	}

@@ -1,0 +1,412 @@
+package core
+
+import (
+	"context"
+	"crypto/rand"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"os"
+	"strings"
+	"testing"
+
+	"github.com/jleight/meshtender/internal/auth"
+	"github.com/jleight/meshtender/internal/config"
+	"github.com/jleight/meshtender/internal/identity"
+	"github.com/jleight/meshtender/internal/store"
+)
+
+const (
+	testAuthHost = "auth.localhost"
+	testAppHost  = "app.localhost"
+	testRootHost = "localhost"
+	testWWWHost  = "www.localhost"
+)
+
+// hostEnv holds the host:port for each surface of a split-host test server.
+type hostEnv struct{ auth, app, root, www string }
+
+// splitServer stands up a server in full split-host mode (root/www/auth/app)
+// against the test database, returning the store and the per-surface host:port.
+func splitServer(t *testing.T) (*store.Store, context.Context, *httptest.Server, hostEnv) {
+	t.Helper()
+	dsn := os.Getenv("MESHTENDER_TEST_DATABASE_URL")
+	if dsn == "" {
+		t.Skip("set MESHTENDER_TEST_DATABASE_URL to run this integration test")
+	}
+	if u, err := url.Parse(dsn); err != nil || !strings.HasSuffix(strings.TrimPrefix(u.Path, "/"), "_test") {
+		t.Fatalf("refusing to run: test DB name must end in _test (got %q)", dsn)
+	}
+	ctx := context.Background()
+	st, err := store.New(ctx, dsn)
+	if err != nil {
+		t.Fatalf("store: %v", err)
+	}
+	t.Cleanup(st.Close)
+	if err := st.Migrate(ctx); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	if _, err := st.Pool().Exec(ctx,
+		`TRUNCATE users, repeaters, server_identity, sessions, auth_codes RESTART IDENTITY CASCADE`); err != nil {
+		t.Fatalf("truncate: %v", err)
+	}
+
+	var masterKey [32]byte
+	_, _ = rand.Read(masterKey[:])
+	idSvc, _ := identity.LoadOrCreate(ctx, st, masterKey)
+	authSvc, err := auth.New(st, st.Pool(), auth.Config{
+		RPID: "localhost", RPDisplayName: "test",
+		RPOrigins: []string{"http://auth.localhost", "http://app.localhost"},
+		AppHost:   testAppHost, AuthHost: testAuthHost,
+	})
+	if err != nil {
+		t.Fatalf("auth: %v", err)
+	}
+	srv, err := NewServer(st, authSvc, idSvc, &config.Config{
+		PrimaryHost: testAppHost, AuthHost: testAuthHost,
+		RootHost: testRootHost, WWWHost: testWWWHost,
+	})
+	if err != nil {
+		t.Fatalf("server: %v", err)
+	}
+	ts := httptest.NewServer(srv.Handler())
+	t.Cleanup(ts.Close)
+	port := mustURL(t, ts.URL).Port()
+	hp := func(h string) string { return h + ":" + port }
+	return st, ctx, ts, hostEnv{auth: hp(testAuthHost), app: hp(testAppHost), root: hp(testRootHost), www: hp(testWWWHost)}
+}
+
+// seedSession creates a user and establishes an authenticated app-host session
+// by redeeming a handoff code at /session/callback, storing the session cookie
+// in jar. Integration tests use this instead of the auth-host sign-in UI.
+func seedSession(t *testing.T, ts *httptest.Server, st *store.Store, ctx context.Context, jar http.CookieJar, username string) *store.User {
+	t.Helper()
+	u, err := st.CreateUser(ctx, username, "")
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	code, err := st.CreateAuthCode(ctx, u.ID, "/")
+	if err != nil {
+		t.Fatalf("create auth code: %v", err)
+	}
+	req, _ := http.NewRequest(http.MethodGet, ts.URL+"/session/callback?code="+code+"&state=s1", nil)
+	req.AddCookie(&http.Cookie{Name: "mt_state", Value: "s1"})
+	client := &http.Client{Jar: jar, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("session callback: %v", err)
+	}
+	resp.Body.Close()
+	return u
+}
+
+// noRedirect is a client that surfaces redirects instead of following them.
+func noRedirect() *http.Client {
+	return &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}}
+}
+
+// do issues a request to ts with an explicit Host header (so the dispatcher
+// routes by hostname) and optional cookies.
+func do(t *testing.T, ts *httptest.Server, host, path string, cookies ...*http.Cookie) *http.Response {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodGet, ts.URL+path, nil)
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	req.Host = host
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+	resp, err := noRedirect().Do(req)
+	if err != nil {
+		t.Fatalf("do %s%s: %v", host, path, err)
+	}
+	return resp
+}
+
+// post issues a form POST with an explicit Host header and optional cookies.
+func post(t *testing.T, ts *httptest.Server, host, path string, form url.Values, cookies ...*http.Cookie) *http.Response {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodPost, ts.URL+path, strings.NewReader(form.Encode()))
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	req.Host = host
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+	resp, err := noRedirect().Do(req)
+	if err != nil {
+		t.Fatalf("post %s%s: %v", host, path, err)
+	}
+	return resp
+}
+
+func cookieByName(resp *http.Response, name string) *http.Cookie {
+	for _, c := range resp.Cookies() {
+		if c.Name == name {
+			return c
+		}
+	}
+	return nil
+}
+
+// TestRequireUserBouncesToAuthHost: an unauthenticated app-host request to a
+// protected page redirects to the auth host's /login, carrying next and a state
+// nonce that matches the host-only state cookie just set.
+func TestRequireUserBouncesToAuthHost(t *testing.T) {
+	_, _, ts, h := splitServer(t)
+
+	resp := do(t, ts, h.app, "/repeaters")
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303", resp.StatusCode)
+	}
+	loc, _ := url.Parse(resp.Header.Get("Location"))
+	if loc.Host != h.auth || loc.Path != "/login" {
+		t.Fatalf("Location = %q, want auth host /login", resp.Header.Get("Location"))
+	}
+	if got := loc.Query().Get("next"); got != "/repeaters" {
+		t.Fatalf("next = %q, want /repeaters", got)
+	}
+	state := loc.Query().Get("state")
+	c := cookieByName(resp, "mt_state")
+	if state == "" || c == nil || c.Value != state {
+		t.Fatalf("state cookie %v must match state param %q", c, state)
+	}
+}
+
+// TestAppHostLoginRedirectsToAuth: the credential UI does not live on the app
+// host; /login there bounces to the auth host.
+func TestAppHostLoginRedirectsToAuth(t *testing.T) {
+	_, _, ts, h := splitServer(t)
+	resp := do(t, ts, h.app, "/login")
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303", resp.StatusCode)
+	}
+	if loc, _ := url.Parse(resp.Header.Get("Location")); loc.Host != h.auth {
+		t.Fatalf("Location host = %q, want %q", loc.Host, h.auth)
+	}
+}
+
+// TestAuthHostServesLogin: the auth host renders the sign-in page in place.
+func TestAuthHostServesLogin(t *testing.T) {
+	_, _, ts, h := splitServer(t)
+	resp := do(t, ts, h.auth, "/login")
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+}
+
+// TestHostRouting checks each surface is served on its own host: the root host
+// serves public marketing + org discovery, www redirects to root, and the app
+// host's / and /orgs require auth (bounce to the auth host).
+func TestHostRouting(t *testing.T) {
+	_, _, ts, h := splitServer(t)
+
+	t.Run("root serves landing", func(t *testing.T) {
+		resp := do(t, ts, h.root, "/")
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("root / = %d, want 200", resp.StatusCode)
+		}
+	})
+	t.Run("root serves public org directory", func(t *testing.T) {
+		resp := do(t, ts, h.root, "/orgs")
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("root /orgs = %d, want 200", resp.StatusCode)
+		}
+	})
+	t.Run("www redirects to root", func(t *testing.T) {
+		resp := do(t, ts, h.www, "/orgs")
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusMovedPermanently {
+			t.Fatalf("www /orgs = %d, want 301", resp.StatusCode)
+		}
+		if loc, _ := url.Parse(resp.Header.Get("Location")); loc.Host != h.root || loc.Path != "/orgs" {
+			t.Fatalf("www redirect = %q, want root /orgs", resp.Header.Get("Location"))
+		}
+	})
+	t.Run("app root bounces anonymous to auth", func(t *testing.T) {
+		resp := do(t, ts, h.app, "/")
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusSeeOther {
+			t.Fatalf("app / = %d, want 303", resp.StatusCode)
+		}
+		if loc, _ := url.Parse(resp.Header.Get("Location")); loc.Host != h.auth {
+			t.Fatalf("app / redirect host = %q, want auth", loc.Host)
+		}
+	})
+	t.Run("app /orgs requires auth", func(t *testing.T) {
+		resp := do(t, ts, h.app, "/orgs")
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusSeeOther {
+			t.Fatalf("app /orgs anon = %d, want 303 to auth", resp.StatusCode)
+		}
+	})
+}
+
+// TestSingleLogout verifies sign-out clears BOTH sessions: the app host's
+// /logout chains to the auth host, and the auth host's /logout destroys the SSO
+// session so it can't silently re-authenticate.
+func TestSingleLogout(t *testing.T) {
+	st, ctx, ts, h := splitServer(t)
+
+	// An app session (via the handoff) logs out by bouncing to the auth host.
+	u, _ := st.CreateUser(ctx, "logoutuser", "")
+	code, _ := st.CreateAuthCode(ctx, u.ID, "/")
+	cb := do(t, ts, h.app, "/session/callback?code="+code+"&state=s1", &http.Cookie{Name: "mt_state", Value: "s1"})
+	cb.Body.Close()
+	appSess := cookieByName(cb, "meshtender_session")
+	if appSess == nil {
+		t.Fatal("expected an app session from the callback")
+	}
+	out := post(t, ts, h.app, "/logout", url.Values{}, appSess)
+	out.Body.Close()
+	if loc, _ := url.Parse(out.Header.Get("Location")); out.StatusCode != http.StatusSeeOther || loc.Host != h.auth || loc.Path != "/logout" {
+		t.Fatalf("app logout = %d %q, want 303 to auth /logout", out.StatusCode, out.Header.Get("Location"))
+	}
+
+	// Sign up on the auth host to hold an SSO session, then confirm it is live
+	// (auth /login hands off) until /logout, after which it no longer does.
+	su := post(t, ts, h.auth, "/signup/password", url.Values{"username": {"ssouser"}, "password": {"supersecret"}})
+	su.Body.Close()
+	sso := cookieByName(su, "meshtender_session")
+	if sso == nil {
+		t.Fatal("expected an SSO session from signup")
+	}
+	live := do(t, ts, h.auth, "/login?next=%2F&state=x", sso)
+	live.Body.Close()
+	if live.StatusCode != http.StatusSeeOther {
+		t.Fatalf("authed /login = %d, want 303 handoff (SSO live)", live.StatusCode)
+	}
+	lo := do(t, ts, h.auth, "/logout", sso)
+	lo.Body.Close()
+	if lo.StatusCode != http.StatusSeeOther {
+		t.Fatalf("auth /logout = %d, want 303", lo.StatusCode)
+	}
+	after := do(t, ts, h.auth, "/login", sso)
+	defer after.Body.Close()
+	if after.StatusCode != http.StatusOK {
+		t.Fatalf("post-logout /login = %d, want 200 (SSO cleared, no re-handoff)", after.StatusCode)
+	}
+}
+
+// TestAccountOnAuthHost verifies account/credential management lives on the auth
+// host: the app host no longer serves /account, the auth host guards it with the
+// SSO session, and an SSO-less visit returns LOCALLY to /account after login
+// (rather than handing off to the app).
+func TestAccountOnAuthHost(t *testing.T) {
+	_, _, ts, h := splitServer(t)
+
+	t.Run("app host no longer serves /account", func(t *testing.T) {
+		resp := do(t, ts, h.app, "/account")
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusNotFound {
+			t.Fatalf("app /account = %d, want 404", resp.StatusCode)
+		}
+	})
+
+	t.Run("auth /account anon bounces to local login", func(t *testing.T) {
+		resp := do(t, ts, h.auth, "/account")
+		defer resp.Body.Close()
+		loc, _ := url.Parse(resp.Header.Get("Location"))
+		if resp.StatusCode != http.StatusSeeOther || loc.Path != "/login" || loc.Host != "" {
+			t.Fatalf("auth /account anon = %d %q, want 303 to local /login", resp.StatusCode, resp.Header.Get("Location"))
+		}
+		// Completing login carries the auth-local flag, so it returns to /account
+		// on the auth host — NOT a handoff to the app callback.
+		sess := cookieByName(resp, "meshtender_session")
+		if sess == nil {
+			t.Fatal("expected a session cookie carrying the auth-local flag")
+		}
+		fin := post(t, ts, h.auth, "/signup/password",
+			url.Values{"username": {"acctlocal"}, "password": {"supersecret"}}, sess)
+		fin.Body.Close()
+		if got := fin.Header.Get("Location"); got != "/account" {
+			t.Fatalf("post-login redirect = %q, want local /account (no handoff)", got)
+		}
+	})
+
+	t.Run("auth /account with SSO session renders", func(t *testing.T) {
+		su := post(t, ts, h.auth, "/signup/password",
+			url.Values{"username": {"acctsso"}, "password": {"supersecret"}})
+		su.Body.Close()
+		sso := cookieByName(su, "meshtender_session")
+		if sso == nil {
+			t.Fatal("expected an SSO session from signup")
+		}
+		resp := do(t, ts, h.auth, "/account", sso)
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("auth /account with SSO = %d, want 200", resp.StatusCode)
+		}
+	})
+}
+
+// TestSessionCallback exercises the handoff redemption: a valid code + matching
+// state establishes an app-host session; tampered state or an unknown code is
+// rejected back to sign-in without a session.
+func TestSessionCallback(t *testing.T) {
+	st, ctx, ts, h := splitServer(t)
+	appHost := h.app
+	u, err := st.CreateUser(ctx, "callbackuser", "")
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+
+	t.Run("happy path establishes a session", func(t *testing.T) {
+		code, _ := st.CreateAuthCode(ctx, u.ID, "/repeaters")
+		resp := do(t, ts, appHost, "/session/callback?code="+code+"&state=s1",
+			&http.Cookie{Name: "mt_state", Value: "s1"})
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusSeeOther {
+			t.Fatalf("status = %d, want 303", resp.StatusCode)
+		}
+		if loc := resp.Header.Get("Location"); loc != "/repeaters" {
+			t.Fatalf("Location = %q, want /repeaters", loc)
+		}
+		sess := cookieByName(resp, "meshtender_session")
+		if sess == nil || sess.Value == "" {
+			t.Fatalf("expected a session cookie to be set")
+		}
+		// The session must actually authenticate: the protected page now loads.
+		follow := do(t, ts, appHost, "/repeaters", sess)
+		defer follow.Body.Close()
+		if follow.StatusCode != http.StatusOK {
+			t.Fatalf("authenticated /repeaters = %d, want 200", follow.StatusCode)
+		}
+	})
+
+	t.Run("state mismatch is rejected", func(t *testing.T) {
+		code, _ := st.CreateAuthCode(ctx, u.ID, "/repeaters")
+		resp := do(t, ts, appHost, "/session/callback?code="+code+"&state=s1",
+			&http.Cookie{Name: "mt_state", Value: "different"})
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") == "/repeaters" {
+			t.Fatalf("status=%d loc=%q, want bounce to login", resp.StatusCode, resp.Header.Get("Location"))
+		}
+		if c := cookieByName(resp, "meshtender_session"); c != nil && c.Value != "" {
+			t.Fatalf("no session should be set on state mismatch")
+		}
+		// The code must NOT have been consumed, since state failed first.
+		if _, _, ok, _ := st.ConsumeAuthCode(ctx, code); !ok {
+			t.Fatalf("code should remain valid after a state-mismatch rejection")
+		}
+	})
+
+	t.Run("unknown code is rejected", func(t *testing.T) {
+		resp := do(t, ts, appHost, "/session/callback?code=bogus&state=s1",
+			&http.Cookie{Name: "mt_state", Value: "s1"})
+		defer resp.Body.Close()
+		if c := cookieByName(resp, "meshtender_session"); c != nil && c.Value != "" {
+			t.Fatalf("no session should be set for an unknown code")
+		}
+	})
+}

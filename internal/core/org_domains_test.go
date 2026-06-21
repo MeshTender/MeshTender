@@ -1,6 +1,10 @@
-package web
+package core
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/jleight/meshtender/internal/web"
+)
 
 func TestNormalizeHostname(t *testing.T) {
 	cases := map[string]string{
@@ -43,8 +47,8 @@ func TestHostWithoutPort(t *testing.T) {
 		"localhost:8090":   "localhost",
 	}
 	for in, want := range cases {
-		if got := hostWithoutPort(in); got != want {
-			t.Errorf("hostWithoutPort(%q) = %q, want %q", in, got, want)
+		if got := web.HostWithoutPort(in); got != want {
+			t.Errorf("web.HostWithoutPort(%q) = %q, want %q", in, got, want)
 		}
 	}
 }
