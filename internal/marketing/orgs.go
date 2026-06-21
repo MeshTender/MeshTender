@@ -10,11 +10,10 @@ import (
 	"github.com/jleight/meshtender/internal/store"
 )
 
-// pageOrgs is the public organization directory. Everyone sees the list; signed-
-// in users also get a marker on orgs they belong to. The directory is keyset-
-// paginated via an opaque ?cursor token.
+// pageOrgs is the public organization directory. It renders anonymously — the
+// root host carries no session — so every visitor sees the same list. The
+// directory is keyset-paginated via an opaque ?cursor token.
 func (s *Handlers) pageOrgs(w http.ResponseWriter, r *http.Request) {
-	uid := s.Auth.CurrentUserID(r.Context())
 	q := r.URL.Query()
 
 	sortKey := store.NormalizeOrgSort(q.Get("sort"))
@@ -47,26 +46,13 @@ func (s *Handlers) pageOrgs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data := map[string]any{
-		"All":      all,
-		"LoggedIn": uid != 0,
-		"Error":    q.Get("error"),
-		"Sort":     string(sortKey),
-		"Query":    query,
+		"All":   all,
+		"Error": q.Get("error"),
+		"Sort":  string(sortKey),
+		"Query": query,
 	}
 	if hasMore && len(all) > 0 {
 		data["NextCursor"] = encodeOrgCursor(nextOrgCursor(sortKey, query, all[len(all)-1]))
-	}
-	if uid != 0 {
-		mine, err := s.Store.ListOrgsForUser(r.Context(), uid)
-		if err != nil {
-			http.Error(w, "could not load orgs", http.StatusInternalServerError)
-			return
-		}
-		memberOf := map[int64]string{}
-		for _, m := range mine {
-			memberOf[m.Org.ID] = m.Role
-		}
-		data["MemberOf"] = memberOf
 	}
 	s.Render(w, r, "orgs.html", data)
 }

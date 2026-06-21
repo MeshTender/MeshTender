@@ -22,8 +22,14 @@ import (
 	"github.com/jleight/meshtender/internal/store"
 )
 
-//go:embed templates/base.html templates/icons.html
+//go:embed templates/base.html templates/icons.html templates/org_public.html
 var sharedTemplatesFS embed.FS
+
+// sharedPages are full content pages (not just layout partials) that more than
+// one surface renders. They're composed onto the base layout for every surface,
+// so the root host (anonymous) and the app host (signed-in) can render the same
+// public org page without duplicating the template.
+var sharedPages = []string{"templates/org_public.html"}
 
 //go:embed static/*
 var staticFS embed.FS
@@ -116,6 +122,18 @@ func NewRenderer(cfg *config.Config, surfaceTemplates fs.FS) (*Renderer, error) 
 	// to live in the surface's template dir.
 	shared := map[string]bool{"templates/base.html": true, "templates/icons.html": true}
 	pages := map[string]*template.Template{}
+	// Compose the cross-surface pages first, then the surface's own pages (a
+	// surface page of the same name would override, but none should collide).
+	for _, p := range sharedPages {
+		clone, err := base.Clone()
+		if err != nil {
+			return nil, err
+		}
+		if _, err := clone.ParseFS(sharedTemplatesFS, p); err != nil {
+			return nil, err
+		}
+		pages[strings.TrimPrefix(p, "templates/")] = clone
+	}
 	for _, p := range all {
 		if shared[p] {
 			continue

@@ -85,8 +85,12 @@ func (s *Handlers) pageOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !isMember || r.URL.Query().Get("view") == "public" {
-		// Public org content lives on the root host (marketing surface).
-		http.Redirect(w, r, s.Origin(r, s.Cfg.RootHost)+"/orgs/"+org.Slug, http.StatusSeeOther)
+		// Render the public org view here on the app host (not the root host),
+		// where the user's session lives: a non-member gets a working "Join"
+		// button (its POST hits the app host), and a member previewing with
+		// ?view=public gets the "Back to member view" link. The root host serves
+		// the same page to anonymous/external visitors.
+		s.renderOrgPublic(w, r, org, isMember)
 		return
 	}
 	members, err := s.Store.ListOrgMembers(r.Context(), id)
@@ -135,6 +139,40 @@ func (s *Handlers) pageOrg(w http.ResponseWriter, r *http.Request) {
 		data["TXTName"] = txtRecordPrefix // org appends its hostname for the full record name
 	}
 	s.Render(w, r, "org.html", data)
+}
+
+// renderOrgPublic renders the shared public org page on the app host for a
+// signed-in user: a non-member sees a Join button, and a member (previewing via
+// ?view=public) sees a "Back to member view" link. The data shape matches the
+// marketing surface's anonymous rendering of the same template.
+func (s *Handlers) renderOrgPublic(w http.ResponseWriter, r *http.Request, org *store.Org, isMember bool) {
+	admins, err := s.Store.ListOrgAdminNames(r.Context(), org.ID)
+	if err != nil {
+		http.Error(w, "could not load org", http.StatusInternalServerError)
+		return
+	}
+	memberCount, repeaterCount, err := s.Store.OrgCounts(r.Context(), org.ID)
+	if err != nil {
+		http.Error(w, "could not load org", http.StatusInternalServerError)
+		return
+	}
+	pubReps, err := s.Store.ListPublicMapRepeaters(r.Context(), org.ID)
+	if err != nil {
+		http.Error(w, "could not load org", http.StatusInternalServerError)
+		return
+	}
+	uid := s.Auth.CurrentUserID(r.Context())
+	s.Render(w, r, "org_public.html", map[string]any{
+		"Org":           org,
+		"Admins":        admins,
+		"MemberCount":   memberCount,
+		"RepeaterCount": repeaterCount,
+		"Repeaters":     pubReps,
+		"HasMap":        len(pubReps) > 0,
+		"IsMember":      isMember,
+		"LoggedIn":      uid != 0,
+		"CanJoin":       uid != 0 && !isMember,
+	})
 }
 
 // handleEditOrg updates an org's slug, name, description, and region (admin only).
