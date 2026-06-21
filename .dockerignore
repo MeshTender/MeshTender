@@ -1,0 +1,12 @@
+.config
+.git
+.woodpecker
+.zed
+
+.env
+*.env
+docker-compose.yml
+README.md
+
+/meshtender
+/cmd/meshtender/meshtender

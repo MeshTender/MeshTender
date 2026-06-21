@@ -1,0 +1,59 @@
+# Builds the OCI image and pushes it to the Forgejo registry. Runs only after
+# tests pass, and only on the main branch and on tags (not on pull requests).
+when:
+  - event: push
+    branch: main
+  - event: tag
+
+depends_on:
+  - test
+
+steps:
+  publish:
+    image: moby/buildkit:v0.18.1-rootless
+    environment:
+      DOCKER_CONFIG: /home/user/.docker
+      BUILDKITD_FLAGS: --oci-worker-no-process-sandbox
+    commands:
+      - |
+        buildctl-daemonless.sh build \
+          --frontend dockerfile.v0 \
+          --local context=. \
+          --local dockerfile=. \
+          --opt filename=Dockerfile \
+          --output type=image,name=git.leightha.us/ci/jleight/meshtender:${CI_COMMIT_SHA},push=true
+    backend_options: &buildkit
+      kubernetes:
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+          seccompProfile:
+            type: Unconfined
+          apparmorProfile:
+            type: Unconfined
+        secrets:
+          - name: woodpecker-ci-registry
+            key: .dockerconfigjson
+            target:
+              file: /home/user/.docker/config.json
+    when:
+      - event: push
+        branch: main
+
+  publish-tag:
+    image: moby/buildkit:v0.18.1-rootless
+    environment:
+      DOCKER_CONFIG: /home/user/.docker
+      BUILDKITD_FLAGS: --oci-worker-no-process-sandbox
+    commands:
+      # On a git tag: strip a leading "v" so v1.2.3 -> 1.2.3.
+      - |
+        buildctl-daemonless.sh build \
+          --frontend dockerfile.v0 \
+          --local context=. \
+          --local dockerfile=. \
+          --opt filename=Dockerfile \
+          --output type=image,name=git.leightha.us/ci/jleight/meshtender:${CI_COMMIT_TAG##v},push=true
+    backend_options: *buildkit
+    when:
+      - event: tag
