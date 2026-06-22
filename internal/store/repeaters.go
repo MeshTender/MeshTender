@@ -126,14 +126,14 @@ func scanRepeater(row pgx.Row) (*Repeater, error) {
 }
 
 // ListRepeatersForUser returns repeaters the user owns or has been granted
-// access to, owned ones first.
+// access to, owned ones first and then by name within each group.
 func (s *Store) ListRepeatersForUser(ctx context.Context, userID int64) ([]*Repeater, error) {
 	// Dashboard listing: repeaters the user owns or has a direct share on. Org-
 	// contributed repeaters are reached from the org page, not listed here.
 	rows, err := s.pool.Query(ctx, repeaterSelect+`
 		WHERE r.owner_id = $1
 		   OR r.id IN (SELECT repeater_id FROM repeater_shares WHERE user_id = $1)
-		ORDER BY shared, r.created_at`, userID)
+		ORDER BY shared, lower(r.name), r.id`, userID)
 	if err != nil {
 		return nil, fmt.Errorf("list repeaters: %w", err)
 	}

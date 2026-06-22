@@ -346,7 +346,7 @@ func (s *Store) ListOrgsForUser(ctx context.Context, userID int64) ([]OrgMembers
 	rows, err := s.pool.Query(ctx, `
 		SELECT o.id, o.slug, o.name, o.description, o.created_by, o.created_at, m.role
 		FROM org_members m JOIN organizations o ON o.id = m.org_id
-		WHERE m.user_id = $1 ORDER BY o.name`, userID)
+		WHERE m.user_id = $1 ORDER BY lower(o.name), o.id`, userID)
 	if err != nil {
 		return nil, fmt.Errorf("list orgs: %w", err)
 	}
