@@ -5,6 +5,8 @@
 </div>
 {{end}}
 {{define "content"}}
+<div class="row justify-content-center">
+<div class="col-12 col-lg-9 col-xl-8">
 {{if .Error}}<div class="alert alert-danger">{{.Error}}</div>{{end}}
 
 <ul class="steps steps-counter mb-4">
@@ -140,4 +142,6 @@
   syncPublicMap();
 </script>
 {{end}}
+</div>
+</div>
 {{end}}
