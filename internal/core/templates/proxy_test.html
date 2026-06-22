@@ -1,0 +1,101 @@
+{{define "title"}}Reverse proxy test · MeshTender{{end}}
+{{define "header"}}
+<div class="row g-2 align-items-center">
+  <div class="col">
+    <div class="page-pretitle">Administration</div>
+    <h2 class="page-title">Reverse proxy test</h2>
+  </div>
+</div>
+{{end}}
+{{define "content"}}
+<div class="row row-cards">
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-body">
+        <div class="text-secondary">Client IP the app records</div>
+        <div class="h1 mb-1 font-monospace">{{.ResolvedIP}}</div>
+        <div class="text-secondary small">Used for rate limiting and audit logs (via chi RealIP → X-Forwarded-For / X-Real-IP).</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-body">
+        <div class="text-secondary">Actual connection (TCP peer)</div>
+        <div class="h1 mb-1 font-monospace">{{.RawPeer}}</div>
+        <div class="text-secondary small">The socket that reached the app — your proxy/load balancer if one is in front.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{{if .HeaderApplied}}
+<div class="alert alert-info mt-3" role="alert">
+  <div>
+    A forwarding header was honored: the recorded client IP differs from the connecting peer, so a proxy's
+    headers are being trusted. <strong>Confirm the recorded IP above is the real visitor</strong> — if it's an
+    intermediate proxy/CDN node, the wrong entry in <code>X-Forwarded-For</code> is being used.
+  </div>
+</div>
+{{else}}
+<div class="alert alert-warning mt-3" role="alert">
+  <div>
+    The recorded client IP equals the connecting peer — no forwarding header changed it. If MeshTender sits
+    behind a reverse proxy or CDN, that proxy is <strong>not</strong> sending a trusted
+    <code>X-Forwarded-For</code> / <code>X-Real-IP</code>, so the app is logging the <em>proxy's</em> address
+    rather than the visitor's. (If this is a direct connection with no proxy, this is expected.)
+  </div>
+</div>
+{{end}}
+
+<div class="card mt-3">
+  <div class="card-header"><h3 class="card-title">Forwarding headers</h3></div>
+  <div class="table-responsive">
+    <table class="table table-vcenter card-table">
+      <thead><tr><th>Header</th><th>Value</th></tr></thead>
+      <tbody>
+        {{range .Forwarding}}
+        <tr>
+          <td class="font-monospace text-nowrap">{{.Name}}</td>
+          <td class="font-monospace">{{if .Value}}{{.Value}}{{else}}<span class="text-secondary">—</span>{{end}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card mt-3">
+  <div class="card-header"><h3 class="card-title">Connection</h3></div>
+  <div class="card-body">
+    <div class="datagrid">
+      <div class="datagrid-item"><div class="datagrid-title">Host</div><div class="datagrid-content font-monospace">{{.Host}}</div></div>
+      <div class="datagrid-item"><div class="datagrid-title">Scheme</div><div class="datagrid-content font-monospace">{{.Scheme}}</div></div>
+      <div class="datagrid-item"><div class="datagrid-title">Protocol</div><div class="datagrid-content font-monospace">{{.Proto}}</div></div>
+      <div class="datagrid-item"><div class="datagrid-title">Method</div><div class="datagrid-content font-monospace">{{.Method}}</div></div>
+      <div class="datagrid-item"><div class="datagrid-title">Request URI</div><div class="datagrid-content font-monospace">{{.RequestURI}}</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="card mt-3">
+  <div class="card-header"><h3 class="card-title">All request headers</h3>
+    <span class="card-subtitle ms-auto">credentials redacted</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-vcenter card-table">
+      <thead><tr><th>Header</th><th>Value</th></tr></thead>
+      <tbody>
+        {{range .AllHeaders}}
+        <tr>
+          <td class="font-monospace text-nowrap align-top">{{.Name}}</td>
+          <td class="font-monospace" style="word-break:break-all">{{.Value}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<a class="back-link mt-3" href="/admin">{{template "icon-arrow-left" "me-1"}}Back to admin</a>
+{{end}}

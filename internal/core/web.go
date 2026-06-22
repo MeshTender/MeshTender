@@ -168,6 +168,7 @@ func (s *Handlers) appRouter() chi.Router {
 
 		r.Route("/admin", func(r chi.Router) {
 			r.With(s.requireCap(capAny)).Get("/", s.pageAdmin)
+			r.With(s.requireCap(capAny)).Get("/proxy-test", s.pageProxyTest)
 			r.With(s.requireCap(capCatalog)).Get("/catalog", s.pageCatalog)
 			r.With(s.requireCap(capCatalog)).Post("/catalog/{id}", s.handleUpdateCommand)
 			r.With(s.requireCap(capUsers)).Get("/users", s.pageUsers)

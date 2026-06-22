@@ -1,11 +1,36 @@
 package web
 
 import (
+	"context"
 	"net"
 	"net/http"
 	"sync"
 	"time"
 )
+
+// rawAddrCtxKey keys the connection's original RemoteAddr in the request context.
+type rawAddrCtxKey struct{}
+
+// CaptureRemoteAddr stashes the connection's RemoteAddr before chi's RealIP
+// middleware rewrites it from X-Forwarded-For/X-Real-IP. This preserves the true
+// TCP peer so the proxy-diagnostics page can show it next to the header-derived
+// client IP. Must run before RealIP.
+func CaptureRemoteAddr(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), rawAddrCtxKey{}, r.RemoteAddr)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+// RawRemoteAddr returns the connection's original RemoteAddr (the TCP peer),
+// captured by CaptureRemoteAddr before RealIP rewrote it. Falls back to the
+// current RemoteAddr if the middleware wasn't installed.
+func RawRemoteAddr(r *http.Request) string {
+	if v, ok := r.Context().Value(rawAddrCtxKey{}).(string); ok {
+		return v
+	}
+	return r.RemoteAddr
+}
 
 // rateLimiter is a per-key token-bucket limiter, safe for concurrent use. It
 // throttles abusive bursts (e.g. password guessing) using only in-process
