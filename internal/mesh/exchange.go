@@ -170,6 +170,20 @@ func (e *Exchanger) directThreshold() int { return (e.tries + 1) / 2 }
 // path has been learned (via Login), early attempts use direct routing and
 // later attempts fall back to flood.
 func (e *Exchanger) Command(ctx context.Context, command string, onAttempt func(attempt, max int)) (string, error) {
+	return e.CommandAccept(ctx, command, nil, onAttempt)
+}
+
+// CommandAccept is Command with a caller-supplied acceptance test. A decoded
+// reply is only taken as the answer when accept(text) returns true; otherwise
+// the reply is ignored and the exchange keeps waiting (and retrying).
+//
+// This lets a caller reject a stale reply that decrypts fine but belongs to an
+// earlier command. Because a retried request makes the repeater re-run the
+// command, a slow exchange can leave duplicate replies in flight; without a
+// request identifier in the reply, the only way to tell such a straggler from
+// the genuine reply is a caller filter that knows what a valid answer looks
+// like. accept may be nil to take the first decodable reply (like Command).
+func (e *Exchanger) CommandAccept(ctx context.Context, command string, accept func(text string) bool, onAttempt func(attempt, max int)) (string, error) {
 	var reply string
 	err := e.exchange(ctx,
 		func(ts time.Time, attempt int) ([]byte, error) {
@@ -185,6 +199,9 @@ func (e *Exchanger) Command(ctx context.Context, command string, onAttempt func(
 		func(raw []byte) bool {
 			text, err := DecodeCommandReply(e.server, e.repeater, raw)
 			if err != nil {
+				return false
+			}
+			if accept != nil && !accept(text) {
 				return false
 			}
 			reply = text

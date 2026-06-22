@@ -146,6 +146,58 @@ func TestExchangerUsesDirectAfterLogin(t *testing.T) {
 	}
 }
 
+// seqModem replies to each send with the next text in replies (repeating the
+// last once exhausted), simulating a repeater that emits a stale duplicate
+// before the genuine reply arrives.
+type seqModem struct {
+	ex       *Exchanger
+	repeater meshcore.LocalIdentity
+	server   meshcore.Identity
+	replies  []string
+	sends    int
+}
+
+func (f *seqModem) SendData(_ []byte) error {
+	text := f.replies[len(f.replies)-1]
+	if f.sends < len(f.replies) {
+		text = f.replies[f.sends]
+	}
+	f.sends++
+	shared, _ := f.repeater.SharedSecret(f.server)
+	plain := meshcore.BuildTextPlaintext(time.Unix(1_700_000_000, 0), 1<<2, []byte(text))
+	tm, _ := meshcore.NewTextMessage(f.repeater, f.server, plain, shared)
+	payload, _ := tm.ToBytes()
+	pkt := &meshcore.Packet{Header: meshcore.MakeHeader(meshcore.RouteTypeFlood, meshcore.PayloadTypeTxtMsg, 0), Payload: payload}
+	raw, _ := pkt.ToBytes()
+	f.ex.HandleData(raw)
+	return nil
+}
+
+// TestCommandAcceptRejectsStaleReply verifies the acceptance filter skips a
+// reply it rejects and keeps waiting for one it accepts — the guard that keeps
+// a straggling "get lat" duplicate from being misread as the longitude.
+func TestCommandAcceptRejectsStaleReply(t *testing.T) {
+	server := mustIdentity(t)
+	repeater := mustIdentity(t)
+	// First two sends echo the stale latitude; the third gives the longitude.
+	fm := &seqModem{repeater: repeater, server: server.Identity, replies: []string{"> 37.7749", "> 37.7749", "> -122.4194"}}
+	ex := NewExchanger(fm, server, repeater.Identity, 0, time.Millisecond, 4)
+	fm.ex = ex
+
+	reply, err := ex.CommandAccept(context.Background(), "get lon", func(text string) bool {
+		return text != "> 37.7749" // reject the stale latitude duplicate
+	}, nil)
+	if err != nil {
+		t.Fatalf("CommandAccept: %v", err)
+	}
+	if reply != "> -122.4194" {
+		t.Errorf("reply = %q, want %q", reply, "> -122.4194")
+	}
+	if fm.sends != 3 {
+		t.Errorf("sends = %d, want 3 (two rejected, one accepted)", fm.sends)
+	}
+}
+
 func TestExchangerCancelled(t *testing.T) {
 	server := mustIdentity(t)
 	repeater := mustIdentity(t)

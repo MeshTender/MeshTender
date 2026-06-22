@@ -182,8 +182,8 @@ func (s *Handlers) wsConfirm(w http.ResponseWriter, r *http.Request) {
 	// Optionally fetch and store the repeater's location (owner consented). Each
 	// coordinate is a separate query so progress (and retries) are visible.
 	if rep.StoreLocation {
-		fetchCoord := func(label, cmd string) (float64, bool) {
-			reply, err := ex.Command(ctx, cmd, func(attempt, max int) {
+		fetchCoord := func(label, cmd string, accept func(text string) bool) (float64, bool) {
+			reply, err := ex.CommandAccept(ctx, cmd, accept, func(attempt, max int) {
 				if attempt == 1 {
 					_ = bridge.Status("info", "Fetching "+label+"…")
 				} else {
@@ -195,8 +195,22 @@ func (s *Handlers) wsConfirm(w http.ResponseWriter, r *http.Request) {
 			}
 			return parseLocationFloat(reply)
 		}
-		lat, okLat := fetchCoord("latitude", "get lat")
-		lon, okLon := fetchCoord("longitude", "get lon")
+		lat, okLat := fetchCoord("latitude", "get lat", nil)
+		// A slow latitude fetch is retried, which makes the repeater re-run "get
+		// lat" and emit duplicate replies; one can straggle in during the "get
+		// lon" wait and be misread as the longitude (storing lat,lat). Since the
+		// two coordinates differ, reject a longitude reply whose value equals the
+		// latitude we just read and keep waiting for the genuine reply.
+		lon, okLon := fetchCoord("longitude", "get lon", func(text string) bool {
+			f, ok := parseLocationFloat(text)
+			if ok && okLat && f == lat {
+				if debug {
+					_ = bridge.Status("debug", "ignored a stale 'get lat' reply while awaiting longitude")
+				}
+				return false
+			}
+			return true
+		})
 		if okLat && okLon {
 			if err := s.Store.SetRepeaterLocation(ctx, id, lat, lon); err != nil {
 				_ = bridge.Status("error", "could not store location: "+err.Error())
