@@ -127,7 +127,7 @@
         <script>
           meshMap('map', [{name: {{.Repeater.Name}}, lat: {{.Repeater.Latitude}}, lon: {{.Repeater.Longitude}}}]);
         </script>
-        <div class="text-secondary small mt-2">{{.Repeater.Latitude}}, {{.Repeater.Longitude}}</div>
+        <div class="text-secondary small mt-2 text-center">{{template "icon-map-pin" "me-1"}}<span class="font-monospace">{{.Repeater.Latitude}}, {{.Repeater.Longitude}}</span></div>
       </div>
     </div>
     {{end}}

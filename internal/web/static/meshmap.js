@@ -20,5 +20,10 @@ function meshMap(elId, pts) {
       }).bindPopup(p.name);
     })
   ).addTo(map);
-  map.fitBounds(group.getBounds().pad(0.3));
+  map.fitBounds(group.getBounds().pad(0.3), { animate: false });
+  // A lone repeater otherwise fills the frame at max zoom; pull back a few
+  // levels so the surrounding area is visible for context.
+  if (pts.length === 1) {
+    map.setZoom(map.getZoom() - 4, { animate: false });
+  }
 }
