@@ -2,6 +2,9 @@
 {{define "header"}}
 <div class="row g-2 align-items-center">
   <div class="col"><h2 class="page-title">Organizations</h2></div>
+  <div class="col-auto ms-auto d-print-none">
+    <a class="btn btn-primary" href="{{.AppURL}}/login">{{template "icon-login" "me-1"}}Sign in to create</a>
+  </div>
 </div>
 {{end}}
 {{define "content"}}
@@ -50,11 +53,5 @@
   {{else}}
   <div class="card-body"><p class="text-secondary mb-0">{{if .Query}}No organizations match “{{.Query}}”.{{else}}No organizations yet.{{end}}</p></div>
   {{end}}
-</div>
-
-<div class="card mt-3">
-  <div class="card-body">
-    <p class="text-secondary mb-0">Want to start or join one? <a href="{{.AppURL}}/login">Sign in or create an account →</a></p>
-  </div>
 </div>
 {{end}}
