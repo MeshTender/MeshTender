@@ -75,6 +75,19 @@ code.pubkey {
 .badge.bg-purple-lt { color: #d98fe6 !important; }
 .badge.bg-secondary-lt { color: var(--tblr-secondary-text-emphasis) !important; }
 
+/* ---------- Step indicator (.steps) ----------
+   Tabler ships two unrelated components under the same `.steps` class: the
+   horizontal step indicator (ul.steps > li.step-item) we use on the add/added
+   wizards, and a numbered documentation list (div.steps > h3). The latter's
+   rule sets border-left + a left margin/padding, which also lands on the step
+   indicator — drawing a stray vertical line and an empty gap before the first
+   step. Undo those just for the indicator usage. */
+.steps:has(> .step-item) {
+  margin-left: 0;
+  padding-left: 0;
+  border-left: 0;
+}
+
 /* ---------- Leaflet map (dark) ---------- */
 #map {
   height: 360px;
