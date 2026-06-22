@@ -47,7 +47,9 @@ func TestOrgCommandResolution(t *testing.T) {
 		}
 		return id
 	}
-	setRadio, advert, erase, setTx := cmdID("set.radio"), cmdID("advert"), cmdID("erase"), cmdID("set.tx")
+	// poweroff is a risky, owner-only command that's in no org tier — used to
+	// check that even an org admin can't run a command outside the policy.
+	setRadio, advert, poweroff, setTx := cmdID("set.radio"), cmdID("advert"), cmdID("poweroff"), cmdID("set.tx")
 
 	mkUser := func(name string) int64 {
 		u, err := st.CreateUser(ctx, name, "")
@@ -104,11 +106,11 @@ func TestOrgCommandResolution(t *testing.T) {
 	}
 
 	// Owner: anything.
-	check("owner/erase", can(owner, erase), true)
+	check("owner/poweroff", can(owner, poweroff), true)
 	// Org-admin: admin tier + member tier (⊇), but not commands outside policy.
 	check("admin/set.radio", can(adminM, setRadio), true)
 	check("admin/advert", can(adminM, advert), true)
-	check("admin/erase", can(adminM, erase), false)
+	check("admin/poweroff", can(adminM, poweroff), false)
 	// Plain member: member tier only.
 	check("member/advert", can(plainM, advert), true)
 	check("member/set.radio", can(plainM, setRadio), false)
