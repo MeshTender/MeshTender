@@ -38,16 +38,6 @@
         <h3 class="card-title">Details</h3>
       </div>
       <div class="card-body">
-        <div class="mb-3">
-          <div class="form-label">Public key</div>
-          <code class="pk">{{.Repeater.PublicKeyHex}}</code>
-        </div>
-
-        <div class="mb-3">
-          <div class="form-label">Radio settings</div>
-          <div class="font-monospace">{{.Radio}}</div>
-        </div>
-
         <div class="datagrid">
           <div class="datagrid-item">
             <div class="datagrid-title">Status</div>
@@ -77,6 +67,11 @@
           </div>
         </div>
 
+        <div class="mt-3">
+          <div class="form-label">Radio settings</div>
+          <div class="font-monospace">{{.Radio}}</div>
+        </div>
+
         {{if and .IsOwner .Repeater.Confirmed .Repeater.AccessKnown (not .Repeater.IsAdmin)}}
         <div class="alert alert-warning mt-3 mb-0">
           MeshTender only has <strong>guest</strong> access here. Guest is available to anyone with a blank password, so there's no point operating at this level — re-run <code>setperm &lt;your key&gt; 3</code> on the repeater to grant admin, then re-test.
@@ -86,6 +81,29 @@
     </div>
 
     {{if .IsOwner}}
+    <div class="card mt-3">
+      <div class="card-header">
+        <h3 class="card-title">Organizations</h3>
+        <div class="card-actions"><a href="/repeaters/{{.Repeater.PublicID}}/share" class="btn btn-sm">Manage</a></div>
+      </div>
+      {{if .Orgs}}
+      <div class="list-group list-group-flush">
+        {{range .Orgs}}
+        <div class="list-group-item d-flex align-items-center gap-2">
+          <span class="text-secondary">{{template "icon-world" ""}}</span>
+          <div class="flex-fill text-truncate">
+            <span class="fw-bold">{{.OrgName}}</span>
+            <div class="text-secondary small">consented to v{{.ConsentedVersion}}</div>
+          </div>
+          {{if gt .CurrentVersion .ConsentedVersion}}<span class="badge bg-warning-lt">re-consent</span>{{end}}
+        </div>
+        {{end}}
+      </div>
+      {{else}}
+      <div class="card-body"><p class="text-secondary mb-0">Not contributed to any organization.</p></div>
+      {{end}}
+    </div>
+
     <div class="card mt-3">
       <div class="card-header">
         <h3 class="card-title">Recent activity</h3>
@@ -116,8 +134,29 @@
 
   <!-- Right column -->
   <div class="col-lg-4">
-    {{if .Repeater.Latitude}}
     <div class="card">
+      <div class="card-header"><h3 class="card-title">Identity</h3></div>
+      <div class="card-body">
+        <div class="form-label">Public key</div>
+        <div class="d-flex align-items-start gap-2">
+          <code class="pk flex-fill">{{.Repeater.PublicKeyHex}}</code>
+          <button type="button" class="btn btn-icon btn-ghost-secondary" title="Copy public key" aria-label="Copy public key" onclick="navigator.clipboard.writeText('{{.Repeater.PublicKeyHex}}')">{{template "icon-copy" ""}}</button>
+        </div>
+        {{if .ContactQR}}
+        <hr class="my-3">
+        <button class="btn btn-sm w-100" type="button" data-bs-toggle="collapse" data-bs-target="#contact-qr" aria-expanded="false" aria-controls="contact-qr">{{template "icon-qrcode" "me-1"}}<span class="collapse-show">Show</span><span class="collapse-hide">Hide</span>&nbsp;contact QR code</button>
+        <div class="collapse" id="contact-qr">
+          <div class="text-center mt-3">
+            <img src="{{.ContactQR}}" width="200" height="200" class="img-fluid" style="max-width:200px" alt="MeshCore contact QR code for {{.Repeater.Name}}">
+            <p class="text-secondary small mt-2 mb-0">Scan with the MeshCore app to add this repeater as a contact.</p>
+          </div>
+        </div>
+        {{end}}
+      </div>
+    </div>
+
+    {{if .Repeater.Latitude}}
+    <div class="card mt-3">
       <div class="card-header"><h3 class="card-title">Location</h3></div>
       <div class="card-body p-2">
         <link rel="stylesheet" href="/static/leaflet.css">
@@ -129,31 +168,6 @@
         </script>
         <div class="text-secondary small mt-2 text-center">{{template "icon-map-pin" "me-1"}}<span class="font-monospace">{{.Repeater.Latitude}}, {{.Repeater.Longitude}}</span></div>
       </div>
-    </div>
-    {{end}}
-
-    {{if .IsOwner}}
-    <div class="card {{if .Repeater.Latitude}}mt-3{{end}}">
-      <div class="card-header">
-        <h3 class="card-title">Organizations</h3>
-        <div class="card-actions"><a href="/repeaters/{{.Repeater.PublicID}}/share" class="btn btn-sm">Manage</a></div>
-      </div>
-      {{if .Orgs}}
-      <div class="list-group list-group-flush">
-        {{range .Orgs}}
-        <div class="list-group-item d-flex align-items-center gap-2">
-          <span class="text-secondary">{{template "icon-world" ""}}</span>
-          <div class="flex-fill text-truncate">
-            <span class="fw-bold">{{.OrgName}}</span>
-            <div class="text-secondary small">consented to v{{.ConsentedVersion}}</div>
-          </div>
-          {{if gt .CurrentVersion .ConsentedVersion}}<span class="badge bg-warning-lt">re-consent</span>{{end}}
-        </div>
-        {{end}}
-      </div>
-      {{else}}
-      <div class="card-body"><p class="text-secondary mb-0">Not contributed to any organization.</p></div>
-      {{end}}
     </div>
     {{end}}
   </div>

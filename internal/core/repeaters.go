@@ -1,13 +1,18 @@
 package core
 
 import (
+	"encoding/base64"
 	"errors"
 	"fmt"
+	"html/template"
+	"image/color"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
 	meshcore "github.com/meshcore-go/meshcore-go"
+	qrcode "github.com/skip2/go-qrcode"
 
 	"github.com/jleight/meshtender/internal/config"
 	"github.com/jleight/meshtender/internal/store"
@@ -47,11 +52,24 @@ func (s *Handlers) pageRepeater(w http.ResponseWriter, r *http.Request) {
 	isOwner := !rep.Shared
 	radio := fmt.Sprintf("%g MHz / %g kHz / SF%d / CR%d",
 		float64(rep.RadioFreqHz)/1e6, float64(rep.RadioBwHz)/1e3, rep.RadioSF, rep.RadioCR)
+	contactURI := repeaterContactURI(rep)
 	data := map[string]any{
-		"Repeater": rep,
-		"IsOwner":  isOwner,
-		"Radio":    radio,
-		"Error":    r.URL.Query().Get("error"),
+		"Repeater":   rep,
+		"IsOwner":    isOwner,
+		"Radio":      radio,
+		"ContactURI": contactURI,
+		"Error":      r.URL.Query().Get("error"),
+	}
+	// QR code that adds the repeater as a MeshCore contact. Embedded as a data
+	// URI so it needs no extra route or asset; if encoding fails the page just
+	// renders without it. Light modules on a transparent quiet zone so it sits on
+	// the dark card instead of a stark white block (scanners decode inverted QR).
+	if qr, err := qrcode.New(contactURI, qrcode.Medium); err == nil {
+		qr.BackgroundColor = color.Transparent
+		qr.ForegroundColor = color.RGBA{R: 0x8a, G: 0x97, B: 0xa8, A: 0xff}
+		if png, err := qr.PNG(256); err == nil {
+			data["ContactQR"] = template.URL("data:image/png;base64," + base64.StdEncoding.EncodeToString(png))
+		}
 	}
 	if isOwner {
 		orgs, err := s.Store.ListRepeaterOrgs(r.Context(), id)
@@ -68,6 +86,16 @@ func (s *Handlers) pageRepeater(w http.ResponseWriter, r *http.Request) {
 		data["Recent"] = recent
 	}
 	s.Render(w, r, "repeater.html", data)
+}
+
+// repeaterContactURI builds the meshcore:// deep link that adds the repeater as
+// a contact in the MeshCore app. type=2 is MeshCore's repeater contact type.
+func repeaterContactURI(rep *store.Repeater) string {
+	q := url.Values{}
+	q.Set("name", rep.Name)
+	q.Set("public_key", rep.PublicKeyHex)
+	q.Set("type", "2")
+	return "meshcore://contact/add?" + q.Encode()
 }
 
 func addErr(w http.ResponseWriter, r *http.Request, msg string) {

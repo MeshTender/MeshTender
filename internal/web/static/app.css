@@ -39,6 +39,17 @@ code.pubkey {
   color: var(--tblr-gray-400);
 }
 
+/* ---------- Collapse toggle label (Show/Hide) ---------- */
+.collapse-hide {
+  display: none;
+}
+[aria-expanded="true"] .collapse-show {
+  display: none;
+}
+[aria-expanded="true"] .collapse-hide {
+  display: inline;
+}
+
 /* ---------- Live event / console log ---------- */
 .evlog {
   list-style: none;
