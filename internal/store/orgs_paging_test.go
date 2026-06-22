@@ -8,6 +8,7 @@ import (
 // TestListPublicOrgsPageByName walks the name-sorted directory and checks every
 // org appears exactly once, in (name, id) order, across pages.
 func TestListPublicOrgsPageByName(t *testing.T) {
+	t.Parallel()
 	st, ctx := orgTestStore(t)
 
 	owner, err := st.CreateUser(ctx, "pager", "")
@@ -68,6 +69,7 @@ func TestListPublicOrgsPageByName(t *testing.T) {
 // TestListPublicOrgsPageByMembers checks the default ordering puts orgs with the
 // most members first, and that the count-keyset seek pages without dupes.
 func TestListPublicOrgsPageByMembers(t *testing.T) {
+	t.Parallel()
 	st, ctx := orgTestStore(t)
 
 	// Give each org a distinct member count: org i ends up with i+1 members
@@ -113,6 +115,7 @@ func TestListPublicOrgsPageByMembers(t *testing.T) {
 // TestListPublicOrgsPageSearch checks the search term matches name, description,
 // and region case-insensitively, and that wildcards are treated literally.
 func TestListPublicOrgsPageSearch(t *testing.T) {
+	t.Parallel()
 	st, ctx := orgTestStore(t)
 
 	owner, err := st.CreateUser(ctx, "searcher", "")

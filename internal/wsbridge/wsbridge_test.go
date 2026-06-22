@@ -12,6 +12,7 @@ import (
 // (a split immediately after a frame's trailing FEND) that made the SDK's
 // ExtractFrames silently drop the following frame.
 func TestFeedReassemblesAcrossChunkBoundaries(t *testing.T) {
+	t.Parallel()
 	// Three back-to-back frames: a data frame and two hardware frames
 	// (TX_DONE, RX_META) — exactly the mix a modem emits around a transmit.
 	f1 := hardware.EncodeDataFrame([]byte{0x21, 0x00, 0x3d, 0x37, 0xaa, 0xbb, 0xcc})

@@ -11,6 +11,7 @@ func selfChange(uid int64) UsernameChangeContext {
 }
 
 func TestSetUsername(t *testing.T) {
+	t.Parallel()
 	st, ctx := orgTestStore(t)
 
 	mk := func(name string) int64 {

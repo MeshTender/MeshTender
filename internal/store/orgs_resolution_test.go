@@ -3,41 +3,42 @@ package store
 import (
 	"context"
 	"errors"
-	"net/url"
-	"os"
 	"strings"
 	"testing"
+
+	"github.com/jleight/meshtender/internal/testdb"
 )
 
-// orgTestStore opens the test DB (gated, *_test only) and wipes mutable state,
-// preserving the migration-seeded command_catalog.
+// orgTestStore returns a Store backed by a fresh, throwaway database cloned from
+// the migrated template (see internal/testdb). Each call gets pristine state —
+// command_catalog seeded, everything else empty — so tests need no truncation
+// and can run in parallel.
 func orgTestStore(t *testing.T) (*Store, context.Context) {
 	t.Helper()
-	dsn := os.Getenv("MESHTENDER_TEST_DATABASE_URL")
-	if dsn == "" {
-		t.Skip("set MESHTENDER_TEST_DATABASE_URL to run org resolution tests")
-	}
-	if u, err := url.Parse(dsn); err != nil || !strings.HasSuffix(strings.TrimPrefix(u.Path, "/"), "_test") {
-		t.Fatalf("refusing to run: test DB name must end in _test (got %q)", dsn)
-	}
 	ctx := context.Background()
-	st, err := New(ctx, dsn)
+	st, err := New(ctx, testdb.Fresh(t, migrateTemplate))
 	if err != nil {
 		t.Fatalf("store: %v", err)
 	}
 	t.Cleanup(st.Close)
-	if err := st.Migrate(ctx); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
-	// Wipe state but keep command_catalog (seeded by migration).
-	if _, err := st.pool.Exec(ctx,
-		`TRUNCATE users, repeaters, organizations RESTART IDENTITY CASCADE`); err != nil {
-		t.Fatalf("truncate: %v", err)
-	}
 	return st, ctx
 }
 
+// migrateTemplate applies the schema to the template database. It opens its own
+// store and closes it before returning, so no connection lingers on the
+// template when it's cloned.
+func migrateTemplate(dsn string) error {
+	ctx := context.Background()
+	st, err := New(ctx, dsn)
+	if err != nil {
+		return err
+	}
+	defer st.Close()
+	return st.Migrate(ctx)
+}
+
 func TestOrgCommandResolution(t *testing.T) {
+	t.Parallel()
 	st, ctx := orgTestStore(t)
 
 	cmdID := func(key string) int64 {
@@ -138,6 +139,7 @@ func TestOrgCommandResolution(t *testing.T) {
 }
 
 func TestOrgRepeaterAccess(t *testing.T) {
+	t.Parallel()
 	st, ctx := orgTestStore(t)
 	owner, _ := st.CreateUser(ctx, "owner2", "")
 	member, _ := st.CreateUser(ctx, "member2", "")

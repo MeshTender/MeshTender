@@ -14,6 +14,7 @@ import (
 // or template-resolution error. This guards the startup-time template
 // composition (each page redefines content/title/header onto the base set).
 func TestBuildPagesComposeAndExecute(t *testing.T) {
+	t.Parallel()
 	rn, err := web.NewRenderer(&config.Config{}, templatesFS)
 	if err != nil {
 		t.Fatalf("NewRenderer: %v", err)

@@ -6,6 +6,7 @@ import (
 )
 
 func TestRateLimiterBurstThenThrottle(t *testing.T) {
+	t.Parallel()
 	now := time.Unix(0, 0)
 	l := NewRateLimiter(3, time.Second)
 	l.now = func() time.Time { return now }
@@ -35,6 +36,7 @@ func TestRateLimiterBurstThenThrottle(t *testing.T) {
 }
 
 func TestRateLimiterSweepReclaims(t *testing.T) {
+	t.Parallel()
 	now := time.Unix(0, 0)
 	l := NewRateLimiter(2, time.Second)
 	l.now = func() time.Time { return now }

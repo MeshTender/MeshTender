@@ -8,6 +8,7 @@ import (
 // TestListUsersPage walks the keyset-paginated admin user list and checks every
 // user appears exactly once, in username order, across pages.
 func TestListUsersPage(t *testing.T) {
+	t.Parallel()
 	st, ctx := orgTestStore(t) // reuses the gated *_test store + truncation
 
 	total := UsersPageSize*2 + 3

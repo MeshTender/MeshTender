@@ -38,6 +38,7 @@ func (f *fakeModem) SendData(_ []byte) error {
 }
 
 func TestExchangerRetriesThenSucceeds(t *testing.T) {
+	t.Parallel()
 	server := mustIdentity(t)
 	repeater := mustIdentity(t)
 	fm := &fakeModem{repeater: repeater, server: server.Identity, replyText: "> 42.0", dropN: 2}
@@ -61,6 +62,7 @@ func TestExchangerRetriesThenSucceeds(t *testing.T) {
 }
 
 func TestExchangerExhaustsRetries(t *testing.T) {
+	t.Parallel()
 	server := mustIdentity(t)
 	repeater := mustIdentity(t)
 	fm := &fakeModem{repeater: repeater, server: server.Identity, replyText: "x", dropN: 100}
@@ -90,6 +92,7 @@ func (f *routeFakeModem) SendData(raw []byte) error {
 // TestExchangerUsesDirectAfterLogin verifies that once Login learns a path, the
 // next Command is sent via direct routing carrying that exact path.
 func TestExchangerUsesDirectAfterLogin(t *testing.T) {
+	t.Parallel()
 	server := mustIdentity(t)
 	repeater := mustIdentity(t)
 	shared, _ := repeater.SharedSecret(server.Identity)
@@ -177,6 +180,7 @@ func (f *seqModem) SendData(_ []byte) error {
 // reply it rejects and keeps waiting for one it accepts — the guard that keeps
 // a straggling "get lat" duplicate from being misread as the longitude.
 func TestCommandAcceptRejectsStaleReply(t *testing.T) {
+	t.Parallel()
 	server := mustIdentity(t)
 	repeater := mustIdentity(t)
 	// First two sends echo the stale latitude; the third gives the longitude.
@@ -199,6 +203,7 @@ func TestCommandAcceptRejectsStaleReply(t *testing.T) {
 }
 
 func TestExchangerCancelled(t *testing.T) {
+	t.Parallel()
 	server := mustIdentity(t)
 	repeater := mustIdentity(t)
 	fm := &fakeModem{repeater: repeater, server: server.Identity, dropN: 100}

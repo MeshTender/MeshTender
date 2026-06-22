@@ -9,6 +9,7 @@ import (
 )
 
 func TestBuildCommandPacketDecodableByRepeater(t *testing.T) {
+	t.Parallel()
 	server := mustIdentity(t)
 	repeater := mustIdentity(t)
 	now := time.Unix(1_700_001_000, 0)
@@ -55,6 +56,7 @@ func TestBuildCommandPacketDecodableByRepeater(t *testing.T) {
 }
 
 func TestDecodeCommandReply(t *testing.T) {
+	t.Parallel()
 	server := mustIdentity(t)
 	repeater := mustIdentity(t)
 	now := time.Unix(1_700_001_500, 0)

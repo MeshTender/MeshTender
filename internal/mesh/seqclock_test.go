@@ -3,6 +3,7 @@ package mesh
 import "testing"
 
 func TestSeqClockStrictlyIncreasing(t *testing.T) {
+	t.Parallel()
 	c := &SeqClock{}
 	prev := int64(0)
 	for i := 0; i < 100; i++ { // tight loop → same wall-clock second

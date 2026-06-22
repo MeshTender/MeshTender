@@ -8,8 +8,6 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
-	"net/url"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -28,30 +26,8 @@ import (
 // browser (WebSocket), the KISS modem (framing), and the repeater (decrypts the
 // command, replies). Gated on MESHTENDER_TEST_DATABASE_URL (db name ends _test).
 func TestConsoleRoundTrip(t *testing.T) {
-	dsn := os.Getenv("MESHTENDER_TEST_DATABASE_URL")
-	if dsn == "" {
-		t.Skip("set MESHTENDER_TEST_DATABASE_URL to run this integration test")
-	}
-	if u, err := url.Parse(dsn); err != nil || !strings.HasSuffix(strings.TrimPrefix(u.Path, "/"), "_test") {
-		t.Fatalf("refusing to run: test DB name must end in _test (got %q)", dsn)
-	}
-	orig := perTryReply
-	perTryReply = 300 * time.Millisecond
-	defer func() { perTryReply = orig }()
-	ctx := context.Background()
-
-	st, err := store.New(ctx, dsn)
-	if err != nil {
-		t.Fatalf("store: %v", err)
-	}
-	defer st.Close()
-	if err := st.Migrate(ctx); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
-	if _, err := st.Pool().Exec(ctx,
-		`TRUNCATE users, repeaters, repeater_shares, repeater_invites, share_commands, command_log, webauthn_credentials, server_identity, sessions RESTART IDENTITY CASCADE`); err != nil {
-		t.Fatalf("truncate: %v", err)
-	}
+	t.Parallel()
+	st, ctx := coreStore(t)
 
 	var masterKey [32]byte
 	_, _ = rand.Read(masterKey[:])

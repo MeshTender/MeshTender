@@ -3,6 +3,7 @@ package auth
 import "testing"
 
 func TestSafeLocalPath(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		path string
 		want bool

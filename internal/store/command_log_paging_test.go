@@ -10,6 +10,7 @@ import (
 // checks every session with commands appears once, newest-first, across pages —
 // and that a session with no commands is omitted.
 func TestListCommandLogSessionsPage(t *testing.T) {
+	t.Parallel()
 	st, ctx := orgTestStore(t)
 
 	owner, err := st.CreateUser(ctx, "logowner", "")

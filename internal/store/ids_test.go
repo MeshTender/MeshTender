@@ -7,6 +7,7 @@ import (
 )
 
 func TestRepeaterPublicID(t *testing.T) {
+	t.Parallel()
 	st, ctx := orgTestStore(t)
 	owner, _ := st.CreateUser(ctx, "pidowner", "")
 
@@ -39,6 +40,7 @@ func TestRepeaterPublicID(t *testing.T) {
 }
 
 func TestOrgSlugGeneration(t *testing.T) {
+	t.Parallel()
 	st, ctx := orgTestStore(t)
 	creator, _ := st.CreateUser(ctx, "slugcreator", "")
 
@@ -76,6 +78,7 @@ func TestOrgSlugGeneration(t *testing.T) {
 }
 
 func TestValidOrgSlug(t *testing.T) {
+	t.Parallel()
 	cases := map[string]bool{
 		"buffalo-mesh": true,
 		"abc":          true,
@@ -97,6 +100,7 @@ func TestValidOrgSlug(t *testing.T) {
 }
 
 func TestOrgDomains(t *testing.T) {
+	t.Parallel()
 	st, ctx := orgTestStore(t)
 	creator, _ := st.CreateUser(ctx, "domowner", "")
 	org, err := st.CreateOrg(ctx, "Domain Org", creator.ID)

@@ -9,7 +9,6 @@ import (
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -29,30 +28,8 @@ import (
 // (MeshCore crypto). It is gated on MESHTENDER_TEST_DATABASE_URL so a plain
 // `go test` never truncates a real database.
 func TestConfirmRoundTrip(t *testing.T) {
-	dsn := os.Getenv("MESHTENDER_TEST_DATABASE_URL")
-	if dsn == "" {
-		t.Skip("set MESHTENDER_TEST_DATABASE_URL to run this integration test")
-	}
-	// Guardrail: this test TRUNCATEs every table, so it must never point at a
-	// real/dev database. Require a database name ending in "_test".
-	if u, err := url.Parse(dsn); err != nil || !strings.HasSuffix(strings.TrimPrefix(u.Path, "/"), "_test") {
-		t.Fatalf("refusing to run: MESHTENDER_TEST_DATABASE_URL must use a database named *_test (got %q) — it truncates all tables", dsn)
-	}
-	ctx := context.Background()
-
-	st, err := store.New(ctx, dsn)
-	if err != nil {
-		t.Fatalf("store: %v", err)
-	}
-	defer st.Close()
-	if err := st.Migrate(ctx); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
-	// Isolate: wipe all state.
-	if _, err := st.Pool().Exec(ctx,
-		`TRUNCATE users, repeaters, repeater_shares, webauthn_credentials, server_identity, sessions RESTART IDENTITY CASCADE`); err != nil {
-		t.Fatalf("truncate: %v", err)
-	}
+	t.Parallel()
+	st, ctx := coreStore(t)
 
 	var masterKey [32]byte
 	_, _ = rand.Read(masterKey[:])

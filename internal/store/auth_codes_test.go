@@ -3,6 +3,7 @@ package store
 import "testing"
 
 func TestAuthCodes(t *testing.T) {
+	t.Parallel()
 	st, ctx := orgTestStore(t)
 	u, err := st.CreateUser(ctx, "codeuser", "")
 	if err != nil {

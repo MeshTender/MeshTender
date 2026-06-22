@@ -88,17 +88,23 @@ must serve the confirm/control pages over HTTPS.
 ## Tests
 
 ```sh
-go test ./...                         # unit tests (crypto round-trip, seal/open) — no DB needed
+go test ./...
 ```
 
-The end-to-end confirm round-trip (browser + modem + repeater simulated in-process) is gated on a
-**dedicated** test database, since it truncates all tables. The database name **must end in
-`_test`** — the test refuses to run otherwise, so it can never wipe your dev data:
+That's it — **just make sure Docker is running.** DB-backed tests (store queries and the
+end-to-end confirm/console round-trips) spin up a throwaway `postgres:17` container automatically
+via [testcontainers](https://golang.testcontainers.org/). The harness migrates a single template
+database once, then clones a fresh database per test (`CREATE DATABASE … TEMPLATE …`), so every
+test gets pristine, isolated state and tears it down when it finishes. No env vars, no manual
+database setup, nothing to wipe.
+
+To run against an **existing** Postgres instead of a container (this is how CI reuses its service
+container), set `MESHTENDER_TEST_DATABASE_URL` to a DSN on that server. The connecting role needs
+`CREATEDB`, and the harness only ever creates/drops its own `mt_tmpl_*` / `mt_test_*` databases:
 
 ```sh
-docker exec <pg-container> psql -U meshtender -c 'CREATE DATABASE meshtender_test OWNER meshtender;'
-MESHTENDER_TEST_DATABASE_URL="postgres://meshtender:meshtender@localhost:5432/meshtender_test?sslmode=disable" \
-  go test ./internal/web/ -run TestConfirmRoundTrip -v
+MESHTENDER_TEST_DATABASE_URL="postgres://meshtender:meshtender@localhost:5432/postgres?sslmode=disable" \
+  go test ./internal/core/ -run TestConfirmRoundTrip -v
 ```
 
 ## Layout

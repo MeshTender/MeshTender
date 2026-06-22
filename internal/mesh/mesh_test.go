@@ -66,6 +66,7 @@ func buildRepeaterResponse(t *testing.T, repeater meshcore.LocalIdentity, server
 }
 
 func TestLoginRequestDecodableByRepeater(t *testing.T) {
+	t.Parallel()
 	server := mustIdentity(t)
 	repeater := mustIdentity(t)
 	now := time.Unix(1_700_000_000, 0)
@@ -169,6 +170,7 @@ func buildRepeaterPathReply(t *testing.T, repeater meshcore.LocalIdentity, serve
 }
 
 func TestLoginPathReplyRoundTrip(t *testing.T) {
+	t.Parallel()
 	server := mustIdentity(t)
 	repeater := mustIdentity(t)
 	now := time.Unix(1_700_000_900, 0).UTC()
@@ -192,6 +194,7 @@ func TestLoginPathReplyRoundTrip(t *testing.T) {
 // from a live repeater (admin granted via `setperm <pubkey> 3`). It guards the
 // timestamp-anchored field offsets against regressions.
 func TestParseRealPathReply(t *testing.T) {
+	t.Parallel()
 	// raw = [path_len=00][tag=01][ts:4 LE = 0x6a34b5e3][code=00][rsv=00]
 	//       [admin=01][perms=03][random:4][fw=02][pad=00]
 	plain, err := hex.DecodeString("0001e3b5346a000001030b9213f80200")
@@ -221,6 +224,7 @@ func TestParseRealPathReply(t *testing.T) {
 }
 
 func TestLoginResponseRoundTrip(t *testing.T) {
+	t.Parallel()
 	server := mustIdentity(t)
 	repeater := mustIdentity(t)
 	now := time.Unix(1_700_000_500, 0).UTC()
@@ -246,6 +250,7 @@ func TestLoginResponseRoundTrip(t *testing.T) {
 }
 
 func TestDecodeLoginResponseWrongRepeater(t *testing.T) {
+	t.Parallel()
 	server := mustIdentity(t)
 	repeater := mustIdentity(t)
 	other := mustIdentity(t)
@@ -261,6 +266,7 @@ func TestDecodeLoginResponseWrongRepeater(t *testing.T) {
 }
 
 func TestDecodeLoginResponseNotResponse(t *testing.T) {
+	t.Parallel()
 	server := mustIdentity(t)
 	repeater := mustIdentity(t)
 

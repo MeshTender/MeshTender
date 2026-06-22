@@ -7,6 +7,7 @@ import (
 )
 
 func TestNormalizeHostname(t *testing.T) {
+	t.Parallel()
 	cases := map[string]string{
 		"mesh.example.org":         "mesh.example.org",
 		"  Mesh.Example.ORG  ":     "mesh.example.org",
@@ -28,6 +29,7 @@ func TestNormalizeHostname(t *testing.T) {
 }
 
 func TestTxtRecordsHaveToken(t *testing.T) {
+	t.Parallel()
 	tok := "secret-token"
 	if !txtRecordsHaveToken([]string{"other", "  secret-token  "}, tok) {
 		t.Error("should match token with surrounding whitespace among other records")
@@ -41,6 +43,7 @@ func TestTxtRecordsHaveToken(t *testing.T) {
 }
 
 func TestHostWithoutPort(t *testing.T) {
+	t.Parallel()
 	cases := map[string]string{
 		"example.org:8080": "example.org",
 		"example.org":      "example.org",

@@ -3,6 +3,7 @@ package marketing
 import "testing"
 
 func TestOrgCursorRoundTrip(t *testing.T) {
+	t.Parallel()
 	cases := []orgCursor{
 		{Sort: "name", Name: "Acme Mesh", ID: 1},
 		{Sort: "members", Count: 0, ID: 0},
@@ -20,6 +21,7 @@ func TestOrgCursorRoundTrip(t *testing.T) {
 }
 
 func TestDecodeOrgCursorMalformed(t *testing.T) {
+	t.Parallel()
 	// A missing or garbage cursor must decode to ok=false, never an error, so a
 	// tampered URL just resets paging rather than 500ing.
 	for _, tok := range []string{"", "not-base64!!", "Zm9v" /* "foo", not JSON */} {

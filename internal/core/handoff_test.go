@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"strings"
 	"testing"
 
@@ -30,26 +29,7 @@ type hostEnv struct{ auth, app, root, www string }
 // against the test database, returning the store and the per-surface host:port.
 func splitServer(t *testing.T) (*store.Store, context.Context, *httptest.Server, hostEnv) {
 	t.Helper()
-	dsn := os.Getenv("MESHTENDER_TEST_DATABASE_URL")
-	if dsn == "" {
-		t.Skip("set MESHTENDER_TEST_DATABASE_URL to run this integration test")
-	}
-	if u, err := url.Parse(dsn); err != nil || !strings.HasSuffix(strings.TrimPrefix(u.Path, "/"), "_test") {
-		t.Fatalf("refusing to run: test DB name must end in _test (got %q)", dsn)
-	}
-	ctx := context.Background()
-	st, err := store.New(ctx, dsn)
-	if err != nil {
-		t.Fatalf("store: %v", err)
-	}
-	t.Cleanup(st.Close)
-	if err := st.Migrate(ctx); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
-	if _, err := st.Pool().Exec(ctx,
-		`TRUNCATE users, repeaters, server_identity, sessions, auth_codes RESTART IDENTITY CASCADE`); err != nil {
-		t.Fatalf("truncate: %v", err)
-	}
+	st, ctx := coreStore(t)
 
 	var masterKey [32]byte
 	_, _ = rand.Read(masterKey[:])
@@ -158,6 +138,7 @@ func cookieByName(resp *http.Response, name string) *http.Cookie {
 // protected page redirects to the auth host's /login, carrying next and a state
 // nonce that matches the host-only state cookie just set.
 func TestRequireUserBouncesToAuthHost(t *testing.T) {
+	t.Parallel()
 	_, _, ts, h := splitServer(t)
 
 	resp := do(t, ts, h.app, "/repeaters")
@@ -182,6 +163,7 @@ func TestRequireUserBouncesToAuthHost(t *testing.T) {
 // TestAppHostLoginRedirectsToAuth: the credential UI does not live on the app
 // host; /login there bounces to the auth host.
 func TestAppHostLoginRedirectsToAuth(t *testing.T) {
+	t.Parallel()
 	_, _, ts, h := splitServer(t)
 	resp := do(t, ts, h.app, "/login")
 	defer resp.Body.Close()
@@ -195,6 +177,7 @@ func TestAppHostLoginRedirectsToAuth(t *testing.T) {
 
 // TestAuthHostServesLogin: the auth host renders the sign-in page in place.
 func TestAuthHostServesLogin(t *testing.T) {
+	t.Parallel()
 	_, _, ts, h := splitServer(t)
 	resp := do(t, ts, h.auth, "/login")
 	defer resp.Body.Close()
@@ -207,6 +190,7 @@ func TestAuthHostServesLogin(t *testing.T) {
 // serves public marketing + org discovery, www redirects to root, and the app
 // host's / and /orgs require auth (bounce to the auth host).
 func TestHostRouting(t *testing.T) {
+	t.Parallel()
 	_, _, ts, h := splitServer(t)
 
 	t.Run("root serves landing", func(t *testing.T) {
@@ -256,6 +240,7 @@ func TestHostRouting(t *testing.T) {
 // /logout chains to the auth host, and the auth host's /logout destroys the SSO
 // session so it can't silently re-authenticate.
 func TestSingleLogout(t *testing.T) {
+	t.Parallel()
 	st, ctx, ts, h := splitServer(t)
 
 	// An app session (via the handoff) logs out by bouncing to the auth host.
@@ -303,6 +288,7 @@ func TestSingleLogout(t *testing.T) {
 // SSO session, and an SSO-less visit returns LOCALLY to /account after login
 // (rather than handing off to the app).
 func TestAccountOnAuthHost(t *testing.T) {
+	t.Parallel()
 	_, _, ts, h := splitServer(t)
 
 	t.Run("app host no longer serves /account", func(t *testing.T) {
@@ -354,6 +340,7 @@ func TestAccountOnAuthHost(t *testing.T) {
 // state establishes an app-host session; tampered state or an unknown code is
 // rejected back to sign-in without a session.
 func TestSessionCallback(t *testing.T) {
+	t.Parallel()
 	st, ctx, ts, h := splitServer(t)
 	appHost := h.app
 	u, err := st.CreateUser(ctx, "callbackuser", "")

@@ -1,10 +1,7 @@
 package core
 
 import (
-	"context"
 	"fmt"
-	"net/url"
-	"os"
 	"regexp"
 	"strings"
 	"testing"
@@ -46,6 +43,7 @@ func resolveTestCatalog() []*store.Command {
 }
 
 func TestResolveCommand(t *testing.T) {
+	t.Parallel()
 	cat := resolveTestCatalog()
 	cases := []struct {
 		typed, want string // want == "" means must be denied (nil)
@@ -120,6 +118,7 @@ func TestResolveCommand(t *testing.T) {
 }
 
 func TestValidCommandText(t *testing.T) {
+	t.Parallel()
 	ok := []string{"ver", "set tx 20", "set name My Repeater", "setperm abc 3"}
 	for _, s := range ok {
 		if !validCommandText(s) {
@@ -148,6 +147,7 @@ func TestValidCommandText(t *testing.T) {
 // the end — this catches the Go list drifting from the DB). Requires the *_test
 // database. The DB also enforces feature<>'' and operation IN (...) via CHECK.
 func TestCommandFeatureCoverage(t *testing.T) {
+	t.Parallel()
 	cat := loadRealCatalog(t)
 	validOp := map[string]bool{"read": true, "write": true, "delete": true, "action": true}
 	for _, c := range cat {
@@ -172,22 +172,7 @@ func TestCommandFeatureCoverage(t *testing.T) {
 // skipping the test when the DB isn't configured.
 func loadRealCatalog(t *testing.T) []*store.Command {
 	t.Helper()
-	dsn := os.Getenv("MESHTENDER_TEST_DATABASE_URL")
-	if dsn == "" {
-		t.Skip("set MESHTENDER_TEST_DATABASE_URL to run this integration test")
-	}
-	if u, err := url.Parse(dsn); err != nil || !strings.HasSuffix(strings.TrimPrefix(u.Path, "/"), "_test") {
-		t.Fatalf("refusing to run: test DB name must end in _test (got %q)", dsn)
-	}
-	ctx := context.Background()
-	st, err := store.New(ctx, dsn)
-	if err != nil {
-		t.Fatalf("store: %v", err)
-	}
-	t.Cleanup(st.Close)
-	if err := st.Migrate(ctx); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
+	st, ctx := coreStore(t)
 	cat, err := st.ListCommands(ctx)
 	if err != nil {
 		t.Fatalf("list commands: %v", err)
@@ -200,6 +185,7 @@ func loadRealCatalog(t *testing.T) []*store.Command {
 
 // Requires the *_test database (it runs migrations).
 func TestResolveCommandRealCatalog(t *testing.T) {
+	t.Parallel()
 	cat := loadRealCatalog(t)
 	argGroup := regexp.MustCompile(`<[^>]*>`)
 	seen := map[string]string{} // (token|arity) -> key

@@ -7,6 +7,7 @@ import (
 )
 
 func TestSealOpenRoundTrip(t *testing.T) {
+	t.Parallel()
 	var key [32]byte
 	if _, err := rand.Read(key[:]); err != nil {
 		t.Fatal(err)
@@ -31,6 +32,7 @@ func TestSealOpenRoundTrip(t *testing.T) {
 }
 
 func TestOpenWrongKeyFails(t *testing.T) {
+	t.Parallel()
 	var key, wrong [32]byte
 	_, _ = rand.Read(key[:])
 	_, _ = rand.Read(wrong[:])
@@ -45,6 +47,7 @@ func TestOpenWrongKeyFails(t *testing.T) {
 }
 
 func TestOpenTooShort(t *testing.T) {
+	t.Parallel()
 	var key [32]byte
 	_, _ = rand.Read(key[:])
 	if _, err := open(key, []byte{0x01, 0x02}); err == nil {
