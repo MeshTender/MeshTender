@@ -129,15 +129,8 @@ func (s *Handlers) pageOrg(w http.ResponseWriter, r *http.Request) {
 		"Self":          uid,
 		"Error":         r.URL.Query().Get("error"),
 	}
-	if isAdmin {
-		domains, err := s.Store.ListOrgDomains(r.Context(), id)
-		if err != nil {
-			http.Error(w, "could not load domains", http.StatusInternalServerError)
-			return
-		}
-		data["Domains"] = domains
-		data["TXTName"] = txtRecordPrefix // org appends its hostname for the full record name
-	}
+	// Custom domains are hidden for now (infrastructure not in place); the
+	// org.html card and the /domains routes are disabled, so don't load them.
 	s.Render(w, r, "org.html", data)
 }
 

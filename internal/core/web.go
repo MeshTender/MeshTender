@@ -154,9 +154,11 @@ func (s *Handlers) appRouter() chi.Router {
 		r.Post("/orgs/{id}/members/{userID}", s.handleSetOrgMember)
 		r.Get("/orgs/{id}/permissions", s.pageOrgPermissions)
 		r.Post("/orgs/{id}/permissions", s.handleSaveOrgPermissions)
-		r.Post("/orgs/{id}/domains", s.handleAddOrgDomain)
-		r.Post("/orgs/{id}/domains/verify", s.handleVerifyOrgDomain)
-		r.Post("/orgs/{id}/domains/delete", s.handleDeleteOrgDomain)
+		// Custom org domains are hidden for now — the hosting/TLS infrastructure
+		// isn't in place yet. Leave the handlers in tree but don't expose them.
+		// r.Post("/orgs/{id}/domains", s.handleAddOrgDomain)
+		// r.Post("/orgs/{id}/domains/verify", s.handleVerifyOrgDomain)
+		// r.Post("/orgs/{id}/domains/delete", s.handleDeleteOrgDomain)
 
 		r.Route("/admin", func(r chi.Router) {
 			r.With(s.requireCap(capAny)).Get("/", s.pageAdmin)
