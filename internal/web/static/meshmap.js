@@ -2,7 +2,15 @@
 // given id. pts is an array of {name, lat, lon}. Does nothing if pts is empty.
 function meshMap(elId, pts) {
   if (!pts || !pts.length) return;
-  var map = L.map(elId, { scrollWheelZoom: false });
+  // Turn off every Leaflet animation so the map paints once, in its final
+  // position, with no flash on load: zoomAnimation (zoom transitions),
+  // fadeAnimation (tiles fading in), markerZoomAnimation (markers scaling).
+  var map = L.map(elId, {
+    scrollWheelZoom: false,
+    zoomAnimation: false,
+    fadeAnimation: false,
+    markerZoomAnimation: false,
+  });
   // CARTO "dark matter" basemap (OpenStreetMap data) for a dark UI.
   L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
     maxZoom: 19,
@@ -20,10 +28,12 @@ function meshMap(elId, pts) {
       }).bindPopup(p.name);
     })
   ).addTo(map);
-  map.fitBounds(group.getBounds().pad(0.3), { animate: false });
-  // A lone repeater otherwise fills the frame at max zoom; pull back a few
-  // levels so the surrounding area is visible for context.
+  // Set the view exactly once, non-animated, so the map paints in its final
+  // position with no fit/zoom flash on load. A lone repeater would otherwise fit
+  // at max zoom, so give it a fixed neighborhood zoom for context instead.
   if (pts.length === 1) {
-    map.setZoom(map.getZoom() - 4, { animate: false });
+    map.setView([pts[0].lat, pts[0].lon], 15, { animate: false });
+  } else {
+    map.fitBounds(group.getBounds().pad(0.3), { animate: false });
   }
 }

@@ -53,19 +53,16 @@
         {{if .PKErr}}<div class="alert alert-danger">{{.PKErr}}</div>{{end}}
         {{if .PKMsg}}<div class="alert alert-success">{{.PKMsg}}</div>{{end}}
         {{if .Passkeys}}
-        <div class="list-group mb-3">
+        <div class="subheader mt-3 mb-2">Your passkeys</div>
+        <div class="list-group list-group-flush mb-3">
           {{range .Passkeys}}
-          <div class="list-group-item d-flex align-items-center flex-wrap gap-2">
+          <div class="list-group-item d-flex align-items-center gap-3 px-0">
             <span class="text-secondary">{{template "icon-key" ""}}</span>
-            <div class="flex-fill" style="min-width:10rem">
-              <div>{{if .Name}}{{.Name}}{{else}}<span class="text-secondary fst-italic">Unnamed passkey</span>{{end}}</div>
+            <div class="flex-fill" style="min-width:0">
+              <div class="text-truncate">{{if .Name}}{{.Name}}{{else}}<span class="text-secondary fst-italic">Unnamed passkey</span>{{end}}</div>
               <div class="text-secondary small"><span class="font-monospace">{{.ShortID}}…</span> · Added {{.Added.Format "Jan 2, 2006"}}</div>
             </div>
-            <form method="post" action="/account/passkeys/rename" class="d-flex gap-1 m-0">
-              <input type="hidden" name="credential_id" value="{{.ID}}">
-              <input type="text" class="form-control form-control-sm" name="name" maxlength="64" value="{{.Name}}" placeholder="Add a description" aria-label="Passkey description" style="width:11rem">
-              <button type="submit" class="btn btn-sm">Save</button>
-            </form>
+            <button type="button" class="btn btn-sm" data-bs-toggle="modal" data-bs-target="#rename-passkey" data-id="{{.ID}}" data-name="{{.Name}}">Rename</button>
             <form method="post" action="/account/passkeys/delete" class="m-0" onsubmit="return confirm('Remove this passkey? You won\'t be able to sign in with it anymore.')">
               <input type="hidden" name="credential_id" value="{{.ID}}">
               <button type="submit" class="btn btn-sm btn-ghost-danger">Remove</button>
@@ -76,13 +73,15 @@
         {{else}}
         <p class="text-secondary">No passkeys yet. Add one for faster, more secure sign-in.</p>
         {{end}}
+
+        <div class="subheader mb-2">Add a passkey</div>
         <div class="row g-2 align-items-end">
-          <div class="col-auto">
+          <div class="col-sm">
             <label class="form-label" for="new_passkey_name">Description <span class="form-label-description">optional</span></label>
-            <input type="text" class="form-control" id="new_passkey_name" maxlength="64" placeholder="e.g. MacBook Touch ID" style="width:14rem">
+            <input type="text" class="form-control" id="new_passkey_name" maxlength="64" placeholder="e.g. MacBook Touch ID">
           </div>
-          <div class="col-auto">
-            <button type="button" class="btn btn-primary" onclick="addPasskey()">{{template "icon-key" "me-1"}}Add a passkey</button>
+          <div class="col-sm-auto">
+            <button type="button" class="btn btn-primary w-100" onclick="addPasskey()">{{template "icon-key" "me-1"}}Add a passkey</button>
           </div>
         </div>
         <p id="passkey-status" class="text-secondary small mt-2 mb-0" style="min-height:1.2em"></p>
@@ -130,5 +129,37 @@
   </div>
 </div>
 
+<!-- Rename-passkey modal: populated from the clicked row's data-* attributes. -->
+<div class="modal modal-blur fade" id="rename-passkey" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-sm modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <form method="post" action="/account/passkeys/rename">
+        <div class="modal-header">
+          <h5 class="modal-title">Rename passkey</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" name="credential_id" id="rename-id">
+          <label class="form-label" for="rename-name">Description <span class="form-label-description">optional</span></label>
+          <input type="text" class="form-control" name="name" id="rename-name" maxlength="64" placeholder="e.g. MacBook Touch ID" autocomplete="off">
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-link link-secondary me-auto" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Fill the rename modal from the passkey row that opened it.
+  document.getElementById("rename-passkey").addEventListener("show.bs.modal", function (e) {
+    var btn = e.relatedTarget;
+    if (!btn) return;
+    document.getElementById("rename-id").value = btn.getAttribute("data-id");
+    document.getElementById("rename-name").value = btn.getAttribute("data-name") || "";
+  });
+</script>
 <script src="/static/webauthn.js"></script>
 {{end}}
