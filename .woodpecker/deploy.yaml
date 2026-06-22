@@ -8,6 +8,10 @@ when:
 depends_on:
   - build
 
+# This workflow only runs kubectl against the commit SHA (provided as an env
+# var) — it never reads the repo, so skip the automatic clone step.
+skip_clone: true
+
 steps:
   deploy:
     image: alpine/kubectl:1.35.3
