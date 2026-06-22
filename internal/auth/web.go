@@ -50,6 +50,7 @@ func (s *Handlers) Routes() chi.Router {
 	r.Group(func(r chi.Router) {
 		r.Use(s.Auth.RequireSSO)
 		r.Get("/account", s.pageAccount)
+		r.Post("/account/username", s.handleChangeUsername)
 		r.Post("/account/profile", s.handleUpdateProfile)
 		r.Post("/account/password", s.handleChangePassword)
 		r.Post("/account/passkeys/rename", s.handleRenamePasskey)

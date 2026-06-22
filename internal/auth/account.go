@@ -2,10 +2,12 @@ package auth
 
 import (
 	"encoding/hex"
+	"errors"
 	"net/http"
 	"strconv"
 	"time"
 
+	"github.com/jleight/meshtender/internal/store"
 	"github.com/jleight/meshtender/internal/web"
 )
 
@@ -51,16 +53,50 @@ func (s *Handlers) pageAccount(w http.ResponseWriter, r *http.Request) {
 		}
 		views = append(views, passkeyView{ID: c.ID, ShortID: short, Name: c.Name, Added: c.CreatedAt})
 	}
+	// When set, the user changed their username recently and must wait until
+	// this time before changing it again.
+	nextRename, err := s.Store.NextRenameAllowed(r.Context(), uid)
+	if err != nil {
+		http.Error(w, "could not load account", http.StatusInternalServerError)
+		return
+	}
 	s.Render(w, r, "account.html", map[string]any{
 		"User":        u,
 		"DisplayName": u.DisplayName, // nil when unset
 		"HasPassword": u.PasswordHash != nil,
 		"Passkeys":    views,
+		"NextRename":  nextRename, // nil when a rename is allowed now
 		"Error":       r.URL.Query().Get("error"),
 		"OK":          r.URL.Query().Get("ok"),
 		"PKMsg":       r.URL.Query().Get("pk"),
 		"PKErr":       r.URL.Query().Get("pkerr"),
 	})
+}
+
+// handleChangeUsername renames the current user, enforcing validation, the
+// per-user rename interval, and the release cooldown on names others hold.
+func (s *Handlers) handleChangeUsername(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	uid := s.Auth.CurrentUserID(ctx)
+	newName := NormalizeUsername(r.FormValue("username"))
+	if !ValidUsername(newName) {
+		accountRedirect(w, r, "error", "Choose a username 3–32 characters long, using only letters, digits, and _ . -")
+		return
+	}
+	meta := store.UsernameChangeContext{ChangedBy: uid, IP: web.ClientIP(r), UserAgent: r.UserAgent()}
+	err := s.Store.SetUsername(ctx, uid, newName, meta, true)
+	switch {
+	case errors.Is(err, store.ErrDuplicate), errors.Is(err, store.ErrUsernameReserved):
+		// Collapse "taken" and "reserved" into one message so we don't reveal
+		// that a name was previously in use by someone else.
+		accountRedirect(w, r, "error", "That username isn't available. Please choose another.")
+	case errors.Is(err, store.ErrRenameTooSoon):
+		accountRedirect(w, r, "error", "You can only change your username once every 30 days.")
+	case err != nil:
+		accountRedirect(w, r, "error", "Could not change your username.")
+	default:
+		accountRedirect(w, r, "ok", "Username changed to @"+newName+".")
+	}
 }
 
 // handleUpdateProfile saves the user's display name.

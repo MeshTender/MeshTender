@@ -155,3 +155,30 @@ func (s *Handlers) handleSetUserCaps(w http.ResponseWriter, r *http.Request) {
 	}
 	http.Redirect(w, r, "/admin/users", http.StatusSeeOther)
 }
+
+// usernameHistoryLimit bounds the rename history shown on the admin page.
+const usernameHistoryLimit = 100
+
+// pageUserHistory shows a user's username-change history. Admin-only (mounted
+// under the manage-users capability): old usernames are never exposed elsewhere.
+func (s *Handlers) pageUserHistory(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	u, err := s.Store.GetUserByID(r.Context(), id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	changes, err := s.Store.ListUsernameChanges(r.Context(), id, usernameHistoryLimit)
+	if err != nil {
+		http.Error(w, "could not load history", http.StatusInternalServerError)
+		return
+	}
+	s.Render(w, r, "admin_user_history.html", map[string]any{
+		"Account": u,
+		"Changes": changes,
+	})
+}

@@ -49,11 +49,22 @@ func scanUser(row pgx.Row) (*User, error) {
 }
 
 // CreateUser inserts a new user and returns it. displayName may be empty (then
-// stored as NULL). Returns ErrDuplicate if the username is already taken.
+// stored as NULL). Returns ErrDuplicate if the username is already taken, or
+// ErrUsernameReserved if it was recently released by someone else and is still
+// within its cooldown.
 func (s *Store) CreateUser(ctx context.Context, username, displayName string) (*User, error) {
 	var dn *string
 	if displayName != "" {
 		dn = &displayName
+	}
+	// A brand-new account has no incumbent identity, so any prior owner's recent
+	// release reserves the name (exceptUserID 0 matches no one).
+	reserved, err := nameReservedByOther(ctx, s.pool, username, 0)
+	if err != nil {
+		return nil, err
+	}
+	if reserved {
+		return nil, ErrUsernameReserved
 	}
 	u, err := scanUser(s.pool.QueryRow(ctx,
 		`INSERT INTO users (username, display_name) VALUES ($1, $2) RETURNING `+userCols,

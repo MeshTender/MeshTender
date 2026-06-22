@@ -14,7 +14,7 @@ type CommandLogEntry struct {
 	ID           int64
 	RepeaterID   int64
 	UserID       *int64
-	SenderName   string // username (or display name); "(deleted)" if user gone
+	SenderName   string // username snapshotted at send time; "(deleted)" if unknown
 	CommandText  string
 	SentAt       time.Time
 	AckReceived  bool
@@ -26,8 +26,8 @@ type CommandLogEntry struct {
 func (s *Store) LogCommand(ctx context.Context, repeaterID, userID, sessionID, commandID int64, text string) (int64, error) {
 	var id int64
 	err := s.pool.QueryRow(ctx, `
-		INSERT INTO command_log (repeater_id, user_id, session_id, command_id, command_text)
-		VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+		INSERT INTO command_log (repeater_id, user_id, session_id, command_id, command_text, sender_username)
+		VALUES ($1, $2, $3, $4, $5, (SELECT username FROM users WHERE id = $2)) RETURNING id`,
 		repeaterID, userID, sessionID, nullID(commandID), text).Scan(&id)
 	if err != nil {
 		return 0, fmt.Errorf("log command: %w", err)
@@ -95,9 +95,8 @@ func (s *Store) ListCommandLogSessionsPage(ctx context.Context, repeaterID int64
 	// behavior of the previous query).
 	headers, err := s.pool.Query(ctx, `
 		SELECT cs.id, cs.started_at, cs.ended_at,
-		       COALESCE(NULLIF(su.display_name, ''), su.username, '(deleted)')
+		       COALESCE(cs.sender_username, '(deleted)')
 		FROM console_sessions cs
-		LEFT JOIN users su ON su.id = cs.user_id
 		WHERE cs.repeater_id = $1
 		  AND ($2 OR (cs.started_at, cs.id) < ($3, $4))
 		  AND EXISTS (SELECT 1 FROM command_log l WHERE l.session_id = cs.id)
@@ -172,11 +171,10 @@ type OwnerCommandLogEntry struct {
 func (s *Store) ListRecentCommandsForOwner(ctx context.Context, ownerID int64, limit int) ([]OwnerCommandLogEntry, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT l.repeater_id, r.public_id, r.name,
-		       COALESCE(NULLIF(u.display_name, ''), u.username, '(deleted)'),
+		       COALESCE(l.sender_username, '(deleted)'),
 		       l.command_text, l.sent_at, l.ack_received, l.response_text
 		FROM command_log l
 		JOIN repeaters r ON r.id = l.repeater_id
-		LEFT JOIN users u ON u.id = l.user_id
 		WHERE r.owner_id = $1
 		ORDER BY l.sent_at DESC
 		LIMIT $2`, ownerID, limit)
@@ -195,10 +193,9 @@ func (s *Store) ListRecentCommandsForOwner(ctx context.Context, ownerID int64, l
 func (s *Store) ListCommandLog(ctx context.Context, repeaterID int64, limit int) ([]*CommandLogEntry, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT l.id, l.repeater_id, l.user_id,
-		       COALESCE(NULLIF(u.display_name, ''), u.username, '(deleted)'),
+		       COALESCE(l.sender_username, '(deleted)'),
 		       l.command_text, l.sent_at, l.ack_received, l.response_text
 		FROM command_log l
-		LEFT JOIN users u ON u.id = l.user_id
 		WHERE l.repeater_id = $1
 		ORDER BY l.sent_at DESC
 		LIMIT $2`, repeaterID, limit)

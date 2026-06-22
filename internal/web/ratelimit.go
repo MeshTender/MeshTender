@@ -94,3 +94,7 @@ func clientIP(r *http.Request) string {
 	}
 	return r.RemoteAddr
 }
+
+// ClientIP exposes clientIP for handlers that record the caller's address
+// (e.g. the username-change audit trail).
+func ClientIP(r *http.Request) string { return clientIP(r) }

@@ -12,25 +12,44 @@
 {{if .OK}}<div class="alert alert-success">{{.OK}}</div>{{end}}
 
 <div class="card">
-  <div class="card-header"><h3 class="card-title">Profile</h3></div>
+  <div class="card-header"><h3 class="card-title">Username</h3></div>
   <div class="card-body">
-    <p class="text-secondary">Your username can't be changed. Your display name is shown to people you share with.</p>
-        <form method="post" action="/account/profile">
-          <div class="row g-3">
+    <p class="text-secondary">Your username is your unique handle (3–32 chars: letters, digits, <code>_ . -</code>). You can change it once every 30 days. When you do, your old username is reserved for 90 days before anyone else can take it.</p>
+        <form method="post" action="/account/username">
+          <div class="row g-3 align-items-end">
             <div class="col-md">
               <label class="form-label" for="acct_username">Username</label>
-              <input type="text" class="form-control" id="acct_username" value="{{.User.Username}}" disabled>
+              <div class="input-group input-group-flat">
+                <span class="input-group-text">@</span>
+                <input type="text" class="form-control" id="acct_username" name="username" minlength="3" maxlength="32" pattern="[a-zA-Z0-9_.\-]+" value="{{.User.Username}}" {{if .NextRename}}disabled{{end}}>
+              </div>
             </div>
+            <div class="col-md-auto">
+              <button type="submit" class="btn btn-primary" {{if .NextRename}}disabled{{end}}>Change username</button>
+            </div>
+          </div>
+          {{if .NextRename}}
+          <small class="form-hint mt-2 d-block">You changed your username recently. You can change it again on {{.NextRename.Format "Jan 2, 2006"}}.</small>
+          {{end}}
+        </form>
+  </div>
+</div>
+
+<div class="card mt-3">
+  <div class="card-header"><h3 class="card-title">Display name</h3></div>
+  <div class="card-body">
+    <p class="text-secondary">Your display name is what other people see — on shares and in organizations. It can be anything, and it isn't tied to sign-in.</p>
+        <form method="post" action="/account/profile">
+          <div class="row g-3 align-items-end">
             <div class="col-md">
               <label class="form-label" for="acct_display_name">Display name <span class="form-label-description">optional</span></label>
               <input type="text" class="form-control" id="acct_display_name" name="display_name" maxlength="64" value="{{if .DisplayName}}{{.DisplayName}}{{end}}" placeholder="Shown to people you share with">
             </div>
-          </div>
-          <div class="mt-3">
-            <button type="submit" class="btn btn-primary">Save profile</button>
+            <div class="col-md-auto">
+              <button type="submit" class="btn btn-primary">Save display name</button>
+            </div>
           </div>
         </form>
-
   </div>
 </div>
 

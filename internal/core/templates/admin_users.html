@@ -29,6 +29,7 @@
           <input class="form-check-input" type="checkbox" name="manage_catalog" {{if .CapManageCatalog}}checked{{end}}>
           <span class="form-check-label">manage catalog</span>
         </label>
+        <a href="/admin/users/{{.ID}}/history" class="btn btn-sm btn-ghost-secondary">History</a>
         <button type="submit" class="btn btn-sm">Save</button>
       </form>
       {{end}}

@@ -1,0 +1,43 @@
+{{define "title"}}Username history · MeshTender{{end}}
+{{define "header"}}
+<div class="row g-2 align-items-center">
+  <div class="col">
+    <div class="page-pretitle">Administration</div>
+    <h2 class="page-title">Username history</h2>
+  </div>
+</div>
+{{end}}
+{{define "content"}}
+<div class="card">
+  <div class="card-body">
+    <p class="text-secondary">
+      Rename history for <strong>{{.Account.Name}}</strong> <span class="text-secondary">@{{.Account.Username}}</span>
+      (user #{{.Account.ID}}). This record is visible to user managers only — old usernames are never shown
+      on public or member-facing pages.
+    </p>
+
+    {{if .Changes}}
+    <div class="table-responsive">
+      <table class="table table-vcenter">
+        <thead>
+          <tr><th>When</th><th>Change</th><th>By</th><th>IP</th></tr>
+        </thead>
+        <tbody>
+          {{range .Changes}}
+          <tr>
+            <td class="text-nowrap">{{.ChangedAt.Format "Jan 2, 2006 15:04"}}</td>
+            <td><span class="text-secondary">@{{.OldUsername}}</span> → <span class="font-monospace">@{{.NewUsername}}</span></td>
+            <td>{{if .BySelf}}self{{else if .ByActor}}admin (@{{.ByActor}}){{else}}admin{{end}}</td>
+            <td class="font-monospace text-secondary">{{if .IP}}{{.IP}}{{else}}—{{end}}</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+    {{else}}
+    <p class="text-secondary">This user has never changed their username.</p>
+    {{end}}
+  </div>
+</div>
+<a class="back-link mt-3" href="/admin/users">{{template "icon-arrow-left" "me-1"}}Users</a>
+{{end}}
