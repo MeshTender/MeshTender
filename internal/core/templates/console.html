@@ -8,45 +8,47 @@
 </div>
 {{end}}
 {{define "content"}}
-<div class="card">
-  <div class="card-body">
-    <p class="text-secondary">
-      Connect a MeshCore KISS modem and send commands to this repeater. You can run the commands listed
-      below; the server enforces what you're allowed to send.
-    </p>
-    <code class="pk">{{.Repeater.PublicKeyHex}}</code>
+<div class="alert alert-info" role="alert">
+  Connect a MeshCore KISS modem and send commands to this repeater. You can run the commands in the
+  Allowed commands list; the server enforces what you're allowed to send.
+</div>
 
-    <div id="unsupported" class="alert alert-danger mt-3" role="alert" hidden>
-      This browser does not support WebSerial. Use Chrome, Edge, or another Chromium-based browser over HTTPS or on localhost.
-    </div>
-
-    <button id="connect" class="btn btn-primary mt-3" type="button">{{template "icon-plug" "me-1"}}Connect modem</button>
-
-    <div class="row mt-3">
-      <div class="col-12 col-md-8">
-        <ul id="log" class="evlog console" role="log" aria-live="polite" aria-label="Console activity"></ul>
+<div class="row row-cards">
+  <div class="col-12 col-lg-8">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">Console</h3></div>
+      <div class="card-body">
+        <div id="unsupported" class="alert alert-danger" role="alert" hidden>
+          This browser does not support WebSerial. Use Chrome, Edge, or another Chromium-based browser over HTTPS or on localhost.
+        </div>
+        <button id="connect" class="btn btn-primary" type="button">{{template "icon-plug" "me-1"}}Connect modem</button>
+        <ul id="log" class="evlog console mt-3" role="log" aria-live="polite" aria-label="Console activity"></ul>
         <form id="cmdform" class="input-group mt-3" autocomplete="off" hidden>
           <input type="text" id="cmdinput" class="form-control font-monospace" placeholder="type a command, e.g. ver" aria-label="Command to send">
           <button type="submit" id="cmdsend" class="btn btn-primary">Send</button>
         </form>
       </div>
-      <div class="col-12 col-md-4 mt-3 mt-md-0">
-        <div class="subheader mb-2">Allowed commands</div>
+    </div>
+  </div>
+  <div class="col-12 col-lg-4">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">Allowed commands</h3></div>
+      <div class="card-body">
         {{if .Commands}}
-        <div class="d-flex flex-column gap-1" style="max-height:320px;overflow-y:auto">
+        <div class="d-flex flex-wrap gap-1" style="max-height:360px;overflow-y:auto">
           {{range .Commands}}
-          <button type="button" class="chip btn btn-sm w-100 text-start{{if .Risky}} btn-outline-danger{{end}}" data-template="{{.Template}}" title="{{.Args}}">{{.Template}}</button>
+          <button type="button" class="chip btn btn-sm{{if .Risky}} btn-outline-danger{{end}}" data-template="{{.Template}}" title="{{.Args}}">{{.Template}}</button>
           {{end}}
         </div>
         {{else}}
-        <p class="text-secondary">No commands allowed here yet.</p>
+        <p class="text-secondary mb-0">No commands allowed here yet.</p>
         {{end}}
       </div>
     </div>
-
-    <a class="back-link mt-3" href="/">{{template "icon-arrow-left" "me-1"}}Back to dashboard</a>
   </div>
 </div>
+
+<a class="back-link mt-3" href="/">{{template "icon-arrow-left" "me-1"}}Back to dashboard</a>
 
 <script>
   window.MESHTENDER_WS = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/repeaters/{{.Repeater.PublicID}}/console/ws";
