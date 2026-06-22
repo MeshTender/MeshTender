@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
   <title>{{block "title" .}}MeshTender{{end}}</title>
   <link rel="stylesheet" href="/static/tabler.min.css">
   <link rel="stylesheet" href="/static/app.css">
@@ -18,7 +19,7 @@
           <span class="navbar-toggler-icon"></span>
         </button>
         <a href="{{if .UserName}}{{.AppURL}}{{else}}{{.RootURL}}{{end}}/" class="navbar-brand navbar-brand-autodark d-flex align-items-center text-reset text-decoration-none pe-0 pe-md-3">
-          {{template "icon-tower" "me-1"}}<span class="fw-bold fs-3">MeshTender</span>
+          {{template "icon-logo" "me-1"}}<span class="fw-bold fs-3">MeshTender</span>
         </a>
         <div class="navbar-nav flex-row order-md-last align-items-center gap-2">
           {{if .UserName}}
@@ -112,6 +113,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
   <title>{{template "title" .}}</title>
   <link rel="stylesheet" href="/static/tabler.min.css">
   <link rel="stylesheet" href="/static/app.css">
@@ -122,7 +124,7 @@
     <div class="container container-tight py-4">
       <div class="text-center mb-4">
         <a href="/" class="navbar-brand navbar-brand-autodark d-inline-flex align-items-center text-reset text-decoration-none">
-          {{template "icon-tower" "me-1"}}<span class="fw-bold fs-2">MeshTender</span>
+          {{template "icon-logo" "me-1"}}<span class="fw-bold fs-2">MeshTender</span>
         </a>
       </div>
       {{template "content" .}}
@@ -139,6 +141,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
   <title>{{template "title" .}}</title>
   <link rel="stylesheet" href="/static/tabler.min.css">
   <link rel="stylesheet" href="/static/app.css">
@@ -148,7 +151,7 @@
   <header class="navbar navbar-expand-md navbar-transparent py-3">
     <div class="container">
       <a href="/" class="navbar-brand navbar-brand-autodark d-flex align-items-center text-reset text-decoration-none">
-        {{template "icon-tower" "me-1"}}<span class="fw-bold fs-3">MeshTender</span>
+        {{template "icon-logo" "me-1"}}<span class="fw-bold fs-3">MeshTender</span>
       </a>
       <div class="navbar-nav flex-row order-md-last align-items-center gap-2">
         <a href="{{.AppURL}}/login" class="btn btn-ghost-secondary">Sign in</a>
