@@ -140,6 +140,7 @@ func (s *Handlers) appRouter() chi.Router {
 		r.Post("/repeaters/{id}/unshare", s.handleUnshare)
 		r.Get("/repeaters/{id}/share/{userID}/commands", s.pageShareCommands)
 		r.Post("/repeaters/{id}/share/{userID}/commands", s.handleSetShareCommands)
+		r.Get("/repeaters/{id}/orgs/{orgID}/consented", s.pageConsented)
 		r.Get("/repeaters/{id}/orgs/{orgID}/contribute", s.pageContribute)
 		r.Post("/repeaters/{id}/orgs/{orgID}/contribute", s.handleContribute)
 		r.Post("/repeaters/{id}/orgs/{orgID}/withdraw", s.handleWithdraw)

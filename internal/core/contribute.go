@@ -56,26 +56,11 @@ func (s *Handlers) pageContribute(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not load commands", http.StatusInternalServerError)
 		return
 	}
-	// Reuse the per-tier grouping; only commands in at least one tier are shown.
-	groups := groupPermissions(catalog, idSet(adminIDs), idSet(memberIDs))
-	var envelope []permGroup
-	for _, g := range groups {
-		var cmds []permChoice
-		for _, c := range g.Commands {
-			if c.AdminChecked || c.MemberChecked {
-				cmds = append(cmds, c)
-			}
-		}
-		if len(cmds) > 0 {
-			envelope = append(envelope, permGroup{Name: g.Name, Commands: cmds})
-		}
-	}
-
 	data := map[string]any{
 		"Repeater": rep,
 		"Org":      org,
 		"Version":  version,
-		"Envelope": envelope,
+		"Envelope": permEnvelope(catalog, idSet(adminIDs), idSet(memberIDs)),
 	}
 
 	// If already contributed and behind the current version, show what changed
@@ -102,6 +87,72 @@ func (s *Handlers) pageContribute(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.Render(w, r, "contribute.html", data)
+}
+
+// permEnvelope groups the catalog by category, keeping only commands granted to
+// at least one tier in the given admin/member id sets — the set of commands a
+// permission version actually allows.
+func permEnvelope(catalog []*store.Command, adminSet, memberSet map[int64]bool) []permGroup {
+	var envelope []permGroup
+	for _, g := range groupPermissions(catalog, adminSet, memberSet) {
+		var cmds []permChoice
+		for _, c := range g.Commands {
+			if c.AdminChecked || c.MemberChecked {
+				cmds = append(cmds, c)
+			}
+		}
+		if len(cmds) > 0 {
+			envelope = append(envelope, permGroup{Name: g.Name, Commands: cmds})
+		}
+	}
+	return envelope
+}
+
+// pageConsented shows, read-only, the exact commands this repeater is currently
+// consented to grant the org — the detail behind "consented to vN" on the
+// sharing page. It renders the consented version, which may lag the org's
+// current one.
+func (s *Handlers) pageConsented(w http.ResponseWriter, r *http.Request) {
+	rep, orgID, ok := s.orgContext(w, r)
+	if !ok {
+		return
+	}
+	org, err := s.Store.GetOrg(r.Context(), orgID)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	cvID, contributed, err := s.Store.ConsentedVersionID(r.Context(), orgID, rep.ID)
+	if err != nil || !contributed {
+		http.NotFound(w, r) // not contributed → nothing consented to view
+		return
+	}
+	version, err := s.Store.VersionNumber(r.Context(), cvID)
+	if err != nil {
+		http.Error(w, "could not load policy", http.StatusInternalServerError)
+		return
+	}
+	adminIDs, memberIDs, err := s.Store.VersionCommandIDs(r.Context(), cvID)
+	if err != nil {
+		http.Error(w, "could not load policy", http.StatusInternalServerError)
+		return
+	}
+	catalog, err := s.Store.ListCommands(r.Context())
+	if err != nil {
+		http.Error(w, "could not load commands", http.StatusInternalServerError)
+		return
+	}
+	data := map[string]any{
+		"Repeater": rep,
+		"Org":      org,
+		"Version":  version,
+		"Envelope": permEnvelope(catalog, idSet(adminIDs), idSet(memberIDs)),
+	}
+	// Note (with a re-consent link) when the org has moved past this version.
+	if _, current, err := s.Store.CurrentVersion(r.Context(), orgID); err == nil && current > version {
+		data["CurrentVersion"] = current
+	}
+	s.Render(w, r, "consented.html", data)
 }
 
 // union returns the set union of two id sets.

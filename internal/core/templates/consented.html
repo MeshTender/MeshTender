@@ -1,0 +1,45 @@
+{{define "title"}}{{.Repeater.Name}} · {{.Org.Name}} commands · MeshTender{{end}}
+{{define "header"}}
+<div class="row g-2 align-items-center">
+  <div class="col">
+    <div class="page-pretitle">Consented to {{.Org.Name}} · v{{.Version}}</div>
+    <h2 class="page-title">{{.Repeater.Name}}</h2>
+  </div>
+</div>
+{{end}}
+{{define "content"}}
+<div class="card">
+  <div class="card-body">
+    <p class="text-secondary">
+      These are the commands {{.Org.Name}}'s admins and members can run on this repeater over the mesh — the
+      policy you consented to (v{{.Version}}). Org-admins also get everything members get.
+    </p>
+
+    {{if .CurrentVersion}}
+    <div class="alert alert-warning">
+      {{.Org.Name}} has since published v{{.CurrentVersion}}. This repeater stays on v{{.Version}} until you
+      <a class="alert-link" href="/repeaters/{{.Repeater.PublicID}}/orgs/{{.Org.Slug}}/contribute">review the changes and re-consent</a>.
+    </div>
+    {{end}}
+
+    {{if .Envelope}}
+    {{range .Envelope}}
+    <fieldset class="form-fieldset">
+      <div class="form-label fw-bold text-capitalize">{{.Name}}</div>
+      {{range .Commands}}
+      <div class="d-flex align-items-center flex-wrap gap-2 py-1">
+        <code class="flex-fill">{{.Template}}{{if .Risky}} <span class="badge bg-warning-lt">risky</span>{{end}}</code>
+        {{if .AdminChecked}}<span class="badge bg-success-lt">admin</span>{{end}}
+        {{if .MemberChecked}}<span class="badge bg-azure-lt">member</span>{{end}}
+      </div>
+      {{end}}
+    </fieldset>
+    {{end}}
+    {{else}}
+    <p class="text-secondary">This version grants no commands.</p>
+    {{end}}
+
+    <a class="back-link mt-3" href="/repeaters/{{.Repeater.PublicID}}/share">{{template "icon-arrow-left" "me-1"}}Back to sharing</a>
+  </div>
+</div>
+{{end}}

@@ -34,7 +34,7 @@
       {{range .Contributed}}
       <div class="list-group-item d-flex align-items-center flex-wrap gap-2 px-0">
         <span class="fw-bold">{{.OrgName}}</span>
-        <span class="text-secondary">consented to v{{.ConsentedVersion}}{{if .NeedsReconsent}} · org is now on v{{.CurrentVersion}}{{end}}</span>
+        <span class="text-secondary"><a class="link-secondary" href="/repeaters/{{$.Repeater.PublicID}}/orgs/{{.OrgSlug}}/consented">consented to v{{.ConsentedVersion}}</a>{{if .NeedsReconsent}} · org is now on v{{.CurrentVersion}}{{end}}</span>
         {{if .NeedsReconsent}}
         <a class="btn btn-sm" href="/repeaters/{{$.Repeater.PublicID}}/orgs/{{.OrgSlug}}/contribute">Review changes</a>
         {{end}}
