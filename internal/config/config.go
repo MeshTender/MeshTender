@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 )
 
@@ -62,13 +61,10 @@ type Config struct {
 	// production TLS usually terminates at a proxy and these stay empty.
 	TLSCert string
 	TLSKey  string
-
-	// DefaultRadio holds fallback LoRa parameters offered when adding a
-	// repeater. Per-repeater values in the DB take precedence.
-	DefaultRadio RadioDefaults
 }
 
-// RadioDefaults are the suggested LoRa parameters for a new repeater.
+// RadioDefaults is a set of LoRa parameters, used to match a repeater's stored
+// radio config against the region presets offered in the UI.
 type RadioDefaults struct {
 	FreqHz uint32
 	BwHz   uint32
@@ -91,12 +87,6 @@ func Load() (*Config, error) {
 		WWWHost:       os.Getenv("MESHTENDER_WWW_HOST"),
 		TLSCert:       os.Getenv("MESHTENDER_TLS_CERT"),
 		TLSKey:        os.Getenv("MESHTENDER_TLS_KEY"),
-		DefaultRadio: RadioDefaults{
-			FreqHz: uint32(envUintOr("MESHTENDER_RADIO_FREQ_HZ", 869525000)),
-			BwHz:   uint32(envUintOr("MESHTENDER_RADIO_BW_HZ", 250000)),
-			SF:     uint8(envUintOr("MESHTENDER_RADIO_SF", 11)),
-			CR:     uint8(envUintOr("MESHTENDER_RADIO_CR", 5)),
-		},
 	}
 
 	if c.RootHost != "" && c.WWWHost == "" {
@@ -148,13 +138,4 @@ func splitOrigins(s string) []string {
 		}
 	}
 	return out
-}
-
-func envUintOr(key string, def uint64) uint64 {
-	if v := os.Getenv(key); v != "" {
-		if n, err := strconv.ParseUint(v, 10, 64); err == nil {
-			return n
-		}
-	}
-	return def
 }

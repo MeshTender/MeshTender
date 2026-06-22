@@ -33,9 +33,9 @@ func (s *Handlers) pageAddRepeater(w http.ResponseWriter, r *http.Request) {
 		"ServerPubKey":    s.Identity.PublicKeyHex(),
 		"SetPermCommand":  s.Identity.SetPermCommand(),
 		"RevokeCommand":   s.Identity.RevokePermCommand(),
-		"Defaults":        s.Cfg.DefaultRadio,
+		"Defaults":        defaultPreset(),
 		"Presets":         radioPresets,
-		"DefaultPresetID": defaultPresetID(s.Cfg.DefaultRadio),
+		"DefaultPresetID": defaultPresetID,
 		"Error":           r.URL.Query().Get("error"),
 	})
 }
@@ -190,7 +190,7 @@ func (s *Handlers) pageEditRepeater(w http.ResponseWriter, r *http.Request) {
 	s.Render(w, r, "edit_repeater.html", map[string]any{
 		"Repeater":       rep,
 		"Presets":        radioPresets,
-		"SelectedPreset": defaultPresetID(config.RadioDefaults{FreqHz: uint32(rep.RadioFreqHz), BwHz: uint32(rep.RadioBwHz), SF: uint8(rep.RadioSF), CR: uint8(rep.RadioCR)}),
+		"SelectedPreset": presetIDFor(config.RadioDefaults{FreqHz: uint32(rep.RadioFreqHz), BwHz: uint32(rep.RadioBwHz), SF: uint8(rep.RadioSF), CR: uint8(rep.RadioCR)}),
 		"RevokeCommand":  s.Identity.RevokePermCommand(),
 		"Error":          r.URL.Query().Get("error"),
 	})

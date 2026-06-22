@@ -80,7 +80,6 @@ must serve the confirm/control pages over HTTPS.
 | `MESHTENDER_MASTER_KEY` | 64 hex chars (32 bytes); AES-GCM key encrypting the identity seed at rest (required) |
 | `MESHTENDER_ADDR` | listen address (default `:8080`) |
 | `MESHTENDER_RP_ID` / `_RP_ORIGIN` / `_RP_NAME` | WebAuthn relying-party settings |
-| `MESHTENDER_RADIO_FREQ_HZ` / `_BW_HZ` / `_SF` / `_CR` | default LoRa params suggested when adding a repeater |
 
 > **Note:** `MESHTENDER_MASTER_KEY` is coupled to the stored identity — changing it makes the
 > existing `server_identity` row undecryptable. Keep it stable.

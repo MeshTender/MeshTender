@@ -44,7 +44,7 @@ func TestConfirmRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("auth: %v", err)
 	}
-	cfg := &config.Config{DefaultRadio: config.RadioDefaults{FreqHz: 869525000, BwHz: 250000, SF: 11, CR: 5}}
+	cfg := &config.Config{}
 	srv, err := NewServer(st, authSvc, idSvc, cfg)
 	if err != nil {
 		t.Fatalf("server: %v", err)
