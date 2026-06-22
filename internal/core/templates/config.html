@@ -1,0 +1,161 @@
+{{define "title"}}Recommended configuration · {{.Org.Name}} · MeshTender{{end}}
+{{define "header"}}
+<div class="row g-2 align-items-center">
+  <div class="col">
+    <div class="page-pretitle">{{.Org.Name}}</div>
+    <h2 class="page-title">Recommended configuration</h2>
+  </div>
+  <div class="col-auto ms-auto d-print-none">
+    <a class="btn" href="/orgs/{{.Org.Slug}}">Back to organization</a>
+  </div>
+</div>
+{{end}}
+{{define "content"}}
+
+{{if .Errors}}
+<div class="alert alert-danger">
+  <div class="fw-bold">Nothing was published — fix these first:</div>
+  <ul class="mb-0">{{range .Errors}}<li>{{.}}</li>{{end}}</ul>
+</div>
+{{end}}
+{{if .RiskyWarn}}
+<div class="alert alert-warning">
+  <div class="fw-bold">Risky commands in this profile</div>
+  <p class="mb-1">These can take over or brick a node — included on purpose?</p>
+  <ul class="mb-0">{{range .RiskyWarn}}<li><code>{{.}}</code></li>{{end}}</ul>
+</div>
+{{end}}
+
+<div class="card">
+  <div class="card-body">
+    <p class="text-secondary mb-0">
+      The commands an operator should run to bring a repeater in spec for this org.
+      {{if .IsAdmin}}This is a reference members can copy; those with a KISS modem can apply it from a repeater's
+      console. Region commands can vary by location — add <strong>zones</strong> with a geofence and they'll
+      only apply to repeaters inside them.{{else}}Copy these into a repeater's console, or apply them directly
+      from the console if you have a modem connected.{{end}}
+    </p>
+  </div>
+</div>
+
+{{if .IsAdmin}}
+{{/* ---------- Admin editor ---------- */}}
+<form method="post" action="/orgs/{{.Org.Slug}}/config">
+  <div class="card mt-3">
+    <div class="card-header"><h3 class="card-title">Base steps</h3></div>
+    <div class="card-body">
+      <p class="text-secondary">Applied to every repeater. One command per line; lines starting with <code>#</code> are notes.</p>
+      <textarea class="form-control font-monospace" name="base" rows="6" spellcheck="false"
+        placeholder="set tx 22&#10;# radio plan below">{{.BaseText}}</textarea>
+    </div>
+  </div>
+
+  <div class="card mt-3">
+    <div class="card-header"><h3 class="card-title">Region zones</h3></div>
+    <div class="card-body">
+      <p class="text-secondary">Steps that apply only to repeaters inside a geofence. Leave all four corners blank for a zone that applies everywhere. Lower priority applies first; same-priority overlapping zones both apply.</p>
+      <div id="zones">
+        {{range .Zones}}{{template "zone-block" .}}{{end}}
+      </div>
+      <button type="button" class="btn btn-outline-primary mt-2" onclick="addZone()">{{template "icon-plus" "me-1"}}Add zone</button>
+    </div>
+  </div>
+
+  <div class="card mt-3">
+    <div class="card-body">
+      <div class="mb-3">
+        <label class="form-label" for="note">Change note</label>
+        <input type="text" class="form-control" id="note" name="note" maxlength="200" placeholder="e.g. added the metro region hierarchy">
+      </div>
+      <div class="btn-list">
+        <button type="submit" class="btn btn-primary">Publish new version</button>
+        <a class="btn" href="/orgs/{{.Org.Slug}}">Cancel</a>
+      </div>
+    </div>
+  </div>
+</form>
+
+{{/* Hidden prototype block cloned by addZone(); kept out of the form via a template tag. */}}
+<template id="zone-proto">{{template "zone-block" .EmptyZone}}</template>
+<script>
+function addZone() {
+  const proto = document.getElementById('zone-proto');
+  const node = proto.content.cloneNode(true);
+  document.getElementById('zones').appendChild(node);
+}
+function removeZone(btn) { btn.closest('.zone-block').remove(); }
+</script>
+
+{{else}}
+{{/* ---------- Read-only reference ---------- */}}
+{{if .HasProfile}}
+<div class="card mt-3">
+  <div class="card-header"><h3 class="card-title">Base steps</h3>
+    <span class="card-subtitle ms-auto">v{{.Version}}</span>
+  </div>
+  <div class="card-body">{{template "step-list" .BaseSteps}}</div>
+</div>
+{{range .Zones}}
+<div class="card mt-3">
+  <div class="card-header">
+    <h3 class="card-title">{{.Name}}</h3>
+    <span class="card-subtitle ms-auto">{{if .MatchAll}}everywhere{{else}}lat {{.MinLat}}…{{.MaxLat}}, lon {{.MinLon}}…{{.MaxLon}}{{end}} · priority {{.Priority}}</span>
+  </div>
+  <div class="card-body">{{template "step-list" .Steps}}</div>
+</div>
+{{end}}
+{{else}}
+<div class="card mt-3"><div class="card-body text-secondary">This organization hasn't published a recommended configuration yet.</div></div>
+{{end}}
+{{end}}
+
+{{/* ---------- Location preview (admin convenience) ---------- */}}
+{{if .HasProfile}}
+<div class="card mt-3">
+  <div class="card-header"><h3 class="card-title">Preview for a location</h3></div>
+  <div class="card-body">
+    <form method="get" action="/orgs/{{.Org.Slug}}/config" class="row g-2 align-items-end">
+      <div class="col-auto"><label class="form-label" for="lat">Latitude</label>
+        <input class="form-control" type="text" id="lat" name="lat" value="{{if .PreviewLat}}{{.PreviewLat}}{{end}}"></div>
+      <div class="col-auto"><label class="form-label" for="lon">Longitude</label>
+        <input class="form-control" type="text" id="lon" name="lon" value="{{if .PreviewLon}}{{.PreviewLon}}{{end}}"></div>
+      <div class="col-auto"><button class="btn" type="submit">Resolve</button></div>
+    </form>
+    {{if .Preview}}
+    <div class="mt-3">
+      <div class="text-secondary mb-1">Commands a repeater at {{.PreviewLat}}, {{.PreviewLon}} should run:</div>
+      {{template "step-list" .Preview}}
+    </div>
+    {{end}}
+  </div>
+</div>
+{{end}}
+{{end}}
+
+{{/* step-list renders a sequence of ConfigStep as a copy-pasteable block. */}}
+{{define "step-list"}}
+{{if .}}<pre class="mb-0"><code>{{range .}}{{if .IsComment}}# {{.Comment}}{{else}}{{.CommandLine}}{{end}}
+{{end}}</code></pre>{{else}}<div class="text-secondary">No steps.</div>{{end}}
+{{end}}
+
+{{/* zone-block is one editable zone in the admin form. */}}
+{{define "zone-block"}}
+<div class="zone-block border rounded p-3 mb-3">
+  <div class="row g-2">
+    <div class="col-md"><label class="form-label">Name</label>
+      <input class="form-control" name="zone_name" value="{{.Name}}" placeholder="Metro"></div>
+    <div class="col-md-auto"><label class="form-label">Priority</label>
+      <input class="form-control" type="number" name="zone_priority" value="{{.Priority}}" style="width:6rem"></div>
+  </div>
+  <div class="row g-2 mt-1">
+    <div class="col"><label class="form-label">Min lat</label><input class="form-control" name="zone_minlat" value="{{.MinLat}}"></div>
+    <div class="col"><label class="form-label">Min lon</label><input class="form-control" name="zone_minlon" value="{{.MinLon}}"></div>
+    <div class="col"><label class="form-label">Max lat</label><input class="form-control" name="zone_maxlat" value="{{.MaxLat}}"></div>
+    <div class="col"><label class="form-label">Max lon</label><input class="form-control" name="zone_maxlon" value="{{.MaxLon}}"></div>
+  </div>
+  <div class="mt-2"><label class="form-label">Steps</label>
+    <textarea class="form-control font-monospace" name="zone_steps" rows="4" spellcheck="false" placeholder="region put Metro&#10;region home Metro">{{.StepsText}}</textarea>
+  </div>
+  <button type="button" class="btn btn-ghost-danger btn-sm mt-2" onclick="removeZone(this)">Remove zone</button>
+</div>
+{{end}}

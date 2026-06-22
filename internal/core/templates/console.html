@@ -48,6 +48,22 @@
   </div>
 </div>
 
+{{if .Profiles}}
+{{range .Profiles}}
+<div class="card mt-3">
+  <div class="card-header">
+    <h3 class="card-title">Recommended configuration · {{.OrgName}}</h3>
+    <a class="card-subtitle ms-auto" href="/orgs/{{.OrgSlug}}/config">View profile</a>
+  </div>
+  <div class="card-body">
+    <p class="text-secondary">These are the commands {{.OrgName}} recommends for this repeater's location. Copy them into the console above.</p>
+    <pre class="mb-0"><code>{{range .Steps}}{{if .IsComment}}# {{.Comment}}{{else}}{{.CommandLine}}{{end}}
+{{end}}</code></pre>
+  </div>
+</div>
+{{end}}
+{{end}}
+
 <a class="back-link mt-3" href="/">{{template "icon-arrow-left" "me-1"}}Back to dashboard</a>
 
 <script>

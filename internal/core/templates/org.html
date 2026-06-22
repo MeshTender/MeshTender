@@ -8,6 +8,7 @@
   <div class="col-auto ms-auto d-print-none">
     <div class="btn-list">
       {{if .IsAdmin}}<a class="btn" href="/orgs/{{.Org.Slug}}/permissions">{{template "icon-settings" "me-1"}}Edit permissions</a>{{end}}
+      <a class="btn" href="/orgs/{{.Org.Slug}}/config">{{template "icon-settings" "me-1"}}Recommended configuration</a>
       <a class="btn" href="/orgs/{{.Org.Slug}}?view=public">{{template "icon-world" "me-1"}}Public page</a>
       <form method="post" action="/orgs/{{.Org.Slug}}/leave" class="m-0" onsubmit="return confirm('Leave this organization?')">
         <button type="submit" class="btn btn-ghost-danger">Leave</button>
