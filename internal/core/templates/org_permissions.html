@@ -10,26 +10,32 @@
 {{define "content"}}
 <div class="card">
   <div class="card-body">
-    <p class="text-secondary">
+    <p class="text-secondary mb-0">
       Current version: <strong>v{{.Version}}</strong>. Choose which commands org <strong>admins</strong>
       and <strong>members</strong> may run on contributed repeaters. Saving publishes a new version;
       members' repeaters stay on their consented version until owners re-consent to the additions.
       Admins effectively also get everything members get. Risky commands can take over or brick a node.
     </p>
+  </div>
+</div>
 
-    <form method="post" action="/orgs/{{.Org.Slug}}/permissions">
-      {{range .Groups}}
-      <fieldset class="form-fieldset">
-        <div class="form-label fw-bold text-capitalize">{{.Name}}</div>
-        {{range .Commands}}
-        <div class="d-flex align-items-center flex-wrap gap-3 py-1">
-          <code class="flex-fill">{{.Template}}{{if .Risky}} <span class="badge bg-warning-lt">risky</span>{{end}}</code>
-          <label class="form-check form-check-inline m-0"><input class="form-check-input" type="checkbox" name="admin" value="{{.ID}}" {{if .AdminChecked}}checked{{end}}><span class="form-check-label">admin</span></label>
-          <label class="form-check form-check-inline m-0"><input class="form-check-input" type="checkbox" name="member" value="{{.ID}}" {{if .MemberChecked}}checked{{end}}><span class="form-check-label">member</span></label>
-        </div>
-        {{end}}
-      </fieldset>
+<form method="post" action="/orgs/{{.Org.Slug}}/permissions">
+  {{range .Groups}}
+  <div class="card mt-3">
+    <div class="card-header"><h3 class="card-title">{{.Name}}</h3></div>
+    <div class="card-body">
+      {{range .Commands}}
+      <div class="d-flex align-items-center flex-wrap gap-3 py-1">
+        <code class="flex-fill">{{.Template}}{{if .Risky}} <span class="badge bg-warning-lt">risky</span>{{end}}</code>
+        <label class="form-check form-check-inline m-0"><input class="form-check-input" type="checkbox" name="admin" value="{{.ID}}" {{if .AdminChecked}}checked{{end}}><span class="form-check-label">admin</span></label>
+        <label class="form-check form-check-inline m-0"><input class="form-check-input" type="checkbox" name="member" value="{{.ID}}" {{if .MemberChecked}}checked{{end}}><span class="form-check-label">member</span></label>
+      </div>
       {{end}}
+    </div>
+  </div>
+  {{end}}
+  <div class="card mt-3">
+    <div class="card-body">
       <div class="mb-3">
         <label class="form-label" for="change_note">Change note <span class="text-secondary">(shown to owners when they re-consent)</span></label>
         <input type="text" class="form-control" id="change_note" name="note" maxlength="200" placeholder="e.g. added set tx for the new region plan">
@@ -38,7 +44,7 @@
         <button type="submit" class="btn btn-primary">Publish new version</button>
         <a class="btn" href="/orgs/{{.Org.Slug}}">Cancel</a>
       </div>
-    </form>
+    </div>
   </div>
-</div>
+</form>
 {{end}}

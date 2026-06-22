@@ -29,30 +29,12 @@ func capAny(u *store.User) bool     { return u.CapManageUsers || u.CapManageCata
 func capCatalog(u *store.User) bool { return u.CapManageCatalog }
 func capUsers(u *store.User) bool   { return u.CapManageUsers }
 
-// categoryGroup is a list of per-command view models bucketed under a catalog
-// category name. The element type varies per page (raw command, share checkbox,
-// per-tier checkbox); groupByCategory builds them all.
+// categoryGroup is a named list of per-command view models (the name is the
+// feature area). The element type varies per page (raw command, share checkbox,
+// per-tier checkbox); groupByFeature builds them all.
 type categoryGroup[T any] struct {
 	Name     string
 	Commands []T
-}
-
-// groupByCategory buckets the catalog by category in catalog order, mapping each
-// command to a per-page view model via mk. It is the one grouping loop shared by
-// the catalog, share-commands, and org-permission editors.
-func groupByCategory[T any](catalog []*store.Command, mk func(*store.Command) T) []categoryGroup[T] {
-	var groups []categoryGroup[T]
-	idx := map[string]int{}
-	for _, c := range catalog {
-		gi, ok := idx[c.Category]
-		if !ok {
-			gi = len(groups)
-			idx[c.Category] = gi
-			groups = append(groups, categoryGroup[T]{Name: c.Category})
-		}
-		groups[gi].Commands = append(groups[gi].Commands, mk(c))
-	}
-	return groups
 }
 
 // groupByFeature buckets the catalog by feature area (store.Command.Feature) —

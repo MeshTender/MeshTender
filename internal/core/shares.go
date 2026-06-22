@@ -205,7 +205,7 @@ func (s *Handlers) handleAcceptInvite(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
-// commandGroup is a category of catalog commands for the share-commands UI.
+// commandGroup is a feature group of catalog commands for the share-commands UI.
 type commandGroup = categoryGroup[commandChoice]
 
 type commandChoice struct {
@@ -216,10 +216,10 @@ type commandChoice struct {
 	Checked  bool
 }
 
-// groupCommands buckets the catalog by category, marking those whose id is in
+// groupCommands buckets the catalog by feature, marking those whose id is in
 // `checked`.
 func groupCommands(catalog []*store.Command, checked map[int64]bool) []commandGroup {
-	return groupByCategory(catalog, func(c *store.Command) commandChoice {
+	return groupByFeature(catalog, func(c *store.Command) commandChoice {
 		return commandChoice{
 			ID: c.ID, Template: c.Template, Args: c.Args, Risky: c.Risky, Checked: checked[c.ID],
 		}

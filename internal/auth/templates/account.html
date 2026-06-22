@@ -12,25 +12,9 @@
 {{if .OK}}<div class="alert alert-success">{{.OK}}</div>{{end}}
 
 <div class="card">
-  <div class="row g-0">
-    <!-- Section nav -->
-    <div class="col-12 col-md-3 border-end">
-      <div class="card-body">
-        <h4 class="subheader">Settings</h4>
-        <div class="list-group list-group-transparent">
-          <a href="#profile" class="list-group-item list-group-item-action">Profile</a>
-          <a href="#passkeys" class="list-group-item list-group-item-action">Passkeys</a>
-          <a href="#password" class="list-group-item list-group-item-action">Password</a>
-        </div>
-      </div>
-    </div>
-
-    <!-- Section content -->
-    <div class="col-12 col-md-9 d-flex flex-column">
-      <div class="card-body">
-        <!-- Profile -->
-        <h3 class="card-title" id="profile">Profile</h3>
-        <p class="card-subtitle">Your username can't be changed. Your display name is shown to people you share with.</p>
+  <div class="card-header"><h3 class="card-title">Profile</h3></div>
+  <div class="card-body">
+    <p class="text-secondary">Your username can't be changed. Your display name is shown to people you share with.</p>
         <form method="post" action="/account/profile">
           <div class="row g-3">
             <div class="col-md">
@@ -47,9 +31,13 @@
           </div>
         </form>
 
-        <!-- Passkeys -->
-        <h3 class="card-title mt-4" id="passkeys">Passkeys</h3>
-        <p class="card-subtitle">Passkeys let you sign in with your device's fingerprint, face, or PIN — no password to remember or leak.</p>
+  </div>
+</div>
+
+<div class="card mt-3">
+  <div class="card-header"><h3 class="card-title">Passkeys</h3></div>
+  <div class="card-body">
+    <p class="text-secondary">Passkeys let you sign in with your device's fingerprint, face, or PIN — no password to remember or leak.</p>
         {{if .PKErr}}<div class="alert alert-danger">{{.PKErr}}</div>{{end}}
         {{if .PKMsg}}<div class="alert alert-success">{{.PKMsg}}</div>{{end}}
         {{if .Passkeys}}
@@ -86,12 +74,16 @@
         </div>
         <p id="passkey-status" class="text-secondary small mt-2 mb-0" style="min-height:1.2em"></p>
 
-        <!-- Password -->
-        <h3 class="card-title mt-4" id="password">Password</h3>
+  </div>
+</div>
+
+<div class="card mt-3">
+  <div class="card-header"><h3 class="card-title">Password</h3></div>
+  <div class="card-body">
         {{if .HasPassword}}
-        <p class="card-subtitle">Change the password you use as a fallback to passkeys.</p>
+        <p class="text-secondary">Change the password you use as a fallback to passkeys.</p>
         {{else}}
-        <p class="card-subtitle">You don't have a password set — you sign in with a passkey. You can add one as a fallback.</p>
+        <p class="text-secondary">You don't have a password set — you sign in with a passkey. You can add one as a fallback.</p>
         {{end}}
         <form method="post" action="/account/password">
           <div class="row g-3">
@@ -124,8 +116,6 @@
           <small class="form-hint mt-1">Only available if you have at least one passkey.</small>
         </form>
         {{end}}
-      </div>
-    </div>
   </div>
 </div>
 

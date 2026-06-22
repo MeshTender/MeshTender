@@ -21,7 +21,7 @@ type permChoice struct {
 }
 
 func groupPermissions(catalog []*store.Command, admin, member map[int64]bool) []permGroup {
-	return groupByCategory(catalog, func(c *store.Command) permChoice {
+	return groupByFeature(catalog, func(c *store.Command) permChoice {
 		return permChoice{
 			ID: c.ID, Template: c.Template, Args: c.Args, Risky: c.Risky,
 			AdminChecked: admin[c.ID], MemberChecked: member[c.ID],
