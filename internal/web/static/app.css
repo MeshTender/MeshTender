@@ -95,13 +95,12 @@ code.pubkey {
 .form-check-input.cc-member:checked { background-color: var(--tblr-blue);   border-color: var(--tblr-blue); }
 .form-check-input.cc-admin:checked  { background-color: var(--tblr-orange); border-color: var(--tblr-orange); }
 
-/* ---------- Members role filter (org page) ----------
-   The All/Members/Admins button group filters the members list purely in CSS:
-   the checked radio in the card header drives which rows show via :has(). Rows
-   carry `.d-flex` (display:flex !important), so the hide must be `!important`
-   and specific enough to win — which this selector easily is. */
-.member-card:has(#mf-admin:checked) #member-list [data-role="member"],
-.member-card:has(#mf-member:checked) #member-list [data-role="admin"] {
+/* ---------- Members list filter (org members page) ----------
+   The members page filters rows by role + search in JS (text search can't be
+   pure CSS). Rows carry `.d-flex` (display:flex !important), so the JS toggles
+   this `!important` hide class rather than an inline style, which `.d-flex`
+   would otherwise win over. */
+#member-list .member-hidden {
   display: none !important;
 }
 

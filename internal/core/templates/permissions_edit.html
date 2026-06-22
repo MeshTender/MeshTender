@@ -1,13 +1,18 @@
-{{define "title"}}Permissions · {{.Org.Name}} · MeshTender{{end}}
+{{define "title"}}Edit requested access · {{.Org.Name}} · MeshTender{{end}}
 {{define "header"}}
 <div class="row g-2 align-items-center">
   <div class="col">
     <div class="page-pretitle">{{.Org.Name}}</div>
-    <h2 class="page-title">Permissions</h2>
+    <h2 class="page-title">Edit requested access</h2>
+  </div>
+  <div class="col-auto ms-auto d-print-none">
+    <a class="btn" href="/orgs/{{.Org.Slug}}/permissions">Back to requested access</a>
   </div>
 </div>
 {{end}}
 {{define "content"}}
+{{template "org-tabs" .Nav}}
+
 <div class="card">
   <div class="card-body">
     <p class="text-secondary mb-0">
@@ -19,7 +24,7 @@
   </div>
 </div>
 
-<form method="post" action="/orgs/{{.Org.Slug}}/permissions">
+<form method="post" action="/orgs/{{.Org.Slug}}/permissions/edit">
   {{range .Groups}}
   <div class="card mt-3">
     <div class="card-header"><h3 class="card-title">{{.Name}}</h3></div>
@@ -42,7 +47,7 @@
       </div>
       <div class="btn-list">
         <button type="submit" class="btn btn-primary">Publish new version</button>
-        <a class="btn" href="/orgs/{{.Org.Slug}}">Cancel</a>
+        <a class="btn" href="/orgs/{{.Org.Slug}}/permissions">Cancel</a>
       </div>
     </div>
   </div>

@@ -7,8 +7,6 @@
   </div>
   <div class="col-auto ms-auto d-print-none">
     <div class="btn-list">
-      {{if .IsAdmin}}<a class="btn" href="/orgs/{{.Org.Slug}}/permissions">{{template "icon-settings" "me-1"}}Edit permissions</a>{{end}}
-      <a class="btn" href="/orgs/{{.Org.Slug}}/config">{{template "icon-settings" "me-1"}}Recommended configuration</a>
       <a class="btn" href="/orgs/{{.Org.Slug}}?view=public">{{template "icon-world" "me-1"}}Public page</a>
       <form method="post" action="/orgs/{{.Org.Slug}}/leave" class="m-0" onsubmit="return confirm('Leave this organization?')">
         <button type="submit" class="btn btn-ghost-danger">Leave</button>
@@ -18,6 +16,7 @@
 </div>
 {{end}}
 {{define "content"}}
+{{template "org-tabs" .Nav}}
 {{if .Error}}<div class="alert alert-danger">{{.Error}}</div>{{end}}
 
 <!-- Summary stats -->
@@ -68,85 +67,8 @@
 </div>
 
 <div class="row row-cards mt-1">
-  <!-- Left column -->
+  <!-- Left column: details -->
   <div class="col-lg-8">
-    {{if .HasMap}}
-    <div class="card">
-      <div class="card-header"><h3 class="card-title">Repeater map</h3></div>
-      <div class="card-body p-2">
-        <link rel="stylesheet" href="/static/leaflet.css">
-        <div id="map" style="height:300px" role="region" aria-label="Map of organization repeater locations"></div>
-        <script src="/static/leaflet.js"></script>
-        <script src="/static/meshmap.js"></script>
-        <script>
-          meshMap('map', [
-            {{range .Repeaters}}{{if .HasLocation}}{name: {{.Name}}, lat: {{.Lat}}, lon: {{.Lon}}},{{end}}{{end}}
-          ]);
-        </script>
-      </div>
-    </div>
-    {{end}}
-
-    <div class="card {{if .HasMap}}mt-3{{end}}">
-      <div class="card-header"><h3 class="card-title">Repeaters</h3></div>
-      {{if .Repeaters}}
-      <div class="list-group list-group-flush">
-        {{range .Repeaters}}
-        <div class="list-group-item d-flex align-items-center gap-2">
-          <span class="text-secondary">{{template "icon-antenna" ""}}</span>
-          <div class="flex-fill text-truncate">
-            <a class="fw-bold text-reset text-decoration-none" href="/repeaters/{{.RepeaterPublicID}}">{{.Name}}</a>
-            <div class="text-secondary small">owner {{.OwnerName}}</div>
-          </div>
-          <a class="btn btn-sm" href="/repeaters/{{.RepeaterPublicID}}/console">{{template "icon-terminal" "me-1"}}Console</a>
-        </div>
-        {{end}}
-      </div>
-      {{else}}
-      <div class="card-body"><p class="text-secondary mb-0">No repeaters have been contributed yet. Members can contribute their own from a repeater's “Organizations” page.</p></div>
-      {{end}}
-    </div>
-
-    <div class="card mt-3 member-card">
-      <div class="card-header">
-        <h3 class="card-title">Members</h3>
-        <div class="card-actions">
-          <div class="btn-group" role="group" aria-label="Filter members">
-            <input type="radio" class="btn-check" name="member-filter" id="mf-all" value="all" autocomplete="off" checked>
-            <label for="mf-all" class="btn btn-sm">All</label>
-            <input type="radio" class="btn-check" name="member-filter" id="mf-member" value="member" autocomplete="off">
-            <label for="mf-member" class="btn btn-sm">Members</label>
-            <input type="radio" class="btn-check" name="member-filter" id="mf-admin" value="admin" autocomplete="off">
-            <label for="mf-admin" class="btn btn-sm">Admins</label>
-          </div>
-        </div>
-      </div>
-      <div class="list-group list-group-flush" id="member-list">
-        {{range .Members}}
-        <div class="list-group-item d-flex align-items-center flex-wrap gap-2" data-role="{{.Role}}">
-          <div class="flex-fill text-truncate">
-            <span class="fw-bold">{{.Name}}</span>
-            <span class="text-secondary">@{{.Username}}</span>
-          </div>
-          {{if eq .Role "admin"}}<span class="badge bg-success-lt">admin</span>{{else}}<span class="badge bg-azure-lt">member</span>{{end}}
-          {{if and $.IsAdmin (ne .UserID $.Self)}}
-          <form method="post" action="/orgs/{{$.Org.Slug}}/members/{{.UserID}}" class="m-0 d-flex gap-2">
-            {{if eq .Role "admin"}}
-            <button type="submit" name="action" value="demote" class="btn btn-sm">Demote</button>
-            {{else}}
-            <button type="submit" name="action" value="promote" class="btn btn-sm">Make admin</button>
-            {{end}}
-            <button type="submit" name="action" value="remove" class="btn btn-sm btn-ghost-danger">Remove</button>
-          </form>
-          {{end}}
-        </div>
-        {{end}}
-      </div>
-    </div>
-  </div>
-
-  <!-- Right column -->
-  <div class="col-lg-4">
     {{if not .IsAdmin}}
     <div class="card">
       <div class="card-header"><h3 class="card-title">About</h3></div>
@@ -243,6 +165,26 @@
       </div>
     </div>
     */}}
+    {{end}}
+  </div>
+
+  <!-- Right column: map -->
+  <div class="col-lg-4">
+    {{if .HasMap}}
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">Repeaters</h3></div>
+      <div class="card-body p-2">
+        <link rel="stylesheet" href="/static/leaflet.css">
+        <div id="map" style="height:260px" role="region" aria-label="Map of organization repeater locations"></div>
+        <script src="/static/leaflet.js"></script>
+        <script src="/static/meshmap.js"></script>
+        <script>
+          meshMap('map', [
+            {{range .Repeaters}}{{if .HasLocation}}{name: {{.Name}}, lat: {{.Lat}}, lon: {{.Lon}}},{{end}}{{end}}
+          ]);
+        </script>
+      </div>
+    </div>
     {{end}}
   </div>
 </div>

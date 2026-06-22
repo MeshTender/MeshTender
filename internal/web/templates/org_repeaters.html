@@ -1,0 +1,63 @@
+{{define "title"}}Repeaters · {{.Org.Name}} · MeshTender{{end}}
+{{define "header"}}
+<div class="row g-2 align-items-center">
+  <div class="col">
+    <div class="page-pretitle">{{.Org.Name}}</div>
+    <h2 class="page-title">Repeaters</h2>
+  </div>
+</div>
+{{end}}
+{{define "content"}}
+{{template "org-tabs" .Nav}}
+
+<div class="row row-cards">
+  <!-- Left: list -->
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">Contributed repeaters</h3></div>
+      {{if .Reps.Repeaters}}
+      <div class="list-group list-group-flush">
+        {{range .Reps.Repeaters}}
+        <div class="list-group-item d-flex align-items-center gap-2">
+          <span class="text-secondary">{{template "icon-antenna" ""}}</span>
+          <div class="flex-fill text-truncate">
+            {{if $.Reps.Full}}<a class="fw-bold text-reset text-decoration-none" href="/repeaters/{{.RepeaterPublicID}}">{{.Name}}</a>
+            <div class="text-secondary small">owner {{.OwnerName}}</div>
+            {{else}}<span class="fw-bold">{{.Name}}</span>{{end}}
+          </div>
+          {{if $.Reps.Full}}<a class="btn btn-sm" href="/repeaters/{{.RepeaterPublicID}}/console">{{template "icon-terminal" "me-1"}}Console</a>{{end}}
+        </div>
+        {{end}}
+      </div>
+      {{else}}
+      <div class="card-body"><p class="text-secondary mb-0">
+        {{if .Reps.Full}}No repeaters have been contributed yet. Members can contribute their own from a repeater's “Organizations” page.
+        {{else}}No repeaters are shown publicly. Members can opt a repeater into the public map when editing it.{{end}}
+      </p></div>
+      {{end}}
+    </div>
+  </div>
+
+  <!-- Right: map -->
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">Map</h3></div>
+      {{if .Reps.HasMap}}
+      <div class="card-body p-2">
+        <link rel="stylesheet" href="/static/leaflet.css">
+        <div id="map" style="height:300px" role="region" aria-label="Map of organization repeater locations"></div>
+        <script src="/static/leaflet.js"></script>
+        <script src="/static/meshmap.js"></script>
+        <script>
+          meshMap('map', [
+            {{range .Reps.Repeaters}}{{if .HasLocation}}{name: {{.Name}}, lat: {{.Lat}}, lon: {{.Lon}}},{{end}}{{end}}
+          ]);
+        </script>
+      </div>
+      {{else}}
+      <div class="card-body"><p class="text-secondary mb-0">No repeater locations to map.</p></div>
+      {{end}}
+    </div>
+  </div>
+</div>
+{{end}}

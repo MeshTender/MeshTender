@@ -9,32 +9,15 @@ import (
 
 	"github.com/jleight/meshtender/internal/geo"
 	"github.com/jleight/meshtender/internal/store"
+	"github.com/jleight/meshtender/internal/web"
 )
 
 // maxConfigZones bounds how many zones one profile version may define, so a
 // malformed or abusive submission can't insert unbounded rows.
 const maxConfigZones = 50
 
-// requireOrgMember resolves {id} and verifies the current user belongs to the org
-// (admin or member). Returns the org id, the role, and ok.
-func (s *Handlers) requireOrgMember(w http.ResponseWriter, r *http.Request) (int64, string, bool) {
-	uid := s.Auth.CurrentUserID(r.Context())
-	id, ok := s.orgID(r)
-	if !ok {
-		http.NotFound(w, r)
-		return 0, "", false
-	}
-	role, isMember, err := s.Store.OrgRole(r.Context(), id, uid)
-	if err != nil || !isMember {
-		http.NotFound(w, r)
-		return 0, "", false
-	}
-	return id, role, true
-}
-
-// configZoneView is a zone rendered on the config page: the read-only block shows
-// its steps; the admin editor reuses the same fields (rectangle corners derived
-// from the stored geofence's bounds) to repopulate the form.
+// configZoneView is a zone in the admin config editor: the form fields (rectangle
+// corners derived from the stored geofence's bounds, one command per line).
 type configZoneView struct {
 	Name      string
 	Priority  int
@@ -43,15 +26,54 @@ type configZoneView struct {
 	MinLon    string
 	MaxLat    string
 	MaxLon    string
-	StepsText string            // editor: one command per line
+	StepsText string             // editor: one command per line
 	Steps     []store.ConfigStep // read-only: rendered list
 }
 
-// pageOrgConfig renders an org's recommended configuration. Any member sees the
-// read-only reference; admins additionally get the editor. An optional ?lat=&lon=
-// previews the resolved command list for a sample location.
+// pageOrgConfig renders an org's recommended configuration read-only. It's
+// visible to any signed-in user (org discoverability); admins get an Edit button
+// linking to pageOrgConfigEdit. An optional ?lat=&lon= previews the resolved
+// command list for a location. The root host serves the same page anonymously.
 func (s *Handlers) pageOrgConfig(w http.ResponseWriter, r *http.Request) {
-	orgID, role, ok := s.requireOrgMember(w, r)
+	uid := s.Auth.CurrentUserID(r.Context())
+	id, ok := s.orgID(r)
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	org, err := s.Store.GetOrg(r.Context(), id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	role, isMember, err := s.Store.OrgRole(r.Context(), id, uid)
+	if err != nil {
+		http.Error(w, "could not load org", http.StatusInternalServerError)
+		return
+	}
+
+	data := map[string]any{
+		"Org":     org,
+		"Nav":     web.OrgNav(org.Slug, "config", isMember),
+		"CanEdit": role == "admin",
+	}
+	var latP, lonP *float64
+	if lat, lon, ok := web.PreviewLatLon(r); ok {
+		latP, lonP = &lat, &lon
+		data["PreviewLat"], data["PreviewLon"] = lat, lon
+	}
+	cv, err := web.BuildConfigView(r.Context(), s.Store, id, latP, lonP)
+	if err != nil {
+		http.Error(w, "could not load profile", http.StatusInternalServerError)
+		return
+	}
+	data["Config"] = cv
+	s.Render(w, r, "org_config.html", data)
+}
+
+// pageOrgConfigEdit is the admin editor for the recommended configuration.
+func (s *Handlers) pageOrgConfigEdit(w http.ResponseWriter, r *http.Request) {
+	orgID, ok := s.requireOrgAdmin(w, r)
 	if !ok {
 		return
 	}
@@ -60,17 +82,15 @@ func (s *Handlers) pageOrgConfig(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-
 	data := map[string]any{
 		"Org":       org,
-		"IsAdmin":   role == "admin",
+		"Nav":       web.OrgNav(org.Slug, "config", true),
 		"EmptyZone": configZoneView{}, // prototype for the "add zone" cloner
 	}
-
 	vid, version, err := s.Store.CurrentProfileVersion(r.Context(), orgID)
 	switch {
 	case errors.Is(err, store.ErrNotFound):
-		// No profile yet — the editor starts empty; the read view shows an empty state.
+		// No profile yet — the editor starts empty.
 	case err != nil:
 		http.Error(w, "could not load profile", http.StatusInternalServerError)
 		return
@@ -82,17 +102,10 @@ func (s *Handlers) pageOrgConfig(w http.ResponseWriter, r *http.Request) {
 		}
 		data["HasProfile"] = true
 		data["Version"] = version
-		data["BaseSteps"] = base
 		data["BaseText"] = stepsToText(base)
 		data["Zones"] = zoneViews(zones)
-
-		if lat, lon, ok := previewLatLon(r); ok {
-			data["Preview"] = store.ResolveProfile(base, zones, &lat, &lon)
-			data["PreviewLat"], data["PreviewLon"] = lat, lon
-		}
 	}
-
-	s.Render(w, r, "config.html", data)
+	s.Render(w, r, "config_edit.html", data)
 }
 
 // handleSaveOrgConfig validates and publishes a new profile version (admin only).
@@ -137,9 +150,9 @@ func (s *Handlers) handleSaveOrgConfig(w http.ResponseWriter, r *http.Request) {
 			http.NotFound(w, r)
 			return
 		}
-		s.Render(w, r, "config.html", map[string]any{
+		s.Render(w, r, "config_edit.html", map[string]any{
 			"Org":       org,
-			"IsAdmin":   true,
+			"Nav":       web.OrgNav(org.Slug, "config", true),
 			"EmptyZone": configZoneView{},
 			"Errors":    errs,
 			"RiskyWarn": risky,
@@ -305,18 +318,6 @@ func zoneViews(zones []store.Zone) []configZoneView {
 }
 
 func formatCoord(f float64) string { return strconv.FormatFloat(f, 'f', -1, 64) }
-
-// previewLatLon parses the optional ?lat=&lon= preview coordinates.
-func previewLatLon(r *http.Request) (lat, lon float64, ok bool) {
-	ls, ns := r.URL.Query().Get("lat"), r.URL.Query().Get("lon")
-	if ls == "" || ns == "" {
-		return 0, 0, false
-	}
-	var err1, err2 error
-	lat, err1 = strconv.ParseFloat(ls, 64)
-	lon, err2 = strconv.ParseFloat(ns, 64)
-	return lat, lon, err1 == nil && err2 == nil
-}
 
 // repeaterProfiles is a contributed org's recommended configuration resolved for a
 // specific repeater's location, for the console reference block.

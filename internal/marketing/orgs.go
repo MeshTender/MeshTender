@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/jleight/meshtender/internal/store"
+	"github.com/jleight/meshtender/internal/web"
 )
 
 // pageOrgs is the public organization directory. It renders anonymously — the
@@ -78,6 +79,7 @@ func (s *Handlers) renderOrgPublic(w http.ResponseWriter, r *http.Request, org *
 	uid := s.Auth.CurrentUserID(r.Context())
 	s.Render(w, r, "org_public.html", map[string]any{
 		"Org":           org,
+		"Nav":           web.OrgNav(org.Slug, "home", isMember),
 		"Admins":        admins,
 		"MemberCount":   memberCount,
 		"RepeaterCount": repeaterCount,
@@ -86,6 +88,85 @@ func (s *Handlers) renderOrgPublic(w http.ResponseWriter, r *http.Request, org *
 		"IsMember":      isMember,
 		"LoggedIn":      uid != 0,
 		"CanJoin":       uid != 0 && !isMember,
+	})
+}
+
+// pageOrgConfig renders an org's recommended configuration read-only for anonymous
+// visitors (the app host serves the same shared page to signed-in users).
+func (s *Handlers) pageOrgConfig(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.orgID(r)
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	org, err := s.Store.GetOrg(r.Context(), id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	data := map[string]any{"Org": org, "Nav": web.OrgNav(org.Slug, "config", false), "CanEdit": false}
+	var latP, lonP *float64
+	if lat, lon, ok := web.PreviewLatLon(r); ok {
+		latP, lonP = &lat, &lon
+		data["PreviewLat"], data["PreviewLon"] = lat, lon
+	}
+	cv, err := web.BuildConfigView(r.Context(), s.Store, id, latP, lonP)
+	if err != nil {
+		http.Error(w, "could not load profile", http.StatusInternalServerError)
+		return
+	}
+	data["Config"] = cv
+	s.Render(w, r, "org_config.html", data)
+}
+
+// pageOrgPermissions renders an org's requested-access policy read-only for
+// anonymous visitors (so prospective members can see it before joining).
+func (s *Handlers) pageOrgPermissions(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.orgID(r)
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	org, err := s.Store.GetOrg(r.Context(), id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	pv, err := web.BuildPermissionsView(r.Context(), s.Store, id)
+	if err != nil {
+		http.Error(w, "could not load policy", http.StatusInternalServerError)
+		return
+	}
+	s.Render(w, r, "org_permissions.html", map[string]any{
+		"Org":     org,
+		"Nav":     web.OrgNav(org.Slug, "permissions", false),
+		"CanEdit": false,
+		"Perms":   pv,
+	})
+}
+
+// pageOrgRepeaters renders an org's public repeaters (those opted into the public
+// map) with a map, for anonymous visitors.
+func (s *Handlers) pageOrgRepeaters(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.orgID(r)
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	org, err := s.Store.GetOrg(r.Context(), id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	rv, err := web.BuildRepeatersView(r.Context(), s.Store, id, false)
+	if err != nil {
+		http.Error(w, "could not load repeaters", http.StatusInternalServerError)
+		return
+	}
+	s.Render(w, r, "org_repeaters.html", map[string]any{
+		"Org":  org,
+		"Nav":  web.OrgNav(org.Slug, "repeaters", false),
+		"Reps": rv,
 	})
 }
 

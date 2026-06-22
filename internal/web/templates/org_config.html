@@ -1,0 +1,73 @@
+{{define "title"}}Configuration · {{.Org.Name}} · MeshTender{{end}}
+{{define "header"}}
+<div class="row g-2 align-items-center">
+  <div class="col">
+    <div class="page-pretitle">{{.Org.Name}}</div>
+    <h2 class="page-title">Recommended configuration</h2>
+  </div>
+  {{if .CanEdit}}
+  <div class="col-auto ms-auto d-print-none">
+    <a class="btn" href="/orgs/{{.Org.Slug}}/config/edit">{{template "icon-pencil" "me-1"}}Edit</a>
+  </div>
+  {{end}}
+</div>
+{{end}}
+{{define "content"}}
+{{template "org-tabs" .Nav}}
+
+<div class="card">
+  <div class="card-body">
+    <p class="text-secondary mb-0">
+      The commands an operator should run to bring a repeater in spec for this organization.
+      Copy them into a repeater's console, or apply them directly from the console with a modem connected.
+      Region commands can vary by location — <strong>zones</strong> apply only to repeaters inside their geofence.
+    </p>
+  </div>
+</div>
+
+{{if .Config.HasProfile}}
+<div class="card mt-3">
+  <div class="card-header"><h3 class="card-title">Base steps</h3>
+    <span class="card-subtitle ms-auto">v{{.Config.Version}}</span>
+  </div>
+  <div class="card-body">{{template "step-list" .Config.BaseSteps}}</div>
+</div>
+{{range .Config.Zones}}
+<div class="card mt-3">
+  <div class="card-header">
+    <h3 class="card-title">{{.Name}}</h3>
+    <span class="card-subtitle ms-auto">{{if .MatchAll}}everywhere{{else}}lat {{.MinLat}}…{{.MaxLat}}, lon {{.MinLon}}…{{.MaxLon}}{{end}} · priority {{.Priority}}</span>
+  </div>
+  <div class="card-body">{{template "step-list" .Steps}}</div>
+</div>
+{{end}}
+
+{{/* ---------- Location preview ---------- */}}
+<div class="card mt-3">
+  <div class="card-header"><h3 class="card-title">Preview for a location</h3></div>
+  <div class="card-body">
+    <form method="get" action="/orgs/{{.Org.Slug}}/config" class="row g-2 align-items-end">
+      <div class="col-auto"><label class="form-label" for="lat">Latitude</label>
+        <input class="form-control" type="text" id="lat" name="lat" value="{{if .PreviewLat}}{{.PreviewLat}}{{end}}"></div>
+      <div class="col-auto"><label class="form-label" for="lon">Longitude</label>
+        <input class="form-control" type="text" id="lon" name="lon" value="{{if .PreviewLon}}{{.PreviewLon}}{{end}}"></div>
+      <div class="col-auto"><button class="btn" type="submit">Resolve</button></div>
+    </form>
+    {{if .Config.Preview}}
+    <div class="mt-3">
+      <div class="text-secondary mb-1">Commands a repeater at {{.PreviewLat}}, {{.PreviewLon}} should run:</div>
+      {{template "step-list" .Config.Preview}}
+    </div>
+    {{end}}
+  </div>
+</div>
+{{else}}
+<div class="card mt-3"><div class="card-body text-secondary">This organization hasn't published a recommended configuration yet.</div></div>
+{{end}}
+{{end}}
+
+{{/* step-list renders a sequence of ConfigStep as a copy-pasteable block. */}}
+{{define "step-list"}}
+{{if .}}<pre class="mb-0"><code>{{range .}}{{if .IsComment}}# {{.Comment}}{{else}}{{.CommandLine}}{{end}}
+{{end}}</code></pre>{{else}}<div class="text-secondary">No steps.</div>{{end}}
+{{end}}

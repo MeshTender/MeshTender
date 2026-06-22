@@ -118,6 +118,7 @@ func (s *Handlers) pageOrg(w http.ResponseWriter, r *http.Request) {
 	isAdmin := role == "admin"
 	data := map[string]any{
 		"Org":           org,
+		"Nav":           web.OrgNav(org.Slug, "home", true),
 		"Role":          role,
 		"IsAdmin":       isAdmin,
 		"Members":       members,
@@ -157,6 +158,7 @@ func (s *Handlers) renderOrgPublic(w http.ResponseWriter, r *http.Request, org *
 	uid := s.Auth.CurrentUserID(r.Context())
 	s.Render(w, r, "org_public.html", map[string]any{
 		"Org":           org,
+		"Nav":           web.OrgNav(org.Slug, "home", isMember),
 		"Admins":        admins,
 		"MemberCount":   memberCount,
 		"RepeaterCount": repeaterCount,
@@ -165,6 +167,77 @@ func (s *Handlers) renderOrgPublic(w http.ResponseWriter, r *http.Request, org *
 		"IsMember":      isMember,
 		"LoggedIn":      uid != 0,
 		"CanJoin":       uid != 0 && !isMember,
+	})
+}
+
+// pageOrgMembers lists an org's members (with role management for admins). It's
+// members-only: the list carries personal info (names/usernames), so non-members
+// get a 404 — there is no public version of this page.
+func (s *Handlers) pageOrgMembers(w http.ResponseWriter, r *http.Request) {
+	uid := s.Auth.CurrentUserID(r.Context())
+	id, ok := s.orgID(r)
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	org, err := s.Store.GetOrg(r.Context(), id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	role, isMember, err := s.Store.OrgRole(r.Context(), id, uid)
+	if err != nil {
+		http.Error(w, "could not load org", http.StatusInternalServerError)
+		return
+	}
+	if !isMember {
+		http.NotFound(w, r)
+		return
+	}
+	members, err := s.Store.ListOrgMembers(r.Context(), id)
+	if err != nil {
+		http.Error(w, "could not load members", http.StatusInternalServerError)
+		return
+	}
+	s.Render(w, r, "org_members.html", map[string]any{
+		"Org":     org,
+		"Nav":     web.OrgNav(org.Slug, "members", true),
+		"IsAdmin": role == "admin",
+		"Members": members,
+		"Self":    uid,
+		"Error":   r.URL.Query().Get("error"),
+	})
+}
+
+// pageOrgRepeaters lists an org's repeaters with a map. Members see every
+// contributed repeater (with links); any other viewer sees only those opted into
+// the public map. The root host serves the same page anonymously.
+func (s *Handlers) pageOrgRepeaters(w http.ResponseWriter, r *http.Request) {
+	uid := s.Auth.CurrentUserID(r.Context())
+	id, ok := s.orgID(r)
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	org, err := s.Store.GetOrg(r.Context(), id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	_, isMember, err := s.Store.OrgRole(r.Context(), id, uid)
+	if err != nil {
+		http.Error(w, "could not load org", http.StatusInternalServerError)
+		return
+	}
+	rv, err := web.BuildRepeatersView(r.Context(), s.Store, id, isMember)
+	if err != nil {
+		http.Error(w, "could not load repeaters", http.StatusInternalServerError)
+		return
+	}
+	s.Render(w, r, "org_repeaters.html", map[string]any{
+		"Org":  org,
+		"Nav":  web.OrgNav(org.Slug, "repeaters", isMember),
+		"Reps": rv,
 	})
 }
 
@@ -260,6 +333,8 @@ func (s *Handlers) handleSetOrgMember(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	membersURL := "/orgs/" + orgParam(r) + "/members"
+	memberErr := func(msg string) { web.RedirectErr(w, r, membersURL, msg) }
 	targetID, err := strconv.ParseInt(chi.URLParam(r, "userID"), 10, 64)
 	if err != nil {
 		http.NotFound(w, r)
@@ -273,16 +348,16 @@ func (s *Handlers) handleSetOrgMember(w http.ResponseWriter, r *http.Request) {
 	case "remove":
 		err = s.Store.RemoveOrgMember(r.Context(), id, targetID)
 	default:
-		orgErr(w, r, "Unknown action.")
+		memberErr("Unknown action.")
 		return
 	}
 	if errors.Is(err, store.ErrLastAdmin) {
-		orgErr(w, r, "That would leave the org with no admin.")
+		memberErr("That would leave the org with no admin.")
 		return
 	}
 	if err != nil {
-		orgErr(w, r, "Could not update member.")
+		memberErr("Could not update member.")
 		return
 	}
-	http.Redirect(w, r, "/orgs/"+orgParam(r), http.StatusSeeOther)
+	http.Redirect(w, r, membersURL, http.StatusSeeOther)
 }

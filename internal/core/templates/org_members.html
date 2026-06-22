@@ -1,0 +1,97 @@
+{{define "title"}}Members · {{.Org.Name}} · MeshTender{{end}}
+{{define "header"}}
+<div class="row g-2 align-items-center">
+  <div class="col">
+    <div class="page-pretitle">{{.Org.Name}}</div>
+    <h2 class="page-title">Members</h2>
+  </div>
+</div>
+{{end}}
+{{define "content"}}
+{{template "org-tabs" .Nav}}
+{{if .Error}}<div class="alert alert-danger">{{.Error}}</div>{{end}}
+
+<div class="row row-cards">
+  <!-- Left: member list -->
+  <div class="col-lg-8 col-xl-9">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">{{len .Members}} member{{if ne (len .Members) 1}}s{{end}}</h3></div>
+      <div class="list-group list-group-flush" id="member-list">
+        {{range .Members}}
+        <div class="list-group-item d-flex align-items-center flex-wrap gap-2" data-role="{{.Role}}" data-name="{{.Name}} @{{.Username}}">
+          <div class="flex-fill text-truncate">
+            <span class="fw-bold">{{.Name}}</span>
+            <span class="text-secondary">@{{.Username}}</span>
+          </div>
+          {{if eq .Role "admin"}}<span class="badge bg-success-lt">admin</span>{{else}}<span class="badge bg-azure-lt">member</span>{{end}}
+          {{if and $.IsAdmin (ne .UserID $.Self)}}
+          <form method="post" action="/orgs/{{$.Org.Slug}}/members/{{.UserID}}" class="m-0 d-flex gap-2">
+            {{if eq .Role "admin"}}
+            <button type="submit" name="action" value="demote" class="btn btn-sm">Demote</button>
+            {{else}}
+            <button type="submit" name="action" value="promote" class="btn btn-sm">Make admin</button>
+            {{end}}
+            <button type="submit" name="action" value="remove" class="btn btn-sm btn-ghost-danger">Remove</button>
+          </form>
+          {{end}}
+        </div>
+        {{end}}
+        <div class="list-group-item text-secondary member-hidden" id="member-empty">No members match.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: search + filter sidebar -->
+  <div class="col-lg-4 col-xl-3">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">Find members</h3></div>
+      <div class="card-body">
+        <div class="mb-3">
+          <label class="form-label" for="member-search">Search</label>
+          <input type="search" class="form-control" id="member-search" placeholder="Name or @username" autocomplete="off" aria-label="Search members">
+        </div>
+        <div class="form-label">Role</div>
+        <div class="btn-group-vertical w-100" role="group" aria-label="Filter members">
+          <input type="radio" class="btn-check" name="member-filter" id="mf-all" value="all" autocomplete="off" checked>
+          <label for="mf-all" class="btn">All</label>
+          <input type="radio" class="btn-check" name="member-filter" id="mf-member" value="member" autocomplete="off">
+          <label for="mf-member" class="btn">Members</label>
+          <input type="radio" class="btn-check" name="member-filter" id="mf-admin" value="admin" autocomplete="off">
+          <label for="mf-admin" class="btn">Admins</label>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const list = document.getElementById('member-list');
+  const rows = Array.from(list.querySelectorAll('[data-role]'));
+  const empty = document.getElementById('member-empty');
+  const search = document.getElementById('member-search');
+  function role() {
+    const r = document.querySelector('input[name="member-filter"]:checked');
+    return r ? r.value : 'all';
+  }
+  function apply() {
+    const q = search.value.trim().toLowerCase();
+    const want = role();
+    let shown = 0;
+    rows.forEach(function (el) {
+      const okRole = want === 'all' || el.dataset.role === want;
+      const okText = q === '' || el.dataset.name.toLowerCase().indexOf(q) !== -1;
+      const show = okRole && okText;
+      el.classList.toggle('member-hidden', !show);
+      if (show) shown++;
+    });
+    empty.classList.toggle('member-hidden', shown !== 0);
+  }
+  search.addEventListener('input', apply);
+  document.querySelectorAll('input[name="member-filter"]').forEach(function (el) {
+    el.addEventListener('change', apply);
+  });
+  apply();
+})();
+</script>
+{{end}}

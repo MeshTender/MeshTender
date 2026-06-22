@@ -1,0 +1,45 @@
+{{define "title"}}Requested access · {{.Org.Name}} · MeshTender{{end}}
+{{define "header"}}
+<div class="row g-2 align-items-center">
+  <div class="col">
+    <div class="page-pretitle">{{.Org.Name}}</div>
+    <h2 class="page-title">Requested access</h2>
+  </div>
+  {{if .CanEdit}}
+  <div class="col-auto ms-auto d-print-none">
+    <a class="btn" href="/orgs/{{.Org.Slug}}/permissions/edit">{{template "icon-pencil" "me-1"}}Edit</a>
+  </div>
+  {{end}}
+</div>
+{{end}}
+{{define "content"}}
+{{template "org-tabs" .Nav}}
+
+<div class="card">
+  <div class="card-body">
+    <p class="text-secondary mb-0">
+      The commands this organization may run on a repeater you contribute, by tier
+      (current policy <strong>v{{.Perms.Version}}</strong>). Members consent to this when they
+      contribute a repeater; you stay on the version you consented to until you re-consent to changes.
+      Admins also get everything members get.{{if .Perms.HasRisky}} Risky commands can take over or brick a node.{{end}}
+    </p>
+  </div>
+</div>
+
+{{range .Perms.Groups}}
+<div class="card mt-3">
+  <div class="card-header"><h3 class="card-title">{{.Name}}</h3></div>
+  <div class="card-body">
+    {{range .Commands}}
+    <div class="d-flex align-items-center flex-wrap gap-2 py-1">
+      <code class="flex-fill">{{.Template}}</code>
+      {{if .Risky}}<span class="badge bg-warning-lt">risky</span>{{end}}
+      {{if .Member}}<span class="badge bg-azure-lt">member</span>{{else if .Admin}}<span class="badge bg-success-lt">admin only</span>{{end}}
+    </div>
+    {{end}}
+  </div>
+</div>
+{{else}}
+<div class="card mt-3"><div class="card-body text-secondary">This organization hasn't requested any access yet.</div></div>
+{{end}}
+{{end}}

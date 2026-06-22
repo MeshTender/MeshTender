@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/jleight/meshtender/internal/store"
+	"github.com/jleight/meshtender/internal/web"
 )
 
 // permGroup is a category of catalog commands for the org permission editor,
@@ -37,7 +38,41 @@ func idSet(ids []int64) map[int64]bool {
 	return m
 }
 
+// pageOrgPermissions renders the org's requested-access policy read-only. Visible
+// to any signed-in user (so prospective members can see what they'd consent to);
+// admins get an Edit button. The root host serves the same page anonymously.
 func (s *Handlers) pageOrgPermissions(w http.ResponseWriter, r *http.Request) {
+	uid := s.Auth.CurrentUserID(r.Context())
+	id, ok := s.orgID(r)
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	org, err := s.Store.GetOrg(r.Context(), id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	role, isMember, err := s.Store.OrgRole(r.Context(), id, uid)
+	if err != nil {
+		http.Error(w, "could not load org", http.StatusInternalServerError)
+		return
+	}
+	pv, err := web.BuildPermissionsView(r.Context(), s.Store, id)
+	if err != nil {
+		http.Error(w, "could not load policy", http.StatusInternalServerError)
+		return
+	}
+	s.Render(w, r, "org_permissions.html", map[string]any{
+		"Org":     org,
+		"Nav":     web.OrgNav(org.Slug, "permissions", isMember),
+		"CanEdit": role == "admin",
+		"Perms":   pv,
+	})
+}
+
+// pageOrgPermissionsEdit is the admin editor for the org's requested-access policy.
+func (s *Handlers) pageOrgPermissionsEdit(w http.ResponseWriter, r *http.Request) {
 	id, ok := s.requireOrgAdmin(w, r)
 	if !ok {
 		return
@@ -62,8 +97,9 @@ func (s *Handlers) pageOrgPermissions(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not load commands", http.StatusInternalServerError)
 		return
 	}
-	s.Render(w, r, "org_permissions.html", map[string]any{
+	s.Render(w, r, "permissions_edit.html", map[string]any{
 		"Org":     org,
+		"Nav":     web.OrgNav(org.Slug, "permissions", true),
 		"Version": version,
 		"Groups":  groupPermissions(catalog, idSet(adminIDs), idSet(memberIDs)),
 	})
@@ -93,5 +129,5 @@ func (s *Handlers) handleSaveOrgPermissions(w http.ResponseWriter, r *http.Reque
 		http.Error(w, "could not publish", http.StatusInternalServerError)
 		return
 	}
-	http.Redirect(w, r, "/orgs/"+orgParam(r), http.StatusSeeOther)
+	http.Redirect(w, r, "/orgs/"+orgParam(r)+"/permissions", http.StatusSeeOther)
 }

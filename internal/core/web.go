@@ -119,6 +119,8 @@ func (s *Handlers) appRouter() chi.Router {
 		r.Use(s.Auth.RequireUser)
 		r.Get("/orgs", s.pageMyOrgs)   // your organizations; discovery is on root
 		r.Get("/orgs/{id}", s.pageOrg) // member view (non-members redirect to root)
+		r.Get("/orgs/{id}/members", s.pageOrgMembers)
+		r.Get("/orgs/{id}/repeaters", s.pageOrgRepeaters)
 		r.Get("/repeaters", s.pageRepeaters)
 		r.Post("/logout", s.handleLogout)
 		r.Get("/repeaters/add", s.pageAddRepeater)
@@ -153,9 +155,11 @@ func (s *Handlers) appRouter() chi.Router {
 		r.Post("/orgs/{id}/leave", s.handleLeaveOrg)
 		r.Post("/orgs/{id}/members/{userID}", s.handleSetOrgMember)
 		r.Get("/orgs/{id}/permissions", s.pageOrgPermissions)
-		r.Post("/orgs/{id}/permissions", s.handleSaveOrgPermissions)
+		r.Get("/orgs/{id}/permissions/edit", s.pageOrgPermissionsEdit)
+		r.Post("/orgs/{id}/permissions/edit", s.handleSaveOrgPermissions)
 		r.Get("/orgs/{id}/config", s.pageOrgConfig)
-		r.Post("/orgs/{id}/config", s.handleSaveOrgConfig)
+		r.Get("/orgs/{id}/config/edit", s.pageOrgConfigEdit)
+		r.Post("/orgs/{id}/config/edit", s.handleSaveOrgConfig)
 		// Custom org domains are hidden for now — the hosting/TLS infrastructure
 		// isn't in place yet. Leave the handlers in tree but don't expose them.
 		// r.Post("/orgs/{id}/domains", s.handleAddOrgDomain)

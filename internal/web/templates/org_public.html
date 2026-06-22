@@ -19,6 +19,7 @@
 </div>
 {{end}}
 {{define "content"}}
+{{template "org-tabs" .Nav}}
 <!-- Summary stats -->
 <div class="row row-cards">
   <div class="col-sm-6 col-lg-3">
@@ -67,30 +68,8 @@
 </div>
 
 <div class="row row-cards mt-1">
-  <!-- Left column -->
+  <!-- Left column: details -->
   <div class="col-lg-8">
-    <div class="card">
-      <div class="card-header"><h3 class="card-title">Repeater map</h3></div>
-      {{if .HasMap}}
-      <div class="card-body p-2">
-        <link rel="stylesheet" href="/static/leaflet.css">
-        <div id="map" style="height:340px" role="region" aria-label="Map of organization repeater locations"></div>
-        <script src="/static/leaflet.js"></script>
-        <script src="/static/meshmap.js"></script>
-        <script>
-          meshMap('map', [
-            {{range .Repeaters}}{{if .HasLocation}}{name: {{.Name}}, lat: {{.Lat}}, lon: {{.Lon}}},{{end}}{{end}}
-          ]);
-        </script>
-      </div>
-      {{else}}
-      <div class="card-body"><p class="text-secondary mb-0">No repeaters are shown publicly. Members can opt a repeater into the public map when editing it.</p></div>
-      {{end}}
-    </div>
-  </div>
-
-  <!-- Right column -->
-  <div class="col-lg-4">
     <div class="card">
       <div class="card-header"><h3 class="card-title">About</h3></div>
       <div class="card-body">
@@ -108,6 +87,28 @@
         </div>
         {{else}}<p class="text-secondary mb-0">No admins listed.</p>{{end}}
       </div>
+    </div>
+  </div>
+
+  <!-- Right column: map -->
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">Repeaters</h3></div>
+      {{if .HasMap}}
+      <div class="card-body p-2">
+        <link rel="stylesheet" href="/static/leaflet.css">
+        <div id="map" style="height:260px" role="region" aria-label="Map of organization repeater locations"></div>
+        <script src="/static/leaflet.js"></script>
+        <script src="/static/meshmap.js"></script>
+        <script>
+          meshMap('map', [
+            {{range .Repeaters}}{{if .HasLocation}}{name: {{.Name}}, lat: {{.Lat}}, lon: {{.Lon}}},{{end}}{{end}}
+          ]);
+        </script>
+      </div>
+      {{else}}
+      <div class="card-body"><p class="text-secondary mb-0">No repeaters are shown publicly.</p></div>
+      {{end}}
     </div>
   </div>
 </div>
