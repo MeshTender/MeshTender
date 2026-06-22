@@ -6,6 +6,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/jleight/meshtender/internal/store"
+	"github.com/jleight/meshtender/internal/web"
 )
 
 // orgContext resolves the {id} repeater (owned) and {orgID} the user belongs to.
@@ -61,9 +62,9 @@ func (s *Handlers) pageContribute(w http.ResponseWriter, r *http.Request) {
 		"Repeater":       rep,
 		"Org":            org,
 		"Version":        version,
-		"MemberFeatures": featureTableFor(catalog, members),
+		"MemberFeatures": web.FeatureTableFor(catalog, members),
 		// Admins inherit every member command, so their table is member ∪ admin.
-		"AdminFeatures": featureTableFor(catalog, union(idSet(adminIDs), members)),
+		"AdminFeatures": web.FeatureTableFor(catalog, union(idSet(adminIDs), members)),
 	}
 
 	// If already contributed and behind the current version, show what changed
@@ -131,8 +132,8 @@ func (s *Handlers) pageConsented(w http.ResponseWriter, r *http.Request) {
 		"Repeater":       rep,
 		"Org":            org,
 		"Version":        version,
-		"MemberFeatures": featureTableFor(catalog, members),
-		"AdminFeatures":  featureTableFor(catalog, union(idSet(adminIDs), members)),
+		"MemberFeatures": web.FeatureTableFor(catalog, members),
+		"AdminFeatures":  web.FeatureTableFor(catalog, union(idSet(adminIDs), members)),
 	}
 	// Note (with a re-consent link) when the org has moved past this version.
 	if _, current, err := s.Store.CurrentVersion(r.Context(), orgID); err == nil && current > version {

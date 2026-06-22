@@ -127,32 +127,70 @@ func PreviewLatLon(r *http.Request) (lat, lon float64, ok bool) {
 	return lat, lon, err1 == nil && err2 == nil
 }
 
-// PermCmd is one command in the read-only permissions view, flagged with the
-// tiers (member/admin) the org's current policy allows it for.
-type PermCmd struct {
-	Template string
-	Risky    bool
-	Member   bool
-	Admin    bool
+// CmdCell is one command in a feature-table cell (the "feature-table" partial in
+// base.html renders .Template/.Description/.Risky).
+type CmdCell struct {
+	Template    string
+	Description string // shown as a hover tooltip
+	Risky       bool
 }
 
-// PermGroup is a feature area's commands for the permissions view.
-type PermGroup struct {
-	Name     string
-	Commands []PermCmd
+// FeatureRow is one feature's allowed commands bucketed by operation, for the
+// read-only feature×operation tables (consent, requested-access, contribute).
+type FeatureRow struct {
+	Feature                     string
+	Read, Write, Delete, Action []CmdCell
 }
 
-// PermissionsView is an org's current requested-access policy for display.
+// FeatureTableFor groups the commands in `allowed` (the id-set a single tier may
+// run) by feature × operation, ordered by featureOrder — one table per tier. This
+// is the canonical home for the consent/permission feature table so both the app
+// host and the root host (which can't import core) can build it.
+func FeatureTableFor(catalog []*store.Command, allowed map[int64]bool) []FeatureRow {
+	byFeature := map[string]*FeatureRow{}
+	var present []string
+	for _, c := range catalog {
+		if !allowed[c.ID] {
+			continue
+		}
+		row := byFeature[c.Feature]
+		if row == nil {
+			row = &FeatureRow{Feature: c.Feature}
+			byFeature[c.Feature] = row
+			present = append(present, c.Feature)
+		}
+		cell := CmdCell{Template: c.Template, Description: c.Description, Risky: c.Risky}
+		switch c.Operation {
+		case "read":
+			row.Read = append(row.Read, cell)
+		case "delete":
+			row.Delete = append(row.Delete, cell)
+		case "action":
+			row.Action = append(row.Action, cell)
+		default: // "write"
+			row.Write = append(row.Write, cell)
+		}
+	}
+	orderFeatures(present)
+	out := make([]FeatureRow, 0, len(present))
+	for _, f := range present {
+		out = append(out, *byFeature[f])
+	}
+	return out
+}
+
+// PermissionsView is an org's current requested-access policy for display: one
+// feature×operation table per tier. Admins inherit every member command, so the
+// admin table is member ∪ admin.
 type PermissionsView struct {
-	Version  int
-	Groups   []PermGroup
-	HasRisky bool // any granted command is risky (drives the warning copy)
+	Version        int
+	MemberFeatures []FeatureRow
+	AdminFeatures  []FeatureRow
+	HasRisky       bool // any granted command is risky (drives the warning copy)
 }
 
-// BuildPermissionsView loads the org's current permission version and buckets the
-// command catalog by feature, flagging each command's member/admin allowance.
-// Only commands granted to at least one tier are shown. Admins effectively also
-// get everything members get, so a member-granted command is marked admin too.
+// BuildPermissionsView loads the org's current permission version and builds the
+// member and admin feature tables.
 func BuildPermissionsView(ctx context.Context, st *store.Store, orgID int64) (PermissionsView, error) {
 	versionID, version, err := st.CurrentVersion(ctx, orgID)
 	if err != nil {
@@ -166,34 +204,21 @@ func BuildPermissionsView(ctx context.Context, st *store.Store, orgID int64) (Pe
 	if err != nil {
 		return PermissionsView{}, err
 	}
-	admin := idSet(adminIDs)
 	member := idSet(memberIDs)
-
-	byFeature := map[string][]PermCmd{}
-	var present []string
-	for _, c := range catalog {
-		isMember := member[c.ID]
-		isAdmin := admin[c.ID] || isMember
-		if !isMember && !isAdmin {
-			continue
-		}
-		if _, ok := byFeature[c.Feature]; !ok {
-			present = append(present, c.Feature)
-		}
-		byFeature[c.Feature] = append(byFeature[c.Feature], PermCmd{
-			Template: c.Template, Risky: c.Risky, Member: isMember, Admin: isAdmin,
-		})
+	adminUnion := idSet(adminIDs)
+	for id := range member {
+		adminUnion[id] = true
 	}
-	orderFeatures(present)
-	pv := PermissionsView{Version: version}
+	pv := PermissionsView{
+		Version:        version,
+		MemberFeatures: FeatureTableFor(catalog, member),
+		AdminFeatures:  FeatureTableFor(catalog, adminUnion),
+	}
 	for _, c := range catalog {
-		if c.Risky && (member[c.ID] || admin[c.ID]) {
+		if c.Risky && adminUnion[c.ID] {
 			pv.HasRisky = true
 			break
 		}
-	}
-	for _, f := range present {
-		pv.Groups = append(pv.Groups, PermGroup{Name: f, Commands: byFeature[f]})
 	}
 	return pv, nil
 }
