@@ -75,6 +75,16 @@ code.pubkey {
 .badge.bg-purple-lt { color: #d98fe6 !important; }
 .badge.bg-secondary-lt { color: var(--tblr-secondary-text-emphasis) !important; }
 
+/* ---------- Members role filter (org page) ----------
+   The All/Members/Admins button group filters the members list purely in CSS:
+   the checked radio in the card header drives which rows show via :has(). Rows
+   carry `.d-flex` (display:flex !important), so the hide must be `!important`
+   and specific enough to win — which this selector easily is. */
+.member-card:has(#mf-admin:checked) #member-list [data-role="member"],
+.member-card:has(#mf-member:checked) #member-list [data-role="admin"] {
+  display: none !important;
+}
+
 /* ---------- Step indicator (.steps) ----------
    Tabler ships two unrelated components under the same `.steps` class: the
    horizontal step indicator (ul.steps > li.step-item) we use on the add/added
