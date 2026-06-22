@@ -55,11 +55,31 @@ func groupByCategory[T any](catalog []*store.Command, mk func(*store.Command) T)
 	return groups
 }
 
+// groupByFeature buckets the catalog by feature area (store.Command.Feature) —
+// the same grouping the consent page uses — ordered by featureOrder, mapping
+// each command via mk.
+func groupByFeature[T any](catalog []*store.Command, mk func(*store.Command) T) []categoryGroup[T] {
+	byFeature := map[string][]T{}
+	var present []string
+	for _, c := range catalog {
+		if _, ok := byFeature[c.Feature]; !ok {
+			present = append(present, c.Feature)
+		}
+		byFeature[c.Feature] = append(byFeature[c.Feature], mk(c))
+	}
+	orderFeatures(present)
+	groups := make([]categoryGroup[T], 0, len(present))
+	for _, f := range present {
+		groups = append(groups, categoryGroup[T]{Name: f, Commands: byFeature[f]})
+	}
+	return groups
+}
+
 // catalogGroup buckets raw catalog commands for the admin catalog page.
 type catalogGroup = categoryGroup[*store.Command]
 
 func groupCatalog(catalog []*store.Command) []catalogGroup {
-	return groupByCategory(catalog, func(c *store.Command) *store.Command { return c })
+	return groupByFeature(catalog, func(c *store.Command) *store.Command { return c })
 }
 
 func (s *Handlers) pageAdmin(w http.ResponseWriter, r *http.Request) {

@@ -142,14 +142,36 @@ func TestValidCommandText(t *testing.T) {
 	}
 }
 
+// TestCommandFeatureCoverage ensures every catalog command carries a feature and
+// a valid operation, and that its feature is listed in featureOrder so it renders
+// in a known position (a feature missing from featureOrder still shows, but at
+// the end — this catches the Go list drifting from the DB). Requires the *_test
+// database. The DB also enforces feature<>'' and operation IN (...) via CHECK.
+func TestCommandFeatureCoverage(t *testing.T) {
+	cat := loadRealCatalog(t)
+	validOp := map[string]bool{"read": true, "write": true, "delete": true, "action": true}
+	for _, c := range cat {
+		if c.Feature == "" {
+			t.Errorf("command %q has no feature", c.Key)
+		} else if featureRank(c.Feature) == len(featureOrder) {
+			t.Errorf("command %q feature %q is not in featureOrder", c.Key, c.Feature)
+		}
+		if !validOp[c.Operation] {
+			t.Errorf("command %q has invalid operation %q", c.Key, c.Operation)
+		}
+	}
+}
+
 // TestResolveCommandRealCatalog enforces, against the actual seeded catalog, the
 // two invariants the console parser's safety depends on:
 //  1. No two commands share a (token, arity) — resolution is never ambiguous.
 //  2. Every fixed-arity command's arity equals its template's "<arg>" count, and
 //     each command's own template round-trips back to itself through the parser.
 //
-// Requires the *_test database (it runs migrations).
-func TestResolveCommandRealCatalog(t *testing.T) {
+// loadRealCatalog migrates the *_test database and returns the seeded catalog,
+// skipping the test when the DB isn't configured.
+func loadRealCatalog(t *testing.T) []*store.Command {
+	t.Helper()
 	dsn := os.Getenv("MESHTENDER_TEST_DATABASE_URL")
 	if dsn == "" {
 		t.Skip("set MESHTENDER_TEST_DATABASE_URL to run this integration test")
@@ -162,7 +184,7 @@ func TestResolveCommandRealCatalog(t *testing.T) {
 	if err != nil {
 		t.Fatalf("store: %v", err)
 	}
-	defer st.Close()
+	t.Cleanup(st.Close)
 	if err := st.Migrate(ctx); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
@@ -173,7 +195,12 @@ func TestResolveCommandRealCatalog(t *testing.T) {
 	if len(cat) == 0 {
 		t.Fatal("empty catalog")
 	}
+	return cat
+}
 
+// Requires the *_test database (it runs migrations).
+func TestResolveCommandRealCatalog(t *testing.T) {
+	cat := loadRealCatalog(t)
 	argGroup := regexp.MustCompile(`<[^>]*>`)
 	seen := map[string]string{} // (token|arity) -> key
 	for _, c := range cat {

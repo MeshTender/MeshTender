@@ -1,0 +1,136 @@
+-- +goose Up
+-- Move the command "feature" (grouping area) and "operation" (read/write/delete/
+-- action) out of hard-coded Go tables and onto the catalog row, so adding a
+-- command requires classifying it (NOT NULL, no default) and it can't be
+-- forgotten. Values backfilled from the prior hard-coded classification.
+ALTER TABLE command_catalog ADD COLUMN feature   TEXT NOT NULL DEFAULT '';
+ALTER TABLE command_catalog ADD COLUMN operation TEXT NOT NULL DEFAULT '';
+
+UPDATE command_catalog c SET feature = v.feature, operation = v.op
+FROM (VALUES
+  ('advert', 'Advertising', 'action'),
+  ('advert.zerohop', 'Advertising', 'action'),
+  ('board', 'Diagnostics', 'read'),
+  ('clear-stats', 'Diagnostics', 'delete'),
+  ('clkreboot', 'Clock', 'action'),
+  ('clock', 'Clock', 'read'),
+  ('clock.sync', 'Clock', 'write'),
+  ('discover.neighbors', 'Neighbors', 'action'),
+  ('get.adc_multiplier', 'Power', 'read'),
+  ('get.advert_interval', 'Advertising', 'read'),
+  ('get.agc_reset_interval', 'Routing', 'read'),
+  ('get.airtime_factor', 'Routing', 'read'),
+  ('get.allow_read_only', 'Access', 'read'),
+  ('get.cad', 'Routing', 'read'),
+  ('get.direct_txdelay', 'Routing', 'read'),
+  ('get.dutycycle', 'Routing', 'read'),
+  ('get.flood_advert_interval', 'Advertising', 'read'),
+  ('get.flood_max', 'Routing', 'read'),
+  ('get.flood_max_advert', 'Routing', 'read'),
+  ('get.flood_max_unscoped', 'Routing', 'read'),
+  ('get.freq', 'Radio', 'read'),
+  ('get.guest_password', 'Access', 'read'),
+  ('get.int_thresh', 'Routing', 'read'),
+  ('get.lat', 'Location', 'read'),
+  ('get.lon', 'Location', 'read'),
+  ('get.loop_detect', 'Routing', 'read'),
+  ('get.multi_acks', 'Routing', 'read'),
+  ('get.name', 'Identity', 'read'),
+  ('get.owner_info', 'Identity', 'read'),
+  ('get.path_hash_mode', 'Routing', 'read'),
+  ('get.public_key', 'Identity', 'read'),
+  ('get.radio', 'Radio', 'read'),
+  ('get.radio_fem_rxgain', 'Radio', 'read'),
+  ('get.radio_rxgain', 'Radio', 'read'),
+  ('get.repeat', 'Routing', 'read'),
+  ('get.role', 'Identity', 'read'),
+  ('get.rxdelay', 'Routing', 'read'),
+  ('get.tx', 'Radio', 'read'),
+  ('get.txdelay', 'Routing', 'read'),
+  ('gps.advert', 'GPS', 'write'),
+  ('gps.advert.set', 'GPS', 'write'),
+  ('gps.off', 'GPS', 'write'),
+  ('gps.on', 'GPS', 'write'),
+  ('gps.setloc', 'GPS', 'write'),
+  ('gps.sync', 'GPS', 'action'),
+  ('guest.password', 'Access', 'write'),
+  ('log.erase', 'Diagnostics', 'delete'),
+  ('log.start', 'Diagnostics', 'action'),
+  ('log.stop', 'Diagnostics', 'action'),
+  ('neighbor.remove', 'Neighbors', 'delete'),
+  ('neighbors', 'Neighbors', 'read'),
+  ('password', 'Access', 'write'),
+  ('poweroff', 'Power', 'action'),
+  ('powersaving.off', 'Power', 'write'),
+  ('powersaving.on', 'Power', 'write'),
+  ('powersaving.status', 'Power', 'read'),
+  ('reboot', 'Power', 'action'),
+  ('region', 'Region', 'read'),
+  ('region.allowf', 'Region', 'write'),
+  ('region.def', 'Region', 'write'),
+  ('region.default_get', 'Region', 'read'),
+  ('region.default_set', 'Region', 'write'),
+  ('region.denyf', 'Region', 'write'),
+  ('region.get', 'Region', 'read'),
+  ('region.home_get', 'Region', 'read'),
+  ('region.home_set', 'Region', 'write'),
+  ('region.list', 'Region', 'read'),
+  ('region.load', 'Region', 'write'),
+  ('region.put_root', 'Region', 'write'),
+  ('region.put_sub', 'Region', 'write'),
+  ('region.remove', 'Region', 'delete'),
+  ('region.save', 'Region', 'write'),
+  ('sensor.get', 'Sensors', 'read'),
+  ('sensor.list', 'Sensors', 'read'),
+  ('sensor.set', 'Sensors', 'write'),
+  ('set.adc_multiplier', 'Power', 'write'),
+  ('set.advert_interval', 'Advertising', 'write'),
+  ('set.agc_reset_interval', 'Routing', 'write'),
+  ('set.airtime_factor', 'Routing', 'write'),
+  ('set.allow_read_only', 'Access', 'write'),
+  ('set.cad', 'Routing', 'write'),
+  ('set.direct_txdelay', 'Routing', 'write'),
+  ('set.dutycycle', 'Routing', 'write'),
+  ('set.flood_advert_interval', 'Advertising', 'write'),
+  ('set.flood_max', 'Routing', 'write'),
+  ('set.flood_max_advert', 'Routing', 'write'),
+  ('set.flood_max_unscoped', 'Routing', 'write'),
+  ('set.int_thresh', 'Routing', 'write'),
+  ('set.lat', 'Location', 'write'),
+  ('set.lon', 'Location', 'write'),
+  ('set.loop_detect', 'Routing', 'write'),
+  ('set.multi_acks', 'Routing', 'write'),
+  ('set.name', 'Identity', 'write'),
+  ('set.owner_info', 'Identity', 'write'),
+  ('set.path_hash_mode', 'Routing', 'write'),
+  ('set.public_key', 'Identity', 'write'),
+  ('set.radio', 'Radio', 'write'),
+  ('set.radio_fem_rxgain', 'Radio', 'write'),
+  ('set.radio_rxgain', 'Radio', 'write'),
+  ('set.repeat', 'Routing', 'write'),
+  ('set.role', 'Identity', 'write'),
+  ('set.rxdelay', 'Routing', 'write'),
+  ('set.tx', 'Radio', 'write'),
+  ('set.txdelay', 'Routing', 'write'),
+  ('setperm.remove', 'Access', 'delete'),
+  ('setperm.set', 'Access', 'write'),
+  ('shutdown', 'Power', 'action'),
+  ('start.ota', 'Firmware', 'action'),
+  ('tempradio', 'Radio', 'write'),
+  ('time', 'Clock', 'write'),
+  ('ver', 'Diagnostics', 'read')
+) AS v(key, feature, op)
+WHERE c.key = v.key;
+
+-- Drop the defaults so a new command MUST specify feature + operation, and guard
+-- the values.
+ALTER TABLE command_catalog ALTER COLUMN feature   DROP DEFAULT;
+ALTER TABLE command_catalog ALTER COLUMN operation DROP DEFAULT;
+ALTER TABLE command_catalog ADD CONSTRAINT command_feature_nonempty CHECK (feature <> '');
+ALTER TABLE command_catalog ADD CONSTRAINT command_operation_valid CHECK (operation IN ('read','write','delete','action'));
+
+-- +goose Down
+ALTER TABLE command_catalog DROP CONSTRAINT command_operation_valid;
+ALTER TABLE command_catalog DROP CONSTRAINT command_feature_nonempty;
+ALTER TABLE command_catalog DROP COLUMN operation;
+ALTER TABLE command_catalog DROP COLUMN feature;

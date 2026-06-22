@@ -17,20 +17,25 @@ type Command struct {
 	// Arity is the exact number of whitespace-separated argument tokens the
 	// command takes (after its command token). -1 means variadic / rest-of-line
 	// (e.g. "set name <text>"). The console parser authorizes by (token, arity).
-	Arity              int
-	Description        string
+	Arity       int
+	Description string
+	// Feature is the grouping area (e.g. "Radio", "Region") and Operation is the
+	// read/write/delete/action bucket, both used by the review/catalog UIs.
+	Feature            string
+	Operation          string
 	Risky              bool
 	InShareDefault     bool
 	InOrgMemberDefault bool
 	InOrgAdminDefault  bool
 }
 
-const commandCols = `id, key, template, category, args, arity, description, risky,
+const commandCols = `id, key, template, category, args, arity, description, feature, operation, risky,
 	in_share_default, in_org_member_default, in_org_admin_default`
 
 func scanCommand(row pgx.Row) (*Command, error) {
 	var c Command
-	err := row.Scan(&c.ID, &c.Key, &c.Template, &c.Category, &c.Args, &c.Arity, &c.Description, &c.Risky,
+	err := row.Scan(&c.ID, &c.Key, &c.Template, &c.Category, &c.Args, &c.Arity, &c.Description,
+		&c.Feature, &c.Operation, &c.Risky,
 		&c.InShareDefault, &c.InOrgMemberDefault, &c.InOrgAdminDefault)
 	if err != nil {
 		return nil, err

@@ -75,6 +75,15 @@ code.pubkey {
 .badge.bg-purple-lt { color: #d98fe6 !important; }
 .badge.bg-secondary-lt { color: var(--tblr-secondary-text-emphasis) !important; }
 
+/* ---------- Command catalog flag table (admin) ----------
+   Fixed layout so the flag columns line up across the per-feature cards (each is
+   its own table), plus a distinct checked color per flag for fast scanning. */
+.catalog-table { table-layout: fixed; }
+.form-check-input.cc-risky:checked  { background-color: var(--tblr-red);    border-color: var(--tblr-red); }
+.form-check-input.cc-share:checked  { background-color: var(--tblr-green);  border-color: var(--tblr-green); }
+.form-check-input.cc-member:checked { background-color: var(--tblr-blue);   border-color: var(--tblr-blue); }
+.form-check-input.cc-admin:checked  { background-color: var(--tblr-orange); border-color: var(--tblr-orange); }
+
 /* ---------- Members role filter (org page) ----------
    The All/Members/Admins button group filters the members list purely in CSS:
    the checked radio in the card header drives which rows show via :has(). Rows

@@ -56,11 +56,14 @@ func (s *Handlers) pageContribute(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not load commands", http.StatusInternalServerError)
 		return
 	}
+	members := idSet(memberIDs)
 	data := map[string]any{
-		"Repeater": rep,
-		"Org":      org,
-		"Version":  version,
-		"Envelope": permEnvelope(catalog, idSet(adminIDs), idSet(memberIDs)),
+		"Repeater":       rep,
+		"Org":            org,
+		"Version":        version,
+		"MemberFeatures": featureTableFor(catalog, members),
+		// Admins inherit every member command, so their table is member ∪ admin.
+		"AdminFeatures": featureTableFor(catalog, union(idSet(adminIDs), members)),
 	}
 
 	// If already contributed and behind the current version, show what changed
@@ -87,25 +90,6 @@ func (s *Handlers) pageContribute(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.Render(w, r, "contribute.html", data)
-}
-
-// permEnvelope groups the catalog by category, keeping only commands granted to
-// at least one tier in the given admin/member id sets — the set of commands a
-// permission version actually allows.
-func permEnvelope(catalog []*store.Command, adminSet, memberSet map[int64]bool) []permGroup {
-	var envelope []permGroup
-	for _, g := range groupPermissions(catalog, adminSet, memberSet) {
-		var cmds []permChoice
-		for _, c := range g.Commands {
-			if c.AdminChecked || c.MemberChecked {
-				cmds = append(cmds, c)
-			}
-		}
-		if len(cmds) > 0 {
-			envelope = append(envelope, permGroup{Name: g.Name, Commands: cmds})
-		}
-	}
-	return envelope
 }
 
 // pageConsented shows, read-only, the exact commands this repeater is currently
@@ -142,11 +126,13 @@ func (s *Handlers) pageConsented(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not load commands", http.StatusInternalServerError)
 		return
 	}
+	members := idSet(memberIDs)
 	data := map[string]any{
-		"Repeater": rep,
-		"Org":      org,
-		"Version":  version,
-		"Envelope": permEnvelope(catalog, idSet(adminIDs), idSet(memberIDs)),
+		"Repeater":       rep,
+		"Org":            org,
+		"Version":        version,
+		"MemberFeatures": featureTableFor(catalog, members),
+		"AdminFeatures":  featureTableFor(catalog, union(idSet(adminIDs), members)),
 	}
 	// Note (with a re-consent link) when the org has moved past this version.
 	if _, current, err := s.Store.CurrentVersion(r.Context(), orgID); err == nil && current > version {

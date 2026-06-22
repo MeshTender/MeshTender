@@ -10,36 +10,35 @@
 {{define "content"}}
 <div class="card">
   <div class="card-body">
-    <p class="text-secondary">
+    <p class="text-secondary mb-0">
       These are the commands {{.Org.Name}}'s admins and members can run on this repeater over the mesh — the
-      policy you consented to (v{{.Version}}). Org-admins also get everything members get.
+      policy you consented to (v{{.Version}}). Org admins also get everything members get. Hover a command to
+      see what it does.
     </p>
-
     {{if .CurrentVersion}}
-    <div class="alert alert-warning">
+    <div class="alert alert-warning mt-3 mb-0">
       {{.Org.Name}} has since published v{{.CurrentVersion}}. This repeater stays on v{{.Version}} until you
       <a class="alert-link" href="/repeaters/{{.Repeater.PublicID}}/orgs/{{.Org.Slug}}/contribute">review the changes and re-consent</a>.
     </div>
     {{end}}
-
-    {{if .Envelope}}
-    {{range .Envelope}}
-    <fieldset class="form-fieldset">
-      <div class="form-label fw-bold text-capitalize">{{.Name}}</div>
-      {{range .Commands}}
-      <div class="d-flex align-items-center flex-wrap gap-2 py-1">
-        <code class="flex-fill">{{.Template}}{{if .Risky}} <span class="badge bg-warning-lt">risky</span>{{end}}</code>
-        {{if .AdminChecked}}<span class="badge bg-success-lt">admin</span>{{end}}
-        {{if .MemberChecked}}<span class="badge bg-azure-lt">member</span>{{end}}
-      </div>
-      {{end}}
-    </fieldset>
-    {{end}}
-    {{else}}
-    <p class="text-secondary">This version grants no commands.</p>
-    {{end}}
-
-    <a class="back-link mt-3" href="/repeaters/{{.Repeater.PublicID}}/share">{{template "icon-arrow-left" "me-1"}}Back to sharing</a>
   </div>
 </div>
+
+<div class="card mt-3">
+  <div class="card-header"><h3 class="card-title">Members can run</h3></div>
+  <div class="card-body">
+    {{if .MemberFeatures}}{{template "feature-table" .MemberFeatures}}
+    {{else}}<p class="text-secondary mb-0">Members aren't granted any commands.</p>{{end}}
+  </div>
+</div>
+
+<div class="card mt-3">
+  <div class="card-header"><h3 class="card-title">Admins can run</h3></div>
+  <div class="card-body">
+    {{if .AdminFeatures}}{{template "feature-table" .AdminFeatures}}
+    {{else}}<p class="text-secondary mb-0">Admins aren't granted any commands.</p>{{end}}
+  </div>
+</div>
+
+<a class="back-link mt-3" href="/repeaters/{{.Repeater.PublicID}}/share">{{template "icon-arrow-left" "me-1"}}Back to sharing</a>
 {{end}}
