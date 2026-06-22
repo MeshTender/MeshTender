@@ -53,12 +53,18 @@ func (s *Service) RegisterBegin(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	var u *store.User
+	var name string // optional label, only for adding a passkey to an existing account
 	if uid := s.CurrentUserID(ctx); uid != 0 {
 		var err error
 		if u, err = s.store.GetUserByID(ctx, uid); err != nil {
 			httpError(w, http.StatusInternalServerError, "load user")
 			return
 		}
+		var body struct {
+			Name string `json:"name"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		name = NormalizePasskeyName(body.Name)
 	} else {
 		username, displayName, ok := readCreds(r)
 		if !ok {
@@ -97,6 +103,7 @@ func (s *Service) RegisterBegin(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, "save ceremony")
 		return
 	}
+	s.Sessions.Put(ctx, sessKeyWAName, name)
 	writeJSON(w, options)
 }
 
@@ -129,7 +136,9 @@ func (s *Service) RegisterFinish(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, "marshal credential")
 		return
 	}
-	if err := s.store.AddCredential(ctx, u.ID, cred.ID, blob); err != nil {
+	name := s.Sessions.GetString(ctx, sessKeyWAName)
+	s.Sessions.Remove(ctx, sessKeyWAName)
+	if err := s.store.AddCredential(ctx, u.ID, cred.ID, blob, name); err != nil {
 		httpError(w, http.StatusInternalServerError, "store credential")
 		return
 	}
@@ -340,6 +349,15 @@ func NormalizeUsername(s string) string { return strings.ToLower(strings.TrimSpa
 
 // NormalizeDisplayName trims and bounds a display name (empty means "unset").
 func NormalizeDisplayName(s string) string {
+	s = strings.TrimSpace(s)
+	if len(s) > 64 {
+		s = s[:64]
+	}
+	return s
+}
+
+// NormalizePasskeyName trims and bounds a passkey label (empty means "unnamed").
+func NormalizePasskeyName(s string) string {
 	s = strings.TrimSpace(s)
 	if len(s) > 64 {
 		s = s[:64]

@@ -13,6 +13,7 @@ import (
 type passkeyView struct {
 	ID      int64
 	ShortID string
+	Name    string
 	Added   time.Time
 }
 
@@ -48,7 +49,7 @@ func (s *Handlers) pageAccount(w http.ResponseWriter, r *http.Request) {
 		if len(short) > 12 {
 			short = short[:12]
 		}
-		views = append(views, passkeyView{ID: c.ID, ShortID: short, Added: c.CreatedAt})
+		views = append(views, passkeyView{ID: c.ID, ShortID: short, Name: c.Name, Added: c.CreatedAt})
 	}
 	s.Render(w, r, "account.html", map[string]any{
 		"User":        u,
@@ -120,6 +121,24 @@ func (s *Handlers) handleChangePassword(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	accountRedirect(w, r, "ok", "Password updated.")
+}
+
+// handleRenamePasskey sets or clears the human-friendly label on one of the
+// user's passkeys.
+func (s *Handlers) handleRenamePasskey(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	uid := s.Auth.CurrentUserID(ctx)
+	credID, err := strconv.ParseInt(r.FormValue("credential_id"), 10, 64)
+	if err != nil {
+		passkeyRedirect(w, r, "pkerr", "Invalid passkey.")
+		return
+	}
+	name := NormalizePasskeyName(r.FormValue("name"))
+	if err := s.Store.SetCredentialName(ctx, uid, credID, name); err != nil {
+		passkeyRedirect(w, r, "pkerr", "Could not rename that passkey.")
+		return
+	}
+	passkeyRedirect(w, r, "pk", "Passkey name saved.")
 }
 
 // handleDeletePasskey removes one of the user's passkeys, refusing to remove

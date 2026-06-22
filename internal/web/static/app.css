@@ -82,17 +82,19 @@ code.pubkey {
   border: 1px solid var(--tblr-border-color);
 }
 .leaflet-container { background: #14171c; }
-.leaflet-popup-content-wrapper,
-.leaflet-popup-tip {
+/* Scoped under .leaflet-popup so these beat Leaflet's own defaults, which load
+   after app.css (leaflet.css is pulled in per-page in the map card body). */
+.leaflet-popup .leaflet-popup-content-wrapper,
+.leaflet-popup .leaflet-popup-tip {
   background: var(--tblr-bg-surface, #1a1d24);
   color: var(--tblr-body-color, #e6edf3);
   box-shadow: var(--tblr-box-shadow, 0 1px 2px rgba(0, 0, 0, 0.4));
 }
-.leaflet-popup-content { color: var(--tblr-body-color, #e6edf3); }
-.leaflet-bar a,
-.leaflet-control-zoom a {
+.leaflet-popup .leaflet-popup-content { color: var(--tblr-body-color, #e6edf3); }
+.leaflet-container .leaflet-bar a,
+.leaflet-container .leaflet-control-zoom a {
   background: var(--tblr-bg-surface, #1a1d24);
   color: var(--tblr-body-color, #e6edf3);
   border-bottom-color: var(--tblr-border-color, #2b2f36);
 }
-.leaflet-bar a:hover { background: var(--tblr-bg-surface-secondary, #22262e); }
+.leaflet-container .leaflet-bar a:hover { background: var(--tblr-bg-surface-secondary, #22262e); }

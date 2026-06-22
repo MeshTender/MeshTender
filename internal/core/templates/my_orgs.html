@@ -1,7 +1,10 @@
 {{define "title"}}Your organizations · MeshTender{{end}}
 {{define "header"}}
 <div class="row g-2 align-items-center">
-  <div class="col"><h2 class="page-title">Your organizations</h2></div>
+  <div class="col">
+    <div class="page-pretitle">Your network</div>
+    <h2 class="page-title">Organizations</h2>
+  </div>
   <div class="col-auto ms-auto d-print-none">
     <div class="btn-list">
       <a class="btn" href="{{.RootURL}}/orgs">{{template "icon-world" "me-1"}}Discover organizations</a>
@@ -12,8 +15,8 @@
 {{end}}
 {{define "content"}}
 {{if .Error}}<div class="alert alert-danger">{{.Error}}</div>{{end}}
+{{if .Orgs}}
 <div class="card">
-  {{if .Orgs}}
   <div class="list-group list-group-flush">
     {{range .Orgs}}
     <a class="list-group-item list-group-item-action" href="/orgs/{{.Org.Slug}}">
@@ -26,14 +29,16 @@
     </a>
     {{end}}
   </div>
-  {{else}}
-  <div class="card-body text-center py-5">
-    <p class="text-secondary mb-3">You're not a member of any organizations yet.</p>
-    <div class="btn-list justify-content-center">
-      <a class="btn" href="{{.RootURL}}/orgs">{{template "icon-world" "me-1"}}Discover organizations</a>
-      <a class="btn btn-primary" href="/orgs/new">{{template "icon-plus" "me-1"}}Create one</a>
-    </div>
-  </div>
-  {{end}}
 </div>
+{{else}}
+<div class="empty">
+  <div class="empty-icon">{{template "icon-world" ""}}</div>
+  <p class="empty-title">No organizations yet</p>
+  <p class="empty-subtitle text-secondary">You're not in any organizations yet. Find one near you and contribute to a larger mesh.</p>
+  <div class="empty-action">
+    <a class="btn btn-primary" href="{{.RootURL}}/orgs">{{template "icon-world" "me-1"}}Discover organizations</a>
+    <a class="btn" href="/orgs/new">{{template "icon-plus" "me-1"}}Create one</a>
+  </div>
+</div>
+{{end}}
 {{end}}

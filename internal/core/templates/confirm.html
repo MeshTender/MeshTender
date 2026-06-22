@@ -25,7 +25,7 @@
     <button id="connect" class="btn btn-primary mt-3" type="button">{{template "icon-plug" "me-1"}}Connect modem &amp; confirm</button>
 
     <ul id="log" class="evlog mt-3" role="log" aria-live="polite" aria-label="Confirmation activity"></ul>
-    <div class="mt-3">
+    <div class="mt-3 d-flex align-items-center">
       <a class="back-link" href="/">{{template "icon-arrow-left" "me-1"}}Back to dashboard</a>
       {{if .Debug}}
       <a class="text-secondary ms-2" href="/repeaters/{{.Repeater.PublicID}}/confirm">Disable debug</a>

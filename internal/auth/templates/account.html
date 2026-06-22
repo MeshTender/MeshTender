@@ -55,12 +55,17 @@
         {{if .Passkeys}}
         <div class="list-group mb-3">
           {{range .Passkeys}}
-          <div class="list-group-item d-flex align-items-center gap-2">
+          <div class="list-group-item d-flex align-items-center flex-wrap gap-2">
             <span class="text-secondary">{{template "icon-key" ""}}</span>
-            <div class="flex-fill">
-              <div class="font-monospace">{{.ShortID}}…</div>
-              <div class="text-secondary small">Added {{.Added.Format "Jan 2, 2006"}}</div>
+            <div class="flex-fill" style="min-width:10rem">
+              <div>{{if .Name}}{{.Name}}{{else}}<span class="text-secondary fst-italic">Unnamed passkey</span>{{end}}</div>
+              <div class="text-secondary small"><span class="font-monospace">{{.ShortID}}…</span> · Added {{.Added.Format "Jan 2, 2006"}}</div>
             </div>
+            <form method="post" action="/account/passkeys/rename" class="d-flex gap-1 m-0">
+              <input type="hidden" name="credential_id" value="{{.ID}}">
+              <input type="text" class="form-control form-control-sm" name="name" maxlength="64" value="{{.Name}}" placeholder="Add a description" aria-label="Passkey description" style="width:11rem">
+              <button type="submit" class="btn btn-sm">Save</button>
+            </form>
             <form method="post" action="/account/passkeys/delete" class="m-0" onsubmit="return confirm('Remove this passkey? You won\'t be able to sign in with it anymore.')">
               <input type="hidden" name="credential_id" value="{{.ID}}">
               <button type="submit" class="btn btn-sm btn-ghost-danger">Remove</button>
@@ -71,8 +76,14 @@
         {{else}}
         <p class="text-secondary">No passkeys yet. Add one for faster, more secure sign-in.</p>
         {{end}}
-        <div>
-          <button type="button" class="btn btn-primary" onclick="addPasskey()">{{template "icon-key" "me-1"}}Add a passkey</button>
+        <div class="row g-2 align-items-end">
+          <div class="col-auto">
+            <label class="form-label" for="new_passkey_name">Description <span class="form-label-description">optional</span></label>
+            <input type="text" class="form-control" id="new_passkey_name" maxlength="64" placeholder="e.g. MacBook Touch ID" style="width:14rem">
+          </div>
+          <div class="col-auto">
+            <button type="button" class="btn btn-primary" onclick="addPasskey()">{{template "icon-key" "me-1"}}Add a passkey</button>
+          </div>
         </div>
         <p id="passkey-status" class="text-secondary small mt-2 mb-0" style="min-height:1.2em"></p>
 

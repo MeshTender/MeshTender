@@ -180,11 +180,12 @@ func (s *Store) ClearPassword(ctx context.Context, userID int64) error {
 	return nil
 }
 
-// AddCredential stores a marshaled WebAuthn credential for a user.
-func (s *Store) AddCredential(ctx context.Context, userID int64, credentialID []byte, data []byte) error {
+// AddCredential stores a marshaled WebAuthn credential for a user, with an
+// optional human-friendly name (empty means unnamed).
+func (s *Store) AddCredential(ctx context.Context, userID int64, credentialID []byte, data []byte, name string) error {
 	_, err := s.pool.Exec(ctx,
-		`INSERT INTO webauthn_credentials (user_id, credential_id, data) VALUES ($1, $2, $3)`,
-		userID, credentialID, data)
+		`INSERT INTO webauthn_credentials (user_id, credential_id, data, name) VALUES ($1, $2, $3, $4)`,
+		userID, credentialID, data, name)
 	if isUniqueViolation(err) {
 		return ErrDuplicate
 	}
@@ -212,22 +213,38 @@ func (s *Store) GetCredentials(ctx context.Context, userID int64) ([][]byte, err
 type CredentialInfo struct {
 	ID           int64
 	CredentialID []byte
+	Name         string
 	CreatedAt    time.Time
 }
 
 // ListCredentials returns metadata for a user's passkeys, newest first.
 func (s *Store) ListCredentials(ctx context.Context, userID int64) ([]CredentialInfo, error) {
 	rows, err := s.pool.Query(ctx,
-		`SELECT id, credential_id, created_at FROM webauthn_credentials WHERE user_id = $1 ORDER BY created_at DESC, id DESC`,
+		`SELECT id, credential_id, name, created_at FROM webauthn_credentials WHERE user_id = $1 ORDER BY created_at DESC, id DESC`,
 		userID)
 	if err != nil {
 		return nil, fmt.Errorf("list credentials: %w", err)
 	}
 	return collectRows(rows, func(r pgx.Row) (CredentialInfo, error) {
 		var c CredentialInfo
-		err := r.Scan(&c.ID, &c.CredentialID, &c.CreatedAt)
+		err := r.Scan(&c.ID, &c.CredentialID, &c.Name, &c.CreatedAt)
 		return c, err
 	})
+}
+
+// SetCredentialName updates the human-friendly label on one of the user's
+// passkeys. It scopes the update to the owner and returns ErrNotFound if no
+// such credential exists.
+func (s *Store) SetCredentialName(ctx context.Context, userID, credentialRowID int64, name string) error {
+	tag, err := s.pool.Exec(ctx,
+		`UPDATE webauthn_credentials SET name = $1 WHERE id = $2 AND user_id = $3`, name, credentialRowID, userID)
+	if err != nil {
+		return fmt.Errorf("set credential name: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 // CountCredentials returns how many passkeys a user has registered.

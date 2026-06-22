@@ -52,6 +52,7 @@ func (s *Handlers) Routes() chi.Router {
 		r.Get("/account", s.pageAccount)
 		r.Post("/account/profile", s.handleUpdateProfile)
 		r.Post("/account/password", s.handleChangePassword)
+		r.Post("/account/passkeys/rename", s.handleRenamePasskey)
 		r.Post("/account/passkeys/delete", s.handleDeletePasskey)
 	})
 

@@ -118,8 +118,10 @@ async function finishAssertion(url, cred) {
 // (used from the account page) and reloads it on success.
 async function addPasskey() {
   try {
+    const nameEl = document.getElementById("new_passkey_name");
+    const name = nameEl ? nameEl.value.trim() : "";
     setStatus("Starting…");
-    const options = await postJSON("/api/register/begin", {});
+    const options = await postJSON("/api/register/begin", { name });
     const cred = await navigator.credentials.create({ publicKey: decodeCreation(options.publicKey) });
     setStatus("Verifying…");
     const result = await fetch("/api/register/finish", {

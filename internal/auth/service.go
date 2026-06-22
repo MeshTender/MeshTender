@@ -19,6 +19,7 @@ const (
 	sessKeyUserID = "user_id" // int64: the authenticated user
 	sessKeyWAUID  = "wa_uid"  // int64: user mid-ceremony
 	sessKeyWAData = "wa_data" // []byte: marshaled webauthn.SessionData
+	sessKeyWAName = "wa_name" // string: pending passkey name for the in-flight registration
 	sessKeyNext   = "next"    // string: post-auth redirect target
 )
 
