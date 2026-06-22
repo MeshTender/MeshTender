@@ -21,6 +21,9 @@ import (
 
 const (
 	consoleIdleTimeout = 5 * time.Minute
+	// maxCommandLen bounds a single CLI command; MeshCore commands are short and
+	// a LoRa frame is tiny, so anything longer is malformed/abusive.
+	maxCommandLen = 200
 	// sendInterval is the minimum spacing between our LoRa transmissions, so a
 	// user can't flood the shared mesh through their modem.
 	sendInterval = time.Second
@@ -35,24 +38,79 @@ func commandPrefix(template string) string {
 	return strings.TrimSpace(template)
 }
 
-// resolveCommand maps typed CLI text to its catalog command by longest matching
-// literal prefix, so "set tx 20" resolves to set.tx (not a bare "set").
+// arityVariadic marks a command that accepts any number of arguments (e.g. a
+// rest-of-line free-text arg like "set name <text>", or "region def …").
+const arityVariadic = -1
+
+// resolveCommand maps typed CLI text to the exact catalog command the firmware
+// would run, matched by command TOKEN and argument count (arity). It returns nil
+// when no command matches — callers MUST treat nil as "deny", never as "send
+// anyway".
+//
+// Security model: authorization is by the exact (token, arity) tuple, never a
+// loose prefix. A command's token is the literal words before its first "<arg>"
+// (e.g. "set tx", "region put", "setperm"); arity is the count of remaining
+// whitespace tokens, or -1 for variadic. The firmware (a) runs exactly one
+// command per message — no ';'/newline chaining — and (b) tokenizes on the same
+// whitespace and overloads commands by arg count (e.g. setperm/2 sets a
+// permission, setperm/1 removes it). Matching the same way means an authorized
+// command can never be re-interpreted by the device as a different, ungranted
+// one. The longest matching token wins ("region put" over "region"), so a
+// shorter command can't shadow a more specific one. Args themselves are not
+// constrained — granting a command grants all of its argument values.
 func resolveCommand(typed string, catalog []*store.Command) *store.Command {
-	typed = strings.TrimSpace(typed)
+	fields := strings.Fields(typed)
+	if len(fields) == 0 {
+		return nil
+	}
 	var best *store.Command
-	bestLen := -1
+	bestTokenLen := -1
 	for _, c := range catalog {
-		prefix := commandPrefix(c.Template)
-		if prefix == "" {
+		token := strings.Fields(commandPrefix(c.Template))
+		if len(token) == 0 || len(token) > len(fields) {
 			continue
 		}
-		if typed == prefix || strings.HasPrefix(typed, prefix+" ") {
-			if len(prefix) > bestLen {
-				best, bestLen = c, len(prefix)
-			}
+		if !equalWords(fields[:len(token)], token) {
+			continue
+		}
+		argc := len(fields) - len(token)
+		if c.Arity != arityVariadic && argc != c.Arity {
+			continue
+		}
+		if len(token) > bestTokenLen {
+			best, bestTokenLen = c, len(token)
 		}
 	}
 	return best
+}
+
+func equalWords(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// validCommandText reports whether s is a single line of printable text — the
+// only shape a CLI command can legitimately take. Rejecting control characters
+// (newlines especially) is defense in depth: the firmware runs one command per
+// message today, but we never want to forward bytes that could split or be
+// re-interpreted, and it keeps the command log/echo clean.
+func validCommandText(s string) bool {
+	if strings.TrimSpace(s) == "" || len(s) > maxCommandLen {
+		return false
+	}
+	for _, r := range s {
+		if r < 0x20 || r == 0x7f {
+			return false
+		}
+	}
+	return true
 }
 
 // allowedCommands returns the catalog commands the user may run on the repeater:
@@ -233,6 +291,10 @@ func (s *Handlers) wsConsole(w http.ResponseWriter, r *http.Request) {
 
 	runCommand := func(text string) {
 		idle.Reset(consoleIdleTimeout)
+		if !validCommandText(text) {
+			_ = bridge.Status("denied", "Invalid command.")
+			return
+		}
 		cmd := resolveCommand(text, catalog)
 		if cmd == nil {
 			_ = bridge.Status("denied", "Unknown command: "+text)
