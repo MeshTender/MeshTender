@@ -13,6 +13,8 @@
 {{define "content"}}
 {{if .Error}}<div class="alert alert-danger" role="alert">{{.Error}}</div>{{end}}
 
+{{if or .Owned .Shared}}
+{{if .Shared}}<h3 class="mb-3">Your repeaters</h3>{{end}}
 {{if .Owned}}
 <div class="row row-cards">
   {{range .Owned}}
@@ -58,6 +60,11 @@
   </div>
   {{end}}
 </div>
+{{else}}
+<div class="card">
+  <div class="card-body text-secondary">You haven't added any of your own repeaters yet.</div>
+</div>
+{{end}}
 {{else}}
 <div class="empty">
   <div class="empty-icon">{{template "icon-antenna" ""}}</div>
