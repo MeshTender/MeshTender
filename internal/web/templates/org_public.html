@@ -9,11 +9,9 @@
     {{if .IsMember}}
     <a class="btn" href="/orgs/{{.Org.Slug}}">{{template "icon-arrow-left" "me-1"}}Back to member view</a>
     {{else if .CanJoin}}
-    <form method="post" action="/orgs/{{.Org.Slug}}/join" class="m-0">
-      <button type="submit" class="btn btn-primary">{{template "icon-users" "me-1"}}Join organization</button>
-    </form>
+    <a class="btn btn-primary" href="{{.AppURL}}/orgs/{{.Org.Slug}}/join">{{template "icon-users" "me-1"}}Join organization</a>
     {{else}}
-    <a class="btn btn-primary" href="{{.AppURL}}/orgs/{{.Org.Slug}}">Sign in to join</a>
+    <a class="btn btn-primary" href="{{.AppURL}}/orgs/{{.Org.Slug}}/join">Sign in to join</a>
     {{end}}
   </div>
 </div>

@@ -56,6 +56,20 @@ type OrgRepeaterInfo struct {
 	Lat, Lon         float64
 }
 
+// ExcludeOwnerRepeatersFromOrg opts every repeater the owner currently has out of
+// the org — used when a user joins "with no repeaters". Repeaters added later are
+// not affected (they start shared, and can be opted out individually).
+func (s *Store) ExcludeOwnerRepeatersFromOrg(ctx context.Context, orgID, ownerID int64) error {
+	_, err := s.pool.Exec(ctx, `
+		INSERT INTO org_repeater_excludes (org_id, repeater_id)
+		SELECT $1, id FROM repeaters WHERE owner_id = $2
+		ON CONFLICT DO NOTHING`, orgID, ownerID)
+	if err != nil {
+		return fmt.Errorf("exclude owner repeaters: %w", err)
+	}
+	return nil
+}
+
 // ListOrgRepeaters returns the repeaters participating in an org (owned by a
 // member, not opted out), with location when the owner stored it.
 func (s *Store) ListOrgRepeaters(ctx context.Context, orgID int64) ([]OrgRepeaterInfo, error) {

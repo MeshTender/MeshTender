@@ -311,8 +311,41 @@ func (s *Handlers) handleLeaveOrg(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/orgs", http.StatusSeeOther)
 }
 
-// handleJoinOrg adds the current user to an org as a member. Orgs are publicly
-// listed and anyone signed in may join directly from the org page (idempotent).
+// pageJoinOrg shows the join confirmation. Because repeaters are shared with an
+// org by default (opt-out), joining is an explicit choice: share all your current
+// repeaters, or none of them.
+func (s *Handlers) pageJoinOrg(w http.ResponseWriter, r *http.Request) {
+	uid := s.Auth.CurrentUserID(r.Context())
+	id, ok := s.orgID(r)
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	org, err := s.Store.GetOrg(r.Context(), id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	_, isMember, err := s.Store.OrgRole(r.Context(), id, uid)
+	if err != nil {
+		http.Error(w, "could not load org", http.StatusInternalServerError)
+		return
+	}
+	if isMember {
+		http.Redirect(w, r, "/orgs/"+org.Slug, http.StatusSeeOther)
+		return
+	}
+	hasRepeaters, err := s.Store.OwnsAnyRepeater(r.Context(), uid)
+	if err != nil {
+		http.Error(w, "could not load repeaters", http.StatusInternalServerError)
+		return
+	}
+	s.Render(w, r, "join_org.html", map[string]any{"Org": org, "HasRepeaters": hasRepeaters})
+}
+
+// handleJoinOrg adds the current user to an org as a member. mode "none" opts all
+// of the user's current repeaters out of the org; otherwise they're shared (the
+// default). Idempotent on membership.
 func (s *Handlers) handleJoinOrg(w http.ResponseWriter, r *http.Request) {
 	uid := s.Auth.CurrentUserID(r.Context())
 	id, ok := s.orgID(r)
@@ -323,6 +356,12 @@ func (s *Handlers) handleJoinOrg(w http.ResponseWriter, r *http.Request) {
 	if err := s.Store.AddOrgMember(r.Context(), id, uid, "member"); err != nil {
 		orgErr(w, r, "Could not join.")
 		return
+	}
+	if r.FormValue("mode") == "none" {
+		if err := s.Store.ExcludeOwnerRepeatersFromOrg(r.Context(), id, uid); err != nil {
+			orgErr(w, r, "Joined, but could not opt your repeaters out — adjust them on the sharing page.")
+			return
+		}
 	}
 	http.Redirect(w, r, "/orgs/"+orgParam(r), http.StatusSeeOther)
 }

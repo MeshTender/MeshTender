@@ -1,0 +1,46 @@
+{{define "title"}}Join {{.Org.Name}} · MeshTender{{end}}
+{{define "header"}}
+<div class="row g-2 align-items-center">
+  <div class="col">
+    <div class="page-pretitle">Organization</div>
+    <h2 class="page-title">Join {{.Org.Name}}</h2>
+  </div>
+</div>
+{{end}}
+{{define "content"}}
+<div class="row justify-content-center">
+<div class="col-12 col-lg-8 col-xl-6">
+<div class="card">
+  <div class="card-body">
+    <p class="text-secondary">
+      Joining <strong>{{.Org.Name}}</strong> lets its admins and members run the commands the organization
+      is permitted to run on the repeaters you share with it. You can change this anytime — opt individual
+      repeaters in or out, or limit which commands the org may run — from each repeater's sharing page.
+    </p>
+    {{if .HasRepeaters}}
+    <p class="mb-3">How would you like to start?</p>
+    <form method="post" action="/orgs/{{.Org.Slug}}/join" class="btn-list mb-2">
+      <button type="submit" name="mode" value="all" class="btn btn-primary">{{template "icon-users" "me-1"}}Join &amp; share all my repeaters</button>
+      <button type="submit" name="mode" value="none" class="btn">Join without sharing any repeaters</button>
+    </form>
+    <p class="text-secondary small mb-0">
+      “No repeaters” opts out the repeaters you have now; you can share them individually later. Repeaters you
+      add afterward start shared (and can be opted out when you add them).
+    </p>
+    {{else}}
+    <p class="text-secondary mb-3">
+      You don't have any repeaters yet. Any you add later will start shared with this organization — you can
+      opt them out when you add them, or anytime from a repeater's sharing page.
+    </p>
+    <form method="post" action="/orgs/{{.Org.Slug}}/join" class="m-0">
+      <button type="submit" name="mode" value="all" class="btn btn-primary">{{template "icon-users" "me-1"}}Join organization</button>
+    </form>
+    {{end}}
+  </div>
+  <div class="card-footer">
+    <a class="text-secondary" href="{{.RootURL}}/orgs">{{template "icon-arrow-left" "me-1"}}Back to organizations</a>
+  </div>
+</div>
+</div>
+</div>
+{{end}}

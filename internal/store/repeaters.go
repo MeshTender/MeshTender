@@ -143,6 +143,17 @@ func (s *Store) ListRepeatersForUser(ctx context.Context, userID int64) ([]*Repe
 	return out, nil
 }
 
+// OwnsAnyRepeater reports whether the user owns at least one repeater.
+func (s *Store) OwnsAnyRepeater(ctx context.Context, ownerID int64) (bool, error) {
+	var ok bool
+	err := s.pool.QueryRow(ctx,
+		`SELECT EXISTS (SELECT 1 FROM repeaters WHERE owner_id = $1)`, ownerID).Scan(&ok)
+	if err != nil {
+		return false, fmt.Errorf("owns any repeater: %w", err)
+	}
+	return ok, nil
+}
+
 // GetRepeaterForUser returns a single repeater if the user owns it or has a
 // share, else ErrNotFound. This is the authorization gate for control actions.
 func (s *Store) GetRepeaterForUser(ctx context.Context, userID, repeaterID int64) (*Repeater, error) {
