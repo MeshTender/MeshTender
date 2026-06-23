@@ -198,8 +198,8 @@ func (rn *Renderer) Render(w http.ResponseWriter, r *http.Request, page string, 
 // auth-free. chi requires all Use() calls before any route is registered.
 func (e *Env) CommonMiddleware(r chi.Router) {
 	r.Use(middleware.RequestID)
-	r.Use(CaptureRemoteAddr) // keep the true TCP peer before RealIP rewrites it
-	r.Use(middleware.RealIP)
+	r.Use(CaptureRemoteAddr) // preserve the true TCP peer before we resolve
+	r.Use(e.resolveClientIP) // trusted-proxy-aware X-Forwarded-For resolution
 	r.Use(middleware.Recoverer)
 }
 

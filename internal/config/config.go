@@ -4,6 +4,7 @@ package config
 import (
 	"encoding/hex"
 	"fmt"
+	"net"
 	"os"
 	"strings"
 )
@@ -61,6 +62,16 @@ type Config struct {
 	// production TLS usually terminates at a proxy and these stay empty.
 	TLSCert string
 	TLSKey  string
+
+	// TrustedProxies are CIDR ranges whose X-Forwarded-For / X-Real-IP headers are
+	// trusted when resolving a request's client IP. Loopback is always trusted (a
+	// same-host reverse proxy). The client IP is the rightmost X-Forwarded-For
+	// entry that is NOT a trusted proxy; if the connecting peer itself isn't
+	// trusted, forwarding headers are ignored entirely (so they can't be spoofed).
+	// Configured via MESHTENDER_TRUSTED_PROXIES — a comma-separated list of CIDRs
+	// or bare IPs, plus the shorthand token "private" (adds the RFC1918, link-local
+	// and ULA ranges — handy when a home router/LAN sits in front).
+	TrustedProxies []*net.IPNet
 }
 
 // RadioDefaults is a set of LoRa parameters, used to match a repeater's stored
@@ -76,17 +87,18 @@ type RadioDefaults struct {
 // validating required fields.
 func Load() (*Config, error) {
 	c := &Config{
-		Addr:          envOr("MESHTENDER_ADDR", ":8080"),
-		DatabaseURL:   os.Getenv("MESHTENDER_DATABASE_URL"),
-		RPID:          envOr("MESHTENDER_RP_ID", "localhost"),
-		RPDisplayName: envOr("MESHTENDER_RP_NAME", "MeshTender"),
-		RPOrigins:     splitOrigins(envOr("MESHTENDER_RP_ORIGIN", "http://localhost:8080")),
-		PrimaryHost:   envOr("MESHTENDER_PRIMARY_HOST", envOr("MESHTENDER_RP_ID", "localhost")),
-		AuthHost:      os.Getenv("MESHTENDER_AUTH_HOST"),
-		RootHost:      os.Getenv("MESHTENDER_ROOT_HOST"),
-		WWWHost:       os.Getenv("MESHTENDER_WWW_HOST"),
-		TLSCert:       os.Getenv("MESHTENDER_TLS_CERT"),
-		TLSKey:        os.Getenv("MESHTENDER_TLS_KEY"),
+		Addr:           envOr("MESHTENDER_ADDR", ":8080"),
+		DatabaseURL:    os.Getenv("MESHTENDER_DATABASE_URL"),
+		RPID:           envOr("MESHTENDER_RP_ID", "localhost"),
+		RPDisplayName:  envOr("MESHTENDER_RP_NAME", "MeshTender"),
+		RPOrigins:      splitOrigins(envOr("MESHTENDER_RP_ORIGIN", "http://localhost:8080")),
+		PrimaryHost:    envOr("MESHTENDER_PRIMARY_HOST", envOr("MESHTENDER_RP_ID", "localhost")),
+		AuthHost:       os.Getenv("MESHTENDER_AUTH_HOST"),
+		RootHost:       os.Getenv("MESHTENDER_ROOT_HOST"),
+		WWWHost:        os.Getenv("MESHTENDER_WWW_HOST"),
+		TLSCert:        os.Getenv("MESHTENDER_TLS_CERT"),
+		TLSKey:         os.Getenv("MESHTENDER_TLS_KEY"),
+		TrustedProxies: parseTrustedProxies(os.Getenv("MESHTENDER_TRUSTED_PROXIES")),
 	}
 
 	if c.RootHost != "" && c.WWWHost == "" {
@@ -118,6 +130,55 @@ func Load() (*Config, error) {
 	copy(c.MasterKey[:], keyBytes)
 
 	return c, nil
+}
+
+// privateRanges are added by the "private" shorthand token.
+var privateRanges = []string{
+	"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "169.254.0.0/16",
+	"fc00::/7", "fe80::/10",
+}
+
+// parseTrustedProxies parses MESHTENDER_TRUSTED_PROXIES into CIDR ranges. Loopback
+// is always included (a same-host reverse proxy). Each entry may be a CIDR, a bare
+// IP (treated as a /32 or /128), or the token "private"/"loopback". Unparseable
+// entries are skipped.
+func parseTrustedProxies(s string) []*net.IPNet {
+	nets := []*net.IPNet{mustCIDR("127.0.0.0/8"), mustCIDR("::1/128")}
+	for _, tok := range strings.Split(s, ",") {
+		tok = strings.TrimSpace(tok)
+		if tok == "" {
+			continue
+		}
+		switch strings.ToLower(tok) {
+		case "loopback":
+			continue // already included
+		case "private":
+			for _, c := range privateRanges {
+				nets = append(nets, mustCIDR(c))
+			}
+			continue
+		}
+		if strings.Contains(tok, "/") {
+			if _, n, err := net.ParseCIDR(tok); err == nil {
+				nets = append(nets, n)
+			}
+			continue
+		}
+		if ip := net.ParseIP(tok); ip != nil {
+			bits := 32
+			if ip.To4() == nil {
+				bits = 128
+			}
+			mask := net.CIDRMask(bits, bits)
+			nets = append(nets, &net.IPNet{IP: ip.Mask(mask), Mask: mask})
+		}
+	}
+	return nets
+}
+
+func mustCIDR(s string) *net.IPNet {
+	_, n, _ := net.ParseCIDR(s)
+	return n
 }
 
 func envOr(key, def string) string {

@@ -80,6 +80,7 @@ must serve the confirm/control pages over HTTPS.
 | `MESHTENDER_MASTER_KEY` | 64 hex chars (32 bytes); AES-GCM key encrypting the identity seed at rest (required) |
 | `MESHTENDER_ADDR` | listen address (default `:8080`) |
 | `MESHTENDER_RP_ID` / `_RP_ORIGIN` / `_RP_NAME` | WebAuthn relying-party settings |
+| `MESHTENDER_TRUSTED_PROXIES` | proxies whose `X-Forwarded-For`/`X-Real-IP` are trusted when resolving the client IP — comma-separated CIDRs/IPs, or `private` for the RFC1918/link-local/ULA ranges. Loopback is always trusted. Verify with the admin **Reverse proxy test** page. |
 
 > **Note:** `MESHTENDER_MASTER_KEY` is coupled to the stored identity — changing it makes the
 > existing `server_identity` row undecryptable. Keep it stable.

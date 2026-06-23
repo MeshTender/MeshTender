@@ -74,9 +74,34 @@ func (s *Handlers) pageProxyTest(w http.ResponseWriter, r *http.Request) {
 		scheme = "https"
 	}
 
+	// Trusted-proxy diagnostics: which ranges are trusted, whether the peer is one,
+	// and how each X-Forwarded-For hop is classified (the resolved client is the
+	// rightmost untrusted hop).
+	trusted := s.Cfg.TrustedProxies
+	trustedList := make([]string, 0, len(trusted))
+	for _, n := range trusted {
+		trustedList = append(trustedList, n.String())
+	}
+	type xffHop struct {
+		IP       string
+		Trusted  bool
+		Selected bool
+	}
+	var chain []xffHop
+	for _, raw := range strings.Split(r.Header.Get("X-Forwarded-For"), ",") {
+		ip := strings.TrimSpace(raw)
+		if ip == "" {
+			continue
+		}
+		chain = append(chain, xffHop{IP: ip, Trusted: web.IsTrustedProxy(ip, trusted), Selected: ip == resolved})
+	}
+
 	s.Render(w, r, "proxy_test.html", map[string]any{
-		"ResolvedIP": resolved,
-		"RawPeer":    rawPeer,
+		"ResolvedIP":     resolved,
+		"RawPeer":        rawPeer,
+		"PeerTrusted":    web.IsTrustedProxy(rawHost, trusted),
+		"TrustedProxies": trustedList,
+		"XFFChain":       chain,
 		// HeaderApplied is true when a forwarding header changed the recorded IP
 		// away from the real peer — i.e. the proxy's headers are being trusted.
 		// When false, either this was a direct connection (fine) or the proxy
