@@ -25,7 +25,6 @@
             <div class="d-flex align-items-center flex-wrap gap-2">
               <h3 class="m-0 fs-3"><a class="text-reset text-decoration-none" href="/repeaters/{{.PublicID}}">{{.Name}}</a></h3>
               {{template "repstatus" .}}
-              {{if index $.Reconsent .ID}}<a class="badge bg-warning-lt" href="/repeaters/{{.PublicID}}/share">re-consent needed</a>{{end}}
             </div>
             <div class="d-flex align-items-center flex-wrap gap-2 mt-1 text-secondary">
               <span class="font-monospace">{{slice .PublicKeyHex 0 8}}…</span>

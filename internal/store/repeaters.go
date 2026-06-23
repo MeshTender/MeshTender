@@ -151,8 +151,12 @@ func (s *Store) GetRepeaterForUser(ctx context.Context, userID, repeaterID int64
 		WHERE r.id = $2
 		  AND (r.owner_id = $1
 		       OR r.id IN (SELECT repeater_id FROM repeater_shares WHERE user_id = $1)
-		       OR r.id IN (SELECT orp.repeater_id FROM org_repeaters orp
-		                   JOIN org_members om ON om.org_id = orp.org_id AND om.user_id = $1))`,
+		       OR EXISTS (SELECT 1
+		                  FROM org_members ownm
+		                  JOIN org_members usrm ON usrm.org_id = ownm.org_id AND usrm.user_id = $1
+		                  WHERE ownm.user_id = r.owner_id
+		                    AND NOT EXISTS (SELECT 1 FROM org_repeater_excludes e
+		                                    WHERE e.org_id = ownm.org_id AND e.repeater_id = r.id)))`,
 		userID, repeaterID)
 	r, err := scanRepeater(row)
 	if err != nil {

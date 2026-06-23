@@ -142,10 +142,7 @@ func (s *Handlers) appRouter() chi.Router {
 		r.Post("/repeaters/{id}/unshare", s.handleUnshare)
 		r.Get("/repeaters/{id}/share/{userID}/commands", s.pageShareCommands)
 		r.Post("/repeaters/{id}/share/{userID}/commands", s.handleSetShareCommands)
-		r.Get("/repeaters/{id}/orgs/{orgID}/consented", s.pageConsented)
-		r.Get("/repeaters/{id}/orgs/{orgID}/contribute", s.pageContribute)
-		r.Post("/repeaters/{id}/orgs/{orgID}/contribute", s.handleContribute)
-		r.Post("/repeaters/{id}/orgs/{orgID}/withdraw", s.handleWithdraw)
+		r.Post("/repeaters/{id}/orgs/{orgID}/participation", s.handleSetRepeaterOrg)
 		r.Post("/invite/{token}/accept", s.handleAcceptInvite)
 
 		r.Get("/orgs/new", s.pageNewOrg)
@@ -154,9 +151,8 @@ func (s *Handlers) appRouter() chi.Router {
 		r.Post("/orgs/{id}/join", s.handleJoinOrg)
 		r.Post("/orgs/{id}/leave", s.handleLeaveOrg)
 		r.Post("/orgs/{id}/members/{userID}", s.handleSetOrgMember)
-		r.Get("/orgs/{id}/permissions", s.pageOrgPermissions)
-		r.Get("/orgs/{id}/permissions/edit", s.pageOrgPermissionsEdit)
-		r.Post("/orgs/{id}/permissions/edit", s.handleSaveOrgPermissions)
+		r.Get("/orgs/{id}/my-commands", s.pageOrgCommands)
+		r.Post("/orgs/{id}/my-commands", s.handleSaveOrgCommands)
 		r.Get("/orgs/{id}/config", s.pageOrgConfig)
 		r.Get("/orgs/{id}/config/edit", s.pageOrgConfigEdit)
 		r.Post("/orgs/{id}/config/edit", s.handleSaveOrgConfig)
@@ -199,11 +195,6 @@ func (s *Handlers) pageRepeaters(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not load repeaters", http.StatusInternalServerError)
 		return
 	}
-	reconsent, err := s.Store.OwnedRepeatersNeedingReconsent(r.Context(), uid)
-	if err != nil {
-		http.Error(w, "could not load org state", http.StatusInternalServerError)
-		return
-	}
 	shareCounts, err := s.Store.RepeaterSharingCounts(r.Context(), uid)
 	if err != nil {
 		http.Error(w, "could not load sharing", http.StatusInternalServerError)
@@ -213,7 +204,6 @@ func (s *Handlers) pageRepeaters(w http.ResponseWriter, r *http.Request) {
 	s.Render(w, r, "repeaters.html", map[string]any{
 		"Owned":       owned,
 		"Shared":      shared,
-		"Reconsent":   reconsent,
 		"ShareCounts": shareCounts,
 		"Error":       r.URL.Query().Get("error"),
 	})
@@ -232,11 +222,6 @@ func (s *Handlers) pageDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 	owned, shared := splitOwnedShared(repeaters)
 
-	reconsent, err := s.Store.OwnedRepeatersNeedingReconsent(ctx, uid)
-	if err != nil {
-		http.Error(w, "could not load org state", http.StatusInternalServerError)
-		return
-	}
 	orgs, err := s.Store.ListOrgsForUser(ctx, uid)
 	if err != nil {
 		http.Error(w, "could not load organizations", http.StatusInternalServerError)
@@ -277,7 +262,6 @@ func (s *Handlers) pageDashboard(w http.ResponseWriter, r *http.Request) {
 		"Orgs":        first(orgs, 5),
 		"Mapped":      mapped,
 		"Recent":      recent,
-		"Reconsent":   reconsent,
 		"ShareCounts": shareCounts,
 		"Error":       r.URL.Query().Get("error"),
 	})

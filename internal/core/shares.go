@@ -16,7 +16,6 @@ import (
 // pageShare renders the sharing page for a repeater the user owns: the current
 // share link (if any) and the list of people who have accepted.
 func (s *Handlers) pageShare(w http.ResponseWriter, r *http.Request) {
-	uid := s.Auth.CurrentUserID(r.Context())
 	rep, id, ok := s.requireRepeaterOwned(w, r)
 	if !ok {
 		return
@@ -31,36 +30,20 @@ func (s *Handlers) pageShare(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not load links", http.StatusInternalServerError)
 		return
 	}
-	// Organizations section: orgs this repeater is contributed to, plus orgs the
-	// owner belongs to but hasn't contributed it to yet.
-	contributed, err := s.Store.ListRepeaterOrgs(r.Context(), id)
+	// Organizations section: every org the owner belongs to, with whether this
+	// repeater participates (the default) or has been opted out.
+	orgs, err := s.Store.ListRepeaterOrgMemberships(r.Context(), id)
 	if err != nil {
 		http.Error(w, "could not load orgs", http.StatusInternalServerError)
 		return
 	}
-	memberships, err := s.Store.ListOrgsForUser(r.Context(), uid)
-	if err != nil {
-		http.Error(w, "could not load memberships", http.StatusInternalServerError)
-		return
-	}
-	in := map[int64]bool{}
-	for _, c := range contributed {
-		in[c.OrgID] = true
-	}
-	var available []*store.Org
-	for _, m := range memberships {
-		if !in[m.Org.ID] {
-			available = append(available, m.Org)
-		}
-	}
 	s.Render(w, r, "share.html", map[string]any{
-		"Repeater":    rep,
-		"Shares":      shares,
-		"Invites":     invites,
-		"Contributed": contributed,
-		"Available":   available,
-		"BaseURL":     s.absoluteURL(r, ""),
-		"Error":       r.URL.Query().Get("error"),
+		"Repeater": rep,
+		"Shares":   shares,
+		"Invites":  invites,
+		"Orgs":     orgs,
+		"BaseURL":  s.absoluteURL(r, ""),
+		"Error":    r.URL.Query().Get("error"),
 	})
 }
 

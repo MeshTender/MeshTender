@@ -37,7 +37,5 @@ func orderFeatures(present []string) {
 	})
 }
 
-// The feature×operation table builder (FeatureTableFor) lives in internal/web so
-// both the app host and the root host can build it for the read-only consent /
-// requested-access views; this file keeps only the feature ordering, still used
-// by groupByFeature for the catalog/editor groupings.
+// This file keeps the feature ordering used by groupByFeature for the catalog and
+// share/org command-selection groupings.

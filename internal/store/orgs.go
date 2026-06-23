@@ -124,25 +124,8 @@ func (s *Store) CreateOrg(ctx context.Context, name string, creatorID int64) (*O
 			o.ID, creatorID); err != nil {
 			return fmt.Errorf("add creator: %w", err)
 		}
-
-		// Seed version 1 from the catalog default sets.
-		var versionID int64
-		if err := tx.QueryRow(ctx,
-			`INSERT INTO org_permission_versions (org_id, version, note, created_by)
-			 VALUES ($1, 1, 'Initial policy', $2) RETURNING id`,
-			o.ID, creatorID).Scan(&versionID); err != nil {
-			return fmt.Errorf("seed version: %w", err)
-		}
-		if _, err := tx.Exec(ctx,
-			`INSERT INTO org_permission_commands (version_id, command_id, tier)
-			 SELECT $1, id, 'admin' FROM command_catalog WHERE in_org_admin_default`, versionID); err != nil {
-			return fmt.Errorf("seed admin commands: %w", err)
-		}
-		if _, err := tx.Exec(ctx,
-			`INSERT INTO org_permission_commands (version_id, command_id, tier)
-			 SELECT $1, id, 'member' FROM command_catalog WHERE in_org_member_default`, versionID); err != nil {
-			return fmt.Errorf("seed member commands: %w", err)
-		}
+		// No permission policy to seed: what an org may run is the site-wide
+		// catalog ceiling, and owners restrict per org via org_command_optin.
 		return nil
 	})
 	if err != nil {
@@ -302,7 +285,10 @@ func (s *Store) ListPublicOrgsPage(ctx context.Context, p OrgListParams) ([]OrgS
 		FROM (
 			SELECT o.id, o.slug, o.name, o.description, o.region, o.created_at,
 			       (SELECT count(*) FROM org_members m WHERE m.org_id = o.id) AS member_count,
-			       (SELECT count(*) FROM org_repeaters orp WHERE orp.org_id = o.id) AS repeater_count
+			       (SELECT count(*) FROM repeaters r
+			         JOIN org_members om ON om.org_id = o.id AND om.user_id = r.owner_id
+			         WHERE NOT EXISTS (SELECT 1 FROM org_repeater_excludes e
+			                           WHERE e.org_id = o.id AND e.repeater_id = r.id)) AS repeater_count
 			FROM organizations o
 			%s
 		) t
@@ -333,7 +319,10 @@ func (s *Store) ListPublicOrgsPage(ctx context.Context, p OrgListParams) ([]OrgS
 func (s *Store) OrgCounts(ctx context.Context, orgID int64) (members, repeaters int, err error) {
 	err = s.pool.QueryRow(ctx, `
 		SELECT (SELECT count(*) FROM org_members WHERE org_id = $1),
-		       (SELECT count(*) FROM org_repeaters WHERE org_id = $1)`, orgID).
+		       (SELECT count(*) FROM repeaters r
+		         JOIN org_members om ON om.org_id = $1 AND om.user_id = r.owner_id
+		         WHERE NOT EXISTS (SELECT 1 FROM org_repeater_excludes e
+		                           WHERE e.org_id = $1 AND e.repeater_id = r.id))`, orgID).
 		Scan(&members, &repeaters)
 	if err != nil {
 		return 0, 0, fmt.Errorf("org counts: %w", err)

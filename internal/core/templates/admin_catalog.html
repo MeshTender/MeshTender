@@ -11,10 +11,11 @@
 <div class="card">
   <div class="card-body">
     <p class="text-secondary mb-0">
-      The firmware commands MeshTender can send. A repeater owner can run anything; these flags seed what
-      others are offered — <strong>share</strong> = default for a new one-off share, <strong>member</strong>/<strong>admin</strong>
-      = the org default tiers. <strong>Risky</strong> commands can lock the owner out or brick a node. Hover a
-      command to see what it does.
+      The firmware commands MeshTender can send. A repeater owner can run anything. <strong>Share</strong> seeds
+      the default command set for a new one-off share. <strong>Member</strong>/<strong>admin</strong> are the
+      ceiling of what an organization may ever run on a contributed repeater, by tier. <strong>Risky</strong>
+      commands can lock the owner out or brick a node — leave these out of the org tiers. Hover a command to
+      see what it does.
     </p>
     {{if .Saved}}<div class="alert alert-success mt-3 mb-0">Saved</div>{{end}}
   </div>
@@ -41,8 +42,8 @@
           <td class="text-truncate"><code title="{{.Description}}" style="cursor:help">{{.Template}}</code></td>
           <td class="text-center"><input class="form-check-input cc-risky m-0"  type="checkbox" form="cmd-{{.ID}}" name="risky"      aria-label="risky"  {{if .Risky}}checked{{end}}></td>
           <td class="text-center"><input class="form-check-input cc-share m-0"  type="checkbox" form="cmd-{{.ID}}" name="share"      aria-label="share"  {{if .InShareDefault}}checked{{end}}></td>
-          <td class="text-center"><input class="form-check-input cc-member m-0" type="checkbox" form="cmd-{{.ID}}" name="org_member" aria-label="member" {{if .InOrgMemberDefault}}checked{{end}}></td>
-          <td class="text-center"><input class="form-check-input cc-admin m-0"  type="checkbox" form="cmd-{{.ID}}" name="org_admin"  aria-label="admin"  {{if .InOrgAdminDefault}}checked{{end}}></td>
+          <td class="text-center"><input class="form-check-input cc-member m-0" type="checkbox" form="cmd-{{.ID}}" name="org_member" aria-label="member" {{if .OrgMemberAllowed}}checked{{end}}></td>
+          <td class="text-center"><input class="form-check-input cc-admin m-0"  type="checkbox" form="cmd-{{.ID}}" name="org_admin"  aria-label="admin"  {{if .OrgAdminAllowed}}checked{{end}}></td>
           <td class="text-end"><form id="cmd-{{.ID}}" method="post" action="/admin/catalog/{{.ID}}" class="m-0"><button type="submit" class="btn btn-sm">Save</button></form></td>
         </tr>
         {{end}}

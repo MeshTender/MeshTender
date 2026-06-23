@@ -119,32 +119,6 @@ func (s *Handlers) pageOrgConfig(w http.ResponseWriter, r *http.Request) {
 	s.Render(w, r, "org_config.html", data)
 }
 
-// pageOrgPermissions renders an org's requested-access policy read-only for
-// anonymous visitors (so prospective members can see it before joining).
-func (s *Handlers) pageOrgPermissions(w http.ResponseWriter, r *http.Request) {
-	id, ok := s.orgID(r)
-	if !ok {
-		http.NotFound(w, r)
-		return
-	}
-	org, err := s.Store.GetOrg(r.Context(), id)
-	if err != nil {
-		http.NotFound(w, r)
-		return
-	}
-	pv, err := web.BuildPermissionsView(r.Context(), s.Store, id)
-	if err != nil {
-		http.Error(w, "could not load policy", http.StatusInternalServerError)
-		return
-	}
-	s.Render(w, r, "org_permissions.html", map[string]any{
-		"Org":     org,
-		"Nav":     web.OrgNav(org.Slug, "permissions", false),
-		"CanEdit": false,
-		"Perms":   pv,
-	})
-}
-
 // pageOrgRepeaters renders an org's public repeaters (those opted into the public
 // map) with a map, for anonymous visitors.
 func (s *Handlers) pageOrgRepeaters(w http.ResponseWriter, r *http.Request) {

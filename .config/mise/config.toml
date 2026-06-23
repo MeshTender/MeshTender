@@ -10,3 +10,6 @@ auto = true
 
 [tasks.dev]
 run = "go run ./cmd/meshtender"
+
+[tasks.reset]
+run = "go run ./cmd/meshtender --reset"

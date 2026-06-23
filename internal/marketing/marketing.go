@@ -44,8 +44,7 @@ func (s *Handlers) Routes() chi.Router {
 	r.Get("/orgs", s.pageOrgs)                            // public organization directory
 	r.Get("/orgs/{id}", s.pageOrgPublic)                  // public org page
 	r.Get("/orgs/{id}/repeaters", s.pageOrgRepeaters)     // public repeater list + map
-	r.Get("/orgs/{id}/config", s.pageOrgConfig)           // public recommended config
-	r.Get("/orgs/{id}/permissions", s.pageOrgPermissions) // public requested access
+	r.Get("/orgs/{id}/config", s.pageOrgConfig) // public recommended config
 	return r
 }
 

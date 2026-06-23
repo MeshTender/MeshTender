@@ -14,7 +14,7 @@
   <!-- Left: list -->
   <div class="col-lg-8">
     <div class="card">
-      <div class="card-header"><h3 class="card-title">Contributed repeaters</h3></div>
+      <div class="card-header"><h3 class="card-title">Shared repeaters</h3></div>
       {{if .Reps.Repeaters}}
       <div class="list-group list-group-flush">
         {{range .Reps.Repeaters}}
@@ -31,7 +31,7 @@
       </div>
       {{else}}
       <div class="card-body"><p class="text-secondary mb-0">
-        {{if .Reps.Full}}No repeaters have been contributed yet. Members can contribute their own from a repeater's “Organizations” page.
+        {{if .Reps.Full}}No repeaters are shared yet. A member's repeaters are shared automatically; they can opt one out from its sharing page.
         {{else}}No repeaters are shown publicly. Members can opt a repeater into the public map when editing it.{{end}}
       </p></div>
       {{end}}

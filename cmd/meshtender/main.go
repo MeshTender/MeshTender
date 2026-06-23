@@ -4,6 +4,7 @@ package main
 import (
 	"context"
 	"errors"
+	"flag"
 	"log/slog"
 	"net/http"
 	"os"
@@ -27,6 +28,11 @@ func main() {
 }
 
 func run(logger *slog.Logger) error {
+	var reset bool
+	flag.BoolVar(&reset, "reset", false,
+		"truncate all data except users, passkeys, sessions, and the server identity, then exit")
+	flag.Parse()
+
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
@@ -45,6 +51,14 @@ func run(logger *slog.Logger) error {
 		return err
 	}
 	logger.Info("migrations applied")
+
+	if reset {
+		if err := st.Reset(ctx); err != nil {
+			return err
+		}
+		logger.Info("database reset — kept users, passkeys, sessions, and the server identity")
+		return nil
+	}
 
 	idSvc, err := identity.LoadOrCreate(ctx, st, cfg.MasterKey)
 	if err != nil {

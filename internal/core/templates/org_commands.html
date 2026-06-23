@@ -1,0 +1,52 @@
+{{define "title"}}Limit commands · {{.Org.Name}} · MeshTender{{end}}
+{{define "header"}}
+<div class="row g-2 align-items-center">
+  <div class="col">
+    <div class="page-pretitle">{{.Org.Name}}</div>
+    <h2 class="page-title">Limit commands</h2>
+  </div>
+</div>
+{{end}}
+{{define "content"}}
+<div class="card">
+  <div class="card-body">
+    <p class="text-secondary mb-0">
+      Restrict which of the commands <strong>{{.Org.Name}}</strong> is permitted to run actually run on
+      <em>your</em> repeaters shared with it. This applies to every repeater you share with this organization.
+      {{if .Restricted}}
+      You're currently allowing only the checked commands.
+      {{else}}
+      No restriction is set — every command the organization is permitted to run can run. Uncheck commands to
+      restrict them.
+      {{end}}
+    </p>
+  </div>
+</div>
+
+<form method="post" action="/orgs/{{.Org.Slug}}/my-commands" id="cmdform-perms">
+  {{range .Groups}}
+  <div class="card mt-3">
+    <div class="card-header"><h3 class="card-title">{{.Name}}</h3></div>
+    <div class="card-body">
+      {{range .Commands}}
+      <label class="form-check">
+        <input class="form-check-input" type="checkbox" name="cmd" value="{{.ID}}" {{if .Checked}}checked{{end}}>
+        <span class="form-check-label">
+          <code>{{.Template}}</code>
+          {{if .Risky}}<span class="badge bg-warning-lt">risky</span>{{end}}
+          {{if .Args}}<span class="text-secondary">{{.Args}}</span>{{end}}
+        </span>
+      </label>
+      {{end}}
+    </div>
+  </div>
+  {{end}}
+  <div class="btn-list mt-3">
+    <button type="submit" class="btn btn-primary">Save restriction</button>
+    {{if .Restricted}}
+    <button type="submit" name="clear" value="1" class="btn">Remove restriction (allow all)</button>
+    {{end}}
+    <a class="btn" href="/orgs/{{.Org.Slug}}">Cancel</a>
+  </div>
+</form>
+{{end}}

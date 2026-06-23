@@ -187,37 +187,6 @@
 </details>
 {{end}}
 
-{{/* feature-table renders a []featureRow (commands grouped by feature × operation)
-     for permission review/consent. Dot is the slice of rows. */}}
-{{define "feature-table"}}
-<div class="table-responsive">
-  <table class="table table-vcenter">
-    <thead><tr>
-      <th>Feature</th><th>Read</th><th>Write</th><th>Delete</th><th>Action</th>
-    </tr></thead>
-    <tbody>
-      {{range .}}
-      <tr>
-        <td class="fw-bold align-top">{{.Feature}}</td>
-        {{template "feature-cell" .Read}}
-        {{template "feature-cell" .Write}}
-        {{template "feature-cell" .Delete}}
-        {{template "feature-cell" .Action}}
-      </tr>
-      {{end}}
-    </tbody>
-  </table>
-</div>
-{{end}}
-
-{{/* feature-cell renders one cell of the feature table (a []cmdCell). Hovering a
-     command shows its description via the title tooltip. */}}
-{{define "feature-cell"}}
-<td class="align-top">
-{{- if . }}{{range .}}<div class="mb-1"><code title="{{.Description}}" style="cursor:help">{{.Template}}</code>{{if .Risky}} <span class="badge bg-warning-lt">risky</span>{{end}}</div>{{end}}{{else}}<span class="text-secondary">—</span>{{end -}}
-</td>
-{{end}}
-
 {{/* repstatus renders confirmation provenance + access badges for a *store.Repeater. */}}
 {{define "repstatus"}}
 {{- if not .Confirmed -}}

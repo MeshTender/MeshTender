@@ -21,22 +21,26 @@ type Command struct {
 	Description string
 	// Feature is the grouping area (e.g. "Radio", "Region") and Operation is the
 	// read/write/delete/action bucket, both used by the review/catalog UIs.
-	Feature            string
-	Operation          string
-	Risky              bool
-	InShareDefault     bool
-	InOrgMemberDefault bool
-	InOrgAdminDefault  bool
+	Feature   string
+	Operation string
+	Risky     bool
+	// InShareDefault seeds the command set offered for a new one-off share.
+	InShareDefault bool
+	// OrgMemberAllowed / OrgAdminAllowed are the site-admin-controlled ceiling of
+	// what an org member / admin may ever run on a contributed repeater. (No longer
+	// just a seed — these are the authoritative per-tier limits.)
+	OrgMemberAllowed bool
+	OrgAdminAllowed  bool
 }
 
 const commandCols = `id, key, template, category, args, arity, description, feature, operation, risky,
-	in_share_default, in_org_member_default, in_org_admin_default`
+	in_share_default, org_member_allowed, org_admin_allowed`
 
 func scanCommand(row pgx.Row) (*Command, error) {
 	var c Command
 	err := row.Scan(&c.ID, &c.Key, &c.Template, &c.Category, &c.Args, &c.Arity, &c.Description,
 		&c.Feature, &c.Operation, &c.Risky,
-		&c.InShareDefault, &c.InOrgMemberDefault, &c.InOrgAdminDefault)
+		&c.InShareDefault, &c.OrgMemberAllowed, &c.OrgAdminAllowed)
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +70,7 @@ func (s *Store) GetCommand(ctx context.Context, id int64) (*Command, error) {
 func (s *Store) UpdateCommandFlags(ctx context.Context, id int64, risky, share, orgMember, orgAdmin bool) error {
 	_, err := s.pool.Exec(ctx, `
 		UPDATE command_catalog
-		SET risky = $2, in_share_default = $3, in_org_member_default = $4, in_org_admin_default = $5
+		SET risky = $2, in_share_default = $3, org_member_allowed = $4, org_admin_allowed = $5
 		WHERE id = $1`, id, risky, share, orgMember, orgAdmin)
 	if err != nil {
 		return fmt.Errorf("update command flags: %w", err)

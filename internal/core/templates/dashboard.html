@@ -9,13 +9,6 @@
 {{end}}
 {{define "content"}}
 {{if .Error}}<div class="alert alert-danger" role="alert">{{.Error}}</div>{{end}}
-{{if .Reconsent}}
-<div class="alert alert-warning" role="alert">
-  <div class="d-flex"><div>{{template "icon-alert" "alert-icon"}}</div>
-    <div>One or more of your repeaters need re-consent after an organization changed its command policy.
-      <a href="/repeaters" class="alert-link">Review on the Repeaters page</a>.</div></div>
-</div>
-{{end}}
 
 <!-- Summary stats -->
 <div class="row row-cards">

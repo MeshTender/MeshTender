@@ -11,10 +11,11 @@ import (
 // to repeaterID. Allowed if any of:
 //   - they own the repeater (any command), or
 //   - a share grants them that specific command, or
-//   - the repeater is contributed to an org they're a member of, and the command
-//     is in BOTH the consented and the current policy version for their effective
-//     tier (member → member tier; admin → member OR admin tier). This implements
-//     effective = consented ∩ current, with admins ⊇ members.
+//   - the repeater participates in an org they and the owner both belong to (the
+//     owner is a member and hasn't excluded the repeater), the command is within
+//     the site ceiling for their tier (member → org_member_allowed; admin →
+//     org_member_allowed OR org_admin_allowed), AND the owner either set no opt-in
+//     list for that org (permissive) or listed this command.
 func (s *Store) CanSendCommand(ctx context.Context, userID, repeaterID, commandID int64) (bool, error) {
 	var ok bool
 	err := s.pool.QueryRow(ctx, `
@@ -23,20 +24,20 @@ func (s *Store) CanSendCommand(ctx context.Context, userID, repeaterID, commandI
 		 OR EXISTS (SELECT 1 FROM share_commands WHERE repeater_id = $2 AND user_id = $1 AND command_id = $3)
 		 OR EXISTS (
 		      SELECT 1
-		      FROM org_repeaters orp
-		      JOIN org_members om ON om.org_id = orp.org_id AND om.user_id = $1
-		      JOIN org_permission_commands consented
-		           ON consented.version_id = orp.consented_version_id
-		          AND consented.command_id = $3
-		          AND (consented.tier = 'member' OR (om.role = 'admin' AND consented.tier = 'admin'))
-		      JOIN org_permission_versions cur
-		           ON cur.org_id = orp.org_id
-		          AND cur.version = (SELECT max(version) FROM org_permission_versions WHERE org_id = orp.org_id)
-		      JOIN org_permission_commands current
-		           ON current.version_id = cur.id
-		          AND current.command_id = $3
-		          AND (current.tier = 'member' OR (om.role = 'admin' AND current.tier = 'admin'))
-		      WHERE orp.repeater_id = $2
+		      FROM repeaters r
+		      JOIN org_members ownm ON ownm.user_id = r.owner_id              -- owner's org memberships
+		      JOIN org_members usrm ON usrm.org_id = ownm.org_id AND usrm.user_id = $1
+		      JOIN command_catalog c ON c.id = $3
+		      WHERE r.id = $2
+		        AND NOT EXISTS (SELECT 1 FROM org_repeater_excludes e
+		                        WHERE e.org_id = ownm.org_id AND e.repeater_id = r.id)
+		        AND (c.org_member_allowed OR (usrm.role = 'admin' AND c.org_admin_allowed))
+		        AND (
+		              NOT EXISTS (SELECT 1 FROM org_command_optin o
+		                          WHERE o.org_id = ownm.org_id AND o.owner_id = r.owner_id)
+		           OR EXISTS (SELECT 1 FROM org_command_optin o
+		                      WHERE o.org_id = ownm.org_id AND o.owner_id = r.owner_id AND o.command_id = $3)
+		            )
 		 )`,
 		userID, repeaterID, commandID).Scan(&ok)
 	if err != nil {

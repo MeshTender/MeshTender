@@ -22,14 +22,14 @@ import (
 	"github.com/jleight/meshtender/internal/store"
 )
 
-//go:embed templates/base.html templates/icons.html templates/org_tabs.html templates/org_public.html templates/org_config.html templates/org_permissions.html templates/org_repeaters.html
+//go:embed templates/base.html templates/icons.html templates/org_tabs.html templates/org_public.html templates/org_config.html templates/org_repeaters.html
 var sharedTemplatesFS embed.FS
 
 // sharedPages are full content pages (not just layout partials) that more than
 // one surface renders. They're composed onto the base layout for every surface,
 // so the root host (anonymous) and the app host (signed-in) can render the same
 // public org page without duplicating the template.
-var sharedPages = []string{"templates/org_public.html", "templates/org_config.html", "templates/org_permissions.html", "templates/org_repeaters.html"}
+var sharedPages = []string{"templates/org_public.html", "templates/org_config.html", "templates/org_repeaters.html"}
 
 //go:embed static/*
 var staticFS embed.FS

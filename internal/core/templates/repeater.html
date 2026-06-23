@@ -93,17 +93,16 @@
           <span class="text-secondary">{{template "icon-world" ""}}</span>
           <div class="flex-fill text-truncate">
             <a class="fw-bold text-reset" href="/orgs/{{.OrgSlug}}">{{.OrgName}}</a>
-            <div class="text-secondary small">consented to v{{.ConsentedVersion}}{{if gt .CurrentVersion .ConsentedVersion}} <span class="badge bg-warning-lt">re-consent</span>{{end}}</div>
           </div>
           <div class="btn-list flex-nowrap">
-            <a class="btn btn-sm" href="/repeaters/{{$.Repeater.PublicID}}/orgs/{{.OrgSlug}}/consented" title="What v{{.ConsentedVersion}} permits org members to run on this repeater">{{template "icon-list" "me-1"}}Permissions</a>
+            <a class="btn btn-sm" href="/orgs/{{.OrgSlug}}/my-commands" title="Limit which commands this org may run on your repeaters">{{template "icon-list" "me-1"}}Commands</a>
             <a class="btn btn-sm" href="/orgs/{{.OrgSlug}}/config{{if $.Repeater.Latitude}}?lat={{$.Repeater.Latitude}}&lon={{$.Repeater.Longitude}}{{end}}" title="This org's recommended config for this repeater">{{template "icon-settings" "me-1"}}Config</a>
           </div>
         </div>
         {{end}}
       </div>
       {{else}}
-      <div class="card-body"><p class="text-secondary mb-0">Not contributed to any organization.</p></div>
+      <div class="card-body"><p class="text-secondary mb-0">Not shared with any organization.</p></div>
       {{end}}
     </div>
 

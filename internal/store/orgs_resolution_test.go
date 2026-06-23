@@ -48,9 +48,21 @@ func TestOrgCommandResolution(t *testing.T) {
 		}
 		return id
 	}
-	// poweroff is a risky, owner-only command that's in no org tier — used to
-	// check that even an org admin can't run a command outside the policy.
+	// poweroff is a risky, owner-only command kept out of both org tiers — used to
+	// check that even an org admin can't run a command outside the site ceiling.
 	setRadio, advert, poweroff, setTx := cmdID("set.radio"), cmdID("advert"), cmdID("poweroff"), cmdID("set.tx")
+
+	// Set the site ceiling: admin tier = {set.radio, set.tx}, member tier = {advert},
+	// poweroff in neither. (risky/share flags don't matter for these checks.)
+	setCeiling := func(id int64, member, admin bool) {
+		if err := st.UpdateCommandFlags(ctx, id, false, false, member, admin); err != nil {
+			t.Fatalf("set ceiling %d: %v", id, err)
+		}
+	}
+	setCeiling(setRadio, false, true)
+	setCeiling(setTx, false, true)
+	setCeiling(advert, true, false)
+	setCeiling(poweroff, false, false)
 
 	mkUser := func(name string) int64 {
 		u, err := st.CreateUser(ctx, name, "")
@@ -82,15 +94,7 @@ func TestOrgCommandResolution(t *testing.T) {
 	if err := st.AddOrgMember(ctx, org.ID, plainM, "member"); err != nil {
 		t.Fatal(err)
 	}
-
-	// Controlled v2: admin={set.radio}, member={advert}; contribute pinned to it.
-	if _, err := st.PublishVersion(ctx, org.ID, "v2", owner, []int64{setRadio}, []int64{advert}); err != nil {
-		t.Fatal(err)
-	}
-	vid, _, _ := st.CurrentVersion(ctx, org.ID)
-	if err := st.ContributeRepeater(ctx, org.ID, rep.ID, vid, owner); err != nil {
-		t.Fatal(err)
-	}
+	// The owner's repeater participates in the org automatically (no opt-out).
 
 	can := func(u, c int64) bool {
 		ok, err := st.CanSendCommand(ctx, u, rep.ID, c)
@@ -108,9 +112,10 @@ func TestOrgCommandResolution(t *testing.T) {
 
 	// Owner: anything.
 	check("owner/poweroff", can(owner, poweroff), true)
-	// Org-admin: admin tier + member tier (⊇), but not commands outside policy.
+	// Org-admin: admin tier + member tier (⊇), but not commands outside the ceiling.
 	check("admin/set.radio", can(adminM, setRadio), true)
 	check("admin/advert", can(adminM, advert), true)
+	check("admin/set.tx", can(adminM, setTx), true)
 	check("admin/poweroff", can(adminM, poweroff), false)
 	// Plain member: member tier only.
 	check("member/advert", can(plainM, advert), true)
@@ -118,24 +123,29 @@ func TestOrgCommandResolution(t *testing.T) {
 	// Outsider: nothing.
 	check("outsider/advert", can(outsider, advert), false)
 
-	// Add set.tx to admin in v3; repeater still pinned to v2 → blocked until re-consent.
-	if _, err := st.PublishVersion(ctx, org.ID, "v3 add set.tx", owner, []int64{setRadio, setTx}, []int64{advert}); err != nil {
+	// Owner opts the org into only {advert}: the admin loses the admin-tier
+	// commands not in the list, but keeps advert.
+	if err := st.SetOrgOptIn(ctx, org.ID, owner, []int64{advert}); err != nil {
 		t.Fatal(err)
 	}
-	check("admin/set.tx before reconsent", can(adminM, setTx), false)
-	v3, _, _ := st.CurrentVersion(ctx, org.ID)
-	if err := st.ContributeRepeater(ctx, org.ID, rep.ID, v3, owner); err != nil { // re-consent
+	check("admin/set.radio with opt-in", can(adminM, setRadio), false)
+	check("admin/advert with opt-in", can(adminM, advert), true)
+	// Clearing the opt-in restores the full ceiling.
+	if err := st.SetOrgOptIn(ctx, org.ID, owner, nil); err != nil {
 		t.Fatal(err)
 	}
-	check("admin/set.tx after reconsent", can(adminM, setTx), true)
+	check("admin/set.radio after clear", can(adminM, setRadio), true)
 
-	// Remove set.radio in v4 (admin={set.tx}); removal auto-applies even though
-	// the repeater is still consented to v3 (which had set.radio).
-	if _, err := st.PublishVersion(ctx, org.ID, "v4 drop set.radio", owner, []int64{setTx}, []int64{advert}); err != nil {
+	// Opting the repeater out of the org blocks all org access regardless of tier.
+	if err := st.SetRepeaterOrgExcluded(ctx, org.ID, rep.ID, true); err != nil {
 		t.Fatal(err)
 	}
-	check("admin/set.radio after removal", can(adminM, setRadio), false)
-	check("admin/set.tx still", can(adminM, setTx), true)
+	check("admin/advert when excluded", can(adminM, advert), false)
+	check("member/advert when excluded", can(plainM, advert), false)
+	if err := st.SetRepeaterOrgExcluded(ctx, org.ID, rep.ID, false); err != nil {
+		t.Fatal(err)
+	}
+	check("admin/advert when re-included", can(adminM, advert), true)
 }
 
 func TestOrgRepeaterAccess(t *testing.T) {
@@ -150,8 +160,7 @@ func TestOrgRepeaterAccess(t *testing.T) {
 	}
 	org, _ := st.CreateOrg(ctx, "Org", owner.ID)
 	_ = st.AddOrgMember(ctx, org.ID, member.ID, "member")
-	vid, _, _ := st.CurrentVersion(ctx, org.ID)
-	_ = st.ContributeRepeater(ctx, org.ID, rep.ID, vid, owner.ID)
+	// The owner's repeater participates in the org automatically.
 
 	// Member can fetch (and thus operate) the repeater via org access...
 	if _, err := st.GetRepeaterForUser(ctx, member.ID, rep.ID); err != nil {

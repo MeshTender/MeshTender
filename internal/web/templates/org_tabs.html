@@ -1,5 +1,5 @@
 {{/* org-tabs renders the organization sub-navigation. Data: a map with Slug,
-Active ("home" | "repeaters" | "members" | "config" | "permissions") and IsMember
+Active ("home" | "repeaters" | "members" | "config") and IsMember
 (the Members tab only shows for members — it exposes personal info). Nil-safe: a
 missing map renders empty links (harmless for the empty-data compose test). Links
 are same-host relative so they work on both the app host (signed-in) and the root
@@ -10,6 +10,5 @@ host (anonymous). */}}
   {{if .IsMember}}<li class="nav-item"><a class="nav-link{{if eq .Active "members"}} active{{end}}" href="/orgs/{{.Slug}}/members">{{template "icon-users" "me-1"}}Members</a></li>{{end}}
   <li class="nav-item"><a class="nav-link{{if eq .Active "repeaters"}} active{{end}}" href="/orgs/{{.Slug}}/repeaters">{{template "icon-antenna" "me-1"}}Repeaters</a></li>
   <li class="nav-item"><a class="nav-link{{if eq .Active "config"}} active{{end}}" href="/orgs/{{.Slug}}/config">{{template "icon-settings" "me-1"}}Configuration</a></li>
-  <li class="nav-item"><a class="nav-link{{if eq .Active "permissions"}} active{{end}}" href="/orgs/{{.Slug}}/permissions">{{template "icon-list" "me-1"}}Requested access</a></li>
 </ul>
 {{end}}

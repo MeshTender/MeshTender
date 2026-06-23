@@ -7,48 +7,46 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// RepeaterOrg describes an org a repeater is contributed to, with the version
-// the owner consented to vs the org's current version (current > consented means
-// re-consent is available).
+// A repeater participates in an org iff its owner is a member of that org and the
+// owner hasn't opted it out (no org_repeater_excludes row). This file builds the
+// org↔repeater listings around that rule and manages the opt-out set.
+
+// RepeaterOrg is an org a repeater participates in.
 type RepeaterOrg struct {
-	OrgID            int64
-	OrgSlug          string
-	OrgName          string
-	ConsentedVersion int
-	CurrentVersion   int
+	OrgID   int64
+	OrgSlug string
+	OrgName string
 }
 
-// NeedsReconsent reports whether the org has published a newer version than the
-// owner consented to.
-func (r RepeaterOrg) NeedsReconsent() bool { return r.CurrentVersion > r.ConsentedVersion }
+// RepeaterOrgMembership is an org the repeater's owner belongs to, with whether
+// the owner has opted this repeater out of it — drives the per-org include/exclude
+// toggles on the owner's repeater/share pages.
+type RepeaterOrgMembership struct {
+	OrgID    int64
+	OrgSlug  string
+	OrgName  string
+	Excluded bool
+}
 
-// ContributeRepeater contributes a repeater to an org pinned to consentedVersionID
-// (also used to re-consent: re-pins to a newer version).
-func (s *Store) ContributeRepeater(ctx context.Context, orgID, repeaterID, consentedVersionID, contributedBy int64) error {
-	_, err := s.pool.Exec(ctx, `
-		INSERT INTO org_repeaters (org_id, repeater_id, consented_version_id, contributed_by)
-		VALUES ($1, $2, $3, $4)
-		ON CONFLICT (org_id, repeater_id)
-		DO UPDATE SET consented_version_id = EXCLUDED.consented_version_id,
-		              contributed_by = EXCLUDED.contributed_by, contributed_at = now()`,
-		orgID, repeaterID, consentedVersionID, contributedBy)
+// SetRepeaterOrgExcluded opts a repeater out of (excluded=true) or back into
+// (excluded=false) an org. Idempotent.
+func (s *Store) SetRepeaterOrgExcluded(ctx context.Context, orgID, repeaterID int64, excluded bool) error {
+	var err error
+	if excluded {
+		_, err = s.pool.Exec(ctx,
+			`INSERT INTO org_repeater_excludes (org_id, repeater_id) VALUES ($1, $2)
+			 ON CONFLICT DO NOTHING`, orgID, repeaterID)
+	} else {
+		_, err = s.pool.Exec(ctx,
+			`DELETE FROM org_repeater_excludes WHERE org_id = $1 AND repeater_id = $2`, orgID, repeaterID)
+	}
 	if err != nil {
-		return fmt.Errorf("contribute repeater: %w", err)
+		return fmt.Errorf("set repeater org excluded: %w", err)
 	}
 	return nil
 }
 
-// WithdrawRepeater removes a repeater from an org.
-func (s *Store) WithdrawRepeater(ctx context.Context, orgID, repeaterID int64) error {
-	_, err := s.pool.Exec(ctx,
-		`DELETE FROM org_repeaters WHERE org_id = $1 AND repeater_id = $2`, orgID, repeaterID)
-	if err != nil {
-		return fmt.Errorf("withdraw repeater: %w", err)
-	}
-	return nil
-}
-
-// OrgRepeaterInfo is a contributed repeater shown on the org page.
+// OrgRepeaterInfo is a participating repeater shown on the org page.
 type OrgRepeaterInfo struct {
 	RepeaterID       int64
 	RepeaterPublicID string
@@ -58,16 +56,17 @@ type OrgRepeaterInfo struct {
 	Lat, Lon         float64
 }
 
-// ListOrgRepeaters returns the repeaters contributed to an org (with location
-// when the owner consented to storing it).
+// ListOrgRepeaters returns the repeaters participating in an org (owned by a
+// member, not opted out), with location when the owner stored it.
 func (s *Store) ListOrgRepeaters(ctx context.Context, orgID int64) ([]OrgRepeaterInfo, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT r.id, r.public_id, r.name, COALESCE(NULLIF(ou.display_name, ''), ou.username, '?'),
 		       r.latitude, r.longitude
-		FROM org_repeaters orp
-		JOIN repeaters r ON r.id = orp.repeater_id
+		FROM repeaters r
+		JOIN org_members om ON om.org_id = $1 AND om.user_id = r.owner_id
 		JOIN users ou ON ou.id = r.owner_id
-		WHERE orp.org_id = $1
+		WHERE NOT EXISTS (SELECT 1 FROM org_repeater_excludes e
+		                  WHERE e.org_id = $1 AND e.repeater_id = r.id)
 		ORDER BY r.name`, orgID)
 	if err != nil {
 		return nil, fmt.Errorf("list org repeaters: %w", err)
@@ -89,16 +88,18 @@ func setLocation(ri *OrgRepeaterInfo, lat, lon *float64) {
 	}
 }
 
-// ListPublicMapRepeaters returns the contributed repeaters an org may show on
+// ListPublicMapRepeaters returns the participating repeaters an org may show on
 // its public map: those whose owner opted into public_map and have coordinates.
 func (s *Store) ListPublicMapRepeaters(ctx context.Context, orgID int64) ([]OrgRepeaterInfo, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT r.id, r.name, COALESCE(NULLIF(ou.display_name, ''), ou.username, '?'),
 		       r.latitude, r.longitude
-		FROM org_repeaters orp
-		JOIN repeaters r ON r.id = orp.repeater_id
+		FROM repeaters r
+		JOIN org_members om ON om.org_id = $1 AND om.user_id = r.owner_id
 		JOIN users ou ON ou.id = r.owner_id
-		WHERE orp.org_id = $1 AND r.public_map AND r.latitude IS NOT NULL AND r.longitude IS NOT NULL
+		WHERE r.public_map AND r.latitude IS NOT NULL AND r.longitude IS NOT NULL
+		  AND NOT EXISTS (SELECT 1 FROM org_repeater_excludes e
+		                  WHERE e.org_id = $1 AND e.repeater_id = r.id)
 		ORDER BY r.name`, orgID)
 	if err != nil {
 		return nil, fmt.Errorf("list public map repeaters: %w", err)
@@ -112,62 +113,46 @@ func (s *Store) ListPublicMapRepeaters(ctx context.Context, orgID int64) ([]OrgR
 	})
 }
 
-// ConsentedVersionID returns the permission version a repeater is pinned to for
-// an org, or (0, false) if it isn't contributed there.
-func (s *Store) ConsentedVersionID(ctx context.Context, orgID, repeaterID int64) (int64, bool, error) {
-	var id int64
-	err := s.pool.QueryRow(ctx,
-		`SELECT consented_version_id FROM org_repeaters WHERE org_id = $1 AND repeater_id = $2`,
-		orgID, repeaterID).Scan(&id)
-	if err != nil {
-		return 0, false, nil //nolint:nilerr // absence is not an error here
-	}
-	return id, true, nil
-}
-
-// OwnedRepeatersNeedingReconsent returns the set of repeater ids owned by the
-// user that are contributed to an org which has published a newer version than
-// the owner consented to.
-func (s *Store) OwnedRepeatersNeedingReconsent(ctx context.Context, ownerID int64) (map[int64]bool, error) {
-	rows, err := s.pool.Query(ctx, `
-		SELECT DISTINCT orp.repeater_id
-		FROM org_repeaters orp
-		JOIN repeaters r ON r.id = orp.repeater_id AND r.owner_id = $1
-		JOIN org_permission_versions cv ON cv.id = orp.consented_version_id
-		WHERE cv.version < (SELECT max(version) FROM org_permission_versions WHERE org_id = orp.org_id)`,
-		ownerID)
-	if err != nil {
-		return nil, fmt.Errorf("reconsent set: %w", err)
-	}
-	defer rows.Close()
-	out := map[int64]bool{}
-	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		out[id] = true
-	}
-	return out, rows.Err()
-}
-
-// ListRepeaterOrgs returns the orgs a repeater is contributed to, with consented
-// vs current version numbers.
+// ListRepeaterOrgs returns the orgs a repeater participates in (owner is a member
+// and hasn't opted it out).
 func (s *Store) ListRepeaterOrgs(ctx context.Context, repeaterID int64) ([]RepeaterOrg, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT o.id, o.slug, o.name, cv.version,
-		       (SELECT max(version) FROM org_permission_versions WHERE org_id = o.id)
-		FROM org_repeaters orp
-		JOIN organizations o ON o.id = orp.org_id
-		JOIN org_permission_versions cv ON cv.id = orp.consented_version_id
-		WHERE orp.repeater_id = $1
+		SELECT o.id, o.slug, o.name
+		FROM repeaters r
+		JOIN org_members om ON om.user_id = r.owner_id
+		JOIN organizations o ON o.id = om.org_id
+		WHERE r.id = $1
+		  AND NOT EXISTS (SELECT 1 FROM org_repeater_excludes e
+		                  WHERE e.org_id = o.id AND e.repeater_id = r.id)
 		ORDER BY o.name`, repeaterID)
 	if err != nil {
 		return nil, fmt.Errorf("list repeater orgs: %w", err)
 	}
 	return collectRows(rows, func(r pgx.Row) (RepeaterOrg, error) {
 		var ro RepeaterOrg
-		err := r.Scan(&ro.OrgID, &ro.OrgSlug, &ro.OrgName, &ro.ConsentedVersion, &ro.CurrentVersion)
+		err := r.Scan(&ro.OrgID, &ro.OrgSlug, &ro.OrgName)
 		return ro, err
+	})
+}
+
+// ListRepeaterOrgMemberships returns every org the repeater's owner belongs to,
+// flagged with whether the owner has opted this repeater out of it.
+func (s *Store) ListRepeaterOrgMemberships(ctx context.Context, repeaterID int64) ([]RepeaterOrgMembership, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT o.id, o.slug, o.name,
+		       EXISTS (SELECT 1 FROM org_repeater_excludes e
+		               WHERE e.org_id = o.id AND e.repeater_id = r.id)
+		FROM repeaters r
+		JOIN org_members om ON om.user_id = r.owner_id
+		JOIN organizations o ON o.id = om.org_id
+		WHERE r.id = $1
+		ORDER BY o.name`, repeaterID)
+	if err != nil {
+		return nil, fmt.Errorf("list repeater org memberships: %w", err)
+	}
+	return collectRows(rows, func(r pgx.Row) (RepeaterOrgMembership, error) {
+		var m RepeaterOrgMembership
+		err := r.Scan(&m.OrgID, &m.OrgSlug, &m.OrgName, &m.Excluded)
+		return m, err
 	})
 }

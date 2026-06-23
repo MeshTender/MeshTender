@@ -23,44 +23,36 @@
   <div class="card-body">
     <h3 class="card-title">Organizations</h3>
     <p class="text-secondary">
-      Contribute this repeater to an organization so its admins and members can run their permitted
-      commands on it over the mesh — but only the specific commands you review and approve first. You can
-      withdraw anytime.
+      This repeater is shared with every organization you belong to, so their admins and members can run
+      the commands those organizations are permitted to run on it. Opt it out of any organization here, or
+      limit which commands an organization may run from its <strong>Limit commands</strong> page.
     </p>
 
-    <div class="subheader mt-3 mb-2">Contributed to</div>
-    {{if .Contributed}}
+    {{if .Orgs}}
     <div class="list-group list-group-flush">
-      {{range .Contributed}}
+      {{range .Orgs}}
       <div class="list-group-item d-flex align-items-center flex-wrap gap-2 px-0">
         <span class="fw-bold">{{.OrgName}}</span>
-        <span class="text-secondary"><a class="link-secondary" href="/repeaters/{{$.Repeater.PublicID}}/orgs/{{.OrgSlug}}/consented">consented to v{{.ConsentedVersion}}</a>{{if .NeedsReconsent}} · org is now on v{{.CurrentVersion}}{{end}}</span>
-        {{if .NeedsReconsent}}
-        <a class="btn btn-sm" href="/repeaters/{{$.Repeater.PublicID}}/orgs/{{.OrgSlug}}/contribute">Review changes</a>
+        {{if .Excluded}}
+        <span class="badge bg-secondary-lt">Opted out</span>
+        {{else}}
+        <span class="badge bg-success-lt">Shared</span>
+        <a class="text-secondary small" href="/orgs/{{.OrgSlug}}/my-commands">Limit commands</a>
         {{end}}
-        <form method="post" action="/repeaters/{{$.Repeater.PublicID}}/orgs/{{.OrgSlug}}/withdraw" class="m-0 ms-auto" onsubmit="return confirm('Withdraw this repeater from {{.OrgName}}?')">
-          <button type="submit" class="btn btn-sm btn-ghost-danger">Withdraw</button>
+        <form method="post" action="/repeaters/{{$.Repeater.PublicID}}/orgs/{{.OrgSlug}}/participation" class="m-0 ms-auto">
+          {{if .Excluded}}
+          <input type="hidden" name="action" value="include">
+          <button type="submit" class="btn btn-sm">Share with {{.OrgName}}</button>
+          {{else}}
+          <input type="hidden" name="action" value="exclude">
+          <button type="submit" class="btn btn-sm btn-ghost-danger" onclick="return confirm('Opt this repeater out of {{.OrgName}}?')">Opt out</button>
+          {{end}}
         </form>
       </div>
       {{end}}
     </div>
     {{else}}
-    <p class="text-secondary">Not contributed to any organization.</p>
-    {{end}}
-
-    {{if .Available}}
-    <div class="subheader mt-3 mb-2">Contribute to</div>
-    <div class="list-group list-group-flush">
-      {{range .Available}}
-      <div class="list-group-item d-flex align-items-center gap-2 px-0">
-        <span class="fw-bold">{{.Name}}</span>
-        <a class="btn btn-sm ms-auto" href="/repeaters/{{$.Repeater.PublicID}}/orgs/{{.Slug}}/contribute">Review &amp; contribute</a>
-      </div>
-      {{end}}
-    </div>
-    {{else if .Contributed}}
-    {{else}}
-    <p class="text-secondary">Join an organization to contribute this repeater to it.</p>
+    <p class="text-secondary">Join an organization to share this repeater with it.</p>
     {{end}}
   </div>
 </div>

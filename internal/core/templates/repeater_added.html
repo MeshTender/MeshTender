@@ -43,19 +43,22 @@
 
 <div class="card mt-3">
   <div class="card-body">
-    <h3 class="card-title">Step 4 · Contribute to an organization <span class="text-secondary">(optional)</span></h3>
+    <h3 class="card-title">Step 4 · Organizations <span class="text-secondary">(optional)</span></h3>
     {{if .Orgs}}
     <p class="text-secondary">
-      Let an organization's admins and members help operate this repeater. You'll be asked to review and
-      consent to the list of commands that organization members and admins will be able to run on your
-      repeater. You can withdraw anytime.
+      This repeater is now shared with the organizations you belong to, so their admins and members can run
+      the commands those organizations are permitted to run on it. Opt out of any of them here — you can
+      change this anytime, and limit which commands an org may run, from the sharing page.
     </p>
     <div class="list-group list-group-flush">
       {{range .Orgs}}
       <div class="list-group-item d-flex align-items-center gap-2 px-0">
         <span class="fw-bold">{{.Org.Name}}</span>
         {{if eq .Role "admin"}}<span class="badge bg-success-lt">admin</span>{{else}}<span class="badge bg-azure-lt">member</span>{{end}}
-        <a class="btn btn-sm ms-auto" href="/repeaters/{{$.Repeater.PublicID}}/orgs/{{.Org.Slug}}/contribute">Review &amp; contribute</a>
+        <form method="post" action="/repeaters/{{$.Repeater.PublicID}}/orgs/{{.Org.Slug}}/participation" class="m-0 ms-auto">
+          <input type="hidden" name="action" value="exclude">
+          <button type="submit" class="btn btn-sm btn-ghost-danger">Opt out</button>
+        </form>
       </div>
       {{end}}
     </div>
