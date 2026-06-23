@@ -42,8 +42,8 @@ func TestParseLocationFloat(t *testing.T) {
 	}
 }
 
-// TestConfirmFetchesLocation drives the confirm flow with store_location set and
-// verifies the repeater's lat/lon are fetched (get lat / get lon) and stored.
+// TestConfirmFetchesLocation drives the confirm flow and verifies the repeater's
+// lat/lon are fetched (get lat / get lon) and stored.
 func TestConfirmFetchesLocation(t *testing.T) {
 	t.Parallel()
 	st, ctx := coreStore(t)
@@ -61,7 +61,7 @@ func TestConfirmFetchesLocation(t *testing.T) {
 
 	repeater, _ := meshcore.GenerateLocalIdentity(rand.Reader)
 	rep, err := st.CreateRepeater(ctx, &store.Repeater{
-		OwnerID: user.ID, Name: "Geo", PublicKeyHex: repeater.String(), StoreLocation: true,
+		OwnerID: user.ID, Name: "Geo", PublicKeyHex: repeater.String(),
 		RadioFreqHz: 869525000, RadioBwHz: 250000, RadioSF: 11, RadioCR: 5,
 	})
 	if err != nil {

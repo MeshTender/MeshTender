@@ -88,21 +88,23 @@ func setLocation(ri *OrgRepeaterInfo, lat, lon *float64) {
 	}
 }
 
-// ListPublicMapRepeaters returns the participating repeaters an org may show on
-// its public map: those whose owner opted into public_map and have coordinates.
-func (s *Store) ListPublicMapRepeaters(ctx context.Context, orgID int64) ([]OrgRepeaterInfo, error) {
+// ListPublicRepeaters returns the participating repeaters an org may show on its
+// public page: those whose owner opted into public_map. Coordinates are included
+// when known (HasLocation), so the same set drives both the public list (all of
+// them) and the public map (only those with coordinates).
+func (s *Store) ListPublicRepeaters(ctx context.Context, orgID int64) ([]OrgRepeaterInfo, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT r.id, r.name, COALESCE(NULLIF(ou.display_name, ''), ou.username, '?'),
 		       r.latitude, r.longitude
 		FROM repeaters r
 		JOIN org_members om ON om.org_id = $1 AND om.user_id = r.owner_id
 		JOIN users ou ON ou.id = r.owner_id
-		WHERE r.public_map AND r.latitude IS NOT NULL AND r.longitude IS NOT NULL
+		WHERE r.public_map
 		  AND NOT EXISTS (SELECT 1 FROM org_repeater_excludes e
 		                  WHERE e.org_id = $1 AND e.repeater_id = r.id)
 		ORDER BY r.name`, orgID)
 	if err != nil {
-		return nil, fmt.Errorf("list public map repeaters: %w", err)
+		return nil, fmt.Errorf("list public repeaters: %w", err)
 	}
 	return collectRows(rows, func(r pgx.Row) (OrgRepeaterInfo, error) {
 		var ri OrgRepeaterInfo

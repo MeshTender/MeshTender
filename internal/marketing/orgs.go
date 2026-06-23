@@ -71,7 +71,7 @@ func (s *Handlers) renderOrgPublic(w http.ResponseWriter, r *http.Request, org *
 		http.Error(w, "could not load org", http.StatusInternalServerError)
 		return
 	}
-	pubReps, err := s.Store.ListPublicMapRepeaters(r.Context(), org.ID)
+	pubReps, err := s.Store.ListPublicRepeaters(r.Context(), org.ID)
 	if err != nil {
 		http.Error(w, "could not load org", http.StatusInternalServerError)
 		return

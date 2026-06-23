@@ -100,13 +100,8 @@
       </div>
 
       <label class="form-check mt-3">
-        <input class="form-check-input" type="checkbox" name="store_location" id="store_location" value="1" onchange="syncPublicMap()">
-        <span class="form-check-label">Store this repeater's location (lat/lon), fetched during the modem test, so it can appear on
-        the organization map to other organization members.</span>
-      </label>
-      <label class="form-check" id="public_map_row" style="display:none">
         <input class="form-check-input" type="checkbox" name="public_map" value="1">
-        <span class="form-check-label">Also show this repeater on the <strong>public</strong> organization map.</span>
+        <span class="form-check-label">Show this repeater on the <strong>public</strong> organization page.</span>
       </label>
 
       <div class="btn-list mt-3">
@@ -133,13 +128,7 @@
       fields.forEach(function (el) { el.readOnly = false; });
     }
   }
-  function syncPublicMap() {
-    var on = document.getElementById("store_location").checked;
-    document.getElementById("public_map_row").style.display = on ? "" : "none";
-    if (!on) document.querySelector("#public_map_row input").checked = false;
-  }
   applyRegion();
-  syncPublicMap();
 </script>
 {{end}}
 </div>

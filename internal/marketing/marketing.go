@@ -41,10 +41,10 @@ func (s *Handlers) Routes() chi.Router {
 	r.Use(s.Auth.Sessions.LoadAndSave)
 	s.SharedRoutes(r)
 	r.Get("/", s.pageLanding)
-	r.Get("/orgs", s.pageOrgs)                            // public organization directory
-	r.Get("/orgs/{id}", s.pageOrgPublic)                  // public org page
-	r.Get("/orgs/{id}/repeaters", s.pageOrgRepeaters)     // public repeater list + map
-	r.Get("/orgs/{id}/config", s.pageOrgConfig) // public recommended config
+	r.Get("/orgs", s.pageOrgs)                        // public organization directory
+	r.Get("/orgs/{id}", s.pageOrgPublic)              // public org page
+	r.Get("/orgs/{id}/repeaters", s.pageOrgRepeaters) // public repeater list + map
+	r.Get("/orgs/{id}/config", s.pageOrgConfig)       // public recommended config
 	return r
 }
 

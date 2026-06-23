@@ -145,17 +145,15 @@ func (s *Handlers) handleAddRepeater(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	storeLocation := r.FormValue("store_location") != ""
 	rep, err := s.Store.CreateRepeater(r.Context(), &store.Repeater{
-		OwnerID:       uid,
-		Name:          name,
-		PublicKeyHex:  pubHex,
-		RadioFreqHz:   freq,
-		RadioBwHz:     bw,
-		RadioSF:       int16(sf),
-		RadioCR:       int16(cr),
-		StoreLocation: storeLocation,
-		PublicMap:     storeLocation && r.FormValue("public_map") != "",
+		OwnerID:      uid,
+		Name:         name,
+		PublicKeyHex: pubHex,
+		RadioFreqHz:  freq,
+		RadioBwHz:    bw,
+		RadioSF:      int16(sf),
+		RadioCR:      int16(cr),
+		PublicMap:    r.FormValue("public_map") != "",
 	})
 	if errors.Is(err, store.ErrDuplicate) {
 		addErr(w, r, "You already added a repeater with that public key.")
@@ -217,9 +215,8 @@ func (s *Handlers) handleEditRepeater(w http.ResponseWriter, r *http.Request) {
 		editErr("Radio parameters must be valid numbers.")
 		return
 	}
-	storeLocation := r.FormValue("store_location") != ""
 	publicMap := r.FormValue("public_map") != ""
-	if err := s.Store.UpdateRepeater(r.Context(), uid, id, name, freq, bw, sf, cr, storeLocation, publicMap); err != nil {
+	if err := s.Store.UpdateRepeater(r.Context(), uid, id, name, freq, bw, sf, cr, publicMap); err != nil {
 		editErr("Could not save changes.")
 		return
 	}

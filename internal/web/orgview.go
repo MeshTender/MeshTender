@@ -83,8 +83,8 @@ func OrgNav(slug, active string, isMember bool) map[string]any {
 }
 
 // RepeatersView is an org's repeaters for the Repeaters page. Full is true for the
-// member view (every contributed repeater, with owner and links); false is the
-// public view (only repeaters opted into the public map, no links).
+// member view (every participating repeater, with owner and links); false is the
+// public view (only repeaters shown on the public org page, no links).
 type RepeatersView struct {
 	Repeaters []store.OrgRepeaterInfo
 	HasMap    bool
@@ -92,14 +92,14 @@ type RepeatersView struct {
 }
 
 // BuildRepeatersView loads an org's repeaters for display. full selects the member
-// view (all contributed repeaters) vs the public view (public-map repeaters only).
+// view (all participating repeaters) vs the public view (public-page repeaters only).
 func BuildRepeatersView(ctx context.Context, st *store.Store, orgID int64, full bool) (RepeatersView, error) {
 	var reps []store.OrgRepeaterInfo
 	var err error
 	if full {
 		reps, err = st.ListOrgRepeaters(ctx, orgID)
 	} else {
-		reps, err = st.ListPublicMapRepeaters(ctx, orgID)
+		reps, err = st.ListPublicRepeaters(ctx, orgID)
 	}
 	if err != nil {
 		return RepeatersView{}, err
@@ -125,4 +125,3 @@ func PreviewLatLon(r *http.Request) (lat, lon float64, ok bool) {
 	lon, err2 = strconv.ParseFloat(ns, 64)
 	return lat, lon, err1 == nil && err2 == nil
 }
-

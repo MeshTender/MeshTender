@@ -179,9 +179,9 @@ func (s *Handlers) wsConfirm(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = bridge.Status("confirmed", "Repeater reached with admin access. ✓")
 
-	// Optionally fetch and store the repeater's location (owner consented). Each
-	// coordinate is a separate query so progress (and retries) are visible.
-	if rep.StoreLocation {
+	// Fetch and store the repeater's location. Each coordinate is a separate query
+	// so progress (and retries) are visible.
+	{
 		fetchCoord := func(label, cmd string, accept func(text string) bool) (float64, bool) {
 			reply, err := ex.CommandAccept(ctx, cmd, accept, func(attempt, max int) {
 				if attempt == 1 {
