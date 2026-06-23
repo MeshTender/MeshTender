@@ -102,9 +102,9 @@ func addErr(w http.ResponseWriter, r *http.Request, msg string) {
 	web.RedirectErr(w, r, "/repeaters/add?step=details", msg)
 }
 
-// pageRepeaterAdded is the wizard's final two steps for a freshly-added
-// repeater: optionally confirm it with a modem now, and optionally contribute
-// it to an organization the owner belongs to.
+// pageRepeaterAdded is the wizard's final step (step 3) for a freshly-added
+// repeater: optionally confirm it with a modem now, and manage which organizations
+// it's shared with. People-sharing lives on the repeater's own sharing page.
 func (s *Handlers) pageRepeaterAdded(w http.ResponseWriter, r *http.Request) {
 	uid := s.Auth.CurrentUserID(r.Context())
 	rep, _, ok := s.requireRepeaterOwned(w, r)
@@ -117,9 +117,8 @@ func (s *Handlers) pageRepeaterAdded(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Render(w, r, "repeater_added.html", map[string]any{
-		"Repeater":      rep,
-		"Orgs":          orgs,
-		"RevokeCommand": s.Identity.RevokePermCommand(),
+		"Repeater": rep,
+		"Orgs":     orgs,
 	})
 }
 

@@ -10,15 +10,14 @@
 <ul class="steps steps-counter mb-4">
   <li class="step-item">Grant access</li>
   <li class="step-item">Repeater details</li>
-  <li class="step-item active">Confirm</li>
-  <li class="step-item">Share</li>
+  <li class="step-item active">Confirm &amp; share</li>
 </ul>
 
 <div class="card">
   <div class="card-body">
     <h2 class="card-title">{{template "icon-check" "me-1 text-success"}}“{{.Repeater.Name}}” added</h2>
     <p class="text-secondary mb-0">
-      It's registered but <strong>unconfirmed</strong> — MeshTender hasn't reached it yet. The two steps
+      It's registered but <strong>unconfirmed</strong> — MeshTender hasn't reached it yet. Both options
       below are optional; your repeater is already usable by anyone you share it with.
     </p>
   </div>
@@ -26,7 +25,7 @@
 
 <div class="card mt-3">
   <div class="card-body">
-    <h3 class="card-title">Step 3 · Confirm it works <span class="text-secondary">(optional)</span></h3>
+    <h3 class="card-title">Confirm it works <span class="text-secondary">(optional)</span></h3>
     <p class="text-secondary">
       Connect a MeshCore KISS modem and have MeshTender login to verify it has admin access. Confirming
       now marks it <span class="badge bg-azure-lt">Self-confirmed</span>. Later, if another member reaches it
@@ -43,7 +42,7 @@
 
 <div class="card mt-3">
   <div class="card-body">
-    <h3 class="card-title">Step 4 · Organizations <span class="text-secondary">(optional)</span></h3>
+    <h3 class="card-title">Organizations <span class="text-secondary">(optional)</span></h3>
     {{if .Orgs}}
     <p class="text-secondary">
       This repeater is now shared with the organizations you belong to, so their admins and members can run
