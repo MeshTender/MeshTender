@@ -29,9 +29,16 @@ type Repeater struct {
 	// Location, fetched during the modem test (nil until determined).
 	Latitude  *float64
 	Longitude *float64
-	// PublicMap shows this repeater on the public organization page — its list,
-	// plus the map when coordinates are known.
-	PublicMap bool
+	// ShowOnPublicOrg shows this repeater on the public organization page — its
+	// list, plus the map when coordinates are known.
+	ShowOnPublicOrg bool
+	// ExposePublicPage publishes a read-only public page for this repeater at its
+	// public_id URL (the NFC/QR tap target). Distinct consent from ShowOnPublicOrg.
+	ExposePublicPage bool
+	// Documentation kept with the node. DocPublic is shown on the public page;
+	// DocInternal (site-access details) only to people with access.
+	DocPublic   string
+	DocInternal string
 	// Shared is true when the row is visible to the querying user via a share
 	// rather than ownership.
 	Shared bool
@@ -80,12 +87,12 @@ func (s *Store) CreateRepeater(ctx context.Context, r *Repeater) (*Repeater, err
 	}
 	var out Repeater
 	err = s.pool.QueryRow(ctx, `
-		INSERT INTO repeaters (public_id, owner_id, name, public_key_hex, radio_freq_hz, radio_bw_hz, radio_sf, radio_cr, public_map)
+		INSERT INTO repeaters (public_id, owner_id, name, public_key_hex, radio_freq_hz, radio_bw_hz, radio_sf, radio_cr, show_on_public_org)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-		RETURNING id, public_id, owner_id, name, public_key_hex, radio_freq_hz, radio_bw_hz, radio_sf, radio_cr, confirmed, confirmed_at, created_at, public_map`,
-		publicID, r.OwnerID, r.Name, r.PublicKeyHex, r.RadioFreqHz, r.RadioBwHz, r.RadioSF, r.RadioCR, r.PublicMap).
+		RETURNING id, public_id, owner_id, name, public_key_hex, radio_freq_hz, radio_bw_hz, radio_sf, radio_cr, confirmed, confirmed_at, created_at, show_on_public_org`,
+		publicID, r.OwnerID, r.Name, r.PublicKeyHex, r.RadioFreqHz, r.RadioBwHz, r.RadioSF, r.RadioCR, r.ShowOnPublicOrg).
 		Scan(&out.ID, &out.PublicID, &out.OwnerID, &out.Name, &out.PublicKeyHex, &out.RadioFreqHz, &out.RadioBwHz,
-			&out.RadioSF, &out.RadioCR, &out.Confirmed, &out.ConfirmedAt, &out.CreatedAt, &out.PublicMap)
+			&out.RadioSF, &out.RadioCR, &out.Confirmed, &out.ConfirmedAt, &out.CreatedAt, &out.ShowOnPublicOrg)
 	if isUniqueViolation(err) {
 		return nil, ErrDuplicate
 	}
@@ -101,7 +108,7 @@ const repeaterSelect = `
 	SELECT r.id, r.public_id, r.owner_id, r.name, r.public_key_hex, r.radio_freq_hz, r.radio_bw_hz,
 	       r.radio_sf, r.radio_cr, r.confirmed, r.confirmed_at, r.created_at,
 	       r.confirmed_admin, r.confirmed_perms,
-	       r.latitude, r.longitude, r.public_map,
+	       r.latitude, r.longitude, r.show_on_public_org, r.expose_public_page, r.doc_public, r.doc_internal,
 	       (r.owner_id <> $1) AS shared, ou.username, ou.display_name,
 	       EXISTS(SELECT 1 FROM repeater_confirmations c
 	              WHERE c.repeater_id = r.id AND c.user_id = r.owner_id) AS self_confirmed,
@@ -115,7 +122,7 @@ func scanRepeater(row pgx.Row) (*Repeater, error) {
 	err := row.Scan(&r.ID, &r.PublicID, &r.OwnerID, &r.Name, &r.PublicKeyHex, &r.RadioFreqHz, &r.RadioBwHz,
 		&r.RadioSF, &r.RadioCR, &r.Confirmed, &r.ConfirmedAt, &r.CreatedAt,
 		&r.ConfirmedAdmin, &r.ConfirmedPerms,
-		&r.Latitude, &r.Longitude, &r.PublicMap,
+		&r.Latitude, &r.Longitude, &r.ShowOnPublicOrg, &r.ExposePublicPage, &r.DocPublic, &r.DocInternal,
 		&r.Shared, &r.OwnerUsername, &r.OwnerDisplayName,
 		&r.SelfConfirmed, &r.Corroborators)
 	if err != nil {
@@ -211,13 +218,13 @@ func (s *Store) SetRepeaterConfirmed(ctx context.Context, repeaterID, userID int
 
 // UpdateRepeater updates an owned repeater's settings (the public key is fixed).
 // Returns ErrNotFound if the repeater isn't owned by ownerID.
-func (s *Store) UpdateRepeater(ctx context.Context, ownerID, repeaterID int64, name string, freq, bw int64, sf, cr int16, publicMap bool) error {
+func (s *Store) UpdateRepeater(ctx context.Context, ownerID, repeaterID int64, name string, freq, bw int64, sf, cr int16, showOnPublicOrg, exposePublicPage bool) error {
 	tag, err := s.pool.Exec(ctx, `
 		UPDATE repeaters SET
 			name = $3, radio_freq_hz = $4, radio_bw_hz = $5, radio_sf = $6, radio_cr = $7,
-			public_map = $8
+			show_on_public_org = $8, expose_public_page = $9
 		WHERE id = $1 AND owner_id = $2`,
-		repeaterID, ownerID, name, freq, bw, sf, cr, publicMap)
+		repeaterID, ownerID, name, freq, bw, sf, cr, showOnPublicOrg, exposePublicPage)
 	if err != nil {
 		return fmt.Errorf("update repeater: %w", err)
 	}
@@ -225,6 +232,36 @@ func (s *Store) UpdateRepeater(ctx context.Context, ownerID, repeaterID int64, n
 		return ErrNotFound
 	}
 	return nil
+}
+
+// UpdateRepeaterDocs saves an owned repeater's documentation (public and
+// internal). Returns ErrNotFound if the repeater isn't owned by ownerID.
+func (s *Store) UpdateRepeaterDocs(ctx context.Context, ownerID, repeaterID int64, docPublic, docInternal string) error {
+	tag, err := s.pool.Exec(ctx, `
+		UPDATE repeaters SET doc_public = $3, doc_internal = $4
+		WHERE id = $1 AND owner_id = $2`,
+		repeaterID, ownerID, docPublic, docInternal)
+	if err != nil {
+		return fmt.Errorf("update repeater docs: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// GetRepeaterPublic returns a repeater by its public_id only if its owner has
+// published a public page (expose_public_page), else ErrNotFound. No user scope:
+// this backs the anonymous public page (the NFC/QR tap target).
+func (s *Store) GetRepeaterPublic(ctx context.Context, publicID string) (*Repeater, error) {
+	// $1 = 0 (no querying user): the Shared flag is irrelevant for the public view.
+	row := s.pool.QueryRow(ctx, repeaterSelect+`
+		WHERE r.public_id = $2 AND r.expose_public_page`, int64(0), publicID)
+	r, err := scanRepeater(row)
+	if err != nil {
+		return nil, notFoundOr(err, "get public repeater")
+	}
+	return r, nil
 }
 
 // SetRepeaterLocation stores a repeater's location fetched during the modem test.

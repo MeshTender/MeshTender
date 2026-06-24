@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jleight/meshtender/internal/store"
+	"github.com/jleight/meshtender/internal/web"
 )
 
 // pageCommandLog shows the command audit log for a repeater (owner only),
@@ -23,6 +24,7 @@ func (s *Handlers) pageCommandLog(w http.ResponseWriter, r *http.Request) {
 	}
 	data := map[string]any{
 		"Repeater": rep,
+		"Nav":      web.RepeaterNav(rep.PublicID, rep.Name, rep.OwnerName(), true, "log"),
 		"Sessions": sessions,
 	}
 	if hasMore && len(sessions) > 0 {

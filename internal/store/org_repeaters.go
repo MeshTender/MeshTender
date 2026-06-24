@@ -103,9 +103,9 @@ func setLocation(ri *OrgRepeaterInfo, lat, lon *float64) {
 }
 
 // ListPublicRepeaters returns the participating repeaters an org may show on its
-// public page: those whose owner opted into public_map. Coordinates are included
-// when known (HasLocation), so the same set drives both the public list (all of
-// them) and the public map (only those with coordinates).
+// public page: those whose owner opted into show_on_public_org. Coordinates are
+// included when known (HasLocation), so the same set drives both the public list
+// (all of them) and the public map (only those with coordinates).
 func (s *Store) ListPublicRepeaters(ctx context.Context, orgID int64) ([]OrgRepeaterInfo, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT r.id, r.name, COALESCE(NULLIF(ou.display_name, ''), ou.username, '?'),
@@ -113,7 +113,7 @@ func (s *Store) ListPublicRepeaters(ctx context.Context, orgID int64) ([]OrgRepe
 		FROM repeaters r
 		JOIN org_members om ON om.org_id = $1 AND om.user_id = r.owner_id
 		JOIN users ou ON ou.id = r.owner_id
-		WHERE r.public_map
+		WHERE r.show_on_public_org
 		  AND NOT EXISTS (SELECT 1 FROM org_repeater_excludes e
 		                  WHERE e.org_id = $1 AND e.repeater_id = r.id)
 		ORDER BY r.name`, orgID)

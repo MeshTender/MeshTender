@@ -56,9 +56,23 @@ func (s *Handlers) pageRepeater(w http.ResponseWriter, r *http.Request) {
 	data := map[string]any{
 		"Repeater":   rep,
 		"IsOwner":    isOwner,
+		"Nav":        web.RepeaterNav(rep.PublicID, rep.Name, rep.OwnerName(), isOwner, "overview"),
 		"Radio":      radio,
 		"ContactURI": contactURI,
 		"Error":      r.URL.Query().Get("error"),
+	}
+	// When the owner has published a public page, surface its link plus a QR code
+	// to print and place inside the enclosure (the NFC/QR tap target).
+	if isOwner && rep.ExposePublicPage {
+		publicURL := s.Origin(r, s.rootHost()) + "/r/" + rep.PublicID
+		data["PublicPageURL"] = publicURL
+		if qr, err := qrcode.New(publicURL, qrcode.Medium); err == nil {
+			qr.BackgroundColor = color.Transparent
+			qr.ForegroundColor = color.RGBA{R: 0x8a, G: 0x97, B: 0xa8, A: 0xff}
+			if png, err := qr.PNG(256); err == nil {
+				data["PublicPageQR"] = template.URL("data:image/png;base64," + base64.StdEncoding.EncodeToString(png))
+			}
+		}
 	}
 	// QR code that adds the repeater as a MeshCore contact. Embedded as a data
 	// URI so it needs no extra route or asset; if encoding fails the page just
@@ -77,13 +91,7 @@ func (s *Handlers) pageRepeater(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "could not load organizations", http.StatusInternalServerError)
 			return
 		}
-		recent, err := s.Store.ListCommandLog(r.Context(), id, 8)
-		if err != nil {
-			http.Error(w, "could not load activity", http.StatusInternalServerError)
-			return
-		}
 		data["Orgs"] = orgs
-		data["Recent"] = recent
 	}
 	s.Render(w, r, "repeater.html", data)
 }
@@ -145,14 +153,14 @@ func (s *Handlers) handleAddRepeater(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rep, err := s.Store.CreateRepeater(r.Context(), &store.Repeater{
-		OwnerID:      uid,
-		Name:         name,
-		PublicKeyHex: pubHex,
-		RadioFreqHz:  freq,
-		RadioBwHz:    bw,
-		RadioSF:      int16(sf),
-		RadioCR:      int16(cr),
-		PublicMap:    r.FormValue("public_map") != "",
+		OwnerID:         uid,
+		Name:            name,
+		PublicKeyHex:    pubHex,
+		RadioFreqHz:     freq,
+		RadioBwHz:       bw,
+		RadioSF:         int16(sf),
+		RadioCR:         int16(cr),
+		ShowOnPublicOrg: r.FormValue("show_on_public_org") != "",
 	})
 	if errors.Is(err, store.ErrDuplicate) {
 		addErr(w, r, "You already added a repeater with that public key.")
@@ -214,8 +222,9 @@ func (s *Handlers) handleEditRepeater(w http.ResponseWriter, r *http.Request) {
 		editErr("Radio parameters must be valid numbers.")
 		return
 	}
-	publicMap := r.FormValue("public_map") != ""
-	if err := s.Store.UpdateRepeater(r.Context(), uid, id, name, freq, bw, sf, cr, publicMap); err != nil {
+	showOnPublicOrg := r.FormValue("show_on_public_org") != ""
+	exposePublicPage := r.FormValue("expose_public_page") != ""
+	if err := s.Store.UpdateRepeater(r.Context(), uid, id, name, freq, bw, sf, cr, showOnPublicOrg, exposePublicPage); err != nil {
 		editErr("Could not save changes.")
 		return
 	}
@@ -253,4 +262,13 @@ func (s *Handlers) handleDeleteRepeater(w http.ResponseWriter, r *http.Request) 
 
 func dashErr(w http.ResponseWriter, r *http.Request, msg string) {
 	web.RedirectErr(w, r, "/", msg)
+}
+
+// rootHost returns the host that serves public pages (the marketing/root host),
+// falling back to the primary host if no separate root host is configured.
+func (s *Handlers) rootHost() string {
+	if s.Cfg.RootHost != "" {
+		return s.Cfg.RootHost
+	}
+	return s.Cfg.PrimaryHost
 }

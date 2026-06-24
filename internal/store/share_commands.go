@@ -10,6 +10,8 @@ import (
 // CanSendCommand reports whether userID may send the catalog command commandID
 // to repeaterID. Allowed if any of:
 //   - they own the repeater (any command), or
+//   - they are a steward of the repeater (any command — a steward is a co-operator
+//     with the same command power as the owner), or
 //   - a share grants them that specific command, or
 //   - the repeater participates in an org they and the owner both belong to (the
 //     owner is a member and hasn't excluded the repeater), the command is within
@@ -21,6 +23,7 @@ func (s *Store) CanSendCommand(ctx context.Context, userID, repeaterID, commandI
 	err := s.pool.QueryRow(ctx, `
 		SELECT
 		    EXISTS (SELECT 1 FROM repeaters WHERE id = $2 AND owner_id = $1)
+		 OR EXISTS (SELECT 1 FROM repeater_shares WHERE repeater_id = $2 AND user_id = $1 AND steward)
 		 OR EXISTS (SELECT 1 FROM share_commands WHERE repeater_id = $2 AND user_id = $1 AND command_id = $3)
 		 OR EXISTS (
 		      SELECT 1

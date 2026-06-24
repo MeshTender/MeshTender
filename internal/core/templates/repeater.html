@@ -1,33 +1,7 @@
 {{define "title"}}{{.Repeater.Name}} · MeshTender{{end}}
-{{define "header"}}
-<div class="row g-2 align-items-center">
-  <div class="col">
-    <div class="page-pretitle">Repeater{{if not .IsOwner}} · shared by {{.Repeater.OwnerName}}{{end}}</div>
-    <h2 class="page-title">{{.Repeater.Name}}</h2>
-  </div>
-  <div class="col-auto ms-auto d-print-none">
-    <div class="btn-list">
-      <a class="btn btn-primary" href="/repeaters/{{.Repeater.PublicID}}/console">{{template "icon-terminal" "me-1"}}Console</a>
-      {{if .IsOwner}}
-      <div class="dropdown">
-        <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">Manage</button>
-        <div class="dropdown-menu dropdown-menu-end">
-          <a class="dropdown-item" href="/repeaters/{{.Repeater.PublicID}}/edit">{{template "icon-pencil" "dropdown-item-icon"}}Edit details</a>
-          <a class="dropdown-item" href="/repeaters/{{.Repeater.PublicID}}/confirm">{{template "icon-antenna" "dropdown-item-icon"}}Confirm access</a>
-          <a class="dropdown-item" href="/repeaters/{{.Repeater.PublicID}}/log">{{template "icon-list" "dropdown-item-icon"}}Command log</a>
-          <a class="dropdown-item" href="/repeaters/{{.Repeater.PublicID}}/share">{{template "icon-share" "dropdown-item-icon"}}Sharing</a>
-          <div class="dropdown-divider"></div>
-          <a class="dropdown-item text-danger" href="/repeaters/{{.Repeater.PublicID}}/delete">{{template "icon-trash" "dropdown-item-icon"}}Delete repeater</a>
-        </div>
-      </div>
-      {{else}}
-      <a class="btn" href="/repeaters/{{.Repeater.PublicID}}/confirm">Confirm</a>
-      {{end}}
-    </div>
-  </div>
-</div>
-{{end}}
+{{define "header"}}{{template "repeater-header" .Nav}}{{end}}
 {{define "content"}}
+{{template "repeater-tabs" .Nav}}
 {{if .Error}}<div class="alert alert-danger">{{.Error}}</div>{{end}}
 
 <div class="row row-cards">
@@ -106,31 +80,6 @@
       {{end}}
     </div>
 
-    <div class="card mt-3">
-      <div class="card-header">
-        <h3 class="card-title">Recent activity</h3>
-        <div class="card-actions"><a href="/repeaters/{{.Repeater.PublicID}}/log" class="btn btn-sm">Full log</a></div>
-      </div>
-      {{if .Recent}}
-      <div class="table-responsive">
-        <table class="table table-vcenter card-table">
-          <thead><tr><th>When</th><th>Command</th><th>By</th><th></th></tr></thead>
-          <tbody>
-            {{range .Recent}}
-            <tr>
-              <td class="text-secondary text-nowrap">{{.SentAt.Format "Jan 2, 15:04"}}</td>
-              <td><code>{{.CommandText}}</code></td>
-              <td class="text-secondary">{{.SenderName}}</td>
-              <td>{{if .AckReceived}}<span class="badge bg-success-lt">reply</span>{{else}}<span class="badge bg-yellow-lt">no reply</span>{{end}}</td>
-            </tr>
-            {{end}}
-          </tbody>
-        </table>
-      </div>
-      {{else}}
-      <div class="card-body"><p class="text-secondary mb-0">No commands have been run on this repeater yet. Open the console to send one.</p></div>
-      {{end}}
-    </div>
     {{end}}
   </div>
 
@@ -153,6 +102,27 @@
             <p class="text-secondary small mt-2 mb-0">Scan with the MeshCore app to add this repeater as a contact.</p>
           </div>
         </div>
+        {{end}}
+        {{if and .IsOwner .Repeater.ExposePublicPage .PublicPageURL}}
+        <hr class="my-3">
+        <div class="form-label">Public page</div>
+        <p class="text-secondary small">Anyone with this link (or who taps an NFC tag / scans the QR inside the enclosure) sees the public documentation and stewards.</p>
+        <div class="input-group mb-2">
+          <code class="form-control font-monospace" id="public-url">{{.PublicPageURL}}</code>
+          <button type="button" class="btn" onclick="navigator.clipboard.writeText(document.getElementById('public-url').textContent)">{{template "icon-copy" ""}}</button>
+        </div>
+        {{if .PublicPageQR}}
+        <button class="btn btn-sm w-100" type="button" data-bs-toggle="collapse" data-bs-target="#public-qr" aria-expanded="false" aria-controls="public-qr">{{template "icon-qrcode" "me-1"}}<span class="collapse-show">Show</span><span class="collapse-hide">Hide</span>&nbsp;enclosure QR code</button>
+        <div class="collapse" id="public-qr">
+          <div class="text-center mt-3">
+            <img src="{{.PublicPageQR}}" width="200" height="200" class="img-fluid" style="max-width:200px" alt="Public page QR code for {{.Repeater.Name}}">
+            <p class="text-secondary small mt-2 mb-0">Print and place inside the enclosure. Tapping/scanning opens this repeater's public page.</p>
+          </div>
+        </div>
+        {{end}}
+        {{else if and .IsOwner (not .Repeater.ExposePublicPage)}}
+        <hr class="my-3">
+        <p class="text-secondary small mb-0">{{template "icon-world" "me-1"}}No public page. Enable one in <a href="/repeaters/{{.Repeater.PublicID}}/edit">Edit details</a> to get a link and QR code for the enclosure.</p>
         {{end}}
       </div>
     </div>

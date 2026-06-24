@@ -1,0 +1,43 @@
+{{/* repeater-header and repeater-tabs render the shared chrome for the repeater
+detail tabs. Data: the RepeaterNav map (PublicID, Name, OwnerName, IsOwner,
+Active). Active is one of "overview" | "docs" | "maintenance" | "log" |
+"sharing". Owner-only tabs (Activity, Sharing) and the Manage menu only render
+for the owner. */}}
+{{define "repeater-header"}}
+<div class="row g-2 align-items-center">
+  <div class="col">
+    <div class="page-pretitle">Repeater{{if not .IsOwner}} · shared by {{.OwnerName}}{{end}}</div>
+    <h2 class="page-title">{{.Name}}</h2>
+  </div>
+  <div class="col-auto ms-auto d-print-none">
+    <div class="btn-list">
+      <a class="btn btn-primary" href="/repeaters/{{.PublicID}}/console">{{template "icon-terminal" "me-1"}}Console</a>
+      {{if .IsOwner}}
+      <div class="dropdown">
+        <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">Manage</button>
+        <div class="dropdown-menu dropdown-menu-end">
+          <a class="dropdown-item" href="/repeaters/{{.PublicID}}/edit">{{template "icon-pencil" "dropdown-item-icon"}}Edit details</a>
+          <a class="dropdown-item" href="/repeaters/{{.PublicID}}/confirm">{{template "icon-antenna" "dropdown-item-icon"}}Confirm access</a>
+          <div class="dropdown-divider"></div>
+          <a class="dropdown-item text-danger" href="/repeaters/{{.PublicID}}/delete">{{template "icon-trash" "dropdown-item-icon"}}Delete repeater</a>
+        </div>
+      </div>
+      {{else}}
+      <a class="btn" href="/repeaters/{{.PublicID}}/confirm">Confirm</a>
+      {{end}}
+    </div>
+  </div>
+</div>
+{{end}}
+
+{{define "repeater-tabs"}}
+<ul class="nav nav-tabs mb-3" role="tablist">
+  <li class="nav-item"><a class="nav-link{{if eq .Active "overview"}} active{{end}}" href="/repeaters/{{.PublicID}}">{{template "icon-antenna" "me-1"}}Overview</a></li>
+  <li class="nav-item"><a class="nav-link{{if eq .Active "docs"}} active{{end}}" href="/repeaters/{{.PublicID}}/docs">{{template "icon-list" "me-1"}}Documentation</a></li>
+  <li class="nav-item"><a class="nav-link{{if eq .Active "maintenance"}} active{{end}}" href="/repeaters/{{.PublicID}}/maintenance">{{template "icon-settings" "me-1"}}Maintenance</a></li>
+  {{if .IsOwner}}
+  <li class="nav-item"><a class="nav-link{{if eq .Active "log"}} active{{end}}" href="/repeaters/{{.PublicID}}/log">{{template "icon-terminal" "me-1"}}Activity</a></li>
+  <li class="nav-item"><a class="nav-link{{if eq .Active "sharing"}} active{{end}}" href="/repeaters/{{.PublicID}}/share">{{template "icon-share" "me-1"}}Sharing</a></li>
+  {{end}}
+</ul>
+{{end}}

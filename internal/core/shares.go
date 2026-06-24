@@ -39,6 +39,7 @@ func (s *Handlers) pageShare(w http.ResponseWriter, r *http.Request) {
 	}
 	s.Render(w, r, "share.html", map[string]any{
 		"Repeater": rep,
+		"Nav":      web.RepeaterNav(rep.PublicID, rep.Name, rep.OwnerName(), true, "sharing"),
 		"Shares":   shares,
 		"Invites":  invites,
 		"Orgs":     orgs,
@@ -77,6 +78,28 @@ func (s *Handlers) handleDeleteInvite(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := s.Store.DeleteInvite(r.Context(), id, inviteID); err != nil {
 		shareErr(w, r, "Could not remove link.")
+		return
+	}
+	http.Redirect(w, r, sharePath(repeaterParam(r)), http.StatusSeeOther)
+}
+
+// handleSetShareSteward flags or unflags a shared user as a steward (owner only).
+func (s *Handlers) handleSetShareSteward(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.requireOwned(w, r)
+	if !ok {
+		return
+	}
+	targetID, err := strconv.ParseInt(chi.URLParam(r, "userID"), 10, 64)
+	if err != nil {
+		shareErr(w, r, "Invalid user.")
+		return
+	}
+	if shared, err := s.Store.IsShared(r.Context(), id, targetID); err != nil || !shared {
+		http.NotFound(w, r)
+		return
+	}
+	if err := s.Store.SetShareSteward(r.Context(), id, targetID, r.FormValue("steward") == "1"); err != nil {
+		shareErr(w, r, "Could not update steward.")
 		return
 	}
 	http.Redirect(w, r, sharePath(repeaterParam(r)), http.StatusSeeOther)
@@ -222,6 +245,11 @@ func (s *Handlers) pageShareCommands(w http.ResponseWriter, r *http.Request) {
 	}
 	if shared, err := s.Store.IsShared(r.Context(), id, targetID); err != nil || !shared {
 		http.NotFound(w, r)
+		return
+	}
+	// A steward already has every command; per-command limits don't apply to them.
+	if steward, err := s.Store.IsSteward(r.Context(), id, targetID); err == nil && steward {
+		http.Redirect(w, r, sharePath(repeaterParam(r)), http.StatusSeeOther)
 		return
 	}
 	target, err := s.Store.GetUserByID(r.Context(), targetID)

@@ -45,6 +45,7 @@ func (s *Handlers) Routes() chi.Router {
 	r.Get("/orgs/{id}", s.pageOrgPublic)              // public org page
 	r.Get("/orgs/{id}/repeaters", s.pageOrgRepeaters) // public repeater list + map
 	r.Get("/orgs/{id}/config", s.pageOrgConfig)       // public recommended config
+	r.Get("/r/{id}", s.pageRepeaterPublic)            // public repeater page (NFC/QR target)
 	return r
 }
 

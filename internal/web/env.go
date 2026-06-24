@@ -22,7 +22,7 @@ import (
 	"github.com/jleight/meshtender/internal/store"
 )
 
-//go:embed templates/base.html templates/icons.html templates/org_tabs.html templates/org_public.html templates/org_config.html templates/org_repeaters.html
+//go:embed templates/base.html templates/icons.html templates/org_tabs.html templates/repeater_tabs.html templates/org_public.html templates/org_config.html templates/org_repeaters.html
 var sharedTemplatesFS embed.FS
 
 // sharedPages are full content pages (not just layout partials) that more than
@@ -110,7 +110,7 @@ type Renderer struct {
 // each of the surface's own *.html pages onto it. Each page redefines the
 // content/title/header blocks, so every page gets its own cloned template set.
 func NewRenderer(cfg *config.Config, surfaceTemplates fs.FS) (*Renderer, error) {
-	base, err := template.New("").ParseFS(sharedTemplatesFS, "templates/base.html", "templates/icons.html", "templates/org_tabs.html")
+	base, err := template.New("").ParseFS(sharedTemplatesFS, "templates/base.html", "templates/icons.html", "templates/org_tabs.html", "templates/repeater_tabs.html")
 	if err != nil {
 		return nil, err
 	}

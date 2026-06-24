@@ -114,9 +114,13 @@ func validCommandText(s string) bool {
 }
 
 // allowedCommands returns the catalog commands the user may run on the repeater:
-// all of them for the owner, else the share-granted subset.
+// all of them for the owner or a steward (a co-operator), else the share-granted
+// subset. Mirrors the runtime gate in store.CanSendCommand.
 func (s *Handlers) allowedCommands(ctx context.Context, rep *store.Repeater, userID int64, catalog []*store.Command) []*store.Command {
 	if rep.OwnerID == userID {
+		return catalog
+	}
+	if steward, err := s.Store.IsSteward(ctx, rep.ID, userID); err == nil && steward {
 		return catalog
 	}
 	ids, err := s.Store.ListShareCommandIDs(ctx, rep.ID, userID)

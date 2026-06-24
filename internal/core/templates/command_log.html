@@ -1,13 +1,7 @@
-{{define "title"}}Command log · {{.Repeater.Name}} · MeshTender{{end}}
-{{define "header"}}
-<div class="row g-2 align-items-center">
-  <div class="col">
-    <div class="page-pretitle">Command log</div>
-    <h2 class="page-title">{{.Repeater.Name}}</h2>
-  </div>
-</div>
-{{end}}
+{{define "title"}}Activity · {{.Repeater.Name}} · MeshTender{{end}}
+{{define "header"}}{{template "repeater-header" .Nav}}{{end}}
 {{define "content"}}
+{{template "repeater-tabs" .Nav}}
 <div class="card">
   <div class="card-body">
     <p class="text-secondary mb-0">

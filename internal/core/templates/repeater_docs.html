@@ -1,0 +1,61 @@
+{{define "title"}}Documentation · {{.Repeater.Name}} · MeshTender{{end}}
+{{define "header"}}{{template "repeater-header" .Nav}}{{end}}
+{{define "content"}}
+{{template "repeater-tabs" .Nav}}
+{{if .Error}}<div class="alert alert-danger">{{.Error}}</div>{{end}}
+
+{{if .IsOwner}}
+<form method="post" action="/repeaters/{{.Repeater.PublicID}}/docs">
+  <div class="card">
+    <div class="card-header">
+      <h3 class="card-title">Public documentation {{if .Repeater.ExposePublicPage}}<span class="text-secondary">· visible on the public page</span>{{else}}<span class="text-secondary">· not published yet</span>{{end}}</h3>
+    </div>
+    <div class="card-body">
+      <p class="text-secondary">
+        What this node is and how to service it — safe for anyone who taps the NFC tag or scans the QR code.
+        Shown on the public page when one is published.
+        <strong>Do not put gate codes, lock combinations, or other site-access secrets here</strong> — use the internal section below for those.
+      </p>
+      <textarea class="form-control font-monospace" name="doc_public" rows="10" maxlength="20000" placeholder="Hardware, antenna, power/solar, firmware, how to service…">{{.Repeater.DocPublic}}</textarea>
+    </div>
+  </div>
+
+  <div class="card mt-3">
+    <div class="card-header">
+      <h3 class="card-title">Internal notes <span class="text-secondary">· people with access only</span></h3>
+    </div>
+    <div class="card-body">
+      <p class="text-secondary">
+        Sensitive site-access details — gate codes, lock combinations, landlord/contact info, climbing notes.
+        Only the owner, stewards, and people you've shared with can read this. <strong>Never shown on the public page.</strong>
+      </p>
+      <textarea class="form-control font-monospace" name="doc_internal" rows="8" maxlength="20000" placeholder="Gate code, lock combo, who to call for site access…">{{.Repeater.DocInternal}}</textarea>
+    </div>
+  </div>
+
+  <div class="btn-list mt-3">
+    <button type="submit" class="btn btn-primary">Save documentation</button>
+  </div>
+</form>
+{{else}}
+<div class="card">
+  <div class="card-header"><h3 class="card-title">Documentation</h3></div>
+  <div class="card-body">
+    {{if .Repeater.DocPublic}}
+    <div style="white-space: pre-wrap">{{.Repeater.DocPublic}}</div>
+    {{else}}
+    <p class="text-secondary mb-0">No public documentation yet.</p>
+    {{end}}
+  </div>
+</div>
+
+{{if .Repeater.DocInternal}}
+<div class="card mt-3">
+  <div class="card-header"><h3 class="card-title">Internal notes <span class="text-secondary">· people with access only</span></h3></div>
+  <div class="card-body">
+    <div style="white-space: pre-wrap">{{.Repeater.DocInternal}}</div>
+  </div>
+</div>
+{{end}}
+{{end}}
+{{end}}

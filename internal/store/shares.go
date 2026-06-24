@@ -27,6 +27,9 @@ type ShareInfo struct {
 	UserID      int64
 	Username    string
 	DisplayName *string
+	// Steward marks this person a designated co-maintainer, listed on the
+	// repeater's public page.
+	Steward bool
 }
 
 // Name returns the display name if set, else the username.
@@ -108,7 +111,7 @@ func (s *Store) RepeaterSharingCounts(ctx context.Context, ownerID int64) (map[i
 // ListShares returns the users a repeater is shared with.
 func (s *Store) ListShares(ctx context.Context, repeaterID int64) ([]ShareInfo, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT u.id, u.username, u.display_name
+		SELECT u.id, u.username, u.display_name, rs.steward
 		FROM repeater_shares rs JOIN users u ON u.id = rs.user_id
 		WHERE rs.repeater_id = $1
 		ORDER BY u.username`, repeaterID)
@@ -117,7 +120,50 @@ func (s *Store) ListShares(ctx context.Context, repeaterID int64) ([]ShareInfo, 
 	}
 	return collectRows(rows, func(r pgx.Row) (ShareInfo, error) {
 		var si ShareInfo
-		err := r.Scan(&si.UserID, &si.Username, &si.DisplayName)
+		err := r.Scan(&si.UserID, &si.Username, &si.DisplayName, &si.Steward)
+		return si, err
+	})
+}
+
+// IsSteward reports whether a user is a steward of a repeater (a co-operator with
+// full command access).
+func (s *Store) IsSteward(ctx context.Context, repeaterID, userID int64) (bool, error) {
+	var ok bool
+	err := s.pool.QueryRow(ctx,
+		`SELECT EXISTS(SELECT 1 FROM repeater_shares WHERE repeater_id = $1 AND user_id = $2 AND steward)`,
+		repeaterID, userID).Scan(&ok)
+	if err != nil {
+		return false, fmt.Errorf("is steward: %w", err)
+	}
+	return ok, nil
+}
+
+// SetShareSteward flags (or unflags) a shared user as a steward of the repeater.
+// Scoped to the repeater, so it only affects an existing share.
+func (s *Store) SetShareSteward(ctx context.Context, repeaterID, userID int64, steward bool) error {
+	_, err := s.pool.Exec(ctx,
+		`UPDATE repeater_shares SET steward = $3 WHERE repeater_id = $1 AND user_id = $2`,
+		repeaterID, userID, steward)
+	if err != nil {
+		return fmt.Errorf("set share steward: %w", err)
+	}
+	return nil
+}
+
+// ListStewards returns the steward-flagged shared users for a repeater (the
+// designated backup maintainers shown on the public page), by display name.
+func (s *Store) ListStewards(ctx context.Context, repeaterID int64) ([]ShareInfo, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT u.id, u.username, u.display_name, rs.steward
+		FROM repeater_shares rs JOIN users u ON u.id = rs.user_id
+		WHERE rs.repeater_id = $1 AND rs.steward
+		ORDER BY u.username`, repeaterID)
+	if err != nil {
+		return nil, fmt.Errorf("list stewards: %w", err)
+	}
+	return collectRows(rows, func(r pgx.Row) (ShareInfo, error) {
+		var si ShareInfo
+		err := r.Scan(&si.UserID, &si.Username, &si.DisplayName, &si.Steward)
 		return si, err
 	})
 }
