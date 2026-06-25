@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/jleight/meshtender/internal/analytics"
 	"github.com/jleight/meshtender/internal/auth"
 	"github.com/jleight/meshtender/internal/config"
 	"github.com/jleight/meshtender/internal/core"
@@ -98,9 +99,14 @@ func run(logger *slog.Logger) error {
 		return err
 	}
 
+	// First-party traffic analytics: wrap the whole dispatcher so every host is
+	// captured, with a background goroutine doing the writes + rollups.
+	rec := analytics.New(st, cfg)
+	go rec.Run(ctx)
+
 	httpSrv := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           srv.Handler(),
+		Handler:           rec.Handler(srv.Handler()),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 

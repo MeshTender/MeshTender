@@ -1,0 +1,104 @@
+{{define "title"}}Traffic analytics · MeshTender{{end}}
+{{define "header"}}
+<div class="row g-2 align-items-center">
+  <div class="col">
+    <div class="page-pretitle">Administration</div>
+    <h2 class="page-title">Traffic Analytics</h2>
+  </div>
+  <div class="col-auto ms-auto d-print-none">
+    <div class="btn-group" role="group" aria-label="Time range">
+      <a class="btn{{if eq .Days 7}} btn-primary{{end}}" href="/admin/analytics?days=7">7d</a>
+      <a class="btn{{if eq .Days 30}} btn-primary{{end}}" href="/admin/analytics?days=30">30d</a>
+      <a class="btn{{if eq .Days 90}} btn-primary{{end}}" href="/admin/analytics?days=90">90d</a>
+    </div>
+  </div>
+</div>
+{{end}}
+{{define "content"}}
+{{if not .HasData}}
+<div class="card"><div class="card-body text-secondary">
+  No traffic recorded yet. Stats roll up every few minutes, so check back shortly after the first visits.
+</div></div>
+{{else}}
+
+<!-- Summary -->
+<div class="row row-cards">
+  <div class="col-sm-4">
+    <div class="card card-sm"><div class="card-body">
+      <div class="h1 mb-0">{{.TotalReq}}</div>
+      <div class="text-secondary">Requests · last {{.Days}}d</div>
+    </div></div>
+  </div>
+  <div class="col-sm-4">
+    <div class="card card-sm"><div class="card-body">
+      <div class="h1 mb-0">{{.TodayReq}}</div>
+      <div class="text-secondary">Requests today</div>
+    </div></div>
+  </div>
+  <div class="col-sm-4">
+    <div class="card card-sm"><div class="card-body">
+      <div class="h1 mb-0">{{.TodayVis}}</div>
+      <div class="text-secondary">Unique visitors today</div>
+    </div></div>
+  </div>
+</div>
+
+<!-- Charts -->
+<div class="row row-cards mt-1">
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">Requests per day</h3></div>
+      <div class="card-body">
+        <div class="d-flex align-items-end gap-1" style="height:140px">
+          {{range .Bars}}<div class="flex-fill rounded-top" style="height:{{.ReqH}}%;min-height:1px;background:var(--tblr-primary)" title="{{.Label}}: {{.Requests}} requests"></div>{{end}}
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">Unique visitors per day</h3></div>
+      <div class="card-body">
+        <div class="d-flex align-items-end gap-1" style="height:140px">
+          {{range .Bars}}<div class="flex-fill rounded-top" style="height:{{.VisH}}%;min-height:1px;background:var(--tblr-green)" title="{{.Label}}: {{.Visitors}} visitors"></div>{{end}}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Tables -->
+<div class="row row-cards mt-1">
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">Traffic by surface</h3></div>
+      <div class="card-body">
+        {{if .Surfaces}}{{range .Surfaces}}{{template "value-bar" .}}{{end}}
+        {{else}}<div class="text-secondary">No data.</div>{{end}}
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">Busiest pages</h3></div>
+      <div class="card-body">
+        {{if .Paths}}{{range .Paths}}{{template "value-bar" .}}{{end}}
+        {{else}}<div class="text-secondary">No data.</div>{{end}}
+      </div>
+    </div>
+  </div>
+</div>
+{{end}}
+<a class="back-link mt-3" href="/admin">{{template "icon-arrow-left" "me-1"}}Back to admin</a>
+{{end}}
+
+{{/* value-bar renders one labeled horizontal bar (label, bar, value). */}}
+{{define "value-bar"}}
+<div class="mb-2">
+  <div class="d-flex justify-content-between small">
+    <span class="text-truncate" style="max-width:75%" title="{{.Label}}">{{.Label}}</span>
+    <span class="text-secondary">{{.Value}}</span>
+  </div>
+  <div class="progress" style="height:6px"><div class="progress-bar" style="width:{{.W}}%"></div></div>
+</div>
+{{end}}
