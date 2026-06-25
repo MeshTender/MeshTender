@@ -72,6 +72,7 @@ func run(logger *slog.Logger) error {
 		RPOrigins:     cfg.RPOrigins,
 		AppHost:       cfg.PrimaryHost,
 		AuthHost:      cfg.AuthHost,
+		RootHost:      cfg.RootHost,
 		Secure:        cfg.Secure,
 	})
 	if err != nil {

@@ -34,6 +34,7 @@ func NewWeb(deps web.Deps, svc *Service) (*Handlers, error) {
 func (s *Handlers) baseMW(r chi.Router) {
 	s.CommonMiddleware(r)
 	r.Use(s.Auth.Sessions.LoadAndSave)
+	r.Use(s.Auth.ValidateSession)
 }
 
 // Routes is the auth host's router.

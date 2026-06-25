@@ -57,6 +57,10 @@ func (s *Service) authOrigin(r *http.Request) string {
 	return s.scheme() + "://" + s.authHost + portSuffix(r)
 }
 
+func (s *Service) rootOrigin(r *http.Request) string {
+	return s.scheme() + "://" + s.rootHost + portSuffix(r)
+}
+
 // SetAuthState stashes the CSRF nonce carried into the auth host so a finisher
 // can echo it back to the app callback. Bounded and dropped if empty.
 func (s *Service) SetAuthState(ctx context.Context, state string) {
@@ -92,7 +96,9 @@ func (s *Service) PostAuthRedirect(r *http.Request, userID int64) string {
 	if !s.SplitHost() || !s.onAuthHost(r) {
 		return next
 	}
-	code, err := s.store.CreateAuthCode(ctx, userID, next)
+	// Thread this host's login row into the code so the app callback reuses it
+	// instead of minting a second row for the same sign-in.
+	code, err := s.store.CreateAuthCode(ctx, userID, s.CurrentLoginID(ctx), next)
 	if err != nil {
 		// Couldn't mint a code; fall back to the app root rather than stranding
 		// the user. They're authenticated on the auth host either way.
@@ -176,7 +182,7 @@ func (s *Service) SessionCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID, next, ok, err := s.store.ConsumeAuthCode(ctx, r.URL.Query().Get("code"))
+	userID, loginID, next, ok, err := s.store.ConsumeAuthCode(ctx, r.URL.Query().Get("code"))
 	if err != nil {
 		http.Error(w, "sign-in failed", http.StatusInternalServerError)
 		return
@@ -185,14 +191,50 @@ func (s *Service) SessionCallback(w http.ResponseWriter, r *http.Request) {
 		s.StartLogin(w, r, "/")
 		return
 	}
-	if err := s.login(ctx, userID); err != nil {
+	// Reuse the auth host's login row so a single sign-in stays one revocable row.
+	if err := s.loginWithID(ctx, userID, loginID); err != nil {
 		http.Error(w, "could not start session", http.StatusInternalServerError)
 		return
 	}
 	if !SafeLocalPath(next) {
 		next = "/"
 	}
+	// Bounce through the root host's beacon so the public discovery surface gets
+	// its own minimal identity cookie (and can render logged-in-aware UI), then
+	// land on the requested app page. The beacon code carries the same login row
+	// and the app-local next; if minting fails we just skip the root cookie this
+	// round (discovery renders anonymous until the next sign-in).
+	if s.rootHost != "" {
+		if code, err := s.store.CreateAuthCode(ctx, userID, loginID, next); err == nil {
+			http.Redirect(w, r, s.rootOrigin(r)+"/session/beacon?code="+url.QueryEscape(code), http.StatusSeeOther)
+			return
+		}
+	}
 	http.Redirect(w, r, next, http.StatusSeeOther)
+}
+
+// BeaconCallback runs on the root (discovery) host. It redeems a single-use code
+// minted by the app host's SessionCallback, drops a minimal host-only identity
+// cookie on the root host, then forwards the browser to the originally requested
+// app page. A valid code is the only proof of identity accepted here — the root
+// host never sets an identity cookie for an unauthenticated caller, which blocks
+// login-CSRF/fixation. See docs/auth-cross-host.md.
+func (s *Service) BeaconCallback(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	userID, loginID, next, ok, err := s.store.ConsumeAuthCode(ctx, r.URL.Query().Get("code"))
+	if err != nil {
+		http.Error(w, "sign-in failed", http.StatusInternalServerError)
+		return
+	}
+	if !SafeLocalPath(next) {
+		next = "/"
+	}
+	// A stale or already-used code just means no root cookie this round — still
+	// send the visitor on to the app rather than stranding them.
+	if ok {
+		_ = s.loginWithID(ctx, userID, loginID)
+	}
+	http.Redirect(w, r, s.appOrigin(r)+next, http.StatusSeeOther)
 }
 
 func clearStateCookie(w http.ResponseWriter, secure bool) {

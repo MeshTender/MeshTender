@@ -32,9 +32,19 @@ func (s *Handlers) pageRepeaterPublic(w http.ResponseWriter, r *http.Request) {
 	}
 	radio := fmt.Sprintf("%g MHz / %g kHz / SF%d / CR%d",
 		float64(rep.RadioFreqHz)/1e6, float64(rep.RadioBwHz)/1e3, rep.RadioSF, rep.RadioCR)
+	// If the viewer is signed in (via the identity beacon) and actually has access
+	// to this repeater, offer a jump into the app instead of a sign-in CTA they
+	// don't need. See docs/auth-cross-host.md.
+	canManage := false
+	if uid := s.Auth.CurrentUserID(r.Context()); uid != 0 {
+		if _, err := s.Store.GetRepeaterForUser(r.Context(), uid, rep.ID); err == nil {
+			canManage = true
+		}
+	}
 	s.Render(w, r, "repeater_public.html", map[string]any{
-		"Repeater": rep,
-		"Radio":    radio,
-		"Stewards": stewards,
+		"Repeater":  rep,
+		"Radio":     radio,
+		"Stewards":  stewards,
+		"CanManage": canManage,
 	})
 }

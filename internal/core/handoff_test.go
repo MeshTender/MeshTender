@@ -37,7 +37,7 @@ func splitServer(t *testing.T) (*store.Store, context.Context, *httptest.Server,
 	authSvc, err := auth.New(st, st.Pool(), auth.Config{
 		RPID: "localhost", RPDisplayName: "test",
 		RPOrigins: []string{"http://auth.localhost", "http://app.localhost"},
-		AppHost:   testAppHost, AuthHost: testAuthHost,
+		AppHost:   testAppHost, AuthHost: testAuthHost, RootHost: testRootHost,
 	})
 	if err != nil {
 		t.Fatalf("auth: %v", err)
@@ -65,7 +65,11 @@ func seedSession(t *testing.T, ts *httptest.Server, st *store.Store, ctx context
 	if err != nil {
 		t.Fatalf("create user: %v", err)
 	}
-	code, err := st.CreateAuthCode(ctx, u.ID, "/")
+	loginID, err := st.CreateLogin(ctx, u.ID)
+	if err != nil {
+		t.Fatalf("create login: %v", err)
+	}
+	code, err := st.CreateAuthCode(ctx, u.ID, loginID, "/")
 	if err != nil {
 		t.Fatalf("create auth code: %v", err)
 	}
@@ -245,7 +249,8 @@ func TestSingleLogout(t *testing.T) {
 
 	// An app session (via the handoff) logs out by bouncing to the auth host.
 	u, _ := st.CreateUser(ctx, "logoutuser", "")
-	code, _ := st.CreateAuthCode(ctx, u.ID, "/")
+	loginID, _ := st.CreateLogin(ctx, u.ID)
+	code, _ := st.CreateAuthCode(ctx, u.ID, loginID, "/")
 	cb := do(t, ts, h.app, "/session/callback?code="+code+"&state=s1", &http.Cookie{Name: "mt_state", Value: "s1"})
 	cb.Body.Close()
 	appSess := cookieByName(cb, "meshtender_session")
@@ -349,21 +354,40 @@ func TestSessionCallback(t *testing.T) {
 	}
 
 	t.Run("happy path establishes a session", func(t *testing.T) {
-		code, _ := st.CreateAuthCode(ctx, u.ID, "/repeaters")
+		loginID, _ := st.CreateLogin(ctx, u.ID)
+		code, _ := st.CreateAuthCode(ctx, u.ID, loginID, "/repeaters")
 		resp := do(t, ts, appHost, "/session/callback?code="+code+"&state=s1",
 			&http.Cookie{Name: "mt_state", Value: "s1"})
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusSeeOther {
 			t.Fatalf("status = %d, want 303", resp.StatusCode)
 		}
-		if loc := resp.Header.Get("Location"); loc != "/repeaters" {
-			t.Fatalf("Location = %q, want /repeaters", loc)
-		}
+		// The callback sets the app session, then bounces through the root host's
+		// identity beacon (carrying a fresh code) before landing on the app page.
 		sess := cookieByName(resp, "meshtender_session")
 		if sess == nil || sess.Value == "" {
-			t.Fatalf("expected a session cookie to be set")
+			t.Fatalf("expected an app session cookie to be set")
 		}
-		// The session must actually authenticate: the protected page now loads.
+		loc, _ := url.Parse(resp.Header.Get("Location"))
+		if loc.Host != h.root || loc.Path != "/session/beacon" || loc.Query().Get("code") == "" {
+			t.Fatalf("Location = %q, want root /session/beacon?code=...", resp.Header.Get("Location"))
+		}
+
+		// Driving the beacon on the root host drops a root identity cookie and
+		// forwards back to the app's requested page.
+		beacon := do(t, ts, h.root, "/session/beacon?code="+loc.Query().Get("code"))
+		defer beacon.Body.Close()
+		if beacon.StatusCode != http.StatusSeeOther {
+			t.Fatalf("beacon status = %d, want 303", beacon.StatusCode)
+		}
+		if rootSess := cookieByName(beacon, "meshtender_session"); rootSess == nil || rootSess.Value == "" {
+			t.Fatalf("expected a root identity cookie from the beacon")
+		}
+		if bloc, _ := url.Parse(beacon.Header.Get("Location")); bloc.Host != h.app || bloc.Path != "/repeaters" {
+			t.Fatalf("beacon Location = %q, want app /repeaters", beacon.Header.Get("Location"))
+		}
+
+		// The app session must actually authenticate: the protected page loads.
 		follow := do(t, ts, appHost, "/repeaters", sess)
 		defer follow.Body.Close()
 		if follow.StatusCode != http.StatusOK {
@@ -372,7 +396,7 @@ func TestSessionCallback(t *testing.T) {
 	})
 
 	t.Run("state mismatch is rejected", func(t *testing.T) {
-		code, _ := st.CreateAuthCode(ctx, u.ID, "/repeaters")
+		code, _ := st.CreateAuthCode(ctx, u.ID, "", "/repeaters")
 		resp := do(t, ts, appHost, "/session/callback?code="+code+"&state=s1",
 			&http.Cookie{Name: "mt_state", Value: "different"})
 		defer resp.Body.Close()
@@ -383,7 +407,7 @@ func TestSessionCallback(t *testing.T) {
 			t.Fatalf("no session should be set on state mismatch")
 		}
 		// The code must NOT have been consumed, since state failed first.
-		if _, _, ok, _ := st.ConsumeAuthCode(ctx, code); !ok {
+		if _, _, _, ok, _ := st.ConsumeAuthCode(ctx, code); !ok {
 			t.Fatalf("code should remain valid after a state-mismatch rejection")
 		}
 	})

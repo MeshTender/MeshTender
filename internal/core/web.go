@@ -85,6 +85,7 @@ func NewServer(st *store.Store, authSvc *auth.Service, idSvc *identity.Service, 
 func (s *Handlers) baseMW(r chi.Router) {
 	s.CommonMiddleware(r)
 	r.Use(s.Auth.Sessions.LoadAndSave)
+	r.Use(s.Auth.ValidateSession)
 }
 
 // redirectToAuthLogin / redirectToAuthSignup are the app-host entry points that

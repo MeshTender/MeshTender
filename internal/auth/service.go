@@ -16,11 +16,12 @@ import (
 )
 
 const (
-	sessKeyUserID = "user_id" // int64: the authenticated user
-	sessKeyWAUID  = "wa_uid"  // int64: user mid-ceremony
-	sessKeyWAData = "wa_data" // []byte: marshaled webauthn.SessionData
-	sessKeyWAName = "wa_name" // string: pending passkey name for the in-flight registration
-	sessKeyNext   = "next"    // string: post-auth redirect target
+	sessKeyUserID  = "user_id"  // int64: the authenticated user
+	sessKeyLoginID = "login_id" // string: the logins-row id backing this session
+	sessKeyWAUID   = "wa_uid"   // int64: user mid-ceremony
+	sessKeyWAData  = "wa_data"  // []byte: marshaled webauthn.SessionData
+	sessKeyWAName  = "wa_name"  // string: pending passkey name for the in-flight registration
+	sessKeyNext    = "next"     // string: post-auth redirect target
 )
 
 // Service wires WebAuthn, the data store, and session management.
@@ -34,6 +35,10 @@ type Service struct {
 	// mode (auth served from appHost, no cross-host handoff).
 	appHost  string
 	authHost string
+	// rootHost is the public discovery host. When set, a fresh app sign-in
+	// bounces through its identity beacon so the root surface can render
+	// logged-in-aware UI. Empty ⇒ no beacon. See docs/auth-cross-host.md.
+	rootHost string
 	secure   bool
 }
 
@@ -47,6 +52,10 @@ type Config struct {
 	// scheme/port). Empty AuthHost selects single-host mode.
 	AppHost  string
 	AuthHost string
+	// RootHost (optional) serves public discovery; a fresh app sign-in drops a
+	// minimal identity cookie there via its beacon so it can render
+	// logged-in-aware UI without sharing a session.
+	RootHost string
 	// Secure marks cookies Secure (set false for plain-HTTP localhost dev).
 	Secure bool
 }
@@ -83,6 +92,7 @@ func New(st *store.Store, pool *pgxpool.Pool, cfg Config) (*Service, error) {
 		Sessions: sm,
 		appHost:  cfg.AppHost,
 		authHost: cfg.AuthHost,
+		rootHost: cfg.RootHost,
 		secure:   cfg.Secure,
 	}, nil
 }
@@ -101,19 +111,59 @@ func (s *Service) CurrentUserID(ctx context.Context) int64 {
 	return s.Sessions.GetInt64(ctx, sessKeyUserID)
 }
 
-// login marks the session as authenticated for the given user and rotates the
-// session token to prevent fixation.
+// login starts a brand-new login: it records a logins row (the cross-host
+// source of truth) and binds this host's session to it. Used by the credential
+// ceremony finishers. The app host's handoff callback instead reuses the auth
+// host's row via loginWithID, so one real sign-in maps to exactly one row.
 func (s *Service) login(ctx context.Context, userID int64) error {
+	loginID, err := s.store.CreateLogin(ctx, userID)
+	if err != nil {
+		return err
+	}
+	return s.loginWithID(ctx, userID, loginID)
+}
+
+// loginWithID binds the current host's session to an existing login row and
+// rotates the session token to prevent fixation.
+func (s *Service) loginWithID(ctx context.Context, userID int64, loginID string) error {
 	if err := s.Sessions.RenewToken(ctx); err != nil {
 		return err
 	}
 	s.Sessions.Put(ctx, sessKeyUserID, userID)
+	s.Sessions.Put(ctx, sessKeyLoginID, loginID)
 	return nil
 }
 
-// Logout clears the authenticated session.
+// CurrentLoginID returns the logins-row id backing the session, or "".
+func (s *Service) CurrentLoginID(ctx context.Context) string {
+	return s.Sessions.GetString(ctx, sessKeyLoginID)
+}
+
+// Logout clears this host's session and revokes the shared login row, so every
+// other host (auth, root beacon, custom domains) falls to anonymous on its next
+// request rather than relying on a redirect chain. See docs/auth-cross-host.md.
 func (s *Service) Logout(ctx context.Context) error {
+	if loginID := s.Sessions.GetString(ctx, sessKeyLoginID); loginID != "" {
+		_ = s.store.RevokeLogin(ctx, loginID)
+	}
 	return s.Sessions.Destroy(ctx)
+}
+
+// ValidateSession invalidates the request's session when its backing login row
+// has been revoked (logout elsewhere, "log out everywhere", or an admin action).
+// It runs after LoadAndSave on every surface; anonymous and mid-ceremony
+// sessions (no login id) pass through untouched. A transient store error
+// fails open — the revocation is durable and caught on a later request.
+func (s *Service) ValidateSession(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		if loginID := s.Sessions.GetString(ctx, sessKeyLoginID); loginID != "" {
+			if _, ok, err := s.store.LoginValid(ctx, loginID); err == nil && !ok {
+				_ = s.Sessions.Destroy(ctx)
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // VerifyPassword checks a username/password pair, returning the user on success.

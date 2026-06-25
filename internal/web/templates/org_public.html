@@ -7,7 +7,7 @@
   </div>
   <div class="col-auto ms-auto d-print-none">
     {{if .IsMember}}
-    <a class="btn" href="/orgs/{{.Org.Slug}}">{{template "icon-arrow-left" "me-1"}}Back to member view</a>
+    <a class="btn btn-primary" href="{{.AppURL}}/orgs/{{.Org.Slug}}">{{template "icon-arrow-right" "me-1"}}Open in app</a>
     {{else if .CanJoin}}
     <a class="btn btn-primary" href="{{.AppURL}}/orgs/{{.Org.Slug}}/join">{{template "icon-users" "me-1"}}Join organization</a>
     {{else}}

@@ -5,6 +5,11 @@
     <div class="page-pretitle">Repeater</div>
     <h2 class="page-title">{{.Repeater.Name}}</h2>
   </div>
+  {{if .CanManage}}
+  <div class="col-auto ms-auto d-print-none">
+    <a class="btn btn-primary" href="{{.AppURL}}/repeaters/{{.Repeater.PublicID}}">{{template "icon-arrow-right" "me-1"}}Open in app</a>
+  </div>
+  {{end}}
 </div>
 {{end}}
 {{define "content"}}

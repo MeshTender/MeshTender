@@ -39,7 +39,12 @@ func (s *Handlers) Routes() chi.Router {
 	r := chi.NewRouter()
 	s.CommonMiddleware(r)
 	r.Use(s.Auth.Sessions.LoadAndSave)
+	r.Use(s.Auth.ValidateSession)
 	s.SharedRoutes(r)
+	// Identity beacon: a fresh app sign-in bounces here to drop this host's
+	// minimal identity cookie, then forwards back to the app. See
+	// docs/auth-cross-host.md.
+	r.Get("/session/beacon", s.Auth.BeaconCallback)
 	r.Get("/", s.pageLanding)
 	r.Get("/orgs", s.pageOrgs)                        // public organization directory
 	r.Get("/orgs/{id}", s.pageOrgPublic)              // public org page
