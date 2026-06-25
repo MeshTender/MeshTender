@@ -1,7 +1,6 @@
 package core
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -12,13 +11,23 @@ import (
 	"github.com/jleight/meshtender/internal/web"
 )
 
-// maxConfigZones bounds how many zones one profile version may define, so a
-// malformed or abusive submission can't insert unbounded rows.
-const maxConfigZones = 50
+// Bounds on how many profiles/regions one save may define, so a malformed or
+// abusive submission can't insert unbounded rows.
+const (
+	maxConfigProfiles = 50
+	maxConfigRegions  = 50
+)
 
-// configZoneView is a zone in the admin config editor: the form fields (rectangle
+// configProfileView is a named base-settings profile in the admin editor.
+type configProfileView struct {
+	Name      string
+	StepsText string             // editor: one command per line
+	Steps     []store.ConfigStep // read-only: rendered list
+}
+
+// configRegionView is a region in the admin editor: the form fields (rectangle
 // corners derived from the stored geofence's bounds, one command per line).
-type configZoneView struct {
+type configRegionView struct {
 	Name      string
 	Priority  int
 	MatchAll  bool
@@ -26,14 +35,14 @@ type configZoneView struct {
 	MinLon    string
 	MaxLat    string
 	MaxLon    string
-	StepsText string             // editor: one command per line
-	Steps     []store.ConfigStep // read-only: rendered list
+	StepsText string
+	Steps     []store.ConfigStep
 }
 
-// pageOrgConfig renders an org's recommended configuration read-only. It's
-// visible to any signed-in user (org discoverability); admins get an Edit button
-// linking to pageOrgConfigEdit. An optional ?lat=&lon= previews the resolved
-// command list for a location. The root host serves the same page anonymously.
+// pageOrgConfig renders an org's configuration read-only: a selected profile's
+// base settings plus the regions (location steps). Visible to any signed-in user;
+// admins get an Edit button. ?profile= chooses which profile to show; ?lat=&lon=
+// marks which regions apply at a location. The root host serves it anonymously.
 func (s *Handlers) pageOrgConfig(w http.ResponseWriter, r *http.Request) {
 	uid := s.Auth.CurrentUserID(r.Context())
 	id, ok := s.orgID(r)
@@ -54,7 +63,7 @@ func (s *Handlers) pageOrgConfig(w http.ResponseWriter, r *http.Request) {
 
 	data := map[string]any{
 		"Org":     org,
-		"Nav":     web.OrgNav(org.Slug, "config", isMember),
+		"Nav":     s.OrgNavFor(r.Context(), id, org.Slug, "config", isMember, role == "admin"),
 		"CanEdit": role == "admin",
 	}
 	var latP, lonP *float64
@@ -62,16 +71,16 @@ func (s *Handlers) pageOrgConfig(w http.ResponseWriter, r *http.Request) {
 		latP, lonP = &lat, &lon
 		data["PreviewLat"], data["PreviewLon"] = lat, lon
 	}
-	cv, err := web.BuildConfigView(r.Context(), s.Store, id, latP, lonP)
+	cv, err := web.BuildConfigView(r.Context(), s.Store, id, r.URL.Query().Get("profile"), latP, lonP)
 	if err != nil {
-		http.Error(w, "could not load profile", http.StatusInternalServerError)
+		http.Error(w, "could not load config", http.StatusInternalServerError)
 		return
 	}
 	data["Config"] = cv
 	s.Render(w, r, "org_config.html", data)
 }
 
-// pageOrgConfigEdit is the admin editor for the recommended configuration.
+// pageOrgConfigEdit is the admin editor for the org's profiles and regions.
 func (s *Handlers) pageOrgConfigEdit(w http.ResponseWriter, r *http.Request) {
 	orgID, ok := s.requireOrgAdmin(w, r)
 	if !ok {
@@ -82,35 +91,29 @@ func (s *Handlers) pageOrgConfigEdit(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	data := map[string]any{
-		"Org":       org,
-		"Nav":       web.OrgNav(org.Slug, "config", true),
-		"EmptyZone": configZoneView{}, // prototype for the "add zone" cloner
-	}
-	vid, version, err := s.Store.CurrentProfileVersion(r.Context(), orgID)
-	switch {
-	case errors.Is(err, store.ErrNotFound):
-		// No profile yet — the editor starts empty.
-	case err != nil:
-		http.Error(w, "could not load profile", http.StatusInternalServerError)
+	profiles, err := s.Store.ListProfiles(r.Context(), orgID)
+	if err != nil {
+		http.Error(w, "could not load config", http.StatusInternalServerError)
 		return
-	default:
-		base, zones, perr := s.Store.ProfileVersion(r.Context(), vid)
-		if perr != nil {
-			http.Error(w, "could not load profile", http.StatusInternalServerError)
-			return
-		}
-		data["HasProfile"] = true
-		data["Version"] = version
-		data["BaseText"] = stepsToText(base)
-		data["Zones"] = zoneViews(zones)
 	}
-	s.Render(w, r, "config_edit.html", data)
+	regions, err := s.Store.ListRegions(r.Context(), orgID)
+	if err != nil {
+		http.Error(w, "could not load config", http.StatusInternalServerError)
+		return
+	}
+	s.Render(w, r, "config_edit.html", map[string]any{
+		"Org":          org,
+		"Nav":          s.OrgNavFor(r.Context(), orgID, org.Slug, "config", true, true),
+		"EmptyProfile": configProfileView{},
+		"EmptyRegion":  configRegionView{},
+		"Profiles":     profileViews(profiles),
+		"Regions":      regionViews(regions),
+	})
 }
 
-// handleSaveOrgConfig validates and publishes a new profile version (admin only).
-// Any unknown command line blocks the publish and the editor is re-rendered with
-// the errors and the entered text preserved.
+// handleSaveOrgConfig validates and replaces the org's profiles + regions (admin
+// only). Any unknown command line blocks the save and the editor is re-rendered
+// with the errors and the entered text preserved.
 func (s *Handlers) handleSaveOrgConfig(w http.ResponseWriter, r *http.Request) {
 	orgID, ok := s.requireOrgAdmin(w, r)
 	if !ok {
@@ -127,22 +130,8 @@ func (s *Handlers) handleSaveOrgConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var errs, risky []string
-	_, baseSteps := parseConfigSteps(r.FormValue("base"), catalog, "base steps", &errs, &risky)
-
-	names := r.Form["zone_name"]
-	if len(names) > maxConfigZones {
-		errs = append(errs, fmt.Sprintf("Too many zones (max %d).", maxConfigZones))
-	}
-	var zones []store.ZoneInput
-	var zoneViewsForRedisplay []configZoneView
-	for i := range names {
-		zv, zi, ok := s.parseZone(r, i, catalog, &errs, &risky)
-		if !ok {
-			continue
-		}
-		zones = append(zones, zi)
-		zoneViewsForRedisplay = append(zoneViewsForRedisplay, zv)
-	}
+	profiles, profileVs := s.parseProfiles(r, catalog, &errs, &risky)
+	regions, regionVs := s.parseRegions(r, catalog, &errs, &risky)
 
 	if len(errs) > 0 {
 		org, gerr := s.Store.GetOrg(r.Context(), orgID)
@@ -151,70 +140,123 @@ func (s *Handlers) handleSaveOrgConfig(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.Render(w, r, "config_edit.html", map[string]any{
-			"Org":       org,
-			"Nav":       web.OrgNav(org.Slug, "config", true),
-			"EmptyZone": configZoneView{},
-			"Errors":    errs,
-			"RiskyWarn": risky,
-			"BaseText":  r.FormValue("base"),
-			"Zones":     zoneViewsForRedisplay,
-			// Keep the editor open with the submitted content even on the first save.
-			"HasProfile": true,
+			"Org":          org,
+			"Nav":          s.OrgNavFor(r.Context(), orgID, org.Slug, "config", true, true),
+			"EmptyProfile": configProfileView{},
+			"EmptyRegion":  configRegionView{},
+			"Errors":       errs,
+			"RiskyWarn":    risky,
+			"Profiles":     profileVs,
+			"Regions":      regionVs,
 		})
 		return
 	}
 
-	uid := s.Auth.CurrentUserID(r.Context())
-	note := strings.TrimSpace(r.FormValue("note"))
-	if _, err := s.Store.PublishProfileVersion(r.Context(), orgID, note, uid, baseSteps, zones); err != nil {
-		http.Error(w, "could not publish", http.StatusInternalServerError)
+	if err := s.Store.ReplaceOrgConfig(r.Context(), orgID, profiles, regions); err != nil {
+		http.Error(w, "could not save", http.StatusInternalServerError)
 		return
 	}
 	http.Redirect(w, r, "/orgs/"+orgParam(r)+"/config", http.StatusSeeOther)
 }
 
-// parseZone reads the i-th zone block from the form into both an editor view (for
-// re-display on error) and a store input. ok is false when the zone is unusable
-// (e.g. a malformed box) — an error is recorded in that case.
-func (s *Handlers) parseZone(r *http.Request, i int, catalog []*store.Command, errs, risky *[]string) (configZoneView, store.ZoneInput, bool) {
-	get := func(field string) string {
-		v := r.Form[field]
-		if i < len(v) {
-			return strings.TrimSpace(v[i])
+// parseProfiles reads the repeated profile blocks from the form into store inputs
+// and editor views (for re-display on error). Empty blocks are ignored; a block
+// with steps but no name, or a duplicate name, is an error.
+func (s *Handlers) parseProfiles(r *http.Request, catalog []*store.Command, errs, risky *[]string) ([]store.ProfileInput, []configProfileView) {
+	names := r.Form["profile_name"]
+	if len(names) > maxConfigProfiles {
+		*errs = append(*errs, fmt.Sprintf("Too many profiles (max %d).", maxConfigProfiles))
+	}
+	seen := map[string]bool{}
+	var ins []store.ProfileInput
+	var views []configProfileView
+	for i := range names {
+		name := strings.TrimSpace(formAt(r, "profile_name", i))
+		stepsText := formAt(r, "profile_steps", i)
+		if name == "" && strings.TrimSpace(stepsText) == "" {
+			continue // empty block
 		}
-		return ""
+		view := configProfileView{Name: name, StepsText: stepsText}
+		if name == "" {
+			*errs = append(*errs, "A profile is missing a name.")
+			views = append(views, view)
+			continue
+		}
+		if seen[strings.ToLower(name)] {
+			*errs = append(*errs, fmt.Sprintf("Duplicate profile name %q.", name))
+			views = append(views, view)
+			continue
+		}
+		seen[strings.ToLower(name)] = true
+		steps, storeSteps := parseConfigSteps(stepsText, catalog, fmt.Sprintf("profile %q", name), errs, risky)
+		view.Steps = steps
+		views = append(views, view)
+		ins = append(ins, store.ProfileInput{Name: name, Steps: storeSteps})
 	}
-	name := get("zone_name")
-	stepsText := get("zone_steps")
-	zv := configZoneView{
-		Name: name, StepsText: stepsText,
-		MinLat: get("zone_minlat"), MinLon: get("zone_minlon"),
-		MaxLat: get("zone_maxlat"), MaxLon: get("zone_maxlon"),
-	}
-	if name == "" && strings.TrimSpace(stepsText) == "" {
-		return zv, store.ZoneInput{}, false // empty block — ignore
-	}
-	if name == "" {
-		*errs = append(*errs, "A zone is missing a name.")
-		return zv, store.ZoneInput{}, false
-	}
-	priority, _ := strconv.Atoi(get("zone_priority"))
-	zv.Priority = priority
-
-	label := fmt.Sprintf("zone %q", name)
-	steps, storeSteps := parseConfigSteps(stepsText, catalog, label, errs, risky)
-	zv.Steps = steps
-
-	geofence, ok := zoneGeofence(zv, name, errs)
-	if !ok {
-		return zv, store.ZoneInput{}, false
-	}
-	return zv, store.ZoneInput{Name: name, Priority: priority, GeofenceJSON: geofence, Steps: storeSteps}, true
+	return ins, views
 }
 
-// zoneGeofence builds the GeoJSON for a zone from its rectangle corners. All four
-// blank = a match-all zone (nil geofence). A partial box is an error.
-func zoneGeofence(zv configZoneView, name string, errs *[]string) ([]byte, bool) {
+// parseRegions reads the repeated region blocks from the form.
+func (s *Handlers) parseRegions(r *http.Request, catalog []*store.Command, errs, risky *[]string) ([]store.RegionInput, []configRegionView) {
+	names := r.Form["region_name"]
+	if len(names) > maxConfigRegions {
+		*errs = append(*errs, fmt.Sprintf("Too many regions (max %d).", maxConfigRegions))
+	}
+	seen := map[string]bool{}
+	var ins []store.RegionInput
+	var views []configRegionView
+	for i := range names {
+		name := strings.TrimSpace(formAt(r, "region_name", i))
+		stepsText := formAt(r, "region_steps", i)
+		zv := configRegionView{
+			Name: name, StepsText: stepsText,
+			MinLat: strings.TrimSpace(formAt(r, "region_minlat", i)),
+			MinLon: strings.TrimSpace(formAt(r, "region_minlon", i)),
+			MaxLat: strings.TrimSpace(formAt(r, "region_maxlat", i)),
+			MaxLon: strings.TrimSpace(formAt(r, "region_maxlon", i)),
+		}
+		if name == "" && strings.TrimSpace(stepsText) == "" {
+			continue
+		}
+		if name == "" {
+			*errs = append(*errs, "A region is missing a name.")
+			views = append(views, zv)
+			continue
+		}
+		if seen[strings.ToLower(name)] {
+			*errs = append(*errs, fmt.Sprintf("Duplicate region name %q.", name))
+			views = append(views, zv)
+			continue
+		}
+		seen[strings.ToLower(name)] = true
+		priority, _ := strconv.Atoi(formAt(r, "region_priority", i))
+		zv.Priority = priority
+		steps, storeSteps := parseConfigSteps(stepsText, catalog, fmt.Sprintf("region %q", name), errs, risky)
+		zv.Steps = steps
+		geofence, ok := regionGeofence(zv, name, errs)
+		if !ok {
+			views = append(views, zv)
+			continue
+		}
+		views = append(views, zv)
+		ins = append(ins, store.RegionInput{Name: name, Priority: priority, GeofenceJSON: geofence, Steps: storeSteps})
+	}
+	return ins, views
+}
+
+// formAt returns the i-th value of a repeated form field, or "".
+func formAt(r *http.Request, field string, i int) string {
+	v := r.Form[field]
+	if i < len(v) {
+		return v[i]
+	}
+	return ""
+}
+
+// regionGeofence builds the GeoJSON for a region from its rectangle corners. All
+// four blank = a region that applies everywhere (nil geofence). A partial box is
+// an error.
+func regionGeofence(zv configRegionView, name string, errs *[]string) ([]byte, bool) {
 	boxes := []string{zv.MinLat, zv.MinLon, zv.MaxLat, zv.MaxLon}
 	blank := 0
 	for _, b := range boxes {
@@ -223,17 +265,17 @@ func zoneGeofence(zv configZoneView, name string, errs *[]string) ([]byte, bool)
 		}
 	}
 	if blank == 4 {
-		return nil, true // match-all
+		return nil, true // everywhere
 	}
 	if blank != 0 {
-		*errs = append(*errs, fmt.Sprintf("Zone %q needs all four corner coordinates (or leave all blank for everywhere).", name))
+		*errs = append(*errs, fmt.Sprintf("Region %q needs all four corner coordinates (or leave all blank for everywhere).", name))
 		return nil, false
 	}
 	vals := make([]float64, 4)
 	for j, b := range boxes {
 		f, err := strconv.ParseFloat(b, 64)
 		if err != nil {
-			*errs = append(*errs, fmt.Sprintf("Zone %q has an invalid coordinate %q.", name, b))
+			*errs = append(*errs, fmt.Sprintf("Region %q has an invalid coordinate %q.", name, b))
 			return nil, false
 		}
 		vals[j] = f
@@ -295,12 +337,21 @@ func stepsToText(steps []store.ConfigStep) string {
 	return b.String()
 }
 
-// zoneViews converts stored zones into editor/read views, deriving the rectangle
-// corners from each geofence's bounding box.
-func zoneViews(zones []store.Zone) []configZoneView {
-	out := make([]configZoneView, 0, len(zones))
-	for _, z := range zones {
-		zv := configZoneView{
+// profileViews converts stored profiles into editor/read views.
+func profileViews(profiles []store.Profile) []configProfileView {
+	out := make([]configProfileView, 0, len(profiles))
+	for _, p := range profiles {
+		out = append(out, configProfileView{Name: p.Name, StepsText: stepsToText(p.Steps), Steps: p.Steps})
+	}
+	return out
+}
+
+// regionViews converts stored regions into editor/read views, deriving the
+// rectangle corners from each geofence's bounding box.
+func regionViews(regions []store.Region) []configRegionView {
+	out := make([]configRegionView, 0, len(regions))
+	for _, z := range regions {
+		zv := configRegionView{
 			Name: z.Name, Priority: z.Priority,
 			StepsText: stepsToText(z.Steps), Steps: z.Steps,
 		}
@@ -319,8 +370,9 @@ func zoneViews(zones []store.Zone) []configZoneView {
 
 func formatCoord(f float64) string { return strconv.FormatFloat(f, 'f', -1, 64) }
 
-// repeaterProfiles is a contributed org's recommended configuration resolved for a
-// specific repeater's location, for the console reference block.
+// repeaterProfiles is an org's region steps resolved for a specific repeater's
+// location, for the console reference block. Base-settings profiles are a viewing
+// choice on the org config page, so they aren't auto-applied here.
 type repeaterProfiles struct {
 	OrgName string
 	OrgSlug string
@@ -328,7 +380,7 @@ type repeaterProfiles struct {
 }
 
 // resolvedProfilesForRepeater returns, for each org the repeater is contributed to
-// that has a published profile, the steps resolved for the repeater's location.
+// that has regions, the region steps resolved for the repeater's location.
 func (s *Handlers) resolvedProfilesForRepeater(r *http.Request, rep *store.Repeater) []repeaterProfiles {
 	orgs, err := s.Store.ListRepeaterOrgs(r.Context(), rep.ID)
 	if err != nil {
@@ -336,15 +388,11 @@ func (s *Handlers) resolvedProfilesForRepeater(r *http.Request, rep *store.Repea
 	}
 	var out []repeaterProfiles
 	for _, o := range orgs {
-		vid, _, err := s.Store.CurrentProfileVersion(r.Context(), o.OrgID)
-		if err != nil {
-			continue // ErrNotFound (no profile) or transient — just skip
-		}
-		base, zones, err := s.Store.ProfileVersion(r.Context(), vid)
+		regions, err := s.Store.ListRegions(r.Context(), o.OrgID)
 		if err != nil {
 			continue
 		}
-		steps := store.ResolveProfile(base, zones, rep.Latitude, rep.Longitude)
+		steps := store.ResolveRegions(regions, rep.Latitude, rep.Longitude)
 		if len(steps) == 0 {
 			continue
 		}

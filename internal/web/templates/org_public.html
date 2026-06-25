@@ -7,7 +7,7 @@
   </div>
   <div class="col-auto ms-auto d-print-none">
     {{if .IsMember}}
-    <a class="btn btn-primary" href="{{.AppURL}}/orgs/{{.Org.Slug}}">{{template "icon-arrow-right" "me-1"}}Open in app</a>
+    <a class="btn btn-primary" href="{{.AppURL}}/orgs/{{.Org.Slug}}">{{template "icon-arrow-right" "me-1"}}Go to organization</a>
     {{else if .CanJoin}}
     <a class="btn btn-primary" href="{{.AppURL}}/orgs/{{.Org.Slug}}/join">{{template "icon-users" "me-1"}}Join organization</a>
     {{else}}
@@ -73,12 +73,7 @@
       <div class="card-body">
         {{if .Org.Region}}<div class="d-flex align-items-center text-secondary mb-2">{{template "icon-map-pin" "me-1"}}{{.Org.Region}}</div>{{end}}
         {{if .Org.Description}}<p class="mb-0">{{.Org.Description}}</p>{{else}}<p class="text-secondary mb-0">This organization hasn't added a description yet.</p>{{end}}
-      </div>
-    </div>
-
-    <div class="card mt-3">
-      <div class="card-header"><h3 class="card-title">Admins</h3></div>
-      <div class="card-body">
+        <div class="hr-text">Admins</div>
         {{if .Admins}}
         <div class="d-flex flex-wrap gap-2">
           {{range .Admins}}<span class="badge bg-success-lt">{{.}}</span>{{end}}

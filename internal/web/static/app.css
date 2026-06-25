@@ -3,6 +3,19 @@
    from Tabler; this file only covers things Tabler has no component for: the
    live console/event log, the Leaflet map, and the public-key code block. */
 
+/* ---------- Text selection ----------
+   The dark theme's default selection highlight is nearly invisible inside form
+   controls; force a high-contrast highlight everywhere, inputs included. */
+::selection {
+  background-color: var(--tblr-primary, #4263eb);
+  color: #fff;
+}
+input::selection,
+textarea::selection {
+  background-color: var(--tblr-primary, #4263eb);
+  color: #fff;
+}
+
 /* ---------- Back links (icon + text, plain link — not a button) ----------
    These are navigational "← All organizations" links. Styling them as a plain
    link (rather than .btn .btn-link) avoids the button's inline-flex box being

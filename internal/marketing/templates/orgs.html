@@ -2,11 +2,43 @@
 {{define "header"}}
 <div class="row g-2 align-items-center">
   <div class="col"><h2 class="page-title">Organizations</h2></div>
+  {{if .UserName}}
   <div class="col-auto ms-auto d-print-none">
-    <a class="btn btn-outline-primary" href="{{.AppURL}}/login">{{template "icon-login" "me-1"}}Sign in to create</a>
+    <a class="btn btn-primary" href="{{.AppURL}}/orgs/new">{{template "icon-plus" "me-1"}}Create organization</a>
   </div>
+  {{end}}
 </div>
 {{end}}
+
+{{/* org-rows renders just the directory rows; shared by the full page and the
+     htmx "load more" fragment so appended pages match the first. */}}
+{{define "org-rows"}}
+{{range .All}}
+<div class="list-group-item">
+  <div class="d-flex align-items-center gap-2">
+    <a class="fw-bold text-reset text-decoration-none" href="/orgs/{{.Slug}}">{{.Name}}</a>
+    {{if .Region}}<span class="badge bg-secondary-lt">{{.Region}}</span>{{end}}
+  </div>
+  {{if .Description}}<p class="text-secondary mb-1 mt-1">{{.Description}}</p>{{end}}
+  <div class="text-secondary small">{{.MemberCount}} member{{if ne .MemberCount 1}}s{{end}} · {{.RepeaterCount}} repeater{{if ne .RepeaterCount 1}}s{{end}}</div>
+</div>
+{{end}}
+{{end}}
+
+{{/* org-more is the "load more" control. It replaces itself (hx-swap outerHTML)
+     with the next page's rows followed by a fresh org-more, so the list grows in
+     place without scrolling to the top. The cursor already carries sort + query. */}}
+{{define "org-more"}}
+<div class="list-group-item text-center" id="org-more">
+  <button class="btn btn-outline-secondary" hx-get="/orgs?cursor={{.NextCursor}}" hx-target="#org-more" hx-swap="outerHTML">
+    Show more organizations
+  </button>
+</div>
+{{end}}
+
+{{/* orgs-frag is the htmx response layout: rows + next control, no page chrome. */}}
+{{define "orgs-frag"}}{{template "org-rows" .}}{{if .NextCursor}}{{template "org-more" .}}{{end}}{{end}}
+
 {{define "content"}}
 {{if .Error}}<div class="alert alert-danger">{{.Error}}</div>{{end}}
 <div class="card mb-3">
@@ -33,23 +65,10 @@
 
 <div class="card">
   {{if .All}}
-  <div class="list-group list-group-flush">
-    {{range .All}}
-    <div class="list-group-item">
-      <div class="d-flex align-items-center gap-2">
-        <a class="fw-bold text-reset text-decoration-none" href="/orgs/{{.Slug}}">{{.Name}}</a>
-        {{if .Region}}<span class="badge bg-secondary-lt">{{.Region}}</span>{{end}}
-      </div>
-      {{if .Description}}<p class="text-secondary mb-1 mt-1">{{.Description}}</p>{{end}}
-      <div class="text-secondary small">{{.MemberCount}} member{{if ne .MemberCount 1}}s{{end}} · {{.RepeaterCount}} repeater{{if ne .RepeaterCount 1}}s{{end}}</div>
-    </div>
-    {{end}}
+  <div class="list-group list-group-flush" id="org-list">
+    {{template "org-rows" .}}
+    {{if .NextCursor}}{{template "org-more" .}}{{end}}
   </div>
-  {{if .NextCursor}}
-  <div class="card-body border-top text-center">
-    <a class="btn btn-outline-secondary" href="/orgs?cursor={{.NextCursor}}">Show more organizations</a>
-  </div>
-  {{end}}
   {{else}}
   <div class="card-body"><p class="text-secondary mb-0">{{if .Query}}No organizations match “{{.Query}}”.{{else}}No organizations yet.{{end}}</p></div>
   {{end}}

@@ -3,7 +3,7 @@
 <div class="row g-2 align-items-center">
   <div class="col">
     <div class="page-pretitle">{{.Org.Name}}</div>
-    <h2 class="page-title">Recommended configuration</h2>
+    <h2 class="page-title">Recommended Configuration</h2>
   </div>
   {{if .CanEdit}}
   <div class="col-auto ms-auto d-print-none">
@@ -15,54 +15,87 @@
 {{define "content"}}
 {{template "org-tabs" .Nav}}
 
-<div class="card">
-  <div class="card-body">
-    <p class="text-secondary mb-0">
-      The commands an operator should run to bring a repeater in spec for this organization.
-      Copy them into a repeater's console, or apply them directly from the console with a modem connected.
-      Region commands can vary by location — <strong>zones</strong> apply only to repeaters inside their geofence.
-    </p>
-  </div>
-</div>
+{{if not .Config.HasConfig}}
+<div class="card"><div class="card-body text-secondary">
+  This organization hasn't defined any configuration yet.{{if .CanEdit}} Use <strong>Edit</strong> to add a profile or region.{{end}}
+</div></div>
+{{else}}
+<div class="row row-cards">
+  <!-- Main: selected profile's base settings + regions (only what's defined) -->
+  <div class="col-lg-8">
+    {{if .Config.Profiles}}
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">{{.Config.Selected}} · base settings</h3></div>
+      <div class="card-body">{{template "step-list" .Config.SelectedSteps}}</div>
+    </div>
+    {{end}}
 
-{{if .Config.HasProfile}}
-<div class="card mt-3">
-  <div class="card-header"><h3 class="card-title">Base steps</h3>
-    <span class="card-subtitle ms-auto">v{{.Config.Version}}</span>
+    {{if .Config.Regions}}
+    <div class="card{{if .Config.Profiles}} mt-3{{end}}">
+      <div class="card-header"><h3 class="card-title">Regions</h3>
+        <span class="card-subtitle ms-auto">added by location</span>
+      </div>
+      <div class="card-body text-secondary">
+        These steps are added based on a repeater's location, independent of the profile you pick.
+      </div>
+    </div>
+    {{range .Config.Regions}}
+    <div class="card mt-3">
+      <div class="card-header">
+        <h3 class="card-title">{{.Name}}</h3>
+        <span class="card-subtitle ms-auto">
+          {{if .MatchAll}}everywhere{{else}}lat {{.MinLat}}…{{.MaxLat}}, lon {{.MinLon}}…{{.MaxLon}}{{end}} · priority {{.Priority}}
+        </span>
+      </div>
+      <div class="card-body">
+        {{if $.Config.PreviewActive}}
+        {{if .Matches}}<span class="badge bg-success-lt mb-2">applies at {{$.PreviewLat}}, {{$.PreviewLon}}</span>
+        {{else}}<span class="badge bg-secondary-lt mb-2">does not apply here</span>{{end}}
+        {{end}}
+        {{template "step-list" .Steps}}
+      </div>
+    </div>
+    {{end}}
+    {{end}}
   </div>
-  <div class="card-body">{{template "step-list" .Config.BaseSteps}}</div>
-</div>
-{{range .Config.Zones}}
-<div class="card mt-3">
-  <div class="card-header">
-    <h3 class="card-title">{{.Name}}</h3>
-    <span class="card-subtitle ms-auto">{{if .MatchAll}}everywhere{{else}}lat {{.MinLat}}…{{.MaxLat}}, lon {{.MinLon}}…{{.MaxLon}}{{end}} · priority {{.Priority}}</span>
-  </div>
-  <div class="card-body">{{template "step-list" .Steps}}</div>
-</div>
-{{end}}
 
-{{/* ---------- Location preview ---------- */}}
-<div class="card mt-3">
-  <div class="card-header"><h3 class="card-title">Preview for a location</h3></div>
-  <div class="card-body">
-    <form method="get" action="/orgs/{{.Org.Slug}}/config" class="row g-2 align-items-end">
-      <div class="col-auto"><label class="form-label" for="lat">Latitude</label>
-        <input class="form-control" type="text" id="lat" name="lat" value="{{if .PreviewLat}}{{.PreviewLat}}{{end}}"></div>
-      <div class="col-auto"><label class="form-label" for="lon">Longitude</label>
-        <input class="form-control" type="text" id="lon" name="lon" value="{{if .PreviewLon}}{{.PreviewLon}}{{end}}"></div>
-      <div class="col-auto"><button class="btn" type="submit">Resolve</button></div>
-    </form>
-    {{if .Config.Preview}}
-    <div class="mt-3">
-      <div class="text-secondary mb-1">Commands a repeater at {{.PreviewLat}}, {{.PreviewLon}} should run:</div>
-      {{template "step-list" .Config.Preview}}
+  <!-- Sidebar: profile selector (if profiles) + location preview (if regions) -->
+  <div class="col-lg-4">
+    {{if .Config.Profiles}}
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">Profile</h3></div>
+      <div class="card-body">
+        <form method="get" action="/orgs/{{.Org.Slug}}/config">
+          <select class="form-select" name="profile" aria-label="Choose a configuration profile" onchange="this.form.submit()">
+            {{range .Config.Profiles}}<option value="{{.Name}}"{{if eq .Name $.Config.Selected}} selected{{end}}>{{.Name}}</option>{{end}}
+          </select>
+          {{if .PreviewLat}}<input type="hidden" name="lat" value="{{.PreviewLat}}">{{end}}
+          {{if .PreviewLon}}<input type="hidden" name="lon" value="{{.PreviewLon}}">{{end}}
+        </form>
+        <p class="text-secondary small mt-2 mb-0">
+          Pick the profile matching your hardware to see its base settings.{{if .Config.Regions}} Region steps are added separately, by location.{{end}}
+        </p>
+      </div>
+    </div>
+    {{end}}
+
+    {{if .Config.Regions}}
+    <div class="card{{if .Config.Profiles}} mt-3{{end}}">
+      <div class="card-header"><h3 class="card-title">Preview a location</h3></div>
+      <div class="card-body">
+        <form method="get" action="/orgs/{{.Org.Slug}}/config" class="row g-2 align-items-end">
+          {{if .Config.Profiles}}<input type="hidden" name="profile" value="{{.Config.Selected}}">{{end}}
+          <div class="col-12"><label class="form-label" for="lat">Latitude</label>
+            <input class="form-control" type="text" id="lat" name="lat" value="{{if .PreviewLat}}{{.PreviewLat}}{{end}}"></div>
+          <div class="col-12"><label class="form-label" for="lon">Longitude</label>
+            <input class="form-control" type="text" id="lon" name="lon" value="{{if .PreviewLon}}{{.PreviewLon}}{{end}}"></div>
+          <div class="col-12"><button class="btn w-100" type="submit">Resolve regions</button></div>
+        </form>
+      </div>
     </div>
     {{end}}
   </div>
 </div>
-{{else}}
-<div class="card mt-3"><div class="card-body text-secondary">This organization hasn't published a recommended configuration yet.</div></div>
 {{end}}
 {{end}}
 

@@ -129,6 +129,70 @@ func (s *Store) ListPublicRepeaters(ctx context.Context, orgID int64) ([]OrgRepe
 	})
 }
 
+// OrgPublicRepeatersPageSize is the number of public repeaters listed per page on
+// an org's public Repeaters tab.
+const OrgPublicRepeatersPageSize = 25
+
+// MapPoint is a located repeater plotted on an org's public map. The map shows
+// every located public repeater regardless of which list page is in view.
+type MapPoint struct {
+	Name     string
+	Lat, Lon float64
+}
+
+// ListPublicRepeatersPage returns one keyset page of an org's public repeaters
+// ordered by name. afterName/afterID are the last row of the previous page (empty
+// afterName starts at the beginning). The bool reports whether more pages follow.
+func (s *Store) ListPublicRepeatersPage(ctx context.Context, orgID int64, afterName string, afterID int64) ([]OrgRepeaterInfo, bool, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT r.id, r.name, COALESCE(NULLIF(ou.display_name, ''), ou.username, '?')
+		FROM repeaters r
+		JOIN org_members om ON om.org_id = $1 AND om.user_id = r.owner_id
+		JOIN users ou ON ou.id = r.owner_id
+		WHERE r.show_on_public_org
+		  AND NOT EXISTS (SELECT 1 FROM org_repeater_excludes e
+		                  WHERE e.org_id = $1 AND e.repeater_id = r.id)
+		  AND ($2 = '' OR (lower(r.name), r.id) > (lower($2), $3))
+		ORDER BY lower(r.name), r.id
+		LIMIT $4`, orgID, afterName, afterID, OrgPublicRepeatersPageSize+1)
+	if err != nil {
+		return nil, false, fmt.Errorf("list public repeaters page: %w", err)
+	}
+	out, err := collectRows(rows, func(r pgx.Row) (OrgRepeaterInfo, error) {
+		var ri OrgRepeaterInfo
+		return ri, r.Scan(&ri.RepeaterID, &ri.Name, &ri.OwnerName)
+	})
+	if err != nil {
+		return nil, false, err
+	}
+	hasMore := len(out) > OrgPublicRepeatersPageSize
+	if hasMore {
+		out = out[:OrgPublicRepeatersPageSize]
+	}
+	return out, hasMore, nil
+}
+
+// ListPublicRepeaterPoints returns every located public repeater for an org, for
+// the map — independent of list paging so all coverage shows at once.
+func (s *Store) ListPublicRepeaterPoints(ctx context.Context, orgID int64) ([]MapPoint, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT r.name, r.latitude, r.longitude
+		FROM repeaters r
+		JOIN org_members om ON om.org_id = $1 AND om.user_id = r.owner_id
+		WHERE r.show_on_public_org
+		  AND r.latitude IS NOT NULL AND r.longitude IS NOT NULL
+		  AND NOT EXISTS (SELECT 1 FROM org_repeater_excludes e
+		                  WHERE e.org_id = $1 AND e.repeater_id = r.id)
+		ORDER BY lower(r.name), r.id`, orgID)
+	if err != nil {
+		return nil, fmt.Errorf("list public repeater points: %w", err)
+	}
+	return collectRows(rows, func(r pgx.Row) (MapPoint, error) {
+		var p MapPoint
+		return p, r.Scan(&p.Name, &p.Lat, &p.Lon)
+	})
+}
+
 // ListRepeaterOrgs returns the orgs a repeater participates in (owner is a member
 // and hasn't opted it out).
 func (s *Store) ListRepeaterOrgs(ctx context.Context, repeaterID int64) ([]RepeaterOrg, error) {

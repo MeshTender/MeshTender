@@ -105,6 +105,85 @@
 </body>
 </html>{{end}}
 
+{{/* rootnav is the public/root-host topbar: brand + Organizations, with the
+     sign-in/create-account actions collapsing to a single Dashboard button once
+     signed in (the root identity beacon sets .UserName). Shared by rootbase and
+     landingbase so every root page has an identical topbar. */}}
+{{define "rootnav"}}
+<header class="navbar navbar-expand-md d-print-none">
+  <div class="container-xl">
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar-menu" aria-controls="navbar-menu" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <a href="/" class="navbar-brand navbar-brand-autodark d-flex align-items-center text-reset text-decoration-none pe-0 pe-md-3">
+      {{template "icon-logo" "me-1"}}<span class="fw-bold fs-3">MeshTender</span>
+    </a>
+    <div class="navbar-nav flex-row order-md-last align-items-center gap-2">
+      {{if .UserName}}
+      <a href="{{.AppURL}}/" class="btn">{{template "icon-home" "me-1"}}Dashboard</a>
+      {{else}}
+      <a href="{{.AppURL}}/login" class="btn">{{template "icon-login" "me-1"}}Sign in</a>
+      <a href="{{.AppURL}}/signup" class="btn btn-primary">Create account</a>
+      {{end}}
+    </div>
+    <div class="collapse navbar-collapse" id="navbar-menu">
+      <ul class="navbar-nav">
+        <li class="nav-item">
+          <a class="nav-link" href="/orgs">
+            <span class="nav-link-icon d-md-none d-lg-inline-block">{{template "icon-world" ""}}</span>
+            <span class="nav-link-title">Organizations</span>
+          </a>
+        </li>
+      </ul>
+    </div>
+  </div>
+</header>
+{{end}}
+
+{{/* rootbase is the public/root-host page layout: the shared rootnav topbar plus
+     the standard page chrome (header block, content, footer). The marketing
+     surface defaults to this so every root page matches the rest of the site. */}}
+{{define "rootbase"}}<!doctype html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <title>{{template "title" .}}</title>
+  <link rel="stylesheet" href="/static/tabler.min.css">
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/tabler.min.js" defer></script>
+  <script src="/static/htmx.min.js" defer></script>
+</head>
+<body>
+  <a href="#main-content" class="visually-hidden-focusable btn btn-primary position-absolute top-0 start-0 m-2" style="z-index:1080">Skip to main content</a>
+  <div class="page">
+    {{template "rootnav" .}}
+    <div class="page-wrapper">
+      <div class="page-header d-print-none" aria-label="Page header">
+        <div class="container-xl">
+          {{template "header" .}}
+        </div>
+      </div>
+      <div class="page-body">
+        <div class="container-xl" id="main-content" tabindex="-1">
+          {{template "content" .}}
+        </div>
+      </div>
+      <footer class="footer footer-transparent d-print-none">
+        <div class="container-xl">
+          <div class="row text-center align-items-center flex-row-reverse">
+            <div class="col-12 col-lg-auto mt-3 mt-lg-0">
+              <span class="text-secondary">MeshTender &mdash; tend your mesh.</span>
+            </div>
+          </div>
+        </div>
+      </footer>
+    </div>
+  </div>
+</body>
+</html>{{end}}
+
 {{/* authbase is a standalone, centered layout for the sign-in / sign-up pages —
      no navbar or page chrome, just a brand logo above the page's content card.
      Pages opt in with {{define "base"}}{{template "authbase" .}}{{end}}. */}}
@@ -148,17 +227,7 @@
   <script src="/static/tabler.min.js" defer></script>
 </head>
 <body>
-  <header class="navbar navbar-expand-md navbar-transparent py-3">
-    <div class="container">
-      <a href="/" class="navbar-brand navbar-brand-autodark d-flex align-items-center text-reset text-decoration-none">
-        {{template "icon-logo" "me-1"}}<span class="fw-bold fs-3">MeshTender</span>
-      </a>
-      <div class="navbar-nav flex-row order-md-last align-items-center gap-2">
-        <a href="{{.AppURL}}/login" class="btn btn-ghost-secondary">Sign in</a>
-        <a href="{{.AppURL}}/signup" class="btn btn-primary">Create account</a>
-      </div>
-    </div>
-  </header>
+  {{template "rootnav" .}}
   {{template "content" .}}
   <footer class="footer footer-transparent">
     <div class="container">

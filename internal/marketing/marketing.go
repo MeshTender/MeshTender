@@ -31,6 +31,8 @@ func New(deps web.Deps, svc *auth.Service) (*Handlers, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Root pages get the public topbar by default (handlers needn't pass Layout).
+	env.SetDefaultLayout("rootbase")
 	return &Handlers{Env: env, Auth: svc}, nil
 }
 
@@ -72,8 +74,8 @@ func (s *Handlers) pageOrgPublic(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	uid := s.Auth.CurrentUserID(r.Context())
-	_, isMember, _ := s.Store.OrgRole(r.Context(), id, uid)
-	s.renderOrgPublic(w, r, org, isMember)
+	role, isMember, _ := s.Store.OrgRole(r.Context(), id, uid)
+	s.renderOrgPublic(w, r, org, isMember, role == "admin")
 }
 
 // CustomDomain serves an org's public page when the request arrives on one of
@@ -93,7 +95,7 @@ func (s *Handlers) CustomDomain(next http.Handler) http.Handler {
 			return
 		}
 		if r.URL.Path == "/" {
-			s.renderOrgPublic(w, r, org, false)
+			s.renderOrgPublic(w, r, org, false, false)
 			return
 		}
 		http.Redirect(w, r, s.Origin(r, s.Cfg.PrimaryHost)+r.URL.RequestURI(), http.StatusFound)

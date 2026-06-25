@@ -90,7 +90,7 @@ func (s *Handlers) pageOrg(w http.ResponseWriter, r *http.Request) {
 		// button (its POST hits the app host), and a member previewing with
 		// ?view=public gets the "Back to member view" link. The root host serves
 		// the same page to anonymous/external visitors.
-		s.renderOrgPublic(w, r, org, isMember)
+		s.renderOrgPublic(w, r, org, isMember, role == "admin")
 		return
 	}
 	members, err := s.Store.ListOrgMembers(r.Context(), id)
@@ -118,7 +118,7 @@ func (s *Handlers) pageOrg(w http.ResponseWriter, r *http.Request) {
 	isAdmin := role == "admin"
 	data := map[string]any{
 		"Org":           org,
-		"Nav":           web.OrgNav(org.Slug, "home", true),
+		"Nav":           s.OrgNavFor(r.Context(), org.ID, org.Slug, "home", true, isAdmin),
 		"Role":          role,
 		"IsAdmin":       isAdmin,
 		"Members":       members,
@@ -139,7 +139,7 @@ func (s *Handlers) pageOrg(w http.ResponseWriter, r *http.Request) {
 // signed-in user: a non-member sees a Join button, and a member (previewing via
 // ?view=public) sees a "Back to member view" link. The data shape matches the
 // marketing surface's anonymous rendering of the same template.
-func (s *Handlers) renderOrgPublic(w http.ResponseWriter, r *http.Request, org *store.Org, isMember bool) {
+func (s *Handlers) renderOrgPublic(w http.ResponseWriter, r *http.Request, org *store.Org, isMember, isAdmin bool) {
 	admins, err := s.Store.ListOrgAdminNames(r.Context(), org.ID)
 	if err != nil {
 		http.Error(w, "could not load org", http.StatusInternalServerError)
@@ -158,7 +158,7 @@ func (s *Handlers) renderOrgPublic(w http.ResponseWriter, r *http.Request, org *
 	uid := s.Auth.CurrentUserID(r.Context())
 	s.Render(w, r, "org_public.html", map[string]any{
 		"Org":           org,
-		"Nav":           web.OrgNav(org.Slug, "home", isMember),
+		"Nav":           s.OrgNavFor(r.Context(), org.ID, org.Slug, "home", isMember, isAdmin),
 		"Admins":        admins,
 		"MemberCount":   memberCount,
 		"RepeaterCount": repeaterCount,
@@ -201,7 +201,7 @@ func (s *Handlers) pageOrgMembers(w http.ResponseWriter, r *http.Request) {
 	}
 	s.Render(w, r, "org_members.html", map[string]any{
 		"Org":     org,
-		"Nav":     web.OrgNav(org.Slug, "members", true),
+		"Nav":     s.OrgNavFor(r.Context(), org.ID, org.Slug, "members", true, role == "admin"),
 		"IsAdmin": role == "admin",
 		"Members": members,
 		"Self":    uid,
@@ -224,7 +224,7 @@ func (s *Handlers) pageOrgRepeaters(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	_, isMember, err := s.Store.OrgRole(r.Context(), id, uid)
+	role, isMember, err := s.Store.OrgRole(r.Context(), id, uid)
 	if err != nil {
 		http.Error(w, "could not load org", http.StatusInternalServerError)
 		return
@@ -236,7 +236,7 @@ func (s *Handlers) pageOrgRepeaters(w http.ResponseWriter, r *http.Request) {
 	}
 	s.Render(w, r, "org_repeaters.html", map[string]any{
 		"Org":  org,
-		"Nav":  web.OrgNav(org.Slug, "repeaters", isMember),
+		"Nav":  s.OrgNavFor(r.Context(), org.ID, org.Slug, "repeaters", isMember, role == "admin"),
 		"Reps": rv,
 	})
 }

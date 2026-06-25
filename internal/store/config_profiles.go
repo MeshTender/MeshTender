@@ -10,8 +10,17 @@ import (
 	"github.com/jleight/meshtender/internal/geo"
 )
 
-// ConfigStep is one ordered command line in a recommended-configuration profile.
-// CommandID is the resolved catalog match (nil for a comment-only step).
+// An org's configuration is split into two independent parts (see
+// docs/auth-cross-host.md's sibling design notes):
+//
+//   - Profiles: named, mutable sets of base-setting command steps (e.g. one per
+//     board family). To configure a repeater you pick a profile for its base
+//     settings.
+//   - Regions: org-level geofenced steps applied purely by location. They do not
+//     depend on which profile is chosen — the two never interact.
+
+// ConfigStep is one ordered command line. CommandID is the resolved catalog match
+// (nil for a comment-only step).
 type ConfigStep struct {
 	Position    int
 	CommandLine string
@@ -22,9 +31,17 @@ type ConfigStep struct {
 // IsComment reports whether the step is a note rather than a runnable command.
 func (s ConfigStep) IsComment() bool { return s.CommandLine == "" }
 
-// Zone is a location zone read from a profile version: a geofence plus the steps
-// that apply to repeaters inside it. Geofence is nil for a match-all zone.
-type Zone struct {
+// Profile is a named set of base-setting steps.
+type Profile struct {
+	ID       int64
+	Name     string
+	Position int
+	Steps    []ConfigStep
+}
+
+// Region is an org-level geofenced set of location steps. Geofence is nil for a
+// region that applies everywhere.
+type Region struct {
 	ID       int64
 	Name     string
 	Priority int
@@ -32,151 +49,186 @@ type Zone struct {
 	Steps    []ConfigStep
 }
 
-// ZoneInput is a zone as submitted by the editor for publishing. GeofenceJSON is
-// raw GeoJSON (nil/empty = match-all); the storage column and resolver accept any
-// polygon, so the rectangle-only v1 UI is not a model constraint.
-type ZoneInput struct {
+// ProfileInput / RegionInput are an org's config as submitted by the editor for a
+// full replace. GeofenceJSON is raw GeoJSON (nil/empty = everywhere).
+type ProfileInput struct {
+	Name  string
+	Steps []ConfigStep
+}
+type RegionInput struct {
 	Name         string
 	Priority     int
 	GeofenceJSON []byte
 	Steps        []ConfigStep
 }
 
-// CurrentProfileVersion returns the org's latest config-profile version (id and
-// number), or ErrNotFound when the org has not published a profile yet.
-func (s *Store) CurrentProfileVersion(ctx context.Context, orgID int64) (id int64, version int, err error) {
-	err = s.pool.QueryRow(ctx,
-		`SELECT id, version FROM config_profile_versions WHERE org_id = $1 ORDER BY version DESC LIMIT 1`,
-		orgID).Scan(&id, &version)
+// OrgHasConfig reports whether an org has any profile or region defined (drives
+// hiding the Configuration tab when there's nothing to show).
+func (s *Store) OrgHasConfig(ctx context.Context, orgID int64) (bool, error) {
+	var exists bool
+	err := s.pool.QueryRow(ctx, `
+		SELECT EXISTS (SELECT 1 FROM config_profiles WHERE org_id = $1)
+		    OR EXISTS (SELECT 1 FROM config_regions  WHERE org_id = $1)`, orgID).Scan(&exists)
 	if err != nil {
-		return 0, 0, notFoundOr(err, "current config version")
+		return false, fmt.Errorf("org has config: %w", err)
 	}
-	return id, version, nil
+	return exists, nil
 }
 
-// ProfileVersion reads a version's base steps (zone_id NULL) and its zones (each
-// with their steps), ordered for stable rendering and resolution.
-func (s *Store) ProfileVersion(ctx context.Context, versionID int64) (base []ConfigStep, zones []Zone, err error) {
-	// Zones first, so we can attach steps by zone id.
-	zrows, err := s.pool.Query(ctx,
-		`SELECT id, name, priority, geofence FROM config_zones
-		 WHERE version_id = $1 ORDER BY priority, id`, versionID)
+// ListProfiles returns an org's named profiles with their steps, ordered for
+// stable display (position, then name).
+func (s *Store) ListProfiles(ctx context.Context, orgID int64) ([]Profile, error) {
+	prows, err := s.pool.Query(ctx,
+		`SELECT id, name, position FROM config_profiles WHERE org_id = $1 ORDER BY position, name`, orgID)
 	if err != nil {
-		return nil, nil, fmt.Errorf("load zones: %w", err)
+		return nil, fmt.Errorf("list profiles: %w", err)
 	}
-	byID := map[int64]*Zone{}
-	zones, err = collectRows(zrows, func(r pgx.Row) (Zone, error) {
-		var z Zone
+	profiles, err := collectRows(prows, func(r pgx.Row) (Profile, error) {
+		var p Profile
+		return p, r.Scan(&p.ID, &p.Name, &p.Position)
+	})
+	if err != nil {
+		return nil, err
+	}
+	byID := make(map[int64]*Profile, len(profiles))
+	for i := range profiles {
+		byID[profiles[i].ID] = &profiles[i]
+	}
+	srows, err := s.pool.Query(ctx, `
+		SELECT s.profile_id, s.position, s.command_line, s.command_id, s.comment
+		FROM config_profile_steps s
+		JOIN config_profiles p ON p.id = s.profile_id
+		WHERE p.org_id = $1 ORDER BY s.position, s.id`, orgID)
+	if err != nil {
+		return nil, fmt.Errorf("list profile steps: %w", err)
+	}
+	defer srows.Close()
+	for srows.Next() {
+		var pid int64
+		var st ConfigStep
+		if err := srows.Scan(&pid, &st.Position, &st.CommandLine, &st.CommandID, &st.Comment); err != nil {
+			return nil, fmt.Errorf("scan profile step: %w", err)
+		}
+		if p := byID[pid]; p != nil {
+			p.Steps = append(p.Steps, st)
+		}
+	}
+	return profiles, srows.Err()
+}
+
+// ListRegions returns an org's regions with their steps, ordered (priority, id).
+func (s *Store) ListRegions(ctx context.Context, orgID int64) ([]Region, error) {
+	rrows, err := s.pool.Query(ctx,
+		`SELECT id, name, priority, geofence FROM config_regions WHERE org_id = $1 ORDER BY priority, id`, orgID)
+	if err != nil {
+		return nil, fmt.Errorf("list regions: %w", err)
+	}
+	regions, err := collectRows(rrows, func(r pgx.Row) (Region, error) {
+		var z Region
 		var raw []byte
 		if err := r.Scan(&z.ID, &z.Name, &z.Priority, &raw); err != nil {
-			return Zone{}, err
+			return Region{}, err
 		}
 		if z.Geofence, err = geo.Parse(raw); err != nil {
-			return Zone{}, err
+			return Region{}, err
 		}
 		return z, nil
 	})
 	if err != nil {
-		return nil, nil, fmt.Errorf("scan zones: %w", err)
+		return nil, fmt.Errorf("scan regions: %w", err)
 	}
-	for i := range zones {
-		byID[zones[i].ID] = &zones[i]
+	byID := make(map[int64]*Region, len(regions))
+	for i := range regions {
+		byID[regions[i].ID] = &regions[i]
 	}
-
-	srows, err := s.pool.Query(ctx,
-		`SELECT zone_id, position, command_line, command_id, comment
-		 FROM config_profile_steps WHERE version_id = $1 ORDER BY position, id`, versionID)
+	srows, err := s.pool.Query(ctx, `
+		SELECT s.region_id, s.position, s.command_line, s.command_id, s.comment
+		FROM config_region_steps s
+		JOIN config_regions z ON z.id = s.region_id
+		WHERE z.org_id = $1 ORDER BY s.position, s.id`, orgID)
 	if err != nil {
-		return nil, nil, fmt.Errorf("load steps: %w", err)
+		return nil, fmt.Errorf("list region steps: %w", err)
 	}
 	defer srows.Close()
 	for srows.Next() {
-		var zoneID *int64
+		var rid int64
 		var st ConfigStep
-		if err := srows.Scan(&zoneID, &st.Position, &st.CommandLine, &st.CommandID, &st.Comment); err != nil {
-			return nil, nil, fmt.Errorf("scan step: %w", err)
+		if err := srows.Scan(&rid, &st.Position, &st.CommandLine, &st.CommandID, &st.Comment); err != nil {
+			return nil, fmt.Errorf("scan region step: %w", err)
 		}
-		if zoneID == nil {
-			base = append(base, st)
-		} else if z := byID[*zoneID]; z != nil {
+		if z := byID[rid]; z != nil {
 			z.Steps = append(z.Steps, st)
 		}
 	}
-	return base, zones, srows.Err()
+	return regions, srows.Err()
 }
 
-// PublishProfileVersion creates the org's next profile version from base steps and
-// zones (with their steps), returning the new version number. Mirrors
-// PublishVersion's transactional shape.
-func (s *Store) PublishProfileVersion(ctx context.Context, orgID int64, note string, createdBy int64, base []ConfigStep, zones []ZoneInput) (int, error) {
-	var next int
-	err := s.inTx(ctx, func(tx pgx.Tx) error {
-		if err := tx.QueryRow(ctx,
-			`SELECT COALESCE(max(version), 0) + 1 FROM config_profile_versions WHERE org_id = $1`,
-			orgID).Scan(&next); err != nil {
-			return fmt.Errorf("next config version: %w", err)
+// ReplaceOrgConfig replaces an org's entire config (all profiles + regions) with
+// the submitted set, in one transaction. Profiles are mutable — there is no
+// version history — so the editor sends the full desired state each save.
+func (s *Store) ReplaceOrgConfig(ctx context.Context, orgID int64, profiles []ProfileInput, regions []RegionInput) error {
+	return s.inTx(ctx, func(tx pgx.Tx) error {
+		// Steps cascade from their profile/region, so deleting the parents is enough.
+		if _, err := tx.Exec(ctx, `DELETE FROM config_profiles WHERE org_id = $1`, orgID); err != nil {
+			return fmt.Errorf("clear profiles: %w", err)
 		}
-		var versionID int64
-		if err := tx.QueryRow(ctx,
-			`INSERT INTO config_profile_versions (org_id, version, note, created_by)
-			 VALUES ($1, $2, $3, $4) RETURNING id`,
-			orgID, next, note, createdBy).Scan(&versionID); err != nil {
-			return fmt.Errorf("insert config version: %w", err)
+		if _, err := tx.Exec(ctx, `DELETE FROM config_regions WHERE org_id = $1`, orgID); err != nil {
+			return fmt.Errorf("clear regions: %w", err)
 		}
-		if err := insertSteps(ctx, tx, versionID, nil, base); err != nil {
-			return fmt.Errorf("insert base steps: %w", err)
+		for pos, p := range profiles {
+			var pid int64
+			if err := tx.QueryRow(ctx,
+				`INSERT INTO config_profiles (org_id, name, position) VALUES ($1, $2, $3) RETURNING id`,
+				orgID, p.Name, pos).Scan(&pid); err != nil {
+				return fmt.Errorf("insert profile %q: %w", p.Name, err)
+			}
+			if err := insertConfigSteps(ctx, tx, "config_profile_steps", "profile_id", pid, p.Steps); err != nil {
+				return fmt.Errorf("insert profile %q steps: %w", p.Name, err)
+			}
 		}
-		for _, z := range zones {
-			var zoneID int64
-			var geofence []byte // nil → SQL NULL → match-all
+		for _, z := range regions {
+			var geofence []byte // nil → SQL NULL → everywhere
 			if len(z.GeofenceJSON) > 0 {
 				geofence = z.GeofenceJSON
 			}
+			var rid int64
 			if err := tx.QueryRow(ctx,
-				`INSERT INTO config_zones (version_id, name, priority, geofence)
-				 VALUES ($1, $2, $3, $4) RETURNING id`,
-				versionID, z.Name, z.Priority, geofence).Scan(&zoneID); err != nil {
-				return fmt.Errorf("insert zone %q: %w", z.Name, err)
+				`INSERT INTO config_regions (org_id, name, priority, geofence) VALUES ($1, $2, $3, $4) RETURNING id`,
+				orgID, z.Name, z.Priority, geofence).Scan(&rid); err != nil {
+				return fmt.Errorf("insert region %q: %w", z.Name, err)
 			}
-			if err := insertSteps(ctx, tx, versionID, &zoneID, z.Steps); err != nil {
-				return fmt.Errorf("insert zone %q steps: %w", z.Name, err)
+			if err := insertConfigSteps(ctx, tx, "config_region_steps", "region_id", rid, z.Steps); err != nil {
+				return fmt.Errorf("insert region %q steps: %w", z.Name, err)
 			}
 		}
 		return nil
 	})
-	if err != nil {
-		return 0, err
-	}
-	return next, nil
 }
 
-// insertSteps writes an ordered run of steps for a version, optionally scoped to a
-// zone (zoneID nil = base steps). Positions are assigned by slice order.
-func insertSteps(ctx context.Context, tx pgx.Tx, versionID int64, zoneID *int64, steps []ConfigStep) error {
+// insertConfigSteps writes an ordered run of steps into a step table keyed by a
+// parent id column. table/parentCol are fixed internal constants — never user
+// input — so the interpolation is safe.
+func insertConfigSteps(ctx context.Context, tx pgx.Tx, table, parentCol string, parentID int64, steps []ConfigStep) error {
+	q := fmt.Sprintf(
+		`INSERT INTO %s (%s, position, command_line, command_id, comment) VALUES ($1, $2, $3, $4, $5)`,
+		table, parentCol)
 	for i, st := range steps {
-		if _, err := tx.Exec(ctx,
-			`INSERT INTO config_profile_steps (version_id, zone_id, position, command_line, command_id, comment)
-			 VALUES ($1, $2, $3, $4, $5, $6)`,
-			versionID, zoneID, i, st.CommandLine, st.CommandID, st.Comment); err != nil {
+		if _, err := tx.Exec(ctx, q, parentID, i, st.CommandLine, st.CommandID, st.Comment); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// ResolveProfile produces the ordered command steps for a repeater at (lat, lon):
-// the base steps, then every zone whose geofence contains the point, applied in
-// (priority, id) order. Overlap is intentional — all matching zones contribute,
-// including multiple at the same priority; nothing is dropped or deduped. When the
-// location is unknown (nil), only match-all zones (nil geofence) are applied. It is
-// a pure function so the resolution rules are unit-testable without a database.
-func ResolveProfile(base []ConfigStep, zones []Zone, lat, lon *float64) []ConfigStep {
-	out := append([]ConfigStep(nil), base...)
-
-	matched := make([]Zone, 0, len(zones))
-	for _, z := range zones {
+// ResolveRegions returns the region steps that apply at (lat, lon): every region
+// whose geofence contains the point (plus match-all regions), in (priority, id)
+// order. Overlap is intentional — all matching regions contribute. With an
+// unknown location (nil), only match-all regions apply. Pure, for unit testing.
+func ResolveRegions(regions []Region, lat, lon *float64) []ConfigStep {
+	matched := make([]Region, 0, len(regions))
+	for _, z := range regions {
 		if z.Geofence == nil {
-			matched = append(matched, z) // match-all zone always applies
+			matched = append(matched, z)
 			continue
 		}
 		if lat != nil && lon != nil && z.Geofence.Contains(*lat, *lon) {
@@ -189,8 +241,18 @@ func ResolveProfile(base []ConfigStep, zones []Zone, lat, lon *float64) []Config
 		}
 		return matched[i].ID < matched[j].ID
 	})
+	var out []ConfigStep
 	for _, z := range matched {
 		out = append(out, z.Steps...)
 	}
 	return out
+}
+
+// RegionMatches reports whether a region applies at (lat, lon): a match-all region
+// always does; a geofenced one only when the location is known and inside it.
+func RegionMatches(z Region, lat, lon *float64) bool {
+	if z.Geofence == nil {
+		return true
+	}
+	return lat != nil && lon != nil && z.Geofence.Contains(*lat, *lon)
 }

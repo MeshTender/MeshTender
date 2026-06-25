@@ -1,7 +1,6 @@
 package store
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/jleight/meshtender/internal/geo"
@@ -10,7 +9,7 @@ import (
 // ptr returns a pointer to v, for the optional lat/lon and command-id fields.
 func ptr[T any](v T) *T { return &v }
 
-func TestConfigProfilePublishAndRead(t *testing.T) {
+func TestOrgConfigReplaceAndRead(t *testing.T) {
 	t.Parallel()
 	st, ctx := orgTestStore(t)
 	owner, err := st.CreateUser(ctx, "cfgowner", "")
@@ -22,80 +21,78 @@ func TestConfigProfilePublishAndRead(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// No profile yet → ErrNotFound.
-	if _, _, err := st.CurrentProfileVersion(ctx, org.ID); !errors.Is(err, ErrNotFound) {
-		t.Fatalf("CurrentProfileVersion before publish = %v, want ErrNotFound", err)
+	if has, err := st.OrgHasConfig(ctx, org.ID); err != nil || has {
+		t.Fatalf("OrgHasConfig before = (%v, %v), want (false, nil)", has, err)
 	}
 
-	base := []ConfigStep{
-		{CommandLine: "set tx 22"},
-		{CommandLine: "", Comment: "radio settings above"},
+	profiles := []ProfileInput{
+		{Name: "ESP32", Steps: []ConfigStep{{CommandLine: "set tx 22"}, {Comment: "esp notes"}}},
+		{Name: "nRF52", Steps: []ConfigStep{{CommandLine: "set tx 20"}}},
 	}
-	zones := []ZoneInput{
-		// A boxed metro zone over lat[10,20] lon[30,40].
+	regions := []RegionInput{
 		{Name: "metro", Priority: 10, GeofenceJSON: geo.Rectangle(10, 30, 20, 40),
 			Steps: []ConfigStep{{CommandLine: "region put Metro"}}},
-		// A match-all base region.
 		{Name: "country", Priority: 0, GeofenceJSON: nil,
 			Steps: []ConfigStep{{CommandLine: "region put Country"}}},
 	}
-	v, err := st.PublishProfileVersion(ctx, org.ID, "v1", owner.ID, base, zones)
-	if err != nil {
-		t.Fatalf("publish: %v", err)
-	}
-	if v != 1 {
-		t.Fatalf("first version = %d, want 1", v)
+	if err := st.ReplaceOrgConfig(ctx, org.ID, profiles, regions); err != nil {
+		t.Fatalf("replace: %v", err)
 	}
 
-	vid, vnum, err := st.CurrentProfileVersion(ctx, org.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if vnum != 1 {
-		t.Fatalf("current version = %d, want 1", vnum)
-	}
-	gotBase, gotZones, err := st.ProfileVersion(ctx, vid)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(gotBase) != 2 || gotBase[0].CommandLine != "set tx 22" {
-		t.Fatalf("base steps round-trip wrong: %+v", gotBase)
-	}
-	if len(gotZones) != 2 {
-		t.Fatalf("zones = %d, want 2", len(gotZones))
-	}
-	// Zones come back ordered by (priority, id): country(0) then metro(10).
-	if gotZones[0].Name != "country" || gotZones[1].Name != "metro" {
-		t.Fatalf("zone order = [%s,%s], want [country,metro]", gotZones[0].Name, gotZones[1].Name)
+	if has, err := st.OrgHasConfig(ctx, org.ID); err != nil || !has {
+		t.Fatalf("OrgHasConfig after = (%v, %v), want (true, nil)", has, err)
 	}
 
-	// Publishing again bumps the version and leaves v1 intact.
-	v2, err := st.PublishProfileVersion(ctx, org.ID, "v2", owner.ID, base, nil)
+	gotP, err := st.ListProfiles(ctx, org.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v2 != 2 {
-		t.Fatalf("second version = %d, want 2", v2)
+	if len(gotP) != 2 || gotP[0].Name != "ESP32" || gotP[1].Name != "nRF52" {
+		t.Fatalf("profiles = %+v", gotP)
+	}
+	if len(gotP[0].Steps) != 2 || gotP[0].Steps[0].CommandLine != "set tx 22" {
+		t.Fatalf("ESP32 steps round-trip wrong: %+v", gotP[0].Steps)
+	}
+
+	gotR, err := st.ListRegions(ctx, org.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Regions come back ordered by (priority, id): country(0) then metro(10).
+	if len(gotR) != 2 || gotR[0].Name != "country" || gotR[1].Name != "metro" {
+		t.Fatalf("region order = %+v, want [country, metro]", gotR)
+	}
+
+	// Replace fully (mutable, no versioning): the old set is gone.
+	if err := st.ReplaceOrgConfig(ctx, org.ID, []ProfileInput{{Name: "Only"}}, nil); err != nil {
+		t.Fatal(err)
+	}
+	gotP, _ = st.ListProfiles(ctx, org.ID)
+	if len(gotP) != 1 || gotP[0].Name != "Only" {
+		t.Fatalf("after replace, profiles = %+v, want [Only]", gotP)
+	}
+	gotR, _ = st.ListRegions(ctx, org.ID)
+	if len(gotR) != 0 {
+		t.Fatalf("after replace, regions = %+v, want none", gotR)
 	}
 }
 
-func TestResolveProfile(t *testing.T) {
+func TestResolveRegions(t *testing.T) {
 	t.Parallel()
 
-	mk := func(name string, prio int, id int64, box []byte, line string) Zone {
+	mk := func(name string, prio int, id int64, box []byte, line string) Region {
 		shape, err := geo.Parse(box)
 		if err != nil {
 			t.Fatalf("parse %s: %v", name, err)
 		}
-		return Zone{ID: id, Name: name, Priority: prio, Geofence: shape,
+		return Region{ID: id, Name: name, Priority: prio, Geofence: shape,
 			Steps: []ConfigStep{{CommandLine: line}}}
 	}
 
-	base := []ConfigStep{{CommandLine: "set tx 22"}}
-	zones := []Zone{
-		mk("country", 0, 1, nil, "region put Country"),                  // match-all
+	regions := []Region{
+		mk("country", 0, 1, nil, "region put Country"), // match-all
 		mk("metroA", 10, 2, geo.Rectangle(10, 30, 20, 40), "region put MetroA"),
-		mk("metroB", 10, 3, geo.Rectangle(15, 35, 25, 45), "region put MetroB"), // overlaps metroA, same priority
+		mk("metroB", 10, 3, geo.Rectangle(15, 35, 25, 45), "region put MetroB"), // overlaps metroA
 	}
 
 	lines := func(steps []ConfigStep) []string {
@@ -117,20 +114,12 @@ func TestResolveProfile(t *testing.T) {
 		}
 	}
 
-	// Inside metroA only (lat 12, lon 32): base + country + metroA.
-	eq("metroA only", lines(ResolveProfile(base, zones, ptr(12.0), ptr(32.0))),
-		[]string{"set tx 22", "region put Country", "region put MetroA"})
-
-	// Inside the metroA/metroB overlap (lat 17, lon 37): both apply, deterministic
-	// by id (metroA=2 before metroB=3) at the shared priority.
-	eq("overlap", lines(ResolveProfile(base, zones, ptr(17.0), ptr(37.0))),
-		[]string{"set tx 22", "region put Country", "region put MetroA", "region put MetroB"})
-
-	// No location: only base + match-all zones.
-	eq("no location", lines(ResolveProfile(base, zones, nil, nil)),
-		[]string{"set tx 22", "region put Country"})
-
-	// Outside all boxes (lat 0, lon 0): base + match-all only.
-	eq("outside", lines(ResolveProfile(base, zones, ptr(0.0), ptr(0.0))),
-		[]string{"set tx 22", "region put Country"})
+	eq("metroA only", lines(ResolveRegions(regions, ptr(12.0), ptr(32.0))),
+		[]string{"region put Country", "region put MetroA"})
+	eq("overlap", lines(ResolveRegions(regions, ptr(17.0), ptr(37.0))),
+		[]string{"region put Country", "region put MetroA", "region put MetroB"})
+	eq("no location", lines(ResolveRegions(regions, nil, nil)),
+		[]string{"region put Country"})
+	eq("outside", lines(ResolveRegions(regions, ptr(0.0), ptr(0.0))),
+		[]string{"region put Country"})
 }

@@ -55,12 +55,16 @@ func (s *Handlers) pageOrgs(w http.ResponseWriter, r *http.Request) {
 	if hasMore && len(all) > 0 {
 		data["NextCursor"] = encodeOrgCursor(nextOrgCursor(sortKey, query, all[len(all)-1]))
 	}
+	// htmx "load more": return just the rows + next control to append in place.
+	if r.Header.Get("HX-Request") != "" {
+		data["Layout"] = "orgs-frag"
+	}
 	s.Render(w, r, "orgs.html", data)
 }
 
 // renderOrgPublic renders the public-facing org page (name, description, admins,
 // counts, and a map of repeaters opted into public display).
-func (s *Handlers) renderOrgPublic(w http.ResponseWriter, r *http.Request, org *store.Org, isMember bool) {
+func (s *Handlers) renderOrgPublic(w http.ResponseWriter, r *http.Request, org *store.Org, isMember, isAdmin bool) {
 	admins, err := s.Store.ListOrgAdminNames(r.Context(), org.ID)
 	if err != nil {
 		http.Error(w, "could not load org", http.StatusInternalServerError)
@@ -79,7 +83,7 @@ func (s *Handlers) renderOrgPublic(w http.ResponseWriter, r *http.Request, org *
 	uid := s.Auth.CurrentUserID(r.Context())
 	s.Render(w, r, "org_public.html", map[string]any{
 		"Org":           org,
-		"Nav":           web.OrgNav(org.Slug, "home", isMember),
+		"Nav":           s.OrgNavFor(r.Context(), org.ID, org.Slug, "home", isMember, isAdmin),
 		"Admins":        admins,
 		"MemberCount":   memberCount,
 		"RepeaterCount": repeaterCount,
@@ -104,13 +108,13 @@ func (s *Handlers) pageOrgConfig(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	data := map[string]any{"Org": org, "Nav": web.OrgNav(org.Slug, "config", false), "CanEdit": false}
+	data := map[string]any{"Org": org, "Nav": s.OrgNavFor(r.Context(), org.ID, org.Slug, "config", false, false), "CanEdit": false}
 	var latP, lonP *float64
 	if lat, lon, ok := web.PreviewLatLon(r); ok {
 		latP, lonP = &lat, &lon
 		data["PreviewLat"], data["PreviewLon"] = lat, lon
 	}
-	cv, err := web.BuildConfigView(r.Context(), s.Store, id, latP, lonP)
+	cv, err := web.BuildConfigView(r.Context(), s.Store, id, r.URL.Query().Get("profile"), latP, lonP)
 	if err != nil {
 		http.Error(w, "could not load profile", http.StatusInternalServerError)
 		return
@@ -132,16 +136,61 @@ func (s *Handlers) pageOrgRepeaters(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	rv, err := web.BuildRepeatersView(r.Context(), s.Store, id, false)
+	afterName, afterID := decodeRepCursor(r.URL.Query().Get("cursor"))
+	reps, hasMore, err := s.Store.ListPublicRepeatersPage(r.Context(), id, afterName, afterID)
 	if err != nil {
 		http.Error(w, "could not load repeaters", http.StatusInternalServerError)
 		return
 	}
-	s.Render(w, r, "org_repeaters.html", map[string]any{
+	points, err := s.Store.ListPublicRepeaterPoints(r.Context(), id)
+	if err != nil {
+		http.Error(w, "could not load repeaters", http.StatusInternalServerError)
+		return
+	}
+	rv := web.RepeatersView{Repeaters: reps, MapPoints: points, HasMap: len(points) > 0, Full: false}
+	if hasMore && len(reps) > 0 {
+		last := reps[len(reps)-1]
+		rv.NextCursor = encodeRepCursor(last.Name, last.RepeaterID)
+	}
+	data := map[string]any{
 		"Org":  org,
-		"Nav":  web.OrgNav(org.Slug, "repeaters", false),
+		"Nav":  s.OrgNavFor(r.Context(), org.ID, org.Slug, "repeaters", false, false),
 		"Reps": rv,
-	})
+	}
+	// htmx "show more": return just the rows + next control to append in place.
+	if r.Header.Get("HX-Request") != "" {
+		data["Layout"] = "rep-frag"
+	}
+	s.Render(w, r, "org_repeaters.html", data)
+}
+
+// repCursor is an opaque keyset position in an org's public repeater list: the
+// name and id of the last row on the current page.
+type repCursor struct {
+	Name string `json:"n"`
+	ID   int64  `json:"i"`
+}
+
+func encodeRepCursor(name string, id int64) string {
+	b, _ := json.Marshal(repCursor{Name: name, ID: id})
+	return base64.RawURLEncoding.EncodeToString(b)
+}
+
+// decodeRepCursor reverses encodeRepCursor; a missing or malformed cursor decodes
+// to the first page ("", 0).
+func decodeRepCursor(tok string) (name string, id int64) {
+	if tok == "" {
+		return "", 0
+	}
+	b, err := base64.RawURLEncoding.DecodeString(tok)
+	if err != nil {
+		return "", 0
+	}
+	var c repCursor
+	if json.Unmarshal(b, &c) != nil {
+		return "", 0
+	}
+	return c.Name, c.ID
 }
 
 // orgCursor is an opaque directory position: the sort and search it belongs to,

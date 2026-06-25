@@ -267,7 +267,6 @@ func (s *Handlers) pageDashboard(w http.ResponseWriter, r *http.Request) {
 		"Unconfirmed": unconfirmed,
 		"Owned":       first(owned, 5),
 		"Shared":      first(shared, 5),
-		"Orgs":        first(orgs, 5),
 		"Mapped":      mapped,
 		"Recent":      recent,
 		"ShareCounts": shareCounts,

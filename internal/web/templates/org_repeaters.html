@@ -7,6 +7,35 @@
   </div>
 </div>
 {{end}}
+{{/* rep-rows renders the repeater list items; shared by the full page and the
+     htmx "show more" fragment so appended pages match the first. */}}
+{{define "rep-rows"}}
+{{range .Reps.Repeaters}}
+<div class="list-group-item d-flex align-items-center gap-2">
+  <span class="text-secondary">{{template "icon-antenna" ""}}</span>
+  <div class="flex-fill text-truncate">
+    {{if $.Reps.Full}}<a class="fw-bold text-reset text-decoration-none" href="/repeaters/{{.RepeaterPublicID}}">{{.Name}}</a>
+    <div class="text-secondary small">owner {{.OwnerName}}</div>
+    {{else}}<span class="fw-bold">{{.Name}}</span>{{end}}
+  </div>
+  {{if $.Reps.Full}}<a class="btn btn-sm" href="/repeaters/{{.RepeaterPublicID}}/console">{{template "icon-terminal" "me-1"}}Console</a>{{end}}
+</div>
+{{end}}
+{{end}}
+
+{{/* rep-more is the public list's "show more" control; replaces itself with the
+     next page's rows + a fresh control (the cursor carries the keyset position). */}}
+{{define "rep-more"}}
+<div class="list-group-item text-center" id="rep-more">
+  <button class="btn btn-outline-secondary" hx-get="/orgs/{{.Org.Slug}}/repeaters?cursor={{.Reps.NextCursor}}" hx-target="#rep-more" hx-swap="outerHTML">
+    Show more repeaters
+  </button>
+</div>
+{{end}}
+
+{{/* rep-frag is the htmx response: rows + next control, no page chrome. */}}
+{{define "rep-frag"}}{{template "rep-rows" .}}{{if .Reps.NextCursor}}{{template "rep-more" .}}{{end}}{{end}}
+
 {{define "content"}}
 {{template "org-tabs" .Nav}}
 
@@ -16,18 +45,9 @@
     <div class="card">
       <div class="card-header"><h3 class="card-title">Shared repeaters</h3></div>
       {{if .Reps.Repeaters}}
-      <div class="list-group list-group-flush">
-        {{range .Reps.Repeaters}}
-        <div class="list-group-item d-flex align-items-center gap-2">
-          <span class="text-secondary">{{template "icon-antenna" ""}}</span>
-          <div class="flex-fill text-truncate">
-            {{if $.Reps.Full}}<a class="fw-bold text-reset text-decoration-none" href="/repeaters/{{.RepeaterPublicID}}">{{.Name}}</a>
-            <div class="text-secondary small">owner {{.OwnerName}}</div>
-            {{else}}<span class="fw-bold">{{.Name}}</span>{{end}}
-          </div>
-          {{if $.Reps.Full}}<a class="btn btn-sm" href="/repeaters/{{.RepeaterPublicID}}/console">{{template "icon-terminal" "me-1"}}Console</a>{{end}}
-        </div>
-        {{end}}
+      <div class="list-group list-group-flush" id="rep-list">
+        {{template "rep-rows" .}}
+        {{if .Reps.NextCursor}}{{template "rep-more" .}}{{end}}
       </div>
       {{else}}
       <div class="card-body"><p class="text-secondary mb-0">
@@ -50,7 +70,7 @@
         <script src="/static/meshmap.js"></script>
         <script>
           meshMap('map', [
-            {{range .Reps.Repeaters}}{{if .HasLocation}}{name: {{.Name}}, lat: {{.Lat}}, lon: {{.Lon}}},{{end}}{{end}}
+            {{range .Reps.MapPoints}}{name: {{.Name}}, lat: {{.Lat}}, lon: {{.Lon}}},{{end}}
           ]);
         </script>
       </div>

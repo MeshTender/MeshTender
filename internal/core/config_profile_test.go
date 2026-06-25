@@ -24,8 +24,8 @@ func TestParseConfigSteps(t *testing.T) {
 		"# this is a note",
 		"",
 		"region put Metro",
-		"poweroff",          // risky but valid
-		"set nonsense 1",    // unknown
+		"poweroff",       // risky but valid
+		"set nonsense 1", // unknown
 	}, "\n")
 
 	var errs, risky []string
@@ -51,17 +51,17 @@ func TestParseConfigSteps(t *testing.T) {
 	}
 }
 
-func TestZoneGeofence(t *testing.T) {
+func TestRegionGeofence(t *testing.T) {
 	t.Parallel()
 
-	// All-blank box → match-all (nil geofence, ok).
-	if gf, ok := zoneGeofence(configZoneView{}, "z", new([]string)); !ok || gf != nil {
+	// All-blank box → everywhere (nil geofence, ok).
+	if gf, ok := regionGeofence(configRegionView{}, "z", new([]string)); !ok || gf != nil {
 		t.Fatalf("blank box: got (%v,%v), want (nil,true)", gf, ok)
 	}
 
 	// Full box → a parseable polygon containing its center.
 	var errs []string
-	gf, ok := zoneGeofence(configZoneView{MinLat: "10", MinLon: "30", MaxLat: "20", MaxLon: "40"}, "z", &errs)
+	gf, ok := regionGeofence(configRegionView{MinLat: "10", MinLon: "30", MaxLat: "20", MaxLon: "40"}, "z", &errs)
 	if !ok || gf == nil {
 		t.Fatalf("full box: got (%v,%v), want non-nil geofence ok", gf, ok)
 	}
@@ -75,13 +75,13 @@ func TestZoneGeofence(t *testing.T) {
 
 	// Partial box → error.
 	errs = nil
-	if _, ok := zoneGeofence(configZoneView{MinLat: "10"}, "z", &errs); ok || len(errs) == 0 {
+	if _, ok := regionGeofence(configRegionView{MinLat: "10"}, "z", &errs); ok || len(errs) == 0 {
 		t.Fatalf("partial box should be rejected with an error")
 	}
 
 	// Non-numeric coordinate → error.
 	errs = nil
-	if _, ok := zoneGeofence(configZoneView{MinLat: "x", MinLon: "30", MaxLat: "20", MaxLon: "40"}, "z", &errs); ok || len(errs) == 0 {
+	if _, ok := regionGeofence(configRegionView{MinLat: "x", MinLon: "30", MaxLat: "20", MaxLon: "40"}, "z", &errs); ok || len(errs) == 0 {
 		t.Fatalf("invalid coordinate should be rejected with an error")
 	}
 }

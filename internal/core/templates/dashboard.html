@@ -149,30 +149,6 @@
       <div class="card-body"><p class="text-secondary mb-0">No repeater locations yet. Enable “store location” when editing a repeater and confirm it with a modem to place it on the map.</p></div>
       {{end}}
     </div>
-
-    <!-- Organizations -->
-    <div class="card mt-3">
-      <div class="card-header">
-        <h3 class="card-title">Organizations</h3>
-        <div class="card-actions"><a href="/orgs" class="btn btn-sm">View all{{if .OrgCount}} ({{.OrgCount}}){{end}}</a></div>
-      </div>
-      {{if .Orgs}}
-      <div class="list-group list-group-flush">
-        {{range .Orgs}}
-        <a href="/orgs/{{.Org.Slug}}" class="list-group-item list-group-item-action d-flex align-items-center gap-2">
-          <span class="text-secondary">{{template "icon-world" ""}}</span>
-          <span class="flex-fill text-truncate fw-bold">{{.Org.Name}}</span>
-          {{if eq .Role "admin"}}<span class="badge bg-success-lt">admin</span>{{else}}<span class="badge bg-azure-lt">member</span>{{end}}
-        </a>
-        {{end}}
-      </div>
-      {{else}}
-      <div class="card-body">
-        <p class="text-secondary">You're not in any organizations yet. Find one near you and contribute to a larger mesh.</p>
-        <a href="{{.RootURL}}/orgs" class="btn btn-sm">Browse organizations</a>
-      </div>
-      {{end}}
-    </div>
   </div>
 </div>
 {{end}}

@@ -29,7 +29,7 @@ func TestRootOrgPageIdentityAwareCTA(t *testing.T) {
 	if !strings.Contains(anon, "Sign in to join") {
 		t.Fatalf("anonymous root org page missing the sign-in CTA")
 	}
-	if strings.Contains(anon, "Open in app") {
+	if strings.Contains(anon, "Go to organization") {
 		t.Fatalf("anonymous root org page should not show the app jump")
 	}
 
@@ -46,7 +46,7 @@ func TestRootOrgPageIdentityAwareCTA(t *testing.T) {
 
 	// The member now sees the app jump, not the sign-in CTA.
 	member := readBody(t, do(t, ts, h.root, "/orgs/"+org.Slug, rootSess))
-	if !strings.Contains(member, "Open in app") {
+	if !strings.Contains(member, "Go to organization") {
 		t.Fatalf("member root org page missing the app jump CTA")
 	}
 	if strings.Contains(member, "Sign in to join") {

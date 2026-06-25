@@ -104,7 +104,15 @@ type Renderer struct {
 	cfg      *config.Config
 	pages    map[string]*template.Template
 	userInfo UserInfoFunc
+	// defaultLayout is the layout used when a render specifies none. Empty means
+	// "base" (the app chrome); the marketing surface sets "rootbase".
+	defaultLayout string
 }
+
+// SetDefaultLayout sets the layout used for renders that don't specify one. The
+// marketing surface calls this with "rootbase" so every root page gets the
+// public topbar without each handler passing a Layout key.
+func (e *Env) SetDefaultLayout(name string) { e.Renderer.defaultLayout = name }
 
 // NewRenderer parses the shared base layout (base.html + icons.html) and composes
 // each of the surface's own *.html pages onto it. Each page redefines the
@@ -182,6 +190,9 @@ func (rn *Renderer) Render(w http.ResponseWriter, r *http.Request, page string, 
 		return
 	}
 	layout, _ := data["Layout"].(string)
+	if layout == "" {
+		layout = rn.defaultLayout
+	}
 	if layout == "" {
 		layout = "base"
 	}

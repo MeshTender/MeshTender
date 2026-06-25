@@ -2,7 +2,6 @@ package web
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"strconv"
 
@@ -14,9 +13,16 @@ import (
 // root/marketing host (anonymous) can render the same shared templates — the
 // same split that lets both surfaces render org_public.html.
 
-// ZoneView is a profile zone rendered read-only: the geofence reduced to its
-// bounding box as display strings (empty when the zone matches everywhere).
-type ZoneView struct {
+// ProfileView is one named base-settings profile for display.
+type ProfileView struct {
+	Name  string
+	Steps []store.ConfigStep
+}
+
+// RegionView is an org region rendered for display: the geofence reduced to its
+// bounding box (empty when it matches everywhere), plus whether it applies at the
+// previewed location.
+type RegionView struct {
 	Name     string
 	Priority int
 	MatchAll bool
@@ -25,49 +31,63 @@ type ZoneView struct {
 	MaxLat   string
 	MaxLon   string
 	Steps    []store.ConfigStep
+	Matches  bool
 }
 
-// ConfigView is an org's recommended configuration for display. Preview holds
-// the commands resolved for the optional preview location (nil when no location
-// was requested or no profile exists).
+// ConfigView is an org's configuration for display: its named profiles (with one
+// selected for its base settings) and its regions (location steps), the two kept
+// independent. PreviewActive is true when a location was supplied.
 type ConfigView struct {
-	HasProfile bool
-	Version    int
-	BaseSteps  []store.ConfigStep
-	Zones      []ZoneView
-	Preview    []store.ConfigStep
+	HasConfig     bool
+	Profiles      []ProfileView
+	Selected      string
+	SelectedSteps []store.ConfigStep
+	Regions       []RegionView
+	PreviewActive bool
 }
 
-// BuildConfigView loads the org's current published config profile for read-only
-// display. An org with no published profile yields HasProfile=false (not an error).
-// When lat/lon are non-nil, Preview is the command list resolved for that location.
-func BuildConfigView(ctx context.Context, st *store.Store, orgID int64, lat, lon *float64) (ConfigView, error) {
-	vid, version, err := st.CurrentProfileVersion(ctx, orgID)
-	if errors.Is(err, store.ErrNotFound) {
-		return ConfigView{}, nil
-	}
+// BuildConfigView loads an org's profiles and regions for read-only display.
+// selected names the profile whose base settings to show (falls back to the
+// first). lat/lon, when non-nil, mark which regions apply at that location. An
+// org with neither profiles nor regions yields HasConfig=false (not an error).
+func BuildConfigView(ctx context.Context, st *store.Store, orgID int64, selected string, lat, lon *float64) (ConfigView, error) {
+	profiles, err := st.ListProfiles(ctx, orgID)
 	if err != nil {
 		return ConfigView{}, err
 	}
-	base, zones, err := st.ProfileVersion(ctx, vid)
+	regions, err := st.ListRegions(ctx, orgID)
 	if err != nil {
 		return ConfigView{}, err
 	}
-	cv := ConfigView{HasProfile: true, Version: version, BaseSteps: base}
-	if lat != nil && lon != nil {
-		cv.Preview = store.ResolveProfile(base, zones, lat, lon)
+	cv := ConfigView{
+		HasConfig:     len(profiles) > 0 || len(regions) > 0,
+		PreviewActive: lat != nil && lon != nil,
 	}
-	for _, z := range zones {
-		zv := ZoneView{Name: z.Name, Priority: z.Priority, Steps: z.Steps}
-		if minLat, minLon, maxLat, maxLon, ok := z.Geofence.Bounds(); ok {
-			zv.MinLat = formatCoord(minLat)
-			zv.MinLon = formatCoord(minLon)
-			zv.MaxLat = formatCoord(maxLat)
-			zv.MaxLon = formatCoord(maxLon)
-		} else {
-			zv.MatchAll = true
+	for _, p := range profiles {
+		cv.Profiles = append(cv.Profiles, ProfileView{Name: p.Name, Steps: p.Steps})
+	}
+	if len(profiles) > 0 {
+		idx := 0
+		for i, p := range profiles {
+			if p.Name == selected {
+				idx = i
+				break
+			}
 		}
-		cv.Zones = append(cv.Zones, zv)
+		cv.Selected = profiles[idx].Name
+		cv.SelectedSteps = profiles[idx].Steps
+	}
+	for _, z := range regions {
+		rv := RegionView{Name: z.Name, Priority: z.Priority, Steps: z.Steps, Matches: store.RegionMatches(z, lat, lon)}
+		if minLat, minLon, maxLat, maxLon, ok := z.Geofence.Bounds(); ok {
+			rv.MinLat = formatCoord(minLat)
+			rv.MinLon = formatCoord(minLon)
+			rv.MaxLat = formatCoord(maxLat)
+			rv.MaxLon = formatCoord(maxLon)
+		} else {
+			rv.MatchAll = true
+		}
+		cv.Regions = append(cv.Regions, rv)
 	}
 	return cv, nil
 }
@@ -75,24 +95,39 @@ func BuildConfigView(ctx context.Context, st *store.Store, orgID int64, lat, lon
 func formatCoord(f float64) string { return strconv.FormatFloat(f, 'f', -1, 64) }
 
 // OrgNav is the data the shared org-tabs sub-nav partial expects: the org slug,
-// which tab is active ("home" | "repeaters" | "members" | "config" |
-// "permissions"), and whether the viewer is a member (the Members tab, which
-// exposes personal info, only shows for members).
-func OrgNav(slug, active string, isMember bool) map[string]any {
-	return map[string]any{"Slug": slug, "Active": active, "IsMember": isMember}
+// which tab is active ("home" | "repeaters" | "members" | "config"), whether the
+// viewer is a member (the Members tab, which exposes personal info, only shows for
+// members), and whether to show the Configuration tab (hidden when the org has no
+// config, unless the viewer can edit it).
+func OrgNav(slug, active string, isMember, showConfig bool) map[string]any {
+	return map[string]any{"Slug": slug, "Active": active, "IsMember": isMember, "ShowConfig": showConfig}
+}
+
+// OrgNavFor builds OrgNav, querying whether the org has any config so the
+// Configuration tab hides when empty — for everyone except admins, who always
+// see it so they can create the first profile/region.
+func (e *Env) OrgNavFor(ctx context.Context, orgID int64, slug, active string, isMember, isAdmin bool) map[string]any {
+	hasConfig, _ := e.Store.OrgHasConfig(ctx, orgID)
+	return OrgNav(slug, active, isMember, hasConfig || isAdmin)
 }
 
 // RepeatersView is an org's repeaters for the Repeaters page. Full is true for the
 // member view (every participating repeater, with owner and links); false is the
-// public view (only repeaters shown on the public org page, no links).
+// public view (only repeaters shown on the public org page, no links). MapPoints
+// is the full located set for the map (independent of any list paging), and
+// NextCursor, when set, drives the public list's "show more" control.
 type RepeatersView struct {
-	Repeaters []store.OrgRepeaterInfo
-	HasMap    bool
-	Full      bool
+	Repeaters  []store.OrgRepeaterInfo
+	MapPoints  []store.MapPoint
+	HasMap     bool
+	Full       bool
+	NextCursor string
 }
 
 // BuildRepeatersView loads an org's repeaters for display. full selects the member
-// view (all participating repeaters) vs the public view (public-page repeaters only).
+// view (all participating repeaters) vs the public view (public-page repeaters
+// only). It returns the complete set (no paging); the marketing surface paginates
+// the public list separately via BuildPublicRepeatersPage.
 func BuildRepeatersView(ctx context.Context, st *store.Store, orgID int64, full bool) (RepeatersView, error) {
 	var reps []store.OrgRepeaterInfo
 	var err error
@@ -104,14 +139,13 @@ func BuildRepeatersView(ctx context.Context, st *store.Store, orgID int64, full 
 	if err != nil {
 		return RepeatersView{}, err
 	}
-	hasMap := false
+	var points []store.MapPoint
 	for _, rp := range reps {
 		if rp.HasLocation {
-			hasMap = true
-			break
+			points = append(points, store.MapPoint{Name: rp.Name, Lat: rp.Lat, Lon: rp.Lon})
 		}
 	}
-	return RepeatersView{Repeaters: reps, HasMap: hasMap, Full: full}, nil
+	return RepeatersView{Repeaters: reps, MapPoints: points, HasMap: len(points) > 0, Full: full}, nil
 }
 
 // PreviewLatLon parses the optional ?lat=&lon= config-preview coordinates.
