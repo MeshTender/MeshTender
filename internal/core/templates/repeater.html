@@ -103,9 +103,14 @@
           </div>
         </div>
         {{end}}
-        {{if and .IsOwner .Repeater.ExposePublicPage .PublicPageURL}}
-        <hr class="my-3">
-        <div class="form-label">Public page</div>
+      </div>
+    </div>
+
+    {{if .IsOwner}}
+    <div class="card mt-3">
+      <div class="card-header"><h3 class="card-title">Public page</h3></div>
+      <div class="card-body">
+        {{if and .Repeater.ExposePublicPage .PublicPageURL}}
         <p class="text-secondary small">Anyone with this link (or who taps an NFC tag / scans the QR inside the enclosure) sees the public documentation and stewards.</p>
         <div class="input-group mb-2">
           <code class="form-control font-monospace" id="public-url">{{.PublicPageURL}}</code>
@@ -120,12 +125,12 @@
           </div>
         </div>
         {{end}}
-        {{else if and .IsOwner (not .Repeater.ExposePublicPage)}}
-        <hr class="my-3">
+        {{else if not .Repeater.ExposePublicPage}}
         <p class="text-secondary small mb-0">{{template "icon-world" "me-1"}}No public page. Enable one in <a href="/repeaters/{{.Repeater.PublicID}}/edit">Edit details</a> to get a link and QR code for the enclosure.</p>
         {{end}}
       </div>
     </div>
+    {{end}}
 
     {{if .Repeater.Latitude}}
     <div class="card mt-3">
