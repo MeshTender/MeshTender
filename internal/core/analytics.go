@@ -48,6 +48,16 @@ func (s *Handlers) pageAnalytics(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not load analytics", http.StatusInternalServerError)
 		return
 	}
+	hosts, err := s.Store.AnalyticsTopHosts(r.Context(), days, 15)
+	if err != nil {
+		http.Error(w, "could not load analytics", http.StatusInternalServerError)
+		return
+	}
+	visitors, err := s.Store.AnalyticsTopVisitors(r.Context(), days, 15)
+	if err != nil {
+		http.Error(w, "could not load analytics", http.StatusInternalServerError)
+		return
+	}
 
 	var maxReq, maxVis, totalReq int64
 	for _, d := range daily {
@@ -98,16 +108,61 @@ func (s *Handlers) pageAnalytics(w http.ResponseWriter, r *http.Request) {
 		pathRows = append(pathRows, analyticsRow{Label: p.Path, Value: p.Hits, W: barPct(p.Hits, maxHits)})
 	}
 
+	var maxHostReq int64
+	for _, h := range hosts {
+		if h.Requests > maxHostReq {
+			maxHostReq = h.Requests
+		}
+	}
+	hostRows := make([]analyticsRow, 0, len(hosts))
+	for _, h := range hosts {
+		label := h.Host
+		if label == "" {
+			label = "(none)"
+		}
+		hostRows = append(hostRows, analyticsRow{Label: label, Value: h.Requests, W: barPct(h.Requests, maxHostReq)})
+	}
+
+	var maxVisReq int64
+	for _, v := range visitors {
+		if v.Requests > maxVisReq {
+			maxVisReq = v.Requests
+		}
+	}
+	visitorRows := make([]visitorRow, 0, len(visitors))
+	for _, v := range visitors {
+		visitorRows = append(visitorRows, visitorRow{
+			Visitor:  v.Visitor,
+			Surface:  v.Surface,
+			LastPath: v.LastPath,
+			LastSeen: v.LastSeen.Format("Jan 2 15:04"),
+			Requests: v.Requests,
+			W:        barPct(v.Requests, maxVisReq),
+		})
+	}
+
 	s.Render(w, r, "analytics.html", map[string]any{
 		"Days":     days,
 		"Bars":     bars,
 		"Surfaces": surfaceRows,
 		"Paths":    pathRows,
+		"Hosts":    hostRows,
+		"Visitors": visitorRows,
 		"TotalReq": totalReq,
 		"TodayReq": todayReq,
 		"TodayVis": todayVis,
 		"HasData":  len(daily) > 0,
 	})
+}
+
+// visitorRow is one (daily-rotating) visitor hash for the "traffic by user" table.
+type visitorRow struct {
+	Visitor  string
+	Surface  string
+	LastPath string
+	LastSeen string
+	Requests int64
+	W        int
 }
 
 // barPct scales v to a 0–100 height/width, with a small floor so non-zero values

@@ -88,6 +88,40 @@
     </div>
   </div>
 </div>
+
+<!-- Hosts + visitors -->
+<div class="row row-cards mt-1">
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">Traffic by host</h3></div>
+      <div class="card-body">
+        <p class="text-secondary small">“custom” is any request whose host isn't your configured app/auth/root host — e.g. the bare IP, a health probe, or a crawler. These are the actual hosts seen.</p>
+        {{if .Hosts}}{{range .Hosts}}{{template "value-bar" .}}{{end}}
+        {{else}}<div class="text-secondary">No data.</div>{{end}}
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">Top visitors</h3></div>
+      <div class="card-body">
+        <p class="text-secondary small">Anonymous, daily-rotating IDs (a salted hash of IP + browser). The same person gets a fresh ID each day, so a heavy daily visitor shows once per day.</p>
+        {{if .Visitors}}
+        {{range .Visitors}}
+        <div class="mb-2">
+          <div class="d-flex justify-content-between small">
+            <span class="font-monospace text-truncate" style="max-width:60%" title="{{.Visitor}}">{{.Visitor}}</span>
+            <span class="text-secondary">{{.Requests}}</span>
+          </div>
+          <div class="progress" style="height:6px"><div class="progress-bar" style="width:{{.W}}%"></div></div>
+          <div class="text-secondary small text-truncate"><span class="badge bg-secondary-lt">{{.Surface}}</span> {{.LastPath}} · {{.LastSeen}}</div>
+        </div>
+        {{end}}
+        {{else}}<div class="text-secondary">No data.</div>{{end}}
+      </div>
+    </div>
+  </div>
+</div>
 {{end}}
 <a class="back-link mt-3" href="/admin">{{template "icon-arrow-left" "me-1"}}Back to admin</a>
 {{end}}

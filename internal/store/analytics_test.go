@@ -59,3 +59,37 @@ func TestAnalyticsRollup(t *testing.T) {
 		t.Fatalf("after re-rollup daily = %+v, want unchanged", daily)
 	}
 }
+
+func TestAnalyticsHostsAndVisitors(t *testing.T) {
+	t.Parallel()
+	st, ctx := orgTestStore(t)
+	now := time.Now()
+
+	evs := []AnalyticsEvent{
+		{Ts: now.Add(-time.Minute), Surface: "custom", Host: "1.2.3.4", Path: "/", Method: "GET", Status: 200, Visitor: "bot"},
+		{Ts: now, Surface: "custom", Host: "1.2.3.4", Path: "/robots.txt", Method: "GET", Status: 200, Visitor: "bot"},
+		{Ts: now, Surface: "app", Host: "app.x", Path: "/dash", Method: "GET", Status: 200, Visitor: "alice"},
+	}
+	if err := st.InsertAnalyticsEvents(ctx, evs); err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+
+	hosts, err := st.AnalyticsTopHosts(ctx, 2, 10)
+	if err != nil {
+		t.Fatalf("hosts: %v", err)
+	}
+	if len(hosts) != 2 || hosts[0].Host != "1.2.3.4" || hosts[0].Requests != 2 {
+		t.Fatalf("top hosts = %+v, want 1.2.3.4=2 first", hosts)
+	}
+
+	vis, err := st.AnalyticsTopVisitors(ctx, 2, 10)
+	if err != nil {
+		t.Fatalf("visitors: %v", err)
+	}
+	if len(vis) != 2 || vis[0].Visitor != "bot" || vis[0].Requests != 2 {
+		t.Fatalf("top visitors = %+v, want bot=2 first", vis)
+	}
+	if vis[0].Surface != "custom" || vis[0].LastPath != "/robots.txt" {
+		t.Fatalf("bot visitor surface/last-path = %q/%q, want custom//robots.txt", vis[0].Surface, vis[0].LastPath)
+	}
+}

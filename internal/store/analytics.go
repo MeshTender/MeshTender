@@ -98,6 +98,61 @@ type PathStat struct {
 	Hits int64
 }
 
+// HostStat is request volume for one request host over a window. Useful for
+// seeing which hosts fall into the "custom" surface (anything not matching the
+// configured app/auth/root hosts — e.g. the bare IP, a probe, or a crawler).
+type HostStat struct {
+	Host     string
+	Requests int64
+}
+
+// VisitorStat is request volume for one (daily-rotating) visitor hash, plus the
+// surface and last path it was seen on, for a "traffic by user" view.
+type VisitorStat struct {
+	Visitor  string
+	Surface  string
+	LastSeen time.Time
+	LastPath string
+	Requests int64
+}
+
+// AnalyticsTopHosts returns the busiest request hosts over the last `days` days,
+// read live from the raw events so the breakdown reflects current traffic.
+func (s *Store) AnalyticsTopHosts(ctx context.Context, days, limit int) ([]HostStat, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT host, count(*) FROM analytics_events
+		WHERE ts >= now() - ($1::int * interval '1 day')
+		GROUP BY host ORDER BY count(*) DESC LIMIT $2`, days, limit)
+	if err != nil {
+		return nil, fmt.Errorf("analytics top hosts: %w", err)
+	}
+	return collectRows(rows, func(r pgx.Row) (HostStat, error) {
+		var h HostStat
+		return h, r.Scan(&h.Host, &h.Requests)
+	})
+}
+
+// AnalyticsTopVisitors returns the busiest visitor hashes over the last `days`
+// days, with the surface and most-recent path each was seen on. Hashes rotate
+// daily, so a heavy daily user appears once per day, not once overall.
+func (s *Store) AnalyticsTopVisitors(ctx context.Context, days, limit int) ([]VisitorStat, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT e.visitor, count(*) AS n,
+		       (array_agg(e.surface ORDER BY e.ts DESC))[1] AS surface,
+		       max(e.ts) AS last_seen,
+		       (array_agg(e.path ORDER BY e.ts DESC))[1] AS last_path
+		FROM analytics_events e
+		WHERE e.ts >= now() - ($1::int * interval '1 day')
+		GROUP BY e.visitor ORDER BY n DESC LIMIT $2`, days, limit)
+	if err != nil {
+		return nil, fmt.Errorf("analytics top visitors: %w", err)
+	}
+	return collectRows(rows, func(r pgx.Row) (VisitorStat, error) {
+		var v VisitorStat
+		return v, r.Scan(&v.Visitor, &v.Requests, &v.Surface, &v.LastSeen, &v.LastPath)
+	})
+}
+
 // AnalyticsDaily returns the last `days` days of totals, oldest first.
 func (s *Store) AnalyticsDaily(ctx context.Context, days int) ([]DayStat, error) {
 	rows, err := s.pool.Query(ctx, `
