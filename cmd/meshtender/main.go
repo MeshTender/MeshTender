@@ -16,6 +16,7 @@ import (
 	"github.com/jleight/meshtender/internal/config"
 	"github.com/jleight/meshtender/internal/core"
 	"github.com/jleight/meshtender/internal/identity"
+	"github.com/jleight/meshtender/internal/seed"
 	"github.com/jleight/meshtender/internal/store"
 )
 
@@ -31,6 +32,9 @@ func run(logger *slog.Logger) error {
 	var reset bool
 	flag.BoolVar(&reset, "reset", false,
 		"truncate all data except users, passkeys, sessions, and the server identity, then exit")
+	var runSeed bool
+	flag.BoolVar(&runSeed, "seed", false,
+		"populate the database with realistic fake data for local testing (additive), then exit")
 	flag.Parse()
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -53,10 +57,20 @@ func run(logger *slog.Logger) error {
 	logger.Info("migrations applied")
 
 	if reset {
-		if err := st.Reset(ctx); err != nil {
+		removed, err := st.Reset(ctx)
+		if err != nil {
 			return err
 		}
-		logger.Info("database reset — kept users, passkeys, sessions, and the server identity")
+		logger.Info("database reset — kept users with credentials, passkeys, sessions, and the server identity",
+			"credential_less_users_removed", removed)
+		return nil
+	}
+
+	if runSeed {
+		if err := seed.Run(ctx, st, logger); err != nil {
+			return err
+		}
+		logger.Info("database seeded")
 		return nil
 	}
 

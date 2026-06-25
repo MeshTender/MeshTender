@@ -17,9 +17,17 @@ func TestReset(t *testing.T) {
 		return n
 	}
 
-	// Seed preserved data (user + server identity) and disposable data (repeater + org).
+	// Seed preserved data (a credentialed user + server identity) and disposable
+	// data (repeater + org). The owner gets a password so Reset keeps it.
 	owner, err := st.CreateUser(ctx, "owner", "")
 	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SetPassword(ctx, owner.ID, "bcrypt-hash"); err != nil {
+		t.Fatal(err)
+	}
+	// A seeded-style account with no password and no passkey: Reset should prune it.
+	if _, err := st.CreateUser(ctx, "seeded", ""); err != nil {
 		t.Fatal(err)
 	}
 	if err := st.InsertServerIdentity(ctx, strings.Repeat("a", 64), []byte("sealed")); err != nil {
@@ -42,11 +50,16 @@ func TestReset(t *testing.T) {
 		t.Fatal("expected a seeded command catalog")
 	}
 
-	if err := st.Reset(ctx); err != nil {
+	removed, err := st.Reset(ctx)
+	if err != nil {
 		t.Fatalf("reset: %v", err)
 	}
+	if removed != 1 {
+		t.Errorf("credential-less users removed = %d, want 1", removed)
+	}
 
-	// Preserved: login + identity + catalog survive.
+	// Preserved: the credentialed user + identity + catalog survive; the seeded
+	// (credential-less) user is gone.
 	if got := count("users"); got != 1 {
 		t.Errorf("users after reset = %d, want 1", got)
 	}

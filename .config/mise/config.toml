@@ -11,5 +11,8 @@ auto = true
 [tasks.dev]
 run = "go run ./cmd/meshtender"
 
+[tasks.seed]
+run = "go run ./cmd/meshtender --seed"
+
 [tasks.reset]
 run = "go run ./cmd/meshtender --reset"

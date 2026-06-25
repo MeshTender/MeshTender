@@ -5,6 +5,7 @@ go 1.26.4
 require (
 	github.com/alexedwards/scs/pgxstore v0.0.0-20251002162104-209de6e426de
 	github.com/alexedwards/scs/v2 v2.9.0
+	github.com/brianvoe/gofakeit/v7 v7.15.0
 	github.com/coder/websocket v1.8.15
 	github.com/go-chi/chi/v5 v5.3.0
 	github.com/go-webauthn/webauthn v0.17.4
