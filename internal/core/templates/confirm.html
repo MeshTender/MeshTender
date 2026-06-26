@@ -16,7 +16,7 @@
       to verify it has access. This is optional — the repeater works either way.
     </p>
     <code class="pk">{{.Repeater.PublicKeyHex}}</code>
-    <div class="text-secondary small mt-2">{{.Repeater.RadioFreqHz}} Hz · BW {{.Repeater.RadioBwHz}} · SF{{.Repeater.RadioSF}} · CR{{.Repeater.RadioCR}}</div>
+    <div class="text-secondary small mt-2">{{mhz .Repeater.RadioFreqHz}} MHz · BW {{khz .Repeater.RadioBwHz}} · SF{{.Repeater.RadioSF}} · CR{{.Repeater.RadioCR}}</div>
 
     <div id="unsupported" class="alert alert-danger mt-3" role="alert" hidden>
       This browser does not support WebSerial. Use Chrome, Edge, or another Chromium-based browser over HTTPS or on localhost.

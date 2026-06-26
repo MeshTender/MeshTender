@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -117,8 +118,16 @@ func (e *Env) SetDefaultLayout(name string) { e.Renderer.defaultLayout = name }
 // NewRenderer parses the shared base layout (base.html + icons.html) and composes
 // each of the surface's own *.html pages onto it. Each page redefines the
 // content/title/header blocks, so every page gets its own cloned template set.
+// templateFuncs are helpers available to every page template. mhz/khz present
+// the Hz-canonical radio values in the human-readable units the region presets
+// use (MHz for frequency, kHz for bandwidth), formatted without trailing zeros.
+var templateFuncs = template.FuncMap{
+	"mhz": func(hz int64) string { return strconv.FormatFloat(float64(hz)/1e6, 'f', -1, 64) },
+	"khz": func(hz int64) string { return strconv.FormatFloat(float64(hz)/1e3, 'f', -1, 64) },
+}
+
 func NewRenderer(cfg *config.Config, surfaceTemplates fs.FS) (*Renderer, error) {
-	base, err := template.New("").ParseFS(sharedTemplatesFS, "templates/base.html", "templates/icons.html", "templates/org_tabs.html", "templates/repeater_tabs.html")
+	base, err := template.New("").Funcs(templateFuncs).ParseFS(sharedTemplatesFS, "templates/base.html", "templates/icons.html", "templates/org_tabs.html", "templates/repeater_tabs.html")
 	if err != nil {
 		return nil, err
 	}

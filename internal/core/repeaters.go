@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"html/template"
 	"image/color"
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -175,15 +176,17 @@ func (s *Handlers) handleAddRepeater(w http.ResponseWriter, r *http.Request) {
 }
 
 // parseRadioForm reads and validates the radio fields from a repeater form.
+// Frequency and bandwidth are entered in MHz/kHz (matching the region presets)
+// and stored as Hz.
 func parseRadioForm(r *http.Request) (freq, bw int64, sf, cr int16, ok bool) {
-	f, e1 := strconv.ParseInt(r.FormValue("radio_freq_hz"), 10, 64)
-	b, e2 := strconv.ParseInt(r.FormValue("radio_bw_hz"), 10, 64)
+	mhz, e1 := strconv.ParseFloat(r.FormValue("radio_freq_mhz"), 64)
+	khz, e2 := strconv.ParseFloat(r.FormValue("radio_bw_khz"), 64)
 	s, e3 := strconv.ParseInt(r.FormValue("radio_sf"), 10, 16)
 	c, e4 := strconv.ParseInt(r.FormValue("radio_cr"), 10, 16)
-	if e1 != nil || e2 != nil || e3 != nil || e4 != nil || f <= 0 || b <= 0 {
+	if e1 != nil || e2 != nil || e3 != nil || e4 != nil || mhz <= 0 || khz <= 0 {
 		return 0, 0, 0, 0, false
 	}
-	return f, b, int16(s), int16(c), true
+	return int64(math.Round(mhz * 1e6)), int64(math.Round(khz * 1e3)), int16(s), int16(c), true
 }
 
 // pageEditRepeater shows the edit form for an owned repeater.

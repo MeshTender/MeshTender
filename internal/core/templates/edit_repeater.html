@@ -29,8 +29,8 @@
         </select>
       </div>
       <div class="row g-2">
-        <div class="col-6 col-md-3"><label class="form-label" for="radio_freq_hz">Freq (Hz)</label><input type="number" class="form-control" id="radio_freq_hz" name="radio_freq_hz" value="{{.Repeater.RadioFreqHz}}" required></div>
-        <div class="col-6 col-md-3"><label class="form-label" for="radio_bw_hz">Bandwidth (Hz)</label><input type="number" class="form-control" id="radio_bw_hz" name="radio_bw_hz" value="{{.Repeater.RadioBwHz}}" required></div>
+        <div class="col-6 col-md-3"><label class="form-label" for="radio_freq_mhz">Freq (MHz)</label><input type="number" step="0.001" class="form-control" id="radio_freq_mhz" name="radio_freq_mhz" value="{{mhz .Repeater.RadioFreqHz}}" required></div>
+        <div class="col-6 col-md-3"><label class="form-label" for="radio_bw_khz">Bandwidth (kHz)</label><input type="number" step="0.1" class="form-control" id="radio_bw_khz" name="radio_bw_khz" value="{{khz .Repeater.RadioBwHz}}" required></div>
         <div class="col-6 col-md-3"><label class="form-label" for="radio_sf">SF</label><input type="number" class="form-control" id="radio_sf" name="radio_sf" value="{{.Repeater.RadioSF}}" min="5" max="12" required></div>
         <div class="col-6 col-md-3"><label class="form-label" for="radio_cr">CR</label><input type="number" class="form-control" id="radio_cr" name="radio_cr" value="{{.Repeater.RadioCR}}" min="5" max="8" required></div>
       </div>
@@ -55,22 +55,44 @@
   </div>
 </div>
 <script>
+  // The form fields display MHz/kHz; preset data-* attributes are Hz-canonical.
+  var RADIO_FIELDS = ["radio_freq_mhz", "radio_bw_khz", "radio_sf", "radio_cr"];
+  function trim(n) { return String(Math.round(n * 1e6) / 1e6); } // drop float fuzz
+
+  // Seed the radio fields from the chosen preset. Fields stay editable — a
+  // preset is a starting point, not a lock.
   function applyRegion() {
     var sel = document.getElementById("region");
     var opt = sel.options[sel.selectedIndex];
-    var fields = ["radio_freq_hz", "radio_bw_hz", "radio_sf", "radio_cr"].map(function (id) {
-      return document.getElementById(id);
-    });
-    if (opt.dataset.freq) {
-      fields[0].value = opt.dataset.freq;
-      fields[1].value = opt.dataset.bw;
-      fields[2].value = opt.dataset.sf;
-      fields[3].value = opt.dataset.cr;
-      fields.forEach(function (el) { el.readOnly = true; });
-    } else {
-      fields.forEach(function (el) { el.readOnly = false; });
-    }
+    if (!opt.dataset.freq) return; // "Custom" — leave the current values alone
+    document.getElementById("radio_freq_mhz").value = trim(opt.dataset.freq / 1e6);
+    document.getElementById("radio_bw_khz").value = trim(opt.dataset.bw / 1e3);
+    document.getElementById("radio_sf").value = opt.dataset.sf;
+    document.getElementById("radio_cr").value = opt.dataset.cr;
   }
-  applyRegion();
+
+  // When a field is edited by hand, point the dropdown at whichever preset now
+  // matches (or "Custom" if none do), so it always reflects the actual values.
+  // Compare in Hz so display rounding can't cause a spurious mismatch.
+  function syncPreset() {
+    var sel = document.getElementById("region");
+    var freqHz = Math.round(parseFloat(document.getElementById("radio_freq_mhz").value) * 1e6);
+    var bwHz = Math.round(parseFloat(document.getElementById("radio_bw_khz").value) * 1e3);
+    var sf = document.getElementById("radio_sf").value;
+    var cr = document.getElementById("radio_cr").value;
+    for (var i = 0; i < sel.options.length; i++) {
+      var o = sel.options[i];
+      if (o.dataset.freq && +o.dataset.freq === freqHz && +o.dataset.bw === bwHz &&
+          o.dataset.sf === sf && o.dataset.cr === cr) {
+        sel.value = o.value;
+        return;
+      }
+    }
+    sel.value = "custom";
+  }
+
+  RADIO_FIELDS.forEach(function (id) {
+    document.getElementById(id).addEventListener("input", syncPreset);
+  });
 </script>
 {{end}}
