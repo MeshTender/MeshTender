@@ -40,13 +40,16 @@ type Profile struct {
 }
 
 // Region is an org-level geofenced set of location steps. Geofence is nil for a
-// region that applies everywhere.
+// region that applies everywhere. GeofenceJSON is the raw stored GeoJSON (nil for
+// a match-all region), carried verbatim so the editor can round-trip an arbitrary
+// polygon without collapsing it to its bounding box.
 type Region struct {
-	ID       int64
-	Name     string
-	Priority int
-	Geofence *geo.Shape
-	Steps    []ConfigStep
+	ID           int64
+	Name         string
+	Priority     int
+	Geofence     *geo.Shape
+	GeofenceJSON []byte
+	Steps        []ConfigStep
 }
 
 // ProfileInput / RegionInput are an org's config as submitted by the editor for a
@@ -132,6 +135,7 @@ func (s *Store) ListRegions(ctx context.Context, orgID int64) ([]Region, error) 
 		if z.Geofence, err = geo.Parse(raw); err != nil {
 			return Region{}, err
 		}
+		z.GeofenceJSON = raw
 		return z, nil
 	})
 	if err != nil {

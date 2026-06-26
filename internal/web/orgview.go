@@ -20,30 +20,32 @@ type ProfileView struct {
 }
 
 // RegionView is an org region rendered for display: the geofence reduced to its
-// bounding box (empty when it matches everywhere), plus whether it applies at the
-// previewed location.
+// bounding box for the text summary (empty when it matches everywhere), the raw
+// GeoJSON for the map, plus whether it applies at the previewed location.
 type RegionView struct {
-	Name     string
-	Priority int
-	MatchAll bool
-	MinLat   string
-	MinLon   string
-	MaxLat   string
-	MaxLon   string
-	Steps    []store.ConfigStep
-	Matches  bool
+	Name         string
+	Priority     int
+	MatchAll     bool
+	MinLat       string
+	MinLon       string
+	MaxLat       string
+	MaxLon       string
+	GeofenceJSON string
+	Steps        []store.ConfigStep
+	Matches      bool
 }
 
 // ConfigView is an org's configuration for display: its named profiles (with one
 // selected for its base settings) and its regions (location steps), the two kept
 // independent. PreviewActive is true when a location was supplied.
 type ConfigView struct {
-	HasConfig     bool
-	Profiles      []ProfileView
-	Selected      string
-	SelectedSteps []store.ConfigStep
-	Regions       []RegionView
-	PreviewActive bool
+	HasConfig       bool
+	Profiles        []ProfileView
+	Selected        string
+	SelectedSteps   []store.ConfigStep
+	Regions         []RegionView
+	HasRegionShapes bool // any region has a drawn geofence (worth showing a map)
+	PreviewActive   bool
 }
 
 // BuildConfigView loads an org's profiles and regions for read-only display.
@@ -78,7 +80,7 @@ func BuildConfigView(ctx context.Context, st *store.Store, orgID int64, selected
 		cv.SelectedSteps = profiles[idx].Steps
 	}
 	for _, z := range regions {
-		rv := RegionView{Name: z.Name, Priority: z.Priority, Steps: z.Steps, Matches: store.RegionMatches(z, lat, lon)}
+		rv := RegionView{Name: z.Name, Priority: z.Priority, Steps: z.Steps, GeofenceJSON: string(z.GeofenceJSON), Matches: store.RegionMatches(z, lat, lon)}
 		if minLat, minLon, maxLat, maxLon, ok := z.Geofence.Bounds(); ok {
 			rv.MinLat = formatCoord(minLat)
 			rv.MinLon = formatCoord(minLon)
@@ -86,6 +88,9 @@ func BuildConfigView(ctx context.Context, st *store.Store, orgID int64, selected
 			rv.MaxLon = formatCoord(maxLon)
 		} else {
 			rv.MatchAll = true
+		}
+		if rv.GeofenceJSON != "" {
+			cv.HasRegionShapes = true
 		}
 		cv.Regions = append(cv.Regions, rv)
 	}

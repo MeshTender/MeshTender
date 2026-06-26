@@ -25,18 +25,15 @@ type configProfileView struct {
 	Steps     []store.ConfigStep // read-only: rendered list
 }
 
-// configRegionView is a region in the admin editor: the form fields (rectangle
-// corners derived from the stored geofence's bounds, one command per line).
+// configRegionView is a region in the admin editor: its name/priority, the raw
+// GeoJSON geofence the map editor reads and writes (empty = applies everywhere),
+// and its steps (one command per line).
 type configRegionView struct {
-	Name      string
-	Priority  int
-	MatchAll  bool
-	MinLat    string
-	MinLon    string
-	MaxLat    string
-	MaxLon    string
-	StepsText string
-	Steps     []store.ConfigStep
+	Name         string
+	Priority     int
+	GeofenceJSON string
+	StepsText    string
+	Steps        []store.ConfigStep
 }
 
 // pageOrgConfig renders an org's configuration read-only: a selected profile's
@@ -210,10 +207,7 @@ func (s *Handlers) parseRegions(r *http.Request, catalog []*store.Command, errs,
 		stepsText := formAt(r, "region_steps", i)
 		zv := configRegionView{
 			Name: name, StepsText: stepsText,
-			MinLat: strings.TrimSpace(formAt(r, "region_minlat", i)),
-			MinLon: strings.TrimSpace(formAt(r, "region_minlon", i)),
-			MaxLat: strings.TrimSpace(formAt(r, "region_maxlat", i)),
-			MaxLon: strings.TrimSpace(formAt(r, "region_maxlon", i)),
+			GeofenceJSON: strings.TrimSpace(formAt(r, "region_geojson", i)),
 		}
 		if name == "" && strings.TrimSpace(stepsText) == "" {
 			continue
@@ -253,34 +247,19 @@ func formAt(r *http.Request, field string, i int) string {
 	return ""
 }
 
-// regionGeofence builds the GeoJSON for a region from its rectangle corners. All
-// four blank = a region that applies everywhere (nil geofence). A partial box is
-// an error.
+// regionGeofence validates the GeoJSON drawn for a region. An empty shape is a
+// region that applies everywhere (nil geofence); anything else must parse as a
+// GeoJSON Polygon/MultiPolygon.
 func regionGeofence(zv configRegionView, name string, errs *[]string) ([]byte, bool) {
-	boxes := []string{zv.MinLat, zv.MinLon, zv.MaxLat, zv.MaxLon}
-	blank := 0
-	for _, b := range boxes {
-		if b == "" {
-			blank++
-		}
-	}
-	if blank == 4 {
+	gj := strings.TrimSpace(zv.GeofenceJSON)
+	if gj == "" {
 		return nil, true // everywhere
 	}
-	if blank != 0 {
-		*errs = append(*errs, fmt.Sprintf("Region %q needs all four corner coordinates (or leave all blank for everywhere).", name))
+	if _, err := geo.Parse([]byte(gj)); err != nil {
+		*errs = append(*errs, fmt.Sprintf("Region %q has an invalid map shape — redraw it on the map.", name))
 		return nil, false
 	}
-	vals := make([]float64, 4)
-	for j, b := range boxes {
-		f, err := strconv.ParseFloat(b, 64)
-		if err != nil {
-			*errs = append(*errs, fmt.Sprintf("Region %q has an invalid coordinate %q.", name, b))
-			return nil, false
-		}
-		vals[j] = f
-	}
-	return geo.Rectangle(vals[0], vals[1], vals[2], vals[3]), true
+	return []byte(gj), true
 }
 
 // parseConfigSteps turns textarea lines into config steps, validating each command
@@ -346,29 +325,19 @@ func profileViews(profiles []store.Profile) []configProfileView {
 	return out
 }
 
-// regionViews converts stored regions into editor/read views, deriving the
-// rectangle corners from each geofence's bounding box.
+// regionViews converts stored regions into editor views, carrying each geofence's
+// raw GeoJSON through verbatim so the map editor round-trips arbitrary polygons.
 func regionViews(regions []store.Region) []configRegionView {
 	out := make([]configRegionView, 0, len(regions))
 	for _, z := range regions {
-		zv := configRegionView{
+		out = append(out, configRegionView{
 			Name: z.Name, Priority: z.Priority,
-			StepsText: stepsToText(z.Steps), Steps: z.Steps,
-		}
-		if minLat, minLon, maxLat, maxLon, ok := z.Geofence.Bounds(); ok {
-			zv.MinLat = formatCoord(minLat)
-			zv.MinLon = formatCoord(minLon)
-			zv.MaxLat = formatCoord(maxLat)
-			zv.MaxLon = formatCoord(maxLon)
-		} else {
-			zv.MatchAll = true
-		}
-		out = append(out, zv)
+			GeofenceJSON: string(z.GeofenceJSON),
+			StepsText:    stepsToText(z.Steps), Steps: z.Steps,
+		})
 	}
 	return out
 }
-
-func formatCoord(f float64) string { return strconv.FormatFloat(f, 'f', -1, 64) }
 
 // repeaterProfiles is an org's region steps resolved for a specific repeater's
 // location, for the console reference block. Base-settings profiles are a viewing

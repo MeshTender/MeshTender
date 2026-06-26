@@ -39,6 +39,22 @@
         These steps are added based on a repeater's location, independent of the profile you pick.
       </div>
     </div>
+    {{if .Config.HasRegionShapes}}
+    <div class="card mt-3">
+      <div class="card-body p-2">
+        <link rel="stylesheet" href="/static/leaflet.css">
+        <div id="region-map" style="height:320px" role="region" aria-label="Map of this organization's regions"></div>
+        <script src="/static/leaflet.js"></script>
+        <script src="/static/regionmap.js"></script>
+        <script>
+          regionMapView('region-map', [
+            {{range .Config.Regions}}{{if .GeofenceJSON}}{name: {{.Name}}, geojson: {{.GeofenceJSON}}},
+            {{end}}{{end}}
+          ], {{if .Config.PreviewActive}}{lat: {{.PreviewLat}}, lon: {{.PreviewLon}}}{{else}}null{{end}});
+        </script>
+      </div>
+    </div>
+    {{end}}
     {{range .Config.Regions}}
     <div class="card mt-3">
       <div class="card-header">

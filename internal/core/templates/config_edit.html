@@ -42,8 +42,12 @@
   <div class="card mt-3">
     <div class="card-header"><h3 class="card-title">Regions</h3></div>
     <div class="card-body">
-      <p class="text-secondary">Steps added by location, independent of the chosen profile. Leave all four corners blank for a region that applies everywhere. Lower priority applies first; same-priority overlapping regions both apply.</p>
-      <div id="regions">
+      <p class="text-secondary">Steps added by location, independent of the chosen profile. Select a region below, then use the map's drawing tools to outline where it applies — a region with no shape applies everywhere. Lower priority applies first; same-priority overlapping regions both apply.</p>
+      <link rel="stylesheet" href="/static/leaflet.css">
+      <link rel="stylesheet" href="/static/leaflet-geoman.css">
+      <p class="text-secondary small mb-1">Drawing area for: <strong id="region-map-active">—</strong></p>
+      <div id="region-map" style="height:420px" role="region" aria-label="Map for drawing region boundaries"></div>
+      <div id="regions" class="mt-3">
         {{range .Regions}}{{template "region-block" .}}{{end}}
       </div>
       <button type="button" class="btn btn-outline-primary mt-2" onclick="addBlock('region')">{{template "icon-plus" "me-1"}}Add region</button>
@@ -70,6 +74,10 @@ function addBlock(kind) {
 }
 function removeBlock(btn, cls) { btn.closest('.' + cls).remove(); }
 </script>
+<script src="/static/leaflet.js"></script>
+<script src="/static/leaflet-geoman.js"></script>
+<script src="/static/regionmap.js"></script>
+<script>initRegionEditor('region-map', 'regions');</script>
 {{end}}
 
 {{/* profile-block is one editable named profile. */}}
@@ -84,21 +92,21 @@ function removeBlock(btn, cls) { btn.closest('.' + cls).remove(); }
 </div>
 {{end}}
 
-{{/* region-block is one editable region in the admin form. */}}
+{{/* region-block is one editable region in the admin form. Its geofence is drawn
+     on the shared map above; region_geojson carries the GeoJSON the map writes. */}}
 {{define "region-block"}}
 <div class="region-block border rounded p-3 mb-3">
-  <div class="row g-2">
+  <div class="row g-2 align-items-end">
     <div class="col-md"><label class="form-label">Name</label>
       <input class="form-control" name="region_name" value="{{.Name}}" placeholder="Mountains"></div>
     <div class="col-md-auto"><label class="form-label">Priority</label>
       <input class="form-control" type="number" name="region_priority" value="{{.Priority}}" style="width:6rem"></div>
+    <div class="col-md-auto">
+      <span class="badge bg-blue-lt region-shape-status">Applies everywhere</span>
+      <button type="button" class="btn btn-sm btn-ghost-secondary region-clear ms-1">Clear area</button>
+    </div>
   </div>
-  <div class="row g-2 mt-1">
-    <div class="col"><label class="form-label">Min lat</label><input class="form-control" name="region_minlat" value="{{.MinLat}}"></div>
-    <div class="col"><label class="form-label">Min lon</label><input class="form-control" name="region_minlon" value="{{.MinLon}}"></div>
-    <div class="col"><label class="form-label">Max lat</label><input class="form-control" name="region_maxlat" value="{{.MaxLat}}"></div>
-    <div class="col"><label class="form-label">Max lon</label><input class="form-control" name="region_maxlon" value="{{.MaxLon}}"></div>
-  </div>
+  <input type="hidden" name="region_geojson" value="{{.GeofenceJSON}}">
   <div class="mt-2"><label class="form-label">Steps</label>
     <textarea class="form-control font-monospace" name="region_steps" rows="4" spellcheck="false" placeholder="set freq 906.875">{{.StepsText}}</textarea>
   </div>

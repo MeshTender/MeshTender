@@ -153,3 +153,10 @@ code.pubkey {
   border-bottom-color: var(--tblr-border-color, #2b2f36);
 }
 .leaflet-container .leaflet-bar a:hover { background: var(--tblr-bg-surface-secondary, #22262e); }
+
+/* Active region block in the config editor: highlight the block currently being
+   drawn on the shared region map. */
+.region-block.region-active {
+  border-color: var(--tblr-primary, #4dabf7) !important;
+  box-shadow: 0 0 0 1px var(--tblr-primary, #4dabf7);
+}

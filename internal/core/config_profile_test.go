@@ -54,34 +54,29 @@ func TestParseConfigSteps(t *testing.T) {
 func TestRegionGeofence(t *testing.T) {
 	t.Parallel()
 
-	// All-blank box → everywhere (nil geofence, ok).
+	// Empty shape → everywhere (nil geofence, ok).
 	if gf, ok := regionGeofence(configRegionView{}, "z", new([]string)); !ok || gf != nil {
-		t.Fatalf("blank box: got (%v,%v), want (nil,true)", gf, ok)
+		t.Fatalf("empty shape: got (%v,%v), want (nil,true)", gf, ok)
 	}
 
-	// Full box → a parseable polygon containing its center.
+	// A drawn polygon → carried through verbatim, parseable, contains its center.
+	drawn := `{"type":"Polygon","coordinates":[[[30,10],[40,10],[40,20],[30,20],[30,10]]]}`
 	var errs []string
-	gf, ok := regionGeofence(configRegionView{MinLat: "10", MinLon: "30", MaxLat: "20", MaxLon: "40"}, "z", &errs)
+	gf, ok := regionGeofence(configRegionView{GeofenceJSON: drawn}, "z", &errs)
 	if !ok || gf == nil {
-		t.Fatalf("full box: got (%v,%v), want non-nil geofence ok", gf, ok)
+		t.Fatalf("drawn polygon: got (%v,%v), want non-nil geofence ok", gf, ok)
 	}
 	shape, err := geo.Parse(gf)
 	if err != nil {
-		t.Fatalf("parse built geofence: %v", err)
+		t.Fatalf("parse geofence: %v", err)
 	}
 	if !shape.Contains(15, 35) {
-		t.Fatalf("built geofence should contain its center")
+		t.Fatalf("geofence should contain its center")
 	}
 
-	// Partial box → error.
+	// Malformed GeoJSON → error.
 	errs = nil
-	if _, ok := regionGeofence(configRegionView{MinLat: "10"}, "z", &errs); ok || len(errs) == 0 {
-		t.Fatalf("partial box should be rejected with an error")
-	}
-
-	// Non-numeric coordinate → error.
-	errs = nil
-	if _, ok := regionGeofence(configRegionView{MinLat: "x", MinLon: "30", MaxLat: "20", MaxLon: "40"}, "z", &errs); ok || len(errs) == 0 {
-		t.Fatalf("invalid coordinate should be rejected with an error")
+	if _, ok := regionGeofence(configRegionView{GeofenceJSON: "{not geojson"}, "z", &errs); ok || len(errs) == 0 {
+		t.Fatalf("invalid shape should be rejected with an error")
 	}
 }
