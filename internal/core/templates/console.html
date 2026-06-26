@@ -57,7 +57,7 @@
   </div>
   <div class="card-body">
     <p class="text-secondary">These are the commands {{.OrgName}} recommends for this repeater's location. Copy them into the console above.</p>
-    <pre class="mb-0"><code>{{range .Steps}}{{if .IsComment}}# {{.Comment}}{{else}}{{.CommandLine}}{{end}}
+    <pre class="mb-0"><code>{{range .Commands}}{{.}}
 {{end}}</code></pre>
   </div>
 </div>

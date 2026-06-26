@@ -107,8 +107,9 @@
       restyle();
     }
     function regionName(b) {
-      var nameInput = b.el.querySelector('input[name="region_name"]');
-      return (nameInput && nameInput.value.trim()) || "this region";
+      var display = b.el.querySelector('input[name="region_display"]');
+      var token = b.el.querySelector('input[name="region_token"]');
+      return (display && display.value.trim()) || (token && token.value.trim()) || "this region";
     }
 
     function bindLayer(b, layer) {

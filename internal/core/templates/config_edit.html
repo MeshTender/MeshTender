@@ -42,7 +42,7 @@
   <div class="card mt-3">
     <div class="card-header"><h3 class="card-title">Regions</h3></div>
     <div class="card-body">
-      <p class="text-secondary">Steps added by location, independent of the chosen profile. Select a region below, then use the map's drawing tools to outline where it applies — a region with no shape applies everywhere. Lower priority applies first; same-priority overlapping regions both apply.</p>
+      <p class="text-secondary">A hierarchy of named areas. Each region has a <strong>display name</strong> (e.g. Buffalo), a short <strong>name</strong> used by MeshCore (e.g. <code>buf</code>), and a <strong>layer</strong> for its depth. Select a region below, then use the map tools to outline where it applies — a region with no shape applies everywhere. A repeater is assigned to every region whose area contains it; sorted by layer, their names form a <code>region def</code> command (e.g. <code>region def us ny buf</code>).</p>
       <link rel="stylesheet" href="/static/leaflet.css">
       <link rel="stylesheet" href="/static/leaflet-geoman.css">
       <p class="text-secondary small mb-1">Drawing area for: <strong id="region-map-active">—</strong></p>
@@ -92,24 +92,25 @@ function removeBlock(btn, cls) { btn.closest('.' + cls).remove(); }
 </div>
 {{end}}
 
-{{/* region-block is one editable region in the admin form. Its geofence is drawn
-     on the shared map above; region_geojson carries the GeoJSON the map writes. */}}
+{{/* region-block is one node of the region hierarchy in the admin form. Its area
+     is drawn on the shared map above; region_geojson carries the GeoJSON the map
+     writes. Display name is the human label; Name is the MeshCore token used in
+     region def; Layer is its depth/order in the chain. */}}
 {{define "region-block"}}
 <div class="region-block border rounded p-3 mb-3">
   <div class="row g-2 align-items-end">
-    <div class="col-md"><label class="form-label">Name</label>
-      <input class="form-control" name="region_name" value="{{.Name}}" placeholder="Mountains"></div>
-    <div class="col-md-auto"><label class="form-label">Priority</label>
-      <input class="form-control" type="number" name="region_priority" value="{{.Priority}}" style="width:6rem"></div>
+    <div class="col-md"><label class="form-label">Display name</label>
+      <input class="form-control" name="region_display" value="{{.DisplayName}}" placeholder="Buffalo"></div>
+    <div class="col-md-auto"><label class="form-label">Name</label>
+      <input class="form-control font-monospace" name="region_token" value="{{.Token}}" placeholder="buf" style="width:8rem"></div>
+    <div class="col-md-auto"><label class="form-label">Layer</label>
+      <input class="form-control" type="number" name="region_layer" value="{{.Layer}}" style="width:5rem"></div>
     <div class="col-md-auto">
       <span class="badge bg-blue-lt region-shape-status">Applies everywhere</span>
       <button type="button" class="btn btn-sm btn-ghost-secondary region-clear ms-1">Clear area</button>
     </div>
   </div>
   <input type="hidden" name="region_geojson" value="{{.GeofenceJSON}}">
-  <div class="mt-2"><label class="form-label">Steps</label>
-    <textarea class="form-control font-monospace" name="region_steps" rows="4" spellcheck="false" placeholder="set freq 906.875">{{.StepsText}}</textarea>
-  </div>
   <button type="button" class="btn btn-ghost-danger btn-sm mt-2" onclick="removeBlock(this,'region-block')">Remove region</button>
 </div>
 {{end}}

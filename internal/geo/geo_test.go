@@ -78,6 +78,26 @@ func TestMultiPolygon(t *testing.T) {
 	}
 }
 
+func TestOverlapArea(t *testing.T) {
+	t.Parallel()
+	// Two 10×10 boxes overlapping in a 5×5 corner: area 25.
+	a := mustParse(t, Rectangle(0, 0, 10, 10))
+	b := mustParse(t, Rectangle(5, 5, 15, 15))
+	if got := a.OverlapArea(b); got != 25 {
+		t.Errorf("overlap area = %v, want 25", got)
+	}
+	// Disjoint boxes overlap by zero.
+	c := mustParse(t, Rectangle(20, 20, 30, 30))
+	if got := a.OverlapArea(c); got != 0 {
+		t.Errorf("disjoint overlap = %v, want 0", got)
+	}
+	// A nil (match-all) shape overlaps another by that other's full area.
+	var everywhere *Shape
+	if got := everywhere.OverlapArea(a); got != 100 {
+		t.Errorf("match-all overlap = %v, want 100 (a's area)", got)
+	}
+}
+
 func TestNilAndEmptyMatchEverywhere(t *testing.T) {
 	t.Parallel()
 	if s, err := Parse(nil); err != nil || s != nil {

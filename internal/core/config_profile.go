@@ -25,15 +25,14 @@ type configProfileView struct {
 	Steps     []store.ConfigStep // read-only: rendered list
 }
 
-// configRegionView is a region in the admin editor: its name/priority, the raw
-// GeoJSON geofence the map editor reads and writes (empty = applies everywhere),
-// and its steps (one command per line).
+// configRegionView is a region in the admin editor: its display name, MeshCore
+// token, layer (depth / region def order), and the raw GeoJSON geofence the map
+// editor reads and writes (empty = applies everywhere).
 type configRegionView struct {
-	Name         string
-	Priority     int
+	DisplayName  string
+	Token        string
+	Layer        int
 	GeofenceJSON string
-	StepsText    string
-	Steps        []store.ConfigStep
 }
 
 // pageOrgConfig renders an org's configuration read-only: a selected profile's
@@ -128,7 +127,7 @@ func (s *Handlers) handleSaveOrgConfig(w http.ResponseWriter, r *http.Request) {
 
 	var errs, risky []string
 	profiles, profileVs := s.parseProfiles(r, catalog, &errs, &risky)
-	regions, regionVs := s.parseRegions(r, catalog, &errs, &risky)
+	regions, regionVs := s.parseRegions(r, &errs)
 
 	if len(errs) > 0 {
 		org, gerr := s.Store.GetOrg(r.Context(), orgID)
@@ -193,49 +192,73 @@ func (s *Handlers) parseProfiles(r *http.Request, catalog []*store.Command, errs
 	return ins, views
 }
 
-// parseRegions reads the repeated region blocks from the form.
-func (s *Handlers) parseRegions(r *http.Request, catalog []*store.Command, errs, risky *[]string) ([]store.RegionInput, []configRegionView) {
-	names := r.Form["region_name"]
-	if len(names) > maxConfigRegions {
+// parseRegions reads the repeated region blocks from the form into store inputs
+// and editor views. A region needs a token (its MeshCore name); the display name
+// defaults to the token when left blank. Tokens must be unique and use only
+// letters, digits, hyphens, or underscores (they are space-joined into a single
+// region def line, so spaces and the |/, separators are not allowed).
+func (s *Handlers) parseRegions(r *http.Request, errs *[]string) ([]store.RegionInput, []configRegionView) {
+	tokens := r.Form["region_token"]
+	if len(tokens) > maxConfigRegions {
 		*errs = append(*errs, fmt.Sprintf("Too many regions (max %d).", maxConfigRegions))
 	}
 	seen := map[string]bool{}
 	var ins []store.RegionInput
 	var views []configRegionView
-	for i := range names {
-		name := strings.TrimSpace(formAt(r, "region_name", i))
-		stepsText := formAt(r, "region_steps", i)
-		zv := configRegionView{
-			Name: name, StepsText: stepsText,
-			GeofenceJSON: strings.TrimSpace(formAt(r, "region_geojson", i)),
+	for i := range tokens {
+		token := strings.TrimSpace(formAt(r, "region_token", i))
+		display := strings.TrimSpace(formAt(r, "region_display", i))
+		geojson := strings.TrimSpace(formAt(r, "region_geojson", i))
+		layer, _ := strconv.Atoi(formAt(r, "region_layer", i))
+		if token == "" && display == "" && geojson == "" {
+			continue // empty block
 		}
-		if name == "" && strings.TrimSpace(stepsText) == "" {
-			continue
-		}
-		if name == "" {
-			*errs = append(*errs, "A region is missing a name.")
+		zv := configRegionView{DisplayName: display, Token: token, Layer: layer, GeofenceJSON: geojson}
+		if token == "" {
+			*errs = append(*errs, "A region is missing its short name.")
 			views = append(views, zv)
 			continue
 		}
-		if seen[strings.ToLower(name)] {
-			*errs = append(*errs, fmt.Sprintf("Duplicate region name %q.", name))
+		if !validRegionToken(token) {
+			*errs = append(*errs, fmt.Sprintf("Region name %q may only contain letters, digits, hyphens, or underscores.", token))
 			views = append(views, zv)
 			continue
 		}
-		seen[strings.ToLower(name)] = true
-		priority, _ := strconv.Atoi(formAt(r, "region_priority", i))
-		zv.Priority = priority
-		steps, storeSteps := parseConfigSteps(stepsText, catalog, fmt.Sprintf("region %q", name), errs, risky)
-		zv.Steps = steps
-		geofence, ok := regionGeofence(zv, name, errs)
+		if seen[strings.ToLower(token)] {
+			*errs = append(*errs, fmt.Sprintf("Duplicate region name %q.", token))
+			views = append(views, zv)
+			continue
+		}
+		seen[strings.ToLower(token)] = true
+		if display == "" {
+			display = token
+			zv.DisplayName = display
+		}
+		geofence, ok := regionGeofence(zv, token, errs)
 		if !ok {
 			views = append(views, zv)
 			continue
 		}
 		views = append(views, zv)
-		ins = append(ins, store.RegionInput{Name: name, Priority: priority, GeofenceJSON: geofence, Steps: storeSteps})
+		ins = append(ins, store.RegionInput{Token: token, DisplayName: display, Layer: layer, GeofenceJSON: geofence})
 	}
 	return ins, views
+}
+
+// validRegionToken reports whether s is a usable MeshCore region token: non-empty
+// and limited to letters, digits, hyphens, and underscores.
+func validRegionToken(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, c := range s {
+		switch {
+		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c >= '0' && c <= '9', c == '-', c == '_':
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 // formAt returns the i-th value of a repeated form field, or "".
@@ -331,25 +354,25 @@ func regionViews(regions []store.Region) []configRegionView {
 	out := make([]configRegionView, 0, len(regions))
 	for _, z := range regions {
 		out = append(out, configRegionView{
-			Name: z.Name, Priority: z.Priority,
+			DisplayName: z.DisplayName, Token: z.Token, Layer: z.Layer,
 			GeofenceJSON: string(z.GeofenceJSON),
-			StepsText:    stepsToText(z.Steps), Steps: z.Steps,
 		})
 	}
 	return out
 }
 
-// repeaterProfiles is an org's region steps resolved for a specific repeater's
-// location, for the console reference block. Base-settings profiles are a viewing
-// choice on the org config page, so they aren't auto-applied here.
+// repeaterProfiles is an org's region-def commands resolved for a specific
+// repeater's location, for the console reference block. Base-settings profiles are
+// a viewing choice on the org config page, so they aren't auto-applied here.
 type repeaterProfiles struct {
-	OrgName string
-	OrgSlug string
-	Steps   []store.ConfigStep
+	OrgName  string
+	OrgSlug  string
+	Commands []string
 }
 
 // resolvedProfilesForRepeater returns, for each org the repeater is contributed to
-// that has regions, the region steps resolved for the repeater's location.
+// whose regions cover the repeater's location, the `region def`/`region save`
+// commands to apply that region hierarchy.
 func (s *Handlers) resolvedProfilesForRepeater(r *http.Request, rep *store.Repeater) []repeaterProfiles {
 	orgs, err := s.Store.ListRepeaterOrgs(r.Context(), rep.ID)
 	if err != nil {
@@ -361,11 +384,11 @@ func (s *Handlers) resolvedProfilesForRepeater(r *http.Request, rep *store.Repea
 		if err != nil {
 			continue
 		}
-		steps := store.ResolveRegions(regions, rep.Latitude, rep.Longitude)
-		if len(steps) == 0 {
+		cmds := store.RegionDefCommands(regions, rep.Latitude, rep.Longitude)
+		if len(cmds) == 0 {
 			continue
 		}
-		out = append(out, repeaterProfiles{OrgName: o.OrgName, OrgSlug: o.OrgSlug, Steps: steps})
+		out = append(out, repeaterProfiles{OrgName: o.OrgName, OrgSlug: o.OrgSlug, Commands: cmds})
 	}
 	return out
 }

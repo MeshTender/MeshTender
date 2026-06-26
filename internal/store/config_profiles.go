@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 
@@ -39,17 +40,19 @@ type Profile struct {
 	Steps    []ConfigStep
 }
 
-// Region is an org-level geofenced set of location steps. Geofence is nil for a
-// region that applies everywhere. GeofenceJSON is the raw stored GeoJSON (nil for
-// a match-all region), carried verbatim so the editor can round-trip an arbitrary
-// polygon without collapsing it to its bounding box.
+// Region is one node in an org's region hierarchy. Token is the MeshCore region
+// name used in `region def` (e.g. "buf"); DisplayName is the human label (e.g.
+// "Buffalo"); Layer is its depth and ordering in the chain (lower = nearer the
+// root). Geofence is nil for a region that applies everywhere. GeofenceJSON is the
+// raw stored GeoJSON (nil for a match-all region), carried verbatim so the editor
+// can round-trip an arbitrary polygon without collapsing it to its bounding box.
 type Region struct {
 	ID           int64
-	Name         string
-	Priority     int
+	Token        string
+	DisplayName  string
+	Layer        int
 	Geofence     *geo.Shape
 	GeofenceJSON []byte
-	Steps        []ConfigStep
 }
 
 // ProfileInput / RegionInput are an org's config as submitted by the editor for a
@@ -59,10 +62,10 @@ type ProfileInput struct {
 	Steps []ConfigStep
 }
 type RegionInput struct {
-	Name         string
-	Priority     int
+	Token        string
+	DisplayName  string
+	Layer        int
 	GeofenceJSON []byte
-	Steps        []ConfigStep
 }
 
 // OrgHasConfig reports whether an org has any profile or region defined (drives
@@ -119,17 +122,18 @@ func (s *Store) ListProfiles(ctx context.Context, orgID int64) ([]Profile, error
 	return profiles, srows.Err()
 }
 
-// ListRegions returns an org's regions with their steps, ordered (priority, id).
+// ListRegions returns an org's regions ordered (layer, token) — i.e. root to leaf,
+// the order their tokens appear in a `region def` chain.
 func (s *Store) ListRegions(ctx context.Context, orgID int64) ([]Region, error) {
 	rrows, err := s.pool.Query(ctx,
-		`SELECT id, name, priority, geofence FROM config_regions WHERE org_id = $1 ORDER BY priority, id`, orgID)
+		`SELECT id, token, display_name, layer, geofence FROM config_regions WHERE org_id = $1 ORDER BY layer, token`, orgID)
 	if err != nil {
 		return nil, fmt.Errorf("list regions: %w", err)
 	}
 	regions, err := collectRows(rrows, func(r pgx.Row) (Region, error) {
 		var z Region
 		var raw []byte
-		if err := r.Scan(&z.ID, &z.Name, &z.Priority, &raw); err != nil {
+		if err := r.Scan(&z.ID, &z.Token, &z.DisplayName, &z.Layer, &raw); err != nil {
 			return Region{}, err
 		}
 		if z.Geofence, err = geo.Parse(raw); err != nil {
@@ -141,30 +145,7 @@ func (s *Store) ListRegions(ctx context.Context, orgID int64) ([]Region, error) 
 	if err != nil {
 		return nil, fmt.Errorf("scan regions: %w", err)
 	}
-	byID := make(map[int64]*Region, len(regions))
-	for i := range regions {
-		byID[regions[i].ID] = &regions[i]
-	}
-	srows, err := s.pool.Query(ctx, `
-		SELECT s.region_id, s.position, s.command_line, s.command_id, s.comment
-		FROM config_region_steps s
-		JOIN config_regions z ON z.id = s.region_id
-		WHERE z.org_id = $1 ORDER BY s.position, s.id`, orgID)
-	if err != nil {
-		return nil, fmt.Errorf("list region steps: %w", err)
-	}
-	defer srows.Close()
-	for srows.Next() {
-		var rid int64
-		var st ConfigStep
-		if err := srows.Scan(&rid, &st.Position, &st.CommandLine, &st.CommandID, &st.Comment); err != nil {
-			return nil, fmt.Errorf("scan region step: %w", err)
-		}
-		if z := byID[rid]; z != nil {
-			z.Steps = append(z.Steps, st)
-		}
-	}
-	return regions, srows.Err()
+	return regions, nil
 }
 
 // ReplaceOrgConfig replaces an org's entire config (all profiles + regions) with
@@ -195,14 +176,10 @@ func (s *Store) ReplaceOrgConfig(ctx context.Context, orgID int64, profiles []Pr
 			if len(z.GeofenceJSON) > 0 {
 				geofence = z.GeofenceJSON
 			}
-			var rid int64
-			if err := tx.QueryRow(ctx,
-				`INSERT INTO config_regions (org_id, name, priority, geofence) VALUES ($1, $2, $3, $4) RETURNING id`,
-				orgID, z.Name, z.Priority, geofence).Scan(&rid); err != nil {
-				return fmt.Errorf("insert region %q: %w", z.Name, err)
-			}
-			if err := insertConfigSteps(ctx, tx, "config_region_steps", "region_id", rid, z.Steps); err != nil {
-				return fmt.Errorf("insert region %q steps: %w", z.Name, err)
+			if _, err := tx.Exec(ctx,
+				`INSERT INTO config_regions (org_id, token, display_name, layer, geofence) VALUES ($1, $2, $3, $4, $5)`,
+				orgID, z.Token, z.DisplayName, z.Layer, geofence); err != nil {
+				return fmt.Errorf("insert region %q: %w", z.Token, err)
 			}
 		}
 		return nil
@@ -224,32 +201,140 @@ func insertConfigSteps(ctx context.Context, tx pgx.Tx, table, parentCol string, 
 	return nil
 }
 
-// ResolveRegions returns the region steps that apply at (lat, lon): every region
-// whose geofence contains the point (plus match-all regions), in (priority, id)
-// order. Overlap is intentional — all matching regions contribute. With an
-// unknown location (nil), only match-all regions apply. Pure, for unit testing.
-func ResolveRegions(regions []Region, lat, lon *float64) []ConfigStep {
-	matched := make([]Region, 0, len(regions))
-	for _, z := range regions {
-		if z.Geofence == nil {
-			matched = append(matched, z)
-			continue
-		}
-		if lat != nil && lon != nil && z.Geofence.Contains(*lat, *lon) {
-			matched = append(matched, z)
+// regionParents returns, for each region, the index of its parent — the lower-
+// layer region it overlaps most — or -1 for a root. Overlap is true intersection
+// area, so a region nests under whichever ancestor it mostly sits in (e.g. a state
+// that spills slightly across a border still nests under the country it covers
+// most). Ties break toward the deeper layer, then the smaller token.
+func regionParents(regions []Region) []int {
+	parents := make([]int, len(regions))
+	for i := range regions {
+		parents[i] = -1
+		var best float64
+		for j := range regions {
+			if i == j || regions[j].Layer >= regions[i].Layer {
+				continue
+			}
+			area := regions[i].Geofence.OverlapArea(regions[j].Geofence)
+			if area <= 0 {
+				continue
+			}
+			if parents[i] == -1 || area > best || (area == best && betterParent(regions[j], regions[parents[i]])) {
+				parents[i], best = j, area
+			}
 		}
 	}
-	sort.SliceStable(matched, func(i, j int) bool {
-		if matched[i].Priority != matched[j].Priority {
-			return matched[i].Priority < matched[j].Priority
+	return parents
+}
+
+// betterParent reports whether a is the preferred parent over b on an overlap tie:
+// the deeper layer wins (closest ancestor), then the smaller token.
+func betterParent(a, b Region) bool {
+	if a.Layer != b.Layer {
+		return a.Layer > b.Layer
+	}
+	return a.Token < b.Token
+}
+
+// RegionParentTokens returns each region's parent token ("" for a root), aligned
+// with regions, using the same overlap-based parentage as the region def chain —
+// for showing the derived hierarchy in the editor/read-only views.
+func RegionParentTokens(regions []Region) []string {
+	parents := regionParents(regions)
+	out := make([]string, len(regions))
+	for i, p := range parents {
+		if p != -1 {
+			out[i] = regions[p].Token
 		}
-		return matched[i].ID < matched[j].ID
-	})
-	var out []ConfigStep
-	for _, z := range matched {
-		out = append(out, z.Steps...)
 	}
 	return out
+}
+
+// RegionDefCommands renders the regions that apply at (lat, lon) into the MeshCore
+// commands to run on a repeater: a single `region def …` line describing the
+// region tree for the location, followed by `region save`. The tree is the subset
+// of regions whose geofence contains the point (match-all regions always apply),
+// re-parented onto their nearest matching ancestor and serialized depth-first with
+// the `child|ancestor` pop-back syntax so sibling branches (overlapping same-layer
+// regions) come out correctly. Returns nil when no region covers the location.
+func RegionDefCommands(regions []Region, lat, lon *float64) []string {
+	parents := regionParents(regions)
+	matched := make([]bool, len(regions))
+	any := false
+	for i, z := range regions {
+		if RegionMatches(z, lat, lon) {
+			matched[i], any = true, true
+		}
+	}
+	if !any {
+		return nil
+	}
+	// Collapse unmatched intermediate ancestors: a matched region hangs off its
+	// nearest matched ancestor, or the root (*) if none match.
+	children := make(map[int][]int)
+	var roots []int
+	for i := range regions {
+		if !matched[i] {
+			continue
+		}
+		p := parents[i]
+		for p != -1 && !matched[p] {
+			p = parents[p]
+		}
+		if p == -1 {
+			roots = append(roots, i)
+		} else {
+			children[p] = append(children[p], i)
+		}
+	}
+	byLayerToken := func(idx []int) {
+		sort.SliceStable(idx, func(a, b int) bool {
+			if regions[idx[a]].Layer != regions[idx[b]].Layer {
+				return regions[idx[a]].Layer < regions[idx[b]].Layer
+			}
+			return regions[idx[a]].Token < regions[idx[b]].Token
+		})
+	}
+	byLayerToken(roots)
+	for _, c := range children {
+		byLayerToken(c)
+	}
+
+	// Depth-first pre-order, popping the cursor with |ancestor whenever the next
+	// node isn't a child of the one just emitted.
+	var seq []int
+	var walk func(n int)
+	walk = func(n int) {
+		seq = append(seq, n)
+		for _, c := range children[n] {
+			walk(c)
+		}
+	}
+	for _, r := range roots {
+		walk(r)
+	}
+	effParent := func(n int) int {
+		p := parents[n]
+		for p != -1 && !matched[p] {
+			p = parents[p]
+		}
+		return p
+	}
+	var tokens []string
+	for k, node := range seq {
+		if k > 0 {
+			parent := effParent(node)
+			if parent != seq[k-1] { // not a child of the previous node → pop the cursor
+				jump := "*"
+				if parent != -1 {
+					jump = regions[parent].Token
+				}
+				tokens[len(tokens)-1] += "|" + jump
+			}
+		}
+		tokens = append(tokens, regions[node].Token)
+	}
+	return []string{"region def " + strings.Join(tokens, " "), "region save"}
 }
 
 // RegionMatches reports whether a region applies at (lat, lon): a match-all region

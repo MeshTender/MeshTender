@@ -33,10 +33,10 @@
     {{if .Config.Regions}}
     <div class="card{{if .Config.Profiles}} mt-3{{end}}">
       <div class="card-header"><h3 class="card-title">Regions</h3>
-        <span class="card-subtitle ms-auto">added by location</span>
+        <span class="card-subtitle ms-auto">region hierarchy</span>
       </div>
       <div class="card-body text-secondary">
-        These steps are added based on a repeater's location, independent of the profile you pick.
+        A repeater is assigned to every region whose area contains it. Sorted by layer, their names form a <code>region def</code> command.
       </div>
     </div>
     {{if .Config.HasRegionShapes}}
@@ -48,30 +48,41 @@
         <script src="/static/regionmap.js"></script>
         <script>
           regionMapView('region-map', [
-            {{range .Config.Regions}}{{if .GeofenceJSON}}{name: {{.Name}}, geojson: {{.GeofenceJSON}}},
+            {{range .Config.Regions}}{{if .GeofenceJSON}}{name: {{.DisplayName}}, geojson: {{.GeofenceJSON}}},
             {{end}}{{end}}
           ], {{if .Config.PreviewActive}}{lat: {{.PreviewLat}}, lon: {{.PreviewLon}}}{{else}}null{{end}});
         </script>
       </div>
     </div>
     {{end}}
-    {{range .Config.Regions}}
+    {{if .Config.RegionDef}}
     <div class="card mt-3">
-      <div class="card-header">
-        <h3 class="card-title">{{.Name}}</h3>
-        <span class="card-subtitle ms-auto">
-          {{if .MatchAll}}everywhere{{else}}lat {{.MinLat}}…{{.MaxLat}}, lon {{.MinLon}}…{{.MaxLon}}{{end}} · priority {{.Priority}}
-        </span>
-      </div>
-      <div class="card-body">
-        {{if $.Config.PreviewActive}}
-        {{if .Matches}}<span class="badge bg-success-lt mb-2">applies at {{$.PreviewLat}}, {{$.PreviewLon}}</span>
-        {{else}}<span class="badge bg-secondary-lt mb-2">does not apply here</span>{{end}}
-        {{end}}
-        {{template "step-list" .Steps}}
+      <div class="card-header"><h3 class="card-title">region def · at {{.PreviewLat}}, {{.PreviewLon}}</h3></div>
+      <div class="card-body"><pre class="mb-0"><code>{{range .Config.RegionDef}}{{.}}
+{{end}}</code></pre></div>
+    </div>
+    {{else if .Config.PreviewActive}}
+    <div class="card mt-3"><div class="card-body text-secondary">No regions cover {{.PreviewLat}}, {{.PreviewLon}}.</div></div>
+    {{end}}
+    <div class="card mt-3">
+      <div class="table-responsive">
+        <table class="table card-table">
+          <thead><tr><th>Display name</th><th>Name</th><th>Layer</th><th>Parent</th><th>Area</th>{{if .Config.PreviewActive}}<th></th>{{end}}</tr></thead>
+          <tbody>
+            {{range .Config.Regions}}
+            <tr>
+              <td>{{.DisplayName}}</td>
+              <td><code>{{.Token}}</code></td>
+              <td>{{.Layer}}</td>
+              <td>{{if .Parent}}<code>{{.Parent}}</code>{{else}}<span class="text-secondary">root</span>{{end}}</td>
+              <td class="text-secondary">{{if .MatchAll}}everywhere{{else}}lat {{.MinLat}}…{{.MaxLat}}, lon {{.MinLon}}…{{.MaxLon}}{{end}}</td>
+              {{if $.Config.PreviewActive}}<td>{{if .Matches}}<span class="badge bg-success-lt">applies</span>{{end}}</td>{{end}}
+            </tr>
+            {{end}}
+          </tbody>
+        </table>
       </div>
     </div>
-    {{end}}
     {{end}}
   </div>
 
@@ -89,7 +100,7 @@
           {{if .PreviewLon}}<input type="hidden" name="lon" value="{{.PreviewLon}}">{{end}}
         </form>
         <p class="text-secondary small mt-2 mb-0">
-          Pick the profile matching your hardware to see its base settings.{{if .Config.Regions}} Region steps are added separately, by location.{{end}}
+          Pick the profile matching your hardware to see its base settings.{{if .Config.Regions}} A repeater's regions are assigned separately, by location.{{end}}
         </p>
       </div>
     </div>

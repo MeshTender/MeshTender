@@ -1,6 +1,7 @@
 package store
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/jleight/meshtender/internal/geo"
@@ -30,10 +31,8 @@ func TestOrgConfigReplaceAndRead(t *testing.T) {
 		{Name: "nRF52", Steps: []ConfigStep{{CommandLine: "set tx 20"}}},
 	}
 	regions := []RegionInput{
-		{Name: "metro", Priority: 10, GeofenceJSON: geo.Rectangle(10, 30, 20, 40),
-			Steps: []ConfigStep{{CommandLine: "region put Metro"}}},
-		{Name: "country", Priority: 0, GeofenceJSON: nil,
-			Steps: []ConfigStep{{CommandLine: "region put Country"}}},
+		{Token: "metro", DisplayName: "Metro", Layer: 2, GeofenceJSON: geo.Rectangle(10, 30, 20, 40)},
+		{Token: "country", DisplayName: "Country", Layer: 1, GeofenceJSON: nil},
 	}
 	if err := st.ReplaceOrgConfig(ctx, org.ID, profiles, regions); err != nil {
 		t.Fatalf("replace: %v", err)
@@ -58,9 +57,12 @@ func TestOrgConfigReplaceAndRead(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Regions come back ordered by (priority, id): country(0) then metro(10).
-	if len(gotR) != 2 || gotR[0].Name != "country" || gotR[1].Name != "metro" {
+	// Regions come back ordered by (layer, token): country(1) then metro(2).
+	if len(gotR) != 2 || gotR[0].Token != "country" || gotR[1].Token != "metro" {
 		t.Fatalf("region order = %+v, want [country, metro]", gotR)
+	}
+	if gotR[0].DisplayName != "Country" || gotR[0].Layer != 1 {
+		t.Fatalf("region round-trip wrong: %+v", gotR[0])
 	}
 
 	// Replace fully (mutable, no versioning): the old set is gone.
@@ -77,49 +79,52 @@ func TestOrgConfigReplaceAndRead(t *testing.T) {
 	}
 }
 
-func TestResolveRegions(t *testing.T) {
+func TestRegionDefCommands(t *testing.T) {
 	t.Parallel()
 
-	mk := func(name string, prio int, id int64, box []byte, line string) Region {
+	mk := func(token string, layer int, box []byte) Region {
 		shape, err := geo.Parse(box)
 		if err != nil {
-			t.Fatalf("parse %s: %v", name, err)
+			t.Fatalf("parse %s: %v", token, err)
 		}
-		return Region{ID: id, Name: name, Priority: prio, Geofence: shape,
-			Steps: []ConfigStep{{CommandLine: line}}}
+		return Region{Token: token, Layer: layer, Geofence: shape}
 	}
 
+	// us (L1) covers everything; ny and pa (L2) sit inside us and overlap each
+	// other in a border strip (lon 25–30); buf (L3) is inside ny only.
 	regions := []Region{
-		mk("country", 0, 1, nil, "region put Country"), // match-all
-		mk("metroA", 10, 2, geo.Rectangle(10, 30, 20, 40), "region put MetroA"),
-		mk("metroB", 10, 3, geo.Rectangle(15, 35, 25, 45), "region put MetroB"), // overlaps metroA
+		mk("us", 1, geo.Rectangle(0, 0, 100, 100)),
+		mk("ny", 2, geo.Rectangle(10, 10, 30, 30)),
+		mk("pa", 2, geo.Rectangle(10, 25, 30, 45)), // overlaps ny in lon 25–30
+		mk("buf", 3, geo.Rectangle(12, 12, 18, 18)), // inside ny, west of pa
 	}
 
-	lines := func(steps []ConfigStep) []string {
-		out := make([]string, len(steps))
-		for i, s := range steps {
-			out[i] = s.CommandLine
-		}
-		return out
-	}
-	eq := func(label string, got, want []string) {
+	def := func(label string, lat, lon float64, want string) {
 		t.Helper()
-		if len(got) != len(want) {
-			t.Fatalf("%s = %v, want %v", label, got, want)
-		}
-		for i := range got {
-			if got[i] != want[i] {
-				t.Fatalf("%s = %v, want %v", label, got, want)
-			}
+		got := RegionDefCommands(regions, ptr(lat), ptr(lon))
+		if len(got) != 2 || got[0] != want || got[1] != "region save" {
+			t.Fatalf("%s = %v, want [%q, region save]", label, got, want)
 		}
 	}
 
-	eq("metroA only", lines(ResolveRegions(regions, ptr(12.0), ptr(32.0))),
-		[]string{"region put Country", "region put MetroA"})
-	eq("overlap", lines(ResolveRegions(regions, ptr(17.0), ptr(37.0))),
-		[]string{"region put Country", "region put MetroA", "region put MetroB"})
-	eq("no location", lines(ResolveRegions(regions, nil, nil)),
-		[]string{"region put Country"})
-	eq("outside", lines(ResolveRegions(regions, ptr(0.0), ptr(0.0))),
-		[]string{"region put Country"})
+	// Inside ny + buf only (lon 15) → a linear chain.
+	def("buf", 15, 15, "region def us ny buf")
+	// In the ny/pa overlap (lon 27) → siblings ny and pa branch under us.
+	def("border overlap", 15, 27, "region def us ny|us pa")
+	// In pa only (lon 40) → linear us → pa.
+	def("pa only", 15, 40, "region def us pa")
+
+	// Unknown / outside location → no commands.
+	if got := RegionDefCommands(regions, nil, nil); got != nil {
+		t.Fatalf("no location: got %v, want nil", got)
+	}
+	if got := RegionDefCommands(regions, ptr(-5.0), ptr(-5.0)); got != nil {
+		t.Fatalf("outside: got %v, want nil", got)
+	}
+
+	// Parentage is exposed for display, aligned with regions.
+	wantParents := []string{"", "us", "us", "ny"}
+	if got := RegionParentTokens(regions); !reflect.DeepEqual(got, wantParents) {
+		t.Fatalf("parent tokens = %v, want %v", got, wantParents)
+	}
 }

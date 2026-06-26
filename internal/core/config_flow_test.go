@@ -32,13 +32,12 @@ func TestOrgConfigProfilesFlow(t *testing.T) {
 	}
 
 	form := url.Values{
-		"profile_name":    {"ESP32", "nRF52"},
-		"profile_steps":   {"# esp base", "# nrf base"},
-		"region_name":     {"Mountains"},
-		"region_priority": {"5"},
-		"region_minlat":   {"10"}, "region_minlon": {"30"},
-		"region_maxlat": {"20"}, "region_maxlon": {"40"},
-		"region_steps": {"# mountain note"},
+		"profile_name":   {"ESP32", "nRF52"},
+		"profile_steps":  {"# esp base", "# nrf base"},
+		"region_display": {"Mountains"},
+		"region_token":   {"mtns"},
+		"region_layer":   {"2"},
+		"region_geojson": {`{"type":"Polygon","coordinates":[[[30,10],[40,10],[40,20],[30,20],[30,10]]]}`},
 	}
 	save := post(t, ts, h.app, "/orgs/"+org.Slug+"/config/edit", form, sess)
 	save.Body.Close()
