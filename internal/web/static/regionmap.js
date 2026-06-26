@@ -176,12 +176,19 @@
     }
 
     // A freshly drawn shape belongs to the active region (replacing any it had).
+    // If nothing's selected yet — e.g. the admin drew before clicking "Add
+    // region" — create a region for it so the shape isn't silently lost.
     map.on("pm:create", function (e) {
       if (!active) {
-        if (!blocks.length) { map.removeLayer(e.layer); return; }
-        setActive(blocks[blocks.length - 1]);
+        if (!blocks.length && typeof addBlock === "function") {
+          addBlock("region");
+          reconcile(); // register the new block now, not on the async observer tick
+        }
+        if (blocks.length) setActive(blocks[blocks.length - 1]);
       }
+      if (!active) { map.removeLayer(e.layer); return; } // nothing to attach to
       attach(active, e.layer);
+      if (active.el.scrollIntoView) active.el.scrollIntoView({ block: "nearest" });
     });
     // Toolbar removal: clear whichever region owned the removed layer.
     map.on("pm:remove", function (e) {
