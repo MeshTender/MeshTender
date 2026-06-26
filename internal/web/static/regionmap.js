@@ -88,6 +88,15 @@
     var active = null;
     var banner = document.getElementById(mapId + "-active");
 
+    // While a polygon is being drawn, clicks place vertices — they must not be
+    // treated as region selections. drawTarget locks onto the region that was
+    // selected when drawing began, captured here so a vertex landing on top of
+    // another region's polygon can't hijack the selection mid-draw.
+    var drawing = false;
+    var drawTarget = null;
+    map.on("pm:drawstart", function () { drawing = true; drawTarget = active; });
+    map.on("pm:drawend", function () { drawing = false; });
+
     function setStatus(b) {
       if (b.status) b.status.textContent = b.layer ? "Custom area" : "Applies everywhere";
     }
@@ -116,7 +125,7 @@
       layer.addTo(map);
       // Re-serialize after any vertex edit or whole-shape drag.
       layer.on("pm:edit pm:update pm:dragend pm:markerdragend", function () { serialize(b); });
-      layer.on("click", function () { setActive(b); });
+      layer.on("click", function () { if (!drawing) setActive(b); });
       b.layer = layer;
     }
     function attach(b, layer) {
@@ -147,6 +156,7 @@
         return true;
       });
       // Register newly added blocks.
+      var added = [];
       els.forEach(function (el) {
         if (blocks.some(function (b) { return b.el === el; })) return;
         var b = {
@@ -158,7 +168,7 @@
         var layer = layerFromGeoJSON(b.hidden && b.hidden.value);
         if (layer) bindLayer(b, layer);
         setStatus(b);
-        el.addEventListener("click", function () { setActive(b); });
+        el.addEventListener("click", function () { if (!drawing) setActive(b); });
         var clearBtn = el.querySelector(".region-clear");
         if (clearBtn) clearBtn.addEventListener("click", function (e) {
           e.stopPropagation();
@@ -166,29 +176,37 @@
           clearShape(b);
         });
         blocks.push(b);
+        added.push(b);
       });
       // Reorder to match DOM order (keeps palette colors stable by position).
       blocks.sort(function (a, b) {
         return els.indexOf(a.el) - els.indexOf(b.el);
       });
       restyle();
-      if (!active && blocks.length) setActive(blocks[blocks.length - 1]);
+      // A newly added block becomes the active one (so clicking "Add region"
+      // selects it); otherwise keep the current selection, defaulting to the last.
+      if (added.length) setActive(added[added.length - 1]);
+      else if (!active && blocks.length) setActive(blocks[blocks.length - 1]);
     }
 
-    // A freshly drawn shape belongs to the active region (replacing any it had).
-    // If nothing's selected yet — e.g. the admin drew before clicking "Add
-    // region" — create a region for it so the shape isn't silently lost.
+    // A freshly drawn shape fills the region that was selected when drawing began
+    // (drawTarget) — but only if that region has no shape yet. If it already has
+    // one, or nothing was selected, the shape goes into a brand-new region, so
+    // drawing never overwrites an existing area (e.g. drawing the US inside an
+    // existing North America region adds the US rather than replacing NA).
     map.on("pm:create", function (e) {
-      if (!active) {
-        if (!blocks.length && typeof addBlock === "function") {
+      var target = drawTarget;
+      if (!target || target.layer) {
+        if (typeof addBlock === "function") {
           addBlock("region");
-          reconcile(); // register the new block now, not on the async observer tick
+          reconcile(); // registers + selects the new block synchronously
         }
-        if (blocks.length) setActive(blocks[blocks.length - 1]);
+        target = active || (blocks.length ? blocks[blocks.length - 1] : null);
       }
-      if (!active) { map.removeLayer(e.layer); return; } // nothing to attach to
-      attach(active, e.layer);
-      if (active.el.scrollIntoView) active.el.scrollIntoView({ block: "nearest" });
+      if (!target) { map.removeLayer(e.layer); return; } // nothing to attach to
+      setActive(target);
+      attach(target, e.layer);
+      if (target.el.scrollIntoView) target.el.scrollIntoView({ block: "nearest" });
     });
     // Toolbar removal: clear whichever region owned the removed layer.
     map.on("pm:remove", function (e) {
