@@ -32,6 +32,7 @@ type configRegionView struct {
 	DisplayName  string
 	Token        string
 	Layer        int
+	Primary      bool
 	GeofenceJSON string
 }
 
@@ -203,6 +204,7 @@ func (s *Handlers) parseRegions(r *http.Request, errs *[]string) ([]store.Region
 		*errs = append(*errs, fmt.Sprintf("Too many regions (max %d).", maxConfigRegions))
 	}
 	seen := map[string]bool{}
+	primaryTaken := false
 	var ins []store.RegionInput
 	var views []configRegionView
 	for i := range tokens {
@@ -210,10 +212,11 @@ func (s *Handlers) parseRegions(r *http.Request, errs *[]string) ([]store.Region
 		display := strings.TrimSpace(formAt(r, "region_display", i))
 		geojson := strings.TrimSpace(formAt(r, "region_geojson", i))
 		layer, _ := strconv.Atoi(formAt(r, "region_layer", i))
+		primary := formAt(r, "region_primary", i) == "1"
 		if token == "" && display == "" && geojson == "" {
 			continue // empty block
 		}
-		zv := configRegionView{DisplayName: display, Token: token, Layer: layer, GeofenceJSON: geojson}
+		zv := configRegionView{DisplayName: display, Token: token, Layer: layer, Primary: primary, GeofenceJSON: geojson}
 		if token == "" {
 			*errs = append(*errs, "A region is missing its short name.")
 			views = append(views, zv)
@@ -239,8 +242,14 @@ func (s *Handlers) parseRegions(r *http.Request, errs *[]string) ([]store.Region
 			views = append(views, zv)
 			continue
 		}
+		// Only one region may be primary; keep the first and clear any later ones.
+		if primary && primaryTaken {
+			primary, zv.Primary = false, false
+		} else if primary {
+			primaryTaken = true
+		}
 		views = append(views, zv)
-		ins = append(ins, store.RegionInput{Token: token, DisplayName: display, Layer: layer, GeofenceJSON: geofence})
+		ins = append(ins, store.RegionInput{Token: token, DisplayName: display, Layer: layer, Primary: primary, GeofenceJSON: geofence})
 	}
 	return ins, views
 }
@@ -354,7 +363,7 @@ func regionViews(regions []store.Region) []configRegionView {
 	out := make([]configRegionView, 0, len(regions))
 	for _, z := range regions {
 		out = append(out, configRegionView{
-			DisplayName: z.DisplayName, Token: z.Token, Layer: z.Layer,
+			DisplayName: z.DisplayName, Token: z.Token, Layer: z.Layer, Primary: z.Primary,
 			GeofenceJSON: string(z.GeofenceJSON),
 		})
 	}

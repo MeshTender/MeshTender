@@ -73,6 +73,18 @@ function addBlock(kind) {
   document.getElementById(kind + 's').appendChild(proto.content.cloneNode(true));
 }
 function removeBlock(btn, cls) { btn.closest('.' + cls).remove(); }
+// Only one region may be primary: toggle the clicked one and clear the rest.
+function setPrimaryRegion(btn) {
+  const block = btn.closest('.region-block');
+  const makePrimary = block.querySelector('input[name="region_primary"]').value !== '1';
+  document.querySelectorAll('#regions .region-block').forEach(function (b) {
+    const on = b === block && makePrimary;
+    b.querySelector('input[name="region_primary"]').value = on ? '1' : '';
+    const pb = b.querySelector('.region-primary-btn');
+    pb.classList.toggle('btn-primary', on);
+    pb.textContent = on ? '★ Primary' : 'Make primary';
+  });
+}
 </script>
 <script src="/static/leaflet.js"></script>
 <script src="/static/leaflet-geoman.js"></script>
@@ -106,7 +118,9 @@ function removeBlock(btn, cls) { btn.closest('.' + cls).remove(); }
     <div class="col-md-auto"><label class="form-label">Layer</label>
       <input class="form-control" type="number" name="region_layer" value="{{.Layer}}" style="width:5rem"></div>
     <div class="col-md-auto">
-      <span class="badge bg-blue-lt region-shape-status">Applies everywhere</span>
+      <input type="hidden" name="region_primary" value="{{if .Primary}}1{{end}}">
+      <button type="button" class="btn btn-sm region-primary-btn{{if .Primary}} btn-primary{{end}}" onclick="setPrimaryRegion(this)">{{if .Primary}}★ Primary{{else}}Make primary{{end}}</button>
+      <span class="badge bg-blue-lt region-shape-status ms-1">Applies everywhere</span>
       <button type="button" class="btn btn-sm btn-ghost-secondary region-clear ms-1">Clear area</button>
     </div>
   </div>

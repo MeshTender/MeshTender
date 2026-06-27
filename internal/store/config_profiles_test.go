@@ -1,7 +1,6 @@
 package store
 
 import (
-	"reflect"
 	"testing"
 
 	"github.com/jleight/meshtender/internal/geo"
@@ -120,11 +119,5 @@ func TestRegionDefCommands(t *testing.T) {
 	}
 	if got := RegionDefCommands(regions, ptr(-5.0), ptr(-5.0)); got != nil {
 		t.Fatalf("outside: got %v, want nil", got)
-	}
-
-	// Parentage is exposed for display, aligned with regions.
-	wantParents := []string{"", "us", "us", "ny"}
-	if got := RegionParentTokens(regions); !reflect.DeepEqual(got, wantParents) {
-		t.Fatalf("parent tokens = %v, want %v", got, wantParents)
 	}
 }

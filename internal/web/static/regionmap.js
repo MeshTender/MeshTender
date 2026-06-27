@@ -221,24 +221,37 @@
 
   // ---- Read-only viewer ---------------------------------------------------
 
-  // regions: [{name, geojson}]; preview: {lat, lon} | null.
-  window.regionMapView = function (mapId, regions, preview) {
+  // regionMapView renders a location-picker map (no region outlines — those are
+  // just noise here). opts:
+  //   pickURL — clicking the map navigates here with lat/lon appended so the
+  //             server resolves the region def for that point (must end "?"/"&");
+  //   preview — {lat, lon} of an already-picked point, shown as a marker;
+  //   bounds  — [[minLat,minLon],[maxLat,maxLon]] to frame the org's regions.
+  window.regionMapView = function (mapId, opts) {
+    opts = opts || {};
     var map = L.map(mapId, { scrollWheelZoom: false });
     darkTiles(map);
-    var layers = [];
-    (regions || []).forEach(function (z, i) {
-      var layer = layerFromGeoJSON(z.geojson);
-      if (!layer) return;
-      if (layer.setStyle) layer.setStyle(styleFor(i, false));
-      layer.bindPopup(z.name).addTo(map);
-      layers.push(layer);
-    });
-    if (preview) {
-      var m = L.circleMarker([preview.lat, preview.lon], {
+    if (opts.pickURL) {
+      map.on("click", function (e) {
+        window.location = opts.pickURL + "lat=" + e.latlng.lat.toFixed(6) + "&lon=" + e.latlng.lng.toFixed(6);
+      });
+    }
+    var fit = [];
+    if (opts.bounds) fit.push(opts.bounds[0], opts.bounds[1]);
+    if (opts.preview) {
+      L.circleMarker([opts.preview.lat, opts.preview.lon], {
         radius: 7, color: "#fff", weight: 2, fillColor: "#fff", fillOpacity: 0.9,
       }).addTo(map);
-      layers.push(m);
+      fit.push([opts.preview.lat, opts.preview.lon]);
     }
-    fitToLayers(map, layers, preview ? [preview.lat, preview.lon] : null);
+    if (fit.length) {
+      var b = L.latLngBounds(fit);
+      // A zero-size box (single point — one repeater, or a preview with no
+      // region box) can't be fit; center on it at a neighborhood zoom instead.
+      if (b.getNorthEast().equals(b.getSouthWest())) map.setView(b.getCenter(), 11, { animate: false });
+      else map.fitBounds(b.pad(0.2), { animate: false });
+    } else {
+      map.setView([20, 0], 2, { animate: false });
+    }
   };
 })();

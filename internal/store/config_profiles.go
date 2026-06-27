@@ -51,6 +51,7 @@ type Region struct {
 	Token        string
 	DisplayName  string
 	Layer        int
+	Primary      bool // the org's primary region (frames the config preview map)
 	Geofence     *geo.Shape
 	GeofenceJSON []byte
 }
@@ -65,6 +66,7 @@ type RegionInput struct {
 	Token        string
 	DisplayName  string
 	Layer        int
+	Primary      bool
 	GeofenceJSON []byte
 }
 
@@ -126,14 +128,14 @@ func (s *Store) ListProfiles(ctx context.Context, orgID int64) ([]Profile, error
 // the order their tokens appear in a `region def` chain.
 func (s *Store) ListRegions(ctx context.Context, orgID int64) ([]Region, error) {
 	rrows, err := s.pool.Query(ctx,
-		`SELECT id, token, display_name, layer, geofence FROM config_regions WHERE org_id = $1 ORDER BY layer, token`, orgID)
+		`SELECT id, token, display_name, layer, is_primary, geofence FROM config_regions WHERE org_id = $1 ORDER BY layer, token`, orgID)
 	if err != nil {
 		return nil, fmt.Errorf("list regions: %w", err)
 	}
 	regions, err := collectRows(rrows, func(r pgx.Row) (Region, error) {
 		var z Region
 		var raw []byte
-		if err := r.Scan(&z.ID, &z.Token, &z.DisplayName, &z.Layer, &raw); err != nil {
+		if err := r.Scan(&z.ID, &z.Token, &z.DisplayName, &z.Layer, &z.Primary, &raw); err != nil {
 			return Region{}, err
 		}
 		if z.Geofence, err = geo.Parse(raw); err != nil {
@@ -177,8 +179,8 @@ func (s *Store) ReplaceOrgConfig(ctx context.Context, orgID int64, profiles []Pr
 				geofence = z.GeofenceJSON
 			}
 			if _, err := tx.Exec(ctx,
-				`INSERT INTO config_regions (org_id, token, display_name, layer, geofence) VALUES ($1, $2, $3, $4, $5)`,
-				orgID, z.Token, z.DisplayName, z.Layer, geofence); err != nil {
+				`INSERT INTO config_regions (org_id, token, display_name, layer, is_primary, geofence) VALUES ($1, $2, $3, $4, $5, $6)`,
+				orgID, z.Token, z.DisplayName, z.Layer, z.Primary, geofence); err != nil {
 				return fmt.Errorf("insert region %q: %w", z.Token, err)
 			}
 		}
@@ -234,20 +236,6 @@ func betterParent(a, b Region) bool {
 		return a.Layer > b.Layer
 	}
 	return a.Token < b.Token
-}
-
-// RegionParentTokens returns each region's parent token ("" for a root), aligned
-// with regions, using the same overlap-based parentage as the region def chain —
-// for showing the derived hierarchy in the editor/read-only views.
-func RegionParentTokens(regions []Region) []string {
-	parents := regionParents(regions)
-	out := make([]string, len(regions))
-	for i, p := range parents {
-		if p != -1 {
-			out[i] = regions[p].Token
-		}
-	}
-	return out
 }
 
 // RegionDefCommands renders the regions that apply at (lat, lon) into the MeshCore

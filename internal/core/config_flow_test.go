@@ -46,7 +46,9 @@ func TestOrgConfigProfilesFlow(t *testing.T) {
 	}
 
 	body := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/config", sess))
-	for _, want := range []string{"ESP32", "nRF52", "Mountains", "<select"} {
+	// Profiles list with a selector; the geofenced region surfaces as the
+	// click-to-preview location map (regions aren't listed individually).
+	for _, want := range []string{"ESP32", "nRF52", "<select", "Preview a location", "region-map"} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("config view missing %q", want)
 		}

@@ -19,36 +19,34 @@ type ProfileView struct {
 	Steps []store.ConfigStep
 }
 
-// RegionView is an org region rendered for display: its display name, MeshCore
-// token, and layer; the geofence reduced to its bounding box for the text summary
-// (empty when it matches everywhere); the raw GeoJSON for the map; plus whether it
-// applies at the previewed location.
-type RegionView struct {
-	DisplayName  string
-	Token        string
-	Layer        int
-	Parent       string // derived parent token ("" = root)
-	MatchAll     bool
-	MinLat       string
-	MinLon       string
-	MaxLat       string
-	MaxLon       string
-	GeofenceJSON string
-	Matches      bool
-}
-
 // ConfigView is an org's configuration for display: its named profiles (with one
-// selected for its base settings) and its regions (location steps), the two kept
-// independent. PreviewActive is true when a location was supplied.
+// selected for its base settings) and its regions, kept independent. The regions
+// themselves aren't listed here — they surface only through the location picker —
+// so this carries just what that map needs. PreviewActive is true when a location
+// was supplied.
 type ConfigView struct {
 	HasConfig       bool
 	Profiles        []ProfileView
 	Selected        string
 	SelectedSteps   []store.ConfigStep
-	Regions         []RegionView
-	HasRegionShapes bool     // any region has a drawn geofence (worth showing a map)
-	RegionDef       []string // region def/save commands for the previewed location
+	HasRegions      bool      // org defines at least one region
+	HasRegionShapes bool      // some region has a geofence (so the picker map is useful)
+	MapBounds       []float64 // {minLat, minLon, maxLat, maxLon} framing all geofences, or nil
+	RegionDef       []string  // region def/save commands for the previewed location
 	PreviewActive   bool
+}
+
+// bbox accumulates a lat/lon bounding box. A nil *bbox is empty, so extend can be
+// chained from nil to fold in the first point/box.
+type bbox struct{ minLat, minLon, maxLat, maxLon float64 }
+
+func (b *bbox) extend(minLat, minLon, maxLat, maxLon float64) *bbox {
+	if b == nil {
+		return &bbox{minLat, minLon, maxLat, maxLon}
+	}
+	b.minLat, b.minLon = min(b.minLat, minLat), min(b.minLon, minLon)
+	b.maxLat, b.maxLon = max(b.maxLat, maxLat), max(b.maxLon, maxLon)
+	return b
 }
 
 // BuildConfigView loads an org's profiles and regions for read-only display.
@@ -66,6 +64,7 @@ func BuildConfigView(ctx context.Context, st *store.Store, orgID int64, selected
 	}
 	cv := ConfigView{
 		HasConfig:     len(profiles) > 0 || len(regions) > 0,
+		HasRegions:    len(regions) > 0,
 		PreviewActive: lat != nil && lon != nil,
 	}
 	for _, p := range profiles {
@@ -82,29 +81,43 @@ func BuildConfigView(ctx context.Context, st *store.Store, orgID int64, selected
 		cv.Selected = profiles[idx].Name
 		cv.SelectedSteps = profiles[idx].Steps
 	}
-	parentToks := store.RegionParentTokens(regions)
-	for i, z := range regions {
-		rv := RegionView{DisplayName: z.DisplayName, Token: z.Token, Layer: z.Layer, Parent: parentToks[i], GeofenceJSON: string(z.GeofenceJSON), Matches: store.RegionMatches(z, lat, lon)}
-		if minLat, minLon, maxLat, maxLon, ok := z.Geofence.Bounds(); ok {
-			rv.MinLat = formatCoord(minLat)
-			rv.MinLon = formatCoord(minLon)
-			rv.MaxLat = formatCoord(maxLat)
-			rv.MaxLon = formatCoord(maxLon)
-		} else {
-			rv.MatchAll = true
-		}
-		if rv.GeofenceJSON != "" {
+	// Frame the location-preview map. Prefer the primary region's geofence; if
+	// none is set (or it has no shape), fall back to the org's public repeaters;
+	// failing that, the union of all geofences. (The picker only renders when
+	// HasRegionShapes, so a usable box almost always exists.)
+	var union *bbox
+	for _, z := range regions {
+		if len(z.GeofenceJSON) > 0 {
 			cv.HasRegionShapes = true
 		}
-		cv.Regions = append(cv.Regions, rv)
+		if a, b, c, d, ok := z.Geofence.Bounds(); ok {
+			union = union.extend(a, b, c, d)
+			if z.Primary {
+				cv.MapBounds = []float64{a, b, c, d}
+			}
+		}
+	}
+	if cv.MapBounds == nil {
+		if reps, err := st.ListPublicRepeaters(ctx, orgID); err == nil {
+			var rb *bbox
+			for _, rp := range reps {
+				if rp.HasLocation {
+					rb = rb.extend(rp.Lat, rp.Lon, rp.Lat, rp.Lon)
+				}
+			}
+			if rb != nil {
+				cv.MapBounds = []float64{rb.minLat, rb.minLon, rb.maxLat, rb.maxLon}
+			}
+		}
+	}
+	if cv.MapBounds == nil && union != nil {
+		cv.MapBounds = []float64{union.minLat, union.minLon, union.maxLat, union.maxLon}
 	}
 	if cv.PreviewActive {
 		cv.RegionDef = store.RegionDefCommands(regions, lat, lon)
 	}
 	return cv, nil
 }
-
-func formatCoord(f float64) string { return strconv.FormatFloat(f, 'f', -1, 64) }
 
 // OrgNav is the data the shared org-tabs sub-nav partial expects: the org slug,
 // which tab is active ("home" | "repeaters" | "members" | "config"), whether the
