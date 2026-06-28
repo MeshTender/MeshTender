@@ -99,6 +99,8 @@
 </div>
 {{end}}
 
+<!-- Activity + map: only meaningful once the user owns a repeater -->
+{{if .OwnedCount}}
 <div class="row row-cards mt-1">
   <!-- Left column -->
   <div class="col-lg-8">
@@ -151,4 +153,5 @@
     </div>
   </div>
 </div>
+{{end}}
 {{end}}
