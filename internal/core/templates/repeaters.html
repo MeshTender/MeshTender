@@ -13,58 +13,37 @@
 {{define "content"}}
 {{if .Error}}<div class="alert alert-danger" role="alert">{{.Error}}</div>{{end}}
 
-{{if or .Owned .Shared}}
-{{if .Shared}}<h3 class="mb-3">Your repeaters</h3>{{end}}
-{{if .Owned}}
+{{if .Repeaters}}
 <div class="row row-cards">
-  {{range .Owned}}
+  {{range .Repeaters}}
   <div class="col-12">
-    <div class="card">
+    <a class="card card-link card-link-pop text-reset" href="/repeaters/{{.PublicID}}">
       <div class="card-body py-3">
         <div class="d-flex align-items-center gap-3">
           <span class="avatar bg-blue-lt d-none d-sm-flex">{{template "icon-antenna" ""}}</span>
           <div class="flex-fill" style="min-width:0">
             <div class="d-flex align-items-center flex-wrap gap-2">
-              <h3 class="m-0 fs-3"><a class="text-reset text-decoration-none" href="/repeaters/{{.PublicID}}">{{.Name}}</a></h3>
+              <h3 class="m-0 fs-3">{{.Name}}</h3>
+              {{if .Shared}}<span class="badge bg-purple-lt">Shared</span>{{else}}<span class="badge bg-blue-lt">Owned</span>{{end}}
               {{template "repstatus" .}}
             </div>
             <div class="d-flex align-items-center flex-wrap gap-2 mt-1 text-secondary">
               <span class="font-monospace">{{slice .PublicKeyHex 0 8}}…</span>
-              <button type="button" class="btn btn-icon btn-sm btn-ghost-secondary" title="Copy public key" aria-label="Copy public key" onclick="navigator.clipboard.writeText('{{.PublicKeyHex}}')">{{template "icon-copy" ""}}</button>
               <span class="ms-1">·</span>
-              <span>{{template "sharetext" (index $.ShareCounts .ID)}}</span>
-            </div>
-          </div>
-          <div class="btn-list flex-nowrap">
-            <a class="btn btn-outline-primary" href="/repeaters/{{.PublicID}}/console">{{template "icon-terminal" "me-1"}}Console</a>
-            <div class="dropdown">
-              <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">Manage</button>
-              <div class="dropdown-menu dropdown-menu-end">
-                <a class="dropdown-item" href="/repeaters/{{.PublicID}}/edit">{{template "icon-pencil" "dropdown-item-icon"}}Edit details</a>
-                <a class="dropdown-item" href="/repeaters/{{.PublicID}}/confirm">{{template "icon-antenna" "dropdown-item-icon"}}Confirm access</a>
-                <a class="dropdown-item" href="/repeaters/{{.PublicID}}/log">{{template "icon-list" "dropdown-item-icon"}}Logs</a>
-                <a class="dropdown-item" href="/repeaters/{{.PublicID}}/share">{{template "icon-share" "dropdown-item-icon"}}Sharing</a>
-                <div class="dropdown-divider"></div>
-                <a class="dropdown-item text-danger" href="/repeaters/{{.PublicID}}/delete">{{template "icon-trash" "dropdown-item-icon"}}Delete repeater</a>
-              </div>
+              {{if .Shared}}<span>Shared by {{.OwnerName}}</span>{{else}}<span>{{template "sharetext" (index $.ShareCounts .ID)}}</span>{{end}}
             </div>
           </div>
         </div>
-        {{if and .Confirmed .AccessKnown (not .IsAdmin)}}
+        {{if and (not .Shared) .Confirmed .AccessKnown (not .IsAdmin)}}
         <div class="alert alert-warning mt-3 mb-0">
           MeshTender only has <strong>guest</strong> access here. Guest is available to anyone with a blank password, so there's no point operating at this level — re-run <code>setperm &lt;your key&gt; 3</code> on the repeater to grant admin, then re-test.
         </div>
         {{end}}
       </div>
-    </div>
+    </a>
   </div>
   {{end}}
 </div>
-{{else}}
-<div class="card">
-  <div class="card-body text-secondary">You haven't added any of your own repeaters yet.</div>
-</div>
-{{end}}
 {{else}}
 <div class="empty">
   <div class="empty-icon">{{template "icon-antenna" ""}}</div>
@@ -73,39 +52,6 @@
   <div class="empty-action">
     <a href="/repeaters/add" class="btn btn-primary">{{template "icon-plus" "me-1"}}Add repeater</a>
   </div>
-</div>
-{{end}}
-
-{{if .Shared}}
-<h3 class="mt-4 mb-3">Shared with you</h3>
-<div class="row row-cards">
-  {{range .Shared}}
-  <div class="col-12">
-    <div class="card">
-      <div class="card-body py-3">
-        <div class="d-flex align-items-center gap-3">
-          <span class="avatar bg-blue-lt d-none d-sm-flex">{{template "icon-antenna" ""}}</span>
-          <div class="flex-fill" style="min-width:0">
-            <div class="d-flex align-items-center flex-wrap gap-2">
-              <h3 class="m-0 fs-3"><a class="text-reset text-decoration-none" href="/repeaters/{{.PublicID}}">{{.Name}}</a></h3>
-              {{template "repstatus" .}}
-            </div>
-            <div class="d-flex align-items-center flex-wrap gap-2 mt-1 text-secondary">
-              <span class="font-monospace">{{slice .PublicKeyHex 0 8}}…</span>
-              <button type="button" class="btn btn-icon btn-sm btn-ghost-secondary" title="Copy public key" aria-label="Copy public key" onclick="navigator.clipboard.writeText('{{.PublicKeyHex}}')">{{template "icon-copy" ""}}</button>
-              <span class="ms-1">·</span>
-              <span>Shared by {{.OwnerName}}</span>
-            </div>
-          </div>
-          <div class="btn-list flex-nowrap">
-            <a class="btn btn-outline-primary" href="/repeaters/{{.PublicID}}/console">{{template "icon-terminal" "me-1"}}Console</a>
-            <a class="btn" href="/repeaters/{{.PublicID}}/confirm">Confirm</a>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-  {{end}}
 </div>
 {{end}}
 {{end}}

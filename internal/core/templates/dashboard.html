@@ -69,41 +69,8 @@
 <div class="row row-cards mt-1">
   <!-- Left column -->
   <div class="col-lg-8">
-    <!-- Your repeaters -->
-    <div class="card">
-      <div class="card-header">
-        <h3 class="card-title">Your repeaters</h3>
-        <div class="card-actions"><a href="/repeaters" class="btn btn-sm">View all{{if .OwnedCount}} ({{.OwnedCount}}){{end}}</a></div>
-      </div>
-      {{if .Owned}}
-      <div class="list-group list-group-flush">
-        {{range .Owned}}
-        <div class="list-group-item d-flex align-items-center gap-2">
-          <span class="text-secondary">{{template "icon-antenna" ""}}</span>
-          <div class="flex-fill text-truncate">
-            <a class="fw-bold text-reset text-decoration-none" href="/repeaters/{{.PublicID}}">{{.Name}}</a>
-            {{$c := index $.ShareCounts .ID}}
-            <div class="text-secondary small text-truncate">{{if or $c.Users $c.Orgs}}Shared with {{$c.Users}} user{{if ne $c.Users 1}}s{{end}} · {{$c.Orgs}} org{{if ne $c.Orgs 1}}s{{end}}{{else}}Not shared{{end}}</div>
-          </div>
-          {{template "repstatus" .}}
-          <a class="btn btn-sm" href="/repeaters/{{.PublicID}}/console">{{template "icon-terminal" "me-1"}}Console</a>
-        </div>
-        {{end}}
-      </div>
-      {{else}}
-      <div class="card-body">
-        <div class="empty">
-          <div class="empty-icon">{{template "icon-antenna" ""}}</div>
-          <p class="empty-title">No repeaters yet</p>
-          <p class="empty-subtitle text-secondary">Add one to grant MeshTender access and test it with a modem.</p>
-          <div class="empty-action"><a href="/repeaters/add" class="btn btn-primary">{{template "icon-plus" "me-1"}}Add repeater</a></div>
-        </div>
-      </div>
-      {{end}}
-    </div>
-
     <!-- Recent activity -->
-    <div class="card mt-3">
+    <div class="card">
       <div class="card-header"><h3 class="card-title">Recent activity</h3></div>
       {{if .Recent}}
       <div class="table-responsive">

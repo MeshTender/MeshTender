@@ -198,8 +198,8 @@ func (s *Handlers) pageHome(w http.ResponseWriter, r *http.Request) {
 	s.pageDashboard(w, r)
 }
 
-// pageRepeaters lists every repeater the user owns or has been shared, split
-// into owned and shared sections.
+// pageRepeaters lists every repeater the user owns or has been shared as one
+// combined list, owned first, each tagged owned/shared in the template.
 func (s *Handlers) pageRepeaters(w http.ResponseWriter, r *http.Request) {
 	uid := s.Auth.CurrentUserID(r.Context())
 	repeaters, err := s.Store.ListRepeatersForUser(r.Context(), uid)
@@ -213,9 +213,11 @@ func (s *Handlers) pageRepeaters(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	owned, shared := splitOwnedShared(repeaters)
+	combined := make([]*store.Repeater, 0, len(owned)+len(shared))
+	combined = append(combined, owned...)
+	combined = append(combined, shared...)
 	s.Render(w, r, "repeaters.html", map[string]any{
-		"Owned":       owned,
-		"Shared":      shared,
+		"Repeaters":   combined,
 		"ShareCounts": shareCounts,
 		"Error":       r.URL.Query().Get("error"),
 	})
@@ -244,11 +246,6 @@ func (s *Handlers) pageDashboard(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not load activity", http.StatusInternalServerError)
 		return
 	}
-	shareCounts, err := s.Store.RepeaterSharingCounts(ctx, uid)
-	if err != nil {
-		http.Error(w, "could not load sharing", http.StatusInternalServerError)
-		return
-	}
 
 	confirmed, unconfirmed := 0, 0
 	var mapped []*store.Repeater
@@ -269,11 +266,8 @@ func (s *Handlers) pageDashboard(w http.ResponseWriter, r *http.Request) {
 		"OrgCount":    len(orgs),
 		"Confirmed":   confirmed,
 		"Unconfirmed": unconfirmed,
-		"Owned":       first(owned, 5),
-		"Shared":      first(shared, 5),
 		"Mapped":      mapped,
 		"Recent":      recent,
-		"ShareCounts": shareCounts,
 		"Error":       r.URL.Query().Get("error"),
 	})
 }
@@ -288,14 +282,6 @@ func splitOwnedShared(repeaters []*store.Repeater) (owned, shared []*store.Repea
 		}
 	}
 	return owned, shared
-}
-
-// first returns the first n elements of s, or all of them if there are fewer.
-func first[T any](s []T, n int) []T {
-	if len(s) > n {
-		return s[:n]
-	}
-	return s
 }
 
 // handleLogout signs the user out of the app host, then chains to the auth host's

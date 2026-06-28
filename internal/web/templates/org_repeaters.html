@@ -11,15 +11,22 @@
      htmx "show more" fragment so appended pages match the first. */}}
 {{define "rep-rows"}}
 {{range .Reps.Repeaters}}
+{{if $.Reps.Full}}
+<a class="list-group-item list-group-item-action d-flex align-items-center gap-2" href="/repeaters/{{.RepeaterPublicID}}">
+  <span class="text-secondary">{{template "icon-antenna" ""}}</span>
+  <div class="flex-fill text-truncate">
+    <span class="fw-bold">{{.Name}}</span>
+    <div class="text-secondary small">owner {{.OwnerName}}</div>
+  </div>
+</a>
+{{else}}
 <div class="list-group-item d-flex align-items-center gap-2">
   <span class="text-secondary">{{template "icon-antenna" ""}}</span>
   <div class="flex-fill text-truncate">
-    {{if $.Reps.Full}}<a class="fw-bold text-reset text-decoration-none" href="/repeaters/{{.RepeaterPublicID}}">{{.Name}}</a>
-    <div class="text-secondary small">owner {{.OwnerName}}</div>
-    {{else}}<span class="fw-bold">{{.Name}}</span>{{end}}
+    <span class="fw-bold">{{.Name}}</span>
   </div>
-  {{if $.Reps.Full}}<a class="btn btn-sm" href="/repeaters/{{.RepeaterPublicID}}/console">{{template "icon-terminal" "me-1"}}Console</a>{{end}}
 </div>
+{{end}}
 {{end}}
 {{end}}
 

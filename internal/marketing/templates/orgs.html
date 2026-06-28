@@ -14,14 +14,14 @@
      htmx "load more" fragment so appended pages match the first. */}}
 {{define "org-rows"}}
 {{range .All}}
-<div class="list-group-item">
+<a class="list-group-item list-group-item-action" href="/orgs/{{.Slug}}">
   <div class="d-flex align-items-center gap-2">
-    <a class="fw-bold text-reset text-decoration-none" href="/orgs/{{.Slug}}">{{.Name}}</a>
+    <span class="fw-bold">{{.Name}}</span>
     {{if .Region}}<span class="badge bg-secondary-lt">{{.Region}}</span>{{end}}
   </div>
   {{if .Description}}<p class="text-secondary mb-1 mt-1">{{.Description}}</p>{{end}}
   <div class="text-secondary small">{{.MemberCount}} member{{if ne .MemberCount 1}}s{{end}} · {{.RepeaterCount}} repeater{{if ne .RepeaterCount 1}}s{{end}}</div>
-</div>
+</a>
 {{end}}
 {{end}}
 
