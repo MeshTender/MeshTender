@@ -223,8 +223,19 @@ func (s *Handlers) pageRepeaters(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// pageDashboard renders the signed-in overview: summary stats, short lists of
-// repeaters and organizations, a map of owned repeaters, and recent activity.
+// onboardingStep is one item in the dashboard getting-started checklist. Steps
+// are data-driven so adding a new one (e.g. future profile fields) is a single
+// entry in buildOnboarding rather than template surgery.
+type onboardingStep struct {
+	Title  string
+	Desc   string
+	Action string // CTA label, shown only while the step is pending
+	Href   string // where the CTA leads (absolute when it crosses hosts)
+	Done   bool
+}
+
+// pageDashboard renders the signed-in overview: summary stats, a getting-started
+// checklist, a map of owned repeaters, and recent activity.
 func (s *Handlers) pageDashboard(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	uid := s.Auth.CurrentUserID(ctx)
@@ -246,6 +257,11 @@ func (s *Handlers) pageDashboard(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not load activity", http.StatusInternalServerError)
 		return
 	}
+	user, err := s.Store.GetUserByID(ctx, uid)
+	if err != nil {
+		http.Error(w, "could not load account", http.StatusInternalServerError)
+		return
+	}
 
 	confirmed, unconfirmed := 0, 0
 	var mapped []*store.Repeater
@@ -260,15 +276,53 @@ func (s *Handlers) pageDashboard(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	steps := []onboardingStep{
+		{
+			Title:  "Set up your profile",
+			Desc:   "Add a display name so teammates recognize you.",
+			Action: "Edit profile",
+			Href:   s.Origin(r, s.Cfg.AuthHost) + "/account",
+			Done:   user.DisplayName != nil && *user.DisplayName != "",
+		},
+		{
+			Title:  "Add a repeater",
+			Desc:   "Connect a repeater to MeshTender and test it with a modem.",
+			Action: "Add repeater",
+			Href:   "/repeaters/add",
+			Done:   len(owned) > 0,
+		},
+		{
+			Title:  "Join an organization",
+			Desc:   "Find a local mesh community to share repeaters and coordinate.",
+			Action: "Browse organizations",
+			Href:   s.Origin(r, s.Cfg.RootHost) + "/orgs",
+			Done:   len(orgs) > 0,
+		},
+	}
+	total := len(steps)
+	doneCount := 0
+	for _, st := range steps {
+		if st.Done {
+			doneCount++
+		}
+	}
+	// Hide the checklist entirely once everything's done.
+	if doneCount == total {
+		steps = nil
+	}
+
 	s.Render(w, r, "dashboard.html", map[string]any{
-		"OwnedCount":  len(owned),
-		"SharedCount": len(shared),
-		"OrgCount":    len(orgs),
-		"Confirmed":   confirmed,
-		"Unconfirmed": unconfirmed,
-		"Mapped":      mapped,
-		"Recent":      recent,
-		"Error":       r.URL.Query().Get("error"),
+		"OwnedCount":      len(owned),
+		"SharedCount":     len(shared),
+		"OrgCount":        len(orgs),
+		"Confirmed":       confirmed,
+		"Unconfirmed":     unconfirmed,
+		"Mapped":          mapped,
+		"Recent":          recent,
+		"Onboarding":      steps,
+		"OnboardingDone":  doneCount,
+		"OnboardingTotal": total,
+		"Error":           r.URL.Query().Get("error"),
 	})
 }
 
