@@ -131,8 +131,8 @@ func TestConfirmRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse anon req: %v", err)
 	}
-	if anon.Destination != repeater.Identity.Hash()[0] {
-		t.Fatalf("login addressed to 0x%02x, want repeater 0x%02x", anon.Destination, repeater.Identity.Hash()[0])
+	if anon.Destination != repeater.Hash()[0] {
+		t.Fatalf("login addressed to 0x%02x, want repeater 0x%02x", anon.Destination, repeater.Hash()[0])
 	}
 	shared, err := repeater.SharedSecret(serverID)
 	if err != nil {
@@ -198,7 +198,7 @@ func buildResponseFrame(t *testing.T, repeater meshcore.LocalIdentity, server me
 	}
 	resp := &meshcore.Response{
 		Destination:      server.Hash()[0],
-		Source:           repeater.Identity.Hash()[0],
+		Source:           repeater.Hash()[0],
 		MAC:              [2]byte{enc[0], enc[1]},
 		EncryptedPayload: enc[2:],
 	}

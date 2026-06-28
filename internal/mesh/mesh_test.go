@@ -46,7 +46,7 @@ func buildRepeaterResponse(t *testing.T, repeater meshcore.LocalIdentity, server
 	}
 	resp := &meshcore.Response{
 		Destination:      server.Hash()[0],
-		Source:           repeater.Identity.Hash()[0],
+		Source:           repeater.Hash()[0],
 		MAC:              [2]byte{enc[0], enc[1]},
 		EncryptedPayload: enc[2:],
 	}
@@ -94,8 +94,8 @@ func TestLoginRequestDecodableByRepeater(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AnonReqFromBytes: %v", err)
 	}
-	if anon.Destination != repeater.Identity.Hash()[0] {
-		t.Errorf("destination = 0x%02x, want 0x%02x", anon.Destination, repeater.Identity.Hash()[0])
+	if anon.Destination != repeater.Hash()[0] {
+		t.Errorf("destination = 0x%02x, want 0x%02x", anon.Destination, repeater.Hash()[0])
 	}
 	// The repeater derives the shared secret from the sender pubkey in the packet.
 	sender, err := meshcore.NewIdentityFromBytes(anon.EphemeralPubKey[:])
@@ -150,7 +150,7 @@ func buildRepeaterPathReply(t *testing.T, repeater meshcore.LocalIdentity, serve
 	}
 	p := &meshcore.Path{
 		Destination:      server.Hash()[0],
-		Source:           repeater.Identity.Hash()[0],
+		Source:           repeater.Hash()[0],
 		MAC:              [2]byte{enc[0], enc[1]},
 		EncryptedPayload: enc[2:],
 	}

@@ -139,7 +139,7 @@ func TestConsoleRoundTrip(t *testing.T) {
 				resp[7] = 3
 				body := append([]byte{0x00, meshcore.PayloadTypeResponse}, resp...)
 				enc, _ := meshcore.EncryptThenMAC(shared, body)
-				p := &meshcore.Path{Destination: serverID.Hash()[0], Source: repeater.Identity.Hash()[0], MAC: [2]byte{enc[0], enc[1]}, EncryptedPayload: enc[2:]}
+				p := &meshcore.Path{Destination: serverID.Hash()[0], Source: repeater.Hash()[0], MAC: [2]byte{enc[0], enc[1]}, EncryptedPayload: enc[2:]}
 				payload, _ := p.ToBytes()
 				lp := &meshcore.Packet{Header: meshcore.MakeHeader(meshcore.RouteTypeFlood, meshcore.PayloadTypePath, 0), Payload: payload}
 				raw, _ := lp.ToBytes()

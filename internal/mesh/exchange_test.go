@@ -118,7 +118,7 @@ func TestExchangerUsesDirectAfterLogin(t *testing.T) {
 			body = append(body, meshcore.PayloadTypeResponse)
 			body = append(body, resp...)
 			enc, _ := meshcore.EncryptThenMAC(shared, body)
-			p := &meshcore.Path{Destination: server.Identity.Hash()[0], Source: repeater.Identity.Hash()[0], MAC: [2]byte{enc[0], enc[1]}, EncryptedPayload: enc[2:]}
+			p := &meshcore.Path{Destination: server.Hash()[0], Source: repeater.Hash()[0], MAC: [2]byte{enc[0], enc[1]}, EncryptedPayload: enc[2:]}
 			payload, _ := p.ToBytes()
 			lp := &meshcore.Packet{Header: meshcore.MakeHeader(meshcore.RouteTypeFlood, meshcore.PayloadTypePath, 0), Payload: payload}
 			r, _ := lp.ToBytes()

@@ -21,7 +21,7 @@ type webauthnUser struct {
 
 func (u *webauthnUser) WebAuthnID() []byte {
 	b := make([]byte, 8)
-	binary.BigEndian.PutUint64(b, uint64(u.user.ID))
+	binary.BigEndian.PutUint64(b, uint64(u.user.ID)) //nolint:gosec // G115: user row ID is non-negative
 	return b
 }
 

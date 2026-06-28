@@ -50,7 +50,7 @@ func (s *Handlers) handleRepeaterDocs(w http.ResponseWriter, r *http.Request) {
 		web.RedirectErr(w, r, docsPath(repeaterParam(r)), "Could not save documentation.")
 		return
 	}
-	http.Redirect(w, r, docsPath(repeaterParam(r)), http.StatusSeeOther)
+	http.Redirect(w, r, docsPath(repeaterParam(r)), http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
 }
 
 // pageRepeaterMaintenance renders the Maintenance tab: the history plus, for
@@ -112,7 +112,7 @@ func (s *Handlers) handleAddMaintenance(w http.ResponseWriter, r *http.Request) 
 		web.RedirectErr(w, r, maintPath(repeaterParam(r)), "Could not log maintenance entry.")
 		return
 	}
-	http.Redirect(w, r, maintPath(repeaterParam(r)), http.StatusSeeOther)
+	http.Redirect(w, r, maintPath(repeaterParam(r)), http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
 }
 
 // handleDeleteMaintenance removes a maintenance entry (owner only).
@@ -130,7 +130,7 @@ func (s *Handlers) handleDeleteMaintenance(w http.ResponseWriter, r *http.Reques
 		web.RedirectErr(w, r, maintPath(repeaterParam(r)), "Could not delete entry.")
 		return
 	}
-	http.Redirect(w, r, maintPath(repeaterParam(r)), http.StatusSeeOther)
+	http.Redirect(w, r, maintPath(repeaterParam(r)), http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
 }
 
 func docsPath(publicID string) string  { return "/repeaters/" + publicID + "/docs" }

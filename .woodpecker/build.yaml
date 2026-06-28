@@ -1,5 +1,5 @@
 # Builds the OCI image and pushes it to the Forgejo registry. Runs only after
-# tests pass, and only on the main branch and on tags (not on pull requests).
+# tests and lint pass, and only on the main branch and on tags (not on PRs).
 when:
   - event: push
     branch: main
@@ -7,6 +7,7 @@ when:
 
 depends_on:
   - test
+  - lint
 
 steps:
   publish:

@@ -62,7 +62,7 @@ func (s *Handlers) handleCreateLink(w http.ResponseWriter, r *http.Request) {
 		shareErr(w, r, "Could not create share link.")
 		return
 	}
-	http.Redirect(w, r, sharePath(repeaterParam(r)), http.StatusSeeOther)
+	http.Redirect(w, r, sharePath(repeaterParam(r)), http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
 }
 
 // handleDeleteInvite revokes (or clears) a single share link by id (owner only).
@@ -80,7 +80,7 @@ func (s *Handlers) handleDeleteInvite(w http.ResponseWriter, r *http.Request) {
 		shareErr(w, r, "Could not remove link.")
 		return
 	}
-	http.Redirect(w, r, sharePath(repeaterParam(r)), http.StatusSeeOther)
+	http.Redirect(w, r, sharePath(repeaterParam(r)), http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
 }
 
 // handleSetShareSteward flags or unflags a shared user as a steward (owner only).
@@ -102,7 +102,7 @@ func (s *Handlers) handleSetShareSteward(w http.ResponseWriter, r *http.Request)
 		shareErr(w, r, "Could not update steward.")
 		return
 	}
-	http.Redirect(w, r, sharePath(repeaterParam(r)), http.StatusSeeOther)
+	http.Redirect(w, r, sharePath(repeaterParam(r)), http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
 }
 
 // handleUnshare revokes a user's access (owner only).
@@ -120,7 +120,7 @@ func (s *Handlers) handleUnshare(w http.ResponseWriter, r *http.Request) {
 		shareErr(w, r, "Could not revoke access.")
 		return
 	}
-	http.Redirect(w, r, sharePath(repeaterParam(r)), http.StatusSeeOther)
+	http.Redirect(w, r, sharePath(repeaterParam(r)), http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
 }
 
 // --- invite accept flow ---
@@ -249,7 +249,7 @@ func (s *Handlers) pageShareCommands(w http.ResponseWriter, r *http.Request) {
 	}
 	// A steward already has every command; per-command limits don't apply to them.
 	if steward, err := s.Store.IsSteward(r.Context(), id, targetID); err == nil && steward {
-		http.Redirect(w, r, sharePath(repeaterParam(r)), http.StatusSeeOther)
+		http.Redirect(w, r, sharePath(repeaterParam(r)), http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
 		return
 	}
 	target, err := s.Store.GetUserByID(r.Context(), targetID)
@@ -303,7 +303,7 @@ func (s *Handlers) handleSetShareCommands(w http.ResponseWriter, r *http.Request
 		http.Error(w, "could not save commands", http.StatusInternalServerError)
 		return
 	}
-	http.Redirect(w, r, sharePath(repeaterParam(r)), http.StatusSeeOther)
+	http.Redirect(w, r, sharePath(repeaterParam(r)), http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
 }
 
 // --- helpers ---

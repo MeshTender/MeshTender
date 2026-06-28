@@ -64,7 +64,7 @@ func (s *Handlers) pageAddRepeater(w http.ResponseWriter, r *http.Request) {
 		orgs := s.setupOrgOptions(r)
 		data["Orgs"] = orgs
 		if b, err := json.Marshal(orgs); err == nil {
-			data["OrgsJS"] = template.JS(b)
+			data["OrgsJS"] = template.JS(b) //nolint:gosec // G203: b is json.Marshal output (Go escapes <>& in JS context)
 		} else {
 			data["OrgsJS"] = template.JS("[]")
 		}
@@ -124,7 +124,7 @@ func (s *Handlers) pageRepeater(w http.ResponseWriter, r *http.Request) {
 			qr.BackgroundColor = color.Transparent
 			qr.ForegroundColor = color.RGBA{R: 0x8a, G: 0x97, B: 0xa8, A: 0xff}
 			if png, err := qr.PNG(256); err == nil {
-				data["PublicPageQR"] = template.URL("data:image/png;base64," + base64.StdEncoding.EncodeToString(png))
+				data["PublicPageQR"] = template.URL("data:image/png;base64," + base64.StdEncoding.EncodeToString(png)) //nolint:gosec // G203: fixed data: URI over base64 PNG, no user input
 			}
 		}
 	}
@@ -136,7 +136,7 @@ func (s *Handlers) pageRepeater(w http.ResponseWriter, r *http.Request) {
 		qr.BackgroundColor = color.Transparent
 		qr.ForegroundColor = color.RGBA{R: 0x8a, G: 0x97, B: 0xa8, A: 0xff}
 		if png, err := qr.PNG(256); err == nil {
-			data["ContactQR"] = template.URL("data:image/png;base64," + base64.StdEncoding.EncodeToString(png))
+			data["ContactQR"] = template.URL("data:image/png;base64," + base64.StdEncoding.EncodeToString(png)) //nolint:gosec // G203: fixed data: URI over base64 PNG, no user input
 		}
 	}
 	if isOwner {
@@ -251,7 +251,7 @@ func (s *Handlers) pageEditRepeater(w http.ResponseWriter, r *http.Request) {
 	s.Render(w, r, "edit_repeater.html", map[string]any{
 		"Repeater":       rep,
 		"Presets":        radioPresets,
-		"SelectedPreset": presetIDFor(config.RadioDefaults{FreqHz: uint32(rep.RadioFreqHz), BwHz: uint32(rep.RadioBwHz), SF: uint8(rep.RadioSF), CR: uint8(rep.RadioCR)}),
+		"SelectedPreset": presetIDFor(config.RadioDefaults{FreqHz: uint32(rep.RadioFreqHz), BwHz: uint32(rep.RadioBwHz), SF: uint8(rep.RadioSF), CR: uint8(rep.RadioCR)}), //nolint:gosec // G115: radio config value is bounded (preset-constrained)
 		"RevokeCommand":  s.Identity.RevokePermCommand(),
 		"Error":          r.URL.Query().Get("error"),
 	})

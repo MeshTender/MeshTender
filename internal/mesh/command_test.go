@@ -30,8 +30,8 @@ func TestBuildCommandPacketDecodableByRepeater(t *testing.T) {
 	if err != nil {
 		t.Fatalf("TextMessageFromBytes: %v", err)
 	}
-	if tm.Destination != repeater.Identity.Hash()[0] {
-		t.Errorf("dest = 0x%02x, want 0x%02x", tm.Destination, repeater.Identity.Hash()[0])
+	if tm.Destination != repeater.Hash()[0] {
+		t.Errorf("dest = 0x%02x, want 0x%02x", tm.Destination, repeater.Hash()[0])
 	}
 	shared, err := repeater.SharedSecret(server.Identity)
 	if err != nil {

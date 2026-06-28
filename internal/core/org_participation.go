@@ -116,7 +116,7 @@ func (s *Handlers) handleSaveOrgCommands(w http.ResponseWriter, r *http.Request)
 			http.Error(w, "could not save", http.StatusInternalServerError)
 			return
 		}
-		http.Redirect(w, r, "/orgs/"+orgParam(r)+"/my-commands", http.StatusSeeOther)
+		http.Redirect(w, r, "/orgs/"+orgParam(r)+"/my-commands", http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
 		return
 	}
 	ceiling, err := s.orgCeilingCommands(r)
@@ -133,7 +133,7 @@ func (s *Handlers) handleSaveOrgCommands(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "could not save", http.StatusInternalServerError)
 		return
 	}
-	http.Redirect(w, r, "/orgs/"+orgParam(r)+"/my-commands", http.StatusSeeOther)
+	http.Redirect(w, r, "/orgs/"+orgParam(r)+"/my-commands", http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
 }
 
 // orgCeilingCommands returns the catalog commands an org is ever permitted to run

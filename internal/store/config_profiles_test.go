@@ -94,7 +94,7 @@ func TestRegionDefCommands(t *testing.T) {
 	regions := []Region{
 		mk("us", 1, geo.Rectangle(0, 0, 100, 100)),
 		mk("ny", 2, geo.Rectangle(10, 10, 30, 30)),
-		mk("pa", 2, geo.Rectangle(10, 25, 30, 45)), // overlaps ny in lon 25–30
+		mk("pa", 2, geo.Rectangle(10, 25, 30, 45)),  // overlaps ny in lon 25–30
 		mk("buf", 3, geo.Rectangle(12, 12, 18, 18)), // inside ny, west of pa
 	}
 

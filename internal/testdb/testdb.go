@@ -96,7 +96,7 @@ func ensureTemplate(ctx context.Context, migrate func(dsn string) error) error {
 			templateErr = fmt.Errorf("admin connect: %w", err)
 			return
 		}
-		defer conn.Close(ctx)
+		defer func() { _ = conn.Close(ctx) }()
 		// Hold a cross-process advisory lock only around the template DDL: this is
 		// the one CREATE DATABASE that copies the shared template1, so concurrent
 		// package binaries on one server must take turns. Released before migrate,
@@ -153,7 +153,7 @@ func Fresh(t *testing.T, migrate func(dsn string) error) string {
 	conn, err := pgx.Connect(ctx, adminDSN)
 	if err == nil {
 		_, err = conn.Exec(ctx, `CREATE DATABASE `+quoteIdent(name)+` TEMPLATE `+quoteIdent(templateName))
-		conn.Close(ctx)
+		_ = conn.Close(ctx)
 	}
 	createMu.Unlock()
 	if err != nil {
@@ -165,7 +165,7 @@ func Fresh(t *testing.T, migrate func(dsn string) error) string {
 		if err != nil {
 			return
 		}
-		defer c.Close(ctx)
+		defer func() { _ = c.Close(ctx) }()
 		_, _ = c.Exec(ctx, `DROP DATABASE IF EXISTS `+quoteIdent(name)+` WITH (FORCE)`)
 	})
 
@@ -187,7 +187,7 @@ func RunMain(m *testing.M) int {
 	if templateName != "" && adminDSN != "" {
 		if conn, err := pgx.Connect(ctx, adminDSN); err == nil {
 			_, _ = conn.Exec(ctx, `DROP DATABASE IF EXISTS `+quoteIdent(templateName)+` WITH (FORCE)`)
-			conn.Close(ctx)
+			_ = conn.Close(ctx)
 		}
 	}
 	if container != nil {

@@ -62,7 +62,7 @@ func (s *Handlers) handleCreateOrg(w http.ResponseWriter, r *http.Request) {
 		web.RedirectErr(w, r, "/orgs/new", "Could not create organization.")
 		return
 	}
-	http.Redirect(w, r, "/orgs/"+org.Slug, http.StatusSeeOther)
+	http.Redirect(w, r, "/orgs/"+org.Slug, http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
 }
 
 // pageOrg shows an org's home. Members get the full management view; everyone
@@ -287,7 +287,7 @@ func (s *Handlers) handleEditOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// The slug may have changed; redirect to the new canonical URL.
-	http.Redirect(w, r, "/orgs/"+slug, http.StatusSeeOther)
+	http.Redirect(w, r, "/orgs/"+slug, http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
 }
 
 // handleSetOrgLinks replaces an org's whole set of social/site links from the
@@ -344,7 +344,7 @@ func (s *Handlers) handleSetOrgLinks(w http.ResponseWriter, r *http.Request) {
 		orgErr(w, r, "Could not save links.")
 		return
 	}
-	http.Redirect(w, r, "/orgs/"+orgParam(r), http.StatusSeeOther)
+	http.Redirect(w, r, "/orgs/"+orgParam(r), http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
 }
 
 // validLinkURL reports whether s is an absolute http(s) URL with a host. Limiting
@@ -413,7 +413,7 @@ func (s *Handlers) pageJoinOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if isMember {
-		http.Redirect(w, r, "/orgs/"+org.Slug, http.StatusSeeOther)
+		http.Redirect(w, r, "/orgs/"+org.Slug, http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
 		return
 	}
 	hasRepeaters, err := s.Store.OwnsAnyRepeater(r.Context(), uid)
@@ -444,7 +444,7 @@ func (s *Handlers) handleJoinOrg(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	http.Redirect(w, r, "/orgs/"+orgParam(r), http.StatusSeeOther)
+	http.Redirect(w, r, "/orgs/"+orgParam(r), http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
 }
 
 // handleSetOrgMember promotes/demotes/removes a member (admin only).
@@ -479,5 +479,5 @@ func (s *Handlers) handleSetOrgMember(w http.ResponseWriter, r *http.Request) {
 		memberErr("Could not update member.")
 		return
 	}
-	http.Redirect(w, r, membersURL, http.StatusSeeOther)
+	http.Redirect(w, r, membersURL, http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
 }

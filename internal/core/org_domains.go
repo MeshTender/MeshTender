@@ -10,7 +10,7 @@ import (
 )
 
 // txtRecordName is the DNS label an org adds under its domain to prove ownership.
-const txtRecordPrefix = "_meshtender."
+const txtRecordPrefix = "_meshtender." //nolint:unused // wired when the /domains routes are enabled (see web.go)
 
 // normalizeHostname lowercases and strips any scheme, path, port, or trailing
 // dot from user-entered domain input, returning "" if it isn't a plausible host.
@@ -27,7 +27,8 @@ func normalizeHostname(raw string) string {
 		return ""
 	}
 	for _, c := range h {
-		if !(c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '.' || c == '-') {
+		ok := c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '.' || c == '-'
+		if !ok {
 			return ""
 		}
 	}
@@ -35,7 +36,7 @@ func normalizeHostname(raw string) string {
 }
 
 // handleAddOrgDomain registers a new custom domain for an org (admin only).
-func (s *Handlers) handleAddOrgDomain(w http.ResponseWriter, r *http.Request) {
+func (s *Handlers) handleAddOrgDomain(w http.ResponseWriter, r *http.Request) { //nolint:unused // wired when the /domains routes are enabled (see web.go)
 	id, ok := s.requireOrgAdmin(w, r)
 	if !ok {
 		return
@@ -52,12 +53,12 @@ func (s *Handlers) handleAddOrgDomain(w http.ResponseWriter, r *http.Request) {
 		orgErr(w, r, "Could not add domain.")
 		return
 	}
-	http.Redirect(w, r, "/orgs/"+orgParam(r), http.StatusSeeOther)
+	http.Redirect(w, r, "/orgs/"+orgParam(r), http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
 }
 
 // handleVerifyOrgDomain checks the org's DNS TXT record carries the domain's
 // verification token, then marks it verified (admin only).
-func (s *Handlers) handleVerifyOrgDomain(w http.ResponseWriter, r *http.Request) {
+func (s *Handlers) handleVerifyOrgDomain(w http.ResponseWriter, r *http.Request) { //nolint:unused // wired when the /domains routes are enabled (see web.go)
 	id, ok := s.requireOrgAdmin(w, r)
 	if !ok {
 		return
@@ -85,7 +86,7 @@ func (s *Handlers) handleVerifyOrgDomain(w http.ResponseWriter, r *http.Request)
 		orgErr(w, r, "Could not save verification.")
 		return
 	}
-	http.Redirect(w, r, "/orgs/"+orgParam(r), http.StatusSeeOther)
+	http.Redirect(w, r, "/orgs/"+orgParam(r), http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
 }
 
 // txtRecordsHaveToken reports whether any TXT record exactly matches the token
@@ -100,7 +101,7 @@ func txtRecordsHaveToken(records []string, token string) bool {
 }
 
 // handleDeleteOrgDomain removes a custom domain (admin only).
-func (s *Handlers) handleDeleteOrgDomain(w http.ResponseWriter, r *http.Request) {
+func (s *Handlers) handleDeleteOrgDomain(w http.ResponseWriter, r *http.Request) { //nolint:unused // wired when the /domains routes are enabled (see web.go)
 	id, ok := s.requireOrgAdmin(w, r)
 	if !ok {
 		return
@@ -114,5 +115,5 @@ func (s *Handlers) handleDeleteOrgDomain(w http.ResponseWriter, r *http.Request)
 		orgErr(w, r, "Could not remove domain.")
 		return
 	}
-	http.Redirect(w, r, "/orgs/"+orgParam(r), http.StatusSeeOther)
+	http.Redirect(w, r, "/orgs/"+orgParam(r), http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
 }

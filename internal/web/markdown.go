@@ -27,5 +27,5 @@ func Markdown(src string) template.HTML {
 	if err := mdRenderer.Convert([]byte(src), &buf); err != nil {
 		return ""
 	}
-	return template.HTML(mdPolicy.SanitizeBytes(buf.Bytes()))
+	return template.HTML(mdPolicy.SanitizeBytes(buf.Bytes())) //nolint:gosec // G203: output is bluemonday-sanitized by mdPolicy
 }

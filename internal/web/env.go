@@ -270,7 +270,7 @@ func Dispatcher(cfg *config.Config, authH, rootH, appH http.Handler) http.Handle
 		case rootH != nil && strings.EqualFold(host, cfg.RootHost):
 			rootH.ServeHTTP(w, r)
 		case cfg.WWWHost != "" && strings.EqualFold(host, cfg.WWWHost):
-			http.Redirect(w, r, originFor(cfg, r, cfg.RootHost)+r.URL.RequestURI(), http.StatusMovedPermanently)
+			http.Redirect(w, r, originFor(cfg, r, cfg.RootHost)+r.URL.RequestURI(), http.StatusMovedPermanently) //nolint:gosec // G710: local path or config-pinned origin
 		default:
 			appH.ServeHTTP(w, r)
 		}

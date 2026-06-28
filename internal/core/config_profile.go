@@ -153,7 +153,7 @@ func (s *Handlers) handleSaveOrgConfig(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not save", http.StatusInternalServerError)
 		return
 	}
-	http.Redirect(w, r, "/orgs/"+orgParam(r)+"/config", http.StatusSeeOther)
+	http.Redirect(w, r, "/orgs/"+orgParam(r)+"/config", http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
 }
 
 // parseProfiles reads the repeated profile blocks from the form into store inputs

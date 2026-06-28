@@ -98,7 +98,7 @@ func (s *Handlers) CustomDomain(next http.Handler) http.Handler {
 			s.renderOrgPublic(w, r, org, false, false)
 			return
 		}
-		http.Redirect(w, r, s.Origin(r, s.Cfg.PrimaryHost)+r.URL.RequestURI(), http.StatusFound)
+		http.Redirect(w, r, s.Origin(r, s.Cfg.PrimaryHost)+r.URL.RequestURI(), http.StatusFound) //nolint:gosec // G710: local path or config-pinned origin
 	})
 }
 

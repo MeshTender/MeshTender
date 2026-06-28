@@ -78,7 +78,7 @@ func (s *Handlers) wsConfirm(w http.ResponseWriter, r *http.Request) {
 	// spurious "tx done timeout". We don't need it; the repeater's reply is the
 	// real confirmation we wait for.
 	modem := hardware.NewKissModem(bridge, hardware.WithTxFlowControl(0))
-	defer modem.Close()
+	defer func() { _ = modem.Close() }()
 
 	server := s.Identity.Local()
 	debug := r.URL.Query().Get("debug") == "1"
@@ -139,10 +139,10 @@ func (s *Handlers) wsConfirm(w http.ResponseWriter, r *http.Request) {
 
 	_ = bridge.Status("info", "Tuning radio…")
 	if err := modem.SetRadio(&hardware.RadioConfig{
-		FreqHz: uint32(rep.RadioFreqHz),
-		BwHz:   uint32(rep.RadioBwHz),
-		SF:     uint8(rep.RadioSF),
-		CR:     uint8(rep.RadioCR),
+		FreqHz: uint32(rep.RadioFreqHz), //nolint:gosec // G115: radio config value is bounded (preset-constrained)
+		BwHz:   uint32(rep.RadioBwHz),   //nolint:gosec // G115: radio config value is bounded (preset-constrained)
+		SF:     uint8(rep.RadioSF),      //nolint:gosec // G115: radio config value is bounded (preset-constrained)
+		CR:     uint8(rep.RadioCR),      //nolint:gosec // G115: radio config value is bounded (preset-constrained)
 	}); err != nil {
 		_ = bridge.Status("error", "set radio: "+err.Error())
 		return

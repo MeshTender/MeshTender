@@ -155,7 +155,7 @@ func (s *Service) startAuth(w http.ResponseWriter, r *http.Request, next, page s
 		http.Error(w, "could not start sign-in", http.StatusInternalServerError)
 		return
 	}
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: HttpOnly+SameSite set below; Secure is gated on TLS via s.secure
 		Name:     cookieName(stateCookie, s.secure),
 		Value:    state,
 		Path:     "/",
@@ -165,7 +165,7 @@ func (s *Service) startAuth(w http.ResponseWriter, r *http.Request, next, page s
 		SameSite: http.SameSiteLaxMode,
 	})
 	q := url.Values{"next": {next}, "state": {state}}
-	http.Redirect(w, r, s.authOrigin(r)+page+"?"+q.Encode(), http.StatusSeeOther)
+	http.Redirect(w, r, s.authOrigin(r)+page+"?"+q.Encode(), http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
 }
 
 // SessionCallback runs on the app host. It verifies the state nonce against the
@@ -206,11 +206,11 @@ func (s *Service) SessionCallback(w http.ResponseWriter, r *http.Request) {
 	// round (discovery renders anonymous until the next sign-in).
 	if s.rootHost != "" {
 		if code, err := s.store.CreateAuthCode(ctx, userID, loginID, next); err == nil {
-			http.Redirect(w, r, s.rootOrigin(r)+"/session/beacon?code="+url.QueryEscape(code), http.StatusSeeOther)
+			http.Redirect(w, r, s.rootOrigin(r)+"/session/beacon?code="+url.QueryEscape(code), http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
 			return
 		}
 	}
-	http.Redirect(w, r, next, http.StatusSeeOther)
+	http.Redirect(w, r, next, http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
 }
 
 // BeaconCallback runs on the root (discovery) host. It redeems a single-use code
@@ -234,11 +234,11 @@ func (s *Service) BeaconCallback(w http.ResponseWriter, r *http.Request) {
 	if ok {
 		_ = s.loginWithID(ctx, userID, loginID)
 	}
-	http.Redirect(w, r, s.appOrigin(r)+next, http.StatusSeeOther)
+	http.Redirect(w, r, s.appOrigin(r)+next, http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
 }
 
 func clearStateCookie(w http.ResponseWriter, secure bool) {
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: clears the state cookie (MaxAge<0); attributes mirror the original
 		Name:     cookieName(stateCookie, secure),
 		Value:    "",
 		Path:     "/",

@@ -60,7 +60,7 @@ func BuildLoginPacket(server meshcore.LocalIdentity, repeater meshcore.Identity,
 
 	// Repeater login request plaintext: timestamp(4, little-endian) + password.
 	plaintext := make([]byte, 4+len(password))
-	binary.LittleEndian.PutUint32(plaintext[:4], uint32(now.Unix()))
+	binary.LittleEndian.PutUint32(plaintext[:4], uint32(now.Unix())) //nolint:gosec // G115: unix-seconds into the 4-byte protocol timestamp field
 	copy(plaintext[4:], password)
 
 	enc, err := meshcore.EncryptThenMAC(shared, plaintext) // MAC(2) || ciphertext
@@ -160,7 +160,7 @@ func decodeAddressedReply(server meshcore.LocalIdentity, repeater meshcore.Ident
 	ciphertext := p[4:]
 
 	// Destination of the reply is the hash of our (server) public key.
-	if dest != server.Identity.Hash()[0] {
+	if dest != server.Hash()[0] {
 		return nil, payloadType, ErrNotForUs
 	}
 

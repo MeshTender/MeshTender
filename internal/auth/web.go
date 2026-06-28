@@ -91,7 +91,7 @@ func (s *Handlers) pageLogin(w http.ResponseWriter, r *http.Request) {
 	// Already signed in (e.g. an existing auth-host SSO session): skip the
 	// ceremony and hand straight off, rather than re-prompting.
 	if uid := s.Auth.CurrentUserID(ctx); uid != 0 {
-		http.Redirect(w, r, s.Auth.PostAuthRedirect(r, uid), http.StatusSeeOther)
+		http.Redirect(w, r, s.Auth.PostAuthRedirect(r, uid), http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
 		return
 	}
 	s.Render(w, r, "login.html", map[string]any{
@@ -106,7 +106,7 @@ func (s *Handlers) pageSignup(w http.ResponseWriter, r *http.Request) {
 	s.Auth.SetNext(ctx, r.URL.Query().Get("next"))
 	s.Auth.SetAuthState(ctx, r.URL.Query().Get("state"))
 	if uid := s.Auth.CurrentUserID(ctx); uid != 0 {
-		http.Redirect(w, r, s.Auth.PostAuthRedirect(r, uid), http.StatusSeeOther)
+		http.Redirect(w, r, s.Auth.PostAuthRedirect(r, uid), http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
 		return
 	}
 	s.Render(w, r, "signup.html", map[string]any{
@@ -122,9 +122,9 @@ func (s *Handlers) handleAuthLogout(w http.ResponseWriter, r *http.Request) {
 	_ = s.Auth.Logout(r.Context())
 	switch {
 	case s.Cfg.RootHost != "":
-		http.Redirect(w, r, s.Origin(r, s.Cfg.RootHost)+"/", http.StatusSeeOther)
+		http.Redirect(w, r, s.Origin(r, s.Cfg.RootHost)+"/", http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
 	case s.Cfg.PrimaryHost != "":
-		http.Redirect(w, r, s.Origin(r, s.Cfg.PrimaryHost)+"/", http.StatusSeeOther)
+		http.Redirect(w, r, s.Origin(r, s.Cfg.PrimaryHost)+"/", http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
 	default:
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 	}

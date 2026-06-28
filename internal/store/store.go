@@ -47,7 +47,7 @@ func (s *Store) Migrate(ctx context.Context) error {
 	}
 	// goose needs a database/sql handle; derive one from the pool config.
 	db := stdlib.OpenDBFromPool(s.pool)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	if err := goose.UpContext(ctx, db, "migrations"); err != nil {
 		return fmt.Errorf("goose up: %w", err)
 	}

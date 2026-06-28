@@ -128,10 +128,10 @@ func TestValidCommandText(t *testing.T) {
 	bad := []string{
 		"",
 		"   ",
-		"ver\nreboot",     // newline (chaining attempt)
-		"ver\rreboot",     // carriage return
-		"set name a\x00b", // null
-		"cmd\x7f",         // delete
+		"ver\nreboot",                        // newline (chaining attempt)
+		"ver\rreboot",                        // carriage return
+		"set name a\x00b",                    // null
+		"cmd\x7f",                            // delete
 		strings.Repeat("a", maxCommandLen+1), // too long
 	}
 	for _, s := range bad {
@@ -145,7 +145,7 @@ func TestValidCommandText(t *testing.T) {
 // a valid operation, and that its feature is listed in featureOrder so it renders
 // in a known position (a feature missing from featureOrder still shows, but at
 // the end — this catches the Go list drifting from the DB). Requires the *_test
-// database. The DB also enforces feature<>'' and operation IN (...) via CHECK.
+// database. The DB also enforces feature<>” and operation IN (...) via CHECK.
 func TestCommandFeatureCoverage(t *testing.T) {
 	t.Parallel()
 	cat := loadRealCatalog(t)

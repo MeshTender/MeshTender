@@ -269,7 +269,7 @@ func (s *Service) LoginDiscoverableFinish(w http.ResponseWriter, r *http.Request
 		if len(userHandle) != 8 {
 			return nil, errors.New("unrecognized user handle")
 		}
-		uid := int64(binary.BigEndian.Uint64(userHandle))
+		uid := int64(binary.BigEndian.Uint64(userHandle)) //nolint:gosec // G115: decodes the 8-byte WebAuthn handle encoded from our int64 user ID
 		u, err := s.store.GetUserByID(ctx, uid)
 		if err != nil {
 			return nil, err

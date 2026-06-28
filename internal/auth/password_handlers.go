@@ -36,7 +36,7 @@ func (s *Service) SignupPassword(w http.ResponseWriter, r *http.Request) {
 		redirectErr(w, r, "/signup", "Could not start session.")
 		return
 	}
-	http.Redirect(w, r, s.PostAuthRedirect(r, u.ID), http.StatusSeeOther)
+	http.Redirect(w, r, s.PostAuthRedirect(r, u.ID), http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
 }
 
 // LoginPassword handles a form-based password sign-in.
@@ -53,7 +53,7 @@ func (s *Service) LoginPassword(w http.ResponseWriter, r *http.Request) {
 		redirectErr(w, r, "/login", "Could not start session.")
 		return
 	}
-	http.Redirect(w, r, s.PostAuthRedirect(r, u.ID), http.StatusSeeOther)
+	http.Redirect(w, r, s.PostAuthRedirect(r, u.ID), http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
 }
 
 func redirectErr(w http.ResponseWriter, r *http.Request, path, msg string) {

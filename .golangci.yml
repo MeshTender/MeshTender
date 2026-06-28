@@ -1,0 +1,28 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+issues:
+  # Report everything; the defaults (max-same-issues: 3, max-issues-per-linter:
+  # 50) hide repeated findings and make fixing a whack-a-mole.
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+linters:
+  default: standard # errcheck, govet, ineffassign, staticcheck, unused
+  enable:
+    - gosec # security analyzer (injection, weak crypto, hardcoded creds, ...)
+  exclusions:
+    rules:
+      # Test code doesn't warrant errcheck/gosec scrutiny (unchecked Close on
+      # throwaway connections, hand-built insecure cookies in fixtures, etc.).
+      - path: _test\.go
+        linters:
+          - errcheck
+          - gosec
+
+formatters:
+  enable:
+    - gofmt
+    - goimports

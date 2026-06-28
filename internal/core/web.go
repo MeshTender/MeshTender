@@ -343,5 +343,5 @@ func splitOwnedShared(repeaters []*store.Repeater) (owned, shared []*store.Repea
 // would silently re-authenticate on the next request.
 func (s *Handlers) handleLogout(w http.ResponseWriter, r *http.Request) {
 	_ = s.Auth.Logout(r.Context())
-	http.Redirect(w, r, s.Origin(r, s.Cfg.AuthHost)+"/logout", http.StatusSeeOther)
+	http.Redirect(w, r, s.Origin(r, s.Cfg.AuthHost)+"/logout", http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
 }

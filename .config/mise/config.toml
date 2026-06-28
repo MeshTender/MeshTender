@@ -1,5 +1,6 @@
 [tools]
 go = "latest"
+"golangci-lint" = "latest"
 pitchfork = "latest"
 
 [env]
@@ -10,6 +11,9 @@ auto = true
 
 [tasks.dev]
 run = "go run ./cmd/meshtender"
+
+[tasks.lint]
+run = "golangci-lint run"
 
 [tasks.seed]
 run = "go run ./cmd/meshtender --seed"
