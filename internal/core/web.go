@@ -157,6 +157,7 @@ func (s *Handlers) appRouter() chi.Router {
 		r.Get("/orgs/new", s.pageNewOrg)
 		r.Post("/orgs", s.handleCreateOrg)
 		r.Post("/orgs/{id}/edit", s.handleEditOrg)
+		r.Post("/orgs/{id}/links", s.handleSetOrgLinks)
 		r.Get("/orgs/{id}/join", s.pageJoinOrg)
 		r.Post("/orgs/{id}/join", s.handleJoinOrg)
 		r.Post("/orgs/{id}/leave", s.handleLeaveOrg)

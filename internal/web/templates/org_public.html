@@ -79,6 +79,10 @@
           {{range .Admins}}<span class="badge bg-success-lt">{{.}}</span>{{end}}
         </div>
         {{else}}<p class="text-secondary mb-0">No admins listed.</p>{{end}}
+        {{if .Links}}
+        <div class="hr-text">Links</div>
+        {{template "link-list" .Links}}
+        {{end}}
       </div>
     </div>
   </div>

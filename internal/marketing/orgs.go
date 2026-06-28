@@ -80,6 +80,11 @@ func (s *Handlers) renderOrgPublic(w http.ResponseWriter, r *http.Request, org *
 		http.Error(w, "could not load org", http.StatusInternalServerError)
 		return
 	}
+	links, err := s.Store.ListOrgLinks(r.Context(), org.ID)
+	if err != nil {
+		http.Error(w, "could not load org", http.StatusInternalServerError)
+		return
+	}
 	uid := s.Auth.CurrentUserID(r.Context())
 	s.Render(w, r, "org_public.html", map[string]any{
 		"Org":           org,
@@ -88,6 +93,7 @@ func (s *Handlers) renderOrgPublic(w http.ResponseWriter, r *http.Request, org *
 		"MemberCount":   memberCount,
 		"RepeaterCount": repeaterCount,
 		"Repeaters":     pubReps,
+		"Links":         links,
 		"HasMap":        len(pubReps) > 0,
 		"IsMember":      isMember,
 		"LoggedIn":      uid != 0,

@@ -3,6 +3,7 @@ package core
 import (
 	"errors"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -103,6 +104,11 @@ func (s *Handlers) pageOrg(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not load repeaters", http.StatusInternalServerError)
 		return
 	}
+	links, err := s.Store.ListOrgLinks(r.Context(), id)
+	if err != nil {
+		http.Error(w, "could not load links", http.StatusInternalServerError)
+		return
+	}
 	mapped := 0
 	for _, rp := range repeaters {
 		if rp.HasLocation {
@@ -123,6 +129,8 @@ func (s *Handlers) pageOrg(w http.ResponseWriter, r *http.Request) {
 		"IsAdmin":       isAdmin,
 		"Members":       members,
 		"Repeaters":     repeaters,
+		"Links":         links,
+		"Platforms":     store.LinkPlatforms(),
 		"HasMap":        mapped > 0,
 		"MemberCount":   len(members),
 		"RepeaterCount": len(repeaters),
@@ -155,6 +163,11 @@ func (s *Handlers) renderOrgPublic(w http.ResponseWriter, r *http.Request, org *
 		http.Error(w, "could not load org", http.StatusInternalServerError)
 		return
 	}
+	links, err := s.Store.ListOrgLinks(r.Context(), org.ID)
+	if err != nil {
+		http.Error(w, "could not load org", http.StatusInternalServerError)
+		return
+	}
 	uid := s.Auth.CurrentUserID(r.Context())
 	s.Render(w, r, "org_public.html", map[string]any{
 		"Org":           org,
@@ -163,6 +176,7 @@ func (s *Handlers) renderOrgPublic(w http.ResponseWriter, r *http.Request, org *
 		"MemberCount":   memberCount,
 		"RepeaterCount": repeaterCount,
 		"Repeaters":     pubReps,
+		"Links":         links,
 		"HasMap":        len(pubReps) > 0,
 		"IsMember":      isMember,
 		"LoggedIn":      uid != 0,
@@ -274,6 +288,73 @@ func (s *Handlers) handleEditOrg(w http.ResponseWriter, r *http.Request) {
 	}
 	// The slug may have changed; redirect to the new canonical URL.
 	http.Redirect(w, r, "/orgs/"+slug, http.StatusSeeOther)
+}
+
+// handleSetOrgLinks replaces an org's whole set of social/site links from the
+// repeatable rows posted by the profile editor (admin only). Rows with a blank
+// URL are dropped, so removing a link is just clearing its row and saving.
+func (s *Handlers) handleSetOrgLinks(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.requireOrgAdmin(w, r)
+	if !ok {
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		orgErr(w, r, "Could not save links.")
+		return
+	}
+	// The three fields are submitted as index-aligned parallel arrays: one entry
+	// each per row, in row order.
+	platforms := r.Form["link_platform"]
+	labels := r.Form["link_label"]
+	urls := r.Form["link_url"]
+	var links []store.OrgLink
+	for i, raw := range urls {
+		u := strings.TrimSpace(raw)
+		if u == "" {
+			continue // empty row — skip it
+		}
+		platform := ""
+		if i < len(platforms) {
+			platform = platforms[i]
+		}
+		if !store.ValidLinkPlatform(platform) {
+			orgErr(w, r, "Choose a type for each link.")
+			return
+		}
+		if !validLinkURL(u) {
+			orgErr(w, r, "Each link must be a valid http:// or https:// URL.")
+			return
+		}
+		label := ""
+		if i < len(labels) {
+			label = strings.TrimSpace(labels[i])
+		}
+		if len(u) > 300 {
+			u = u[:300]
+		}
+		if len(label) > 60 {
+			label = label[:60]
+		}
+		links = append(links, store.OrgLink{Platform: platform, Label: label, URL: u})
+		if len(links) >= store.MaxOrgLinks {
+			break
+		}
+	}
+	if err := s.Store.ReplaceOrgLinks(r.Context(), id, links); err != nil {
+		orgErr(w, r, "Could not save links.")
+		return
+	}
+	http.Redirect(w, r, "/orgs/"+orgParam(r), http.StatusSeeOther)
+}
+
+// validLinkURL reports whether s is an absolute http(s) URL with a host. Limiting
+// the scheme keeps javascript:/data: URLs out of rendered hrefs.
+func validLinkURL(s string) bool {
+	u, err := url.Parse(s)
+	if err != nil {
+		return false
+	}
+	return (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
 }
 
 // requireOrgAdmin resolves {id} and verifies the current user is an org admin.
