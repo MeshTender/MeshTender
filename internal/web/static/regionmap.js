@@ -236,6 +236,19 @@
         window.location = opts.pickURL + "lat=" + e.latlng.lat.toFixed(6) + "&lon=" + e.latlng.lng.toFixed(6);
       });
     }
+    // onPick drops/moves a marker and reports the point instead of navigating —
+    // used by in-page pickers (e.g. the serial setup form) that keep the value
+    // client-side rather than round-tripping to the server.
+    if (opts.onPick) {
+      var picked = null;
+      map.on("click", function (e) {
+        if (picked) picked.setLatLng(e.latlng);
+        else picked = L.circleMarker(e.latlng, {
+          radius: 7, color: "#fff", weight: 2, fillColor: "#fff", fillOpacity: 0.9,
+        }).addTo(map);
+        opts.onPick(e.latlng.lat, e.latlng.lng);
+      });
+    }
     var fit = [];
     if (opts.bounds) fit.push(opts.bounds[0], opts.bounds[1]);
     if (opts.preview) {

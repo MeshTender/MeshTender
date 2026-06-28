@@ -126,6 +126,8 @@ func (s *Handlers) appRouter() chi.Router {
 		r.Post("/logout", s.handleLogout)
 		r.Get("/repeaters/add", s.pageAddRepeater)
 		r.Post("/repeaters", s.handleAddRepeater)
+		r.Post("/repeaters/setup/commands", s.handleSetupCommands)
+		r.Post("/repeaters/setup/complete", s.handleSetupComplete)
 		r.Get("/repeaters/{id}", s.pageRepeater)
 		r.Get("/repeaters/{id}/added", s.pageRepeaterAdded)
 		r.Get("/repeaters/{id}/edit", s.pageEditRepeater)

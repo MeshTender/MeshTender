@@ -2,6 +2,7 @@ package core
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"html/template"
@@ -20,17 +21,37 @@ import (
 	"github.com/jleight/meshtender/internal/web"
 )
 
-// pageAddRepeater drives the add-repeater wizard. Step 1 ("grant") is a
-// mandatory acknowledgment that the owner has granted MeshTender admin on the
-// repeater; step 2 ("details") collects the repeater's name/key/radio. The two
-// post-creation steps (confirm, contribute) live on pageRepeaterAdded.
+// setupOrgOption is an org the user belongs to, with the names of its config
+// profiles, offered in the serial-setup config selector.
+type setupOrgOption struct {
+	ID       int64
+	Name     string
+	Profiles []string
+}
+
+// pageAddRepeater drives the add-repeater wizard:
+//
+//	method  — choose how you're connecting (USB serial vs KISS/remote).
+//	consent — acknowledge MeshTender admin access (it grants this for you on the
+//	          serial path; you run it yourself on the KISS path).
+//	serial  — configure a brand-new repeater over USB and run the setup.
+//	details — register an already-on-network repeater (the original KISS flow).
+//
+// The two post-creation steps (confirm, contribute) live on pageRepeaterAdded.
 func (s *Handlers) pageAddRepeater(w http.ResponseWriter, r *http.Request) {
 	step := r.URL.Query().Get("step")
-	if step != "details" {
-		step = "grant"
+	switch step {
+	case "consent", "serial", "details":
+	default:
+		step = "method"
 	}
-	s.Render(w, r, "add_repeater.html", map[string]any{
+	method := r.URL.Query().Get("method")
+	if method != "serial" {
+		method = "kiss"
+	}
+	data := map[string]any{
 		"Step":            step,
+		"Method":          method,
 		"ServerPubKey":    s.Identity.PublicKeyHex(),
 		"SetPermCommand":  s.Identity.SetPermCommand(),
 		"RevokeCommand":   s.Identity.RevokePermCommand(),
@@ -38,7 +59,39 @@ func (s *Handlers) pageAddRepeater(w http.ResponseWriter, r *http.Request) {
 		"Presets":         radioPresets,
 		"DefaultPresetID": defaultPresetID,
 		"Error":           r.URL.Query().Get("error"),
-	})
+	}
+	if step == "serial" {
+		orgs := s.setupOrgOptions(r)
+		data["Orgs"] = orgs
+		if b, err := json.Marshal(orgs); err == nil {
+			data["OrgsJS"] = template.JS(b)
+		} else {
+			data["OrgsJS"] = template.JS("[]")
+		}
+	}
+	s.Render(w, r, "add_repeater.html", data)
+}
+
+// setupOrgOptions lists the current user's orgs with their config profile names,
+// for the serial-setup config selector. Best-effort: an org whose profiles fail
+// to load is included with none.
+func (s *Handlers) setupOrgOptions(r *http.Request) []setupOrgOption {
+	uid := s.Auth.CurrentUserID(r.Context())
+	memberships, err := s.Store.ListOrgsForUser(r.Context(), uid)
+	if err != nil {
+		return nil
+	}
+	out := make([]setupOrgOption, 0, len(memberships))
+	for _, m := range memberships {
+		opt := setupOrgOption{ID: m.Org.ID, Name: m.Org.Name}
+		if profiles, err := s.Store.ListProfiles(r.Context(), m.Org.ID); err == nil {
+			for _, p := range profiles {
+				opt.Profiles = append(opt.Profiles, p.Name)
+			}
+		}
+		out = append(out, opt)
+	}
+	return out
 }
 
 // pageRepeater shows a repeater's details: status, radio config, location,

@@ -10,20 +10,52 @@
 {{if .Error}}<div class="alert alert-danger">{{.Error}}</div>{{end}}
 
 <ul class="steps steps-counter mb-4">
-  <li class="step-item {{if eq .Step "grant"}}active{{end}}">Grant access</li>
+  <li class="step-item {{if eq .Step "method"}}active{{end}}">Connection</li>
+  <li class="step-item {{if eq .Step "consent"}}active{{end}}">Consent</li>
+  {{if eq .Method "serial"}}
+  <li class="step-item {{if eq .Step "serial"}}active{{end}}">Configure &amp; run</li>
+  <li class="step-item">Finish</li>
+  {{else}}
   <li class="step-item {{if eq .Step "details"}}active{{end}}">Repeater details</li>
   <li class="step-item">Confirm</li>
-  <li class="step-item">Share</li>
+  {{end}}
 </ul>
 
-{{if eq .Step "grant"}}
+{{if eq .Step "method"}}
+{{/* ---- Step 1: choose connection method ---- */}}
+<div class="row row-cards">
+  <div class="col-md-6">
+    <div class="card card-link h-100">
+      <div class="card-body d-flex flex-column">
+        <h3 class="card-title">{{template "icon-plug" "me-1"}}Set up a brand-new repeater</h3>
+        <p class="text-secondary">Connect a freshly-flashed repeater over <strong>USB serial</strong> and let
+          MeshTender generate and run the whole setup — identity, radio, region, name, and the admin grant —
+          straight down the wire. Best for a repeater that isn't on the network yet.</p>
+        <a class="btn btn-primary mt-auto align-self-start" href="/repeaters/add?step=consent&method=serial">Set up over USB →</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card card-link h-100">
+      <div class="card-body d-flex flex-column">
+        <h3 class="card-title">{{template "icon-antenna" "me-1"}}Add a repeater that's already on the network</h3>
+        <p class="text-secondary">Register a repeater that's already configured and on the mesh, then control it
+          remotely through a <strong>KISS modem</strong> over the air. You'll grant MeshTender admin yourself first.</p>
+        <a class="btn mt-auto align-self-start" href="/repeaters/add?step=consent&method=kiss">Add existing →</a>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="btn-list mt-3"><a class="btn" href="/">Cancel</a></div>
+
+{{else if eq .Step "consent"}}
+{{/* ---- Step 2: consent (wording adapts to the chosen method) ---- */}}
 <div class="card">
   <div class="card-body">
-    <h2 class="card-title">Step 1 · Grant MeshTender access</h2>
+    <h2 class="card-title">Step 2 · Grant MeshTender access</h2>
     <p class="text-secondary">
       MeshTender controls repeaters through a single MeshTender identity. Before it can do anything with
-      your repeater, you must grant that identity admin access by running the command below on the repeater
-      (via its BLE/USB companion app or another admin client).
+      your repeater, that identity must be granted admin access (permission level 3) on the device.
     </p>
 
     <div class="alert alert-danger" role="alert">
@@ -47,6 +79,26 @@
       <div class="form-label">MeshTender server public key</div>
       <code class="pubkey">{{.ServerPubKey}}</code>
     </div>
+
+    {{if eq .Method "serial"}}
+    <div class="alert alert-info" role="alert">
+      <div>MeshTender will run this command <strong>for you</strong> as part of the USB setup — you don't need to run
+      anything by hand. The command that will be sent to your repeater:</div>
+    </div>
+    <div class="mb-3">
+      <code class="form-control font-monospace">{{.SetPermCommand}}</code>
+    </div>
+    {{template "revokedoc" .RevokeCommand}}
+    <label class="form-check mt-3">
+      <input class="form-check-input" type="checkbox" id="ack" onchange="var c=document.getElementById('continue');var off=!this.checked;c.classList.toggle('disabled',off);c.setAttribute('aria-disabled',off);if(off){c.setAttribute('tabindex','-1');}else{c.removeAttribute('tabindex');}">
+      <span class="form-check-label">I consent to MeshTender being granted admin on this repeater during setup.</span>
+    </label>
+    <div class="btn-list mt-3">
+      <a class="btn btn-primary disabled" id="continue" href="/repeaters/add?step=serial&method=serial" aria-disabled="true" tabindex="-1"
+         onclick="if(this.getAttribute('aria-disabled')==='true'){return false;}">Continue →</a>
+      <a class="btn" href="/repeaters/add?step=method">← Back</a>
+    </div>
+    {{else}}
     <div class="mb-3">
       <div class="form-label">Grant-access command — run this on your repeater</div>
       <div class="input-group">
@@ -54,25 +106,159 @@
         <button type="button" class="btn" onclick="navigator.clipboard.writeText(this.previousElementSibling.textContent)">{{template "icon-copy" ""}}Copy</button>
       </div>
     </div>
-
     {{template "revokedoc" .RevokeCommand}}
-
     <label class="form-check mt-3">
-      <input class="form-check-input" type="checkbox" id="ack" aria-controls="continue" onchange="var c=document.getElementById('continue');var off=!this.checked;c.classList.toggle('disabled',off);c.setAttribute('aria-disabled',off);if(off){c.setAttribute('tabindex','-1');}else{c.removeAttribute('tabindex');}">
+      <input class="form-check-input" type="checkbox" id="ack" onchange="var c=document.getElementById('continue');var off=!this.checked;c.classList.toggle('disabled',off);c.setAttribute('aria-disabled',off);if(off){c.setAttribute('tabindex','-1');}else{c.removeAttribute('tabindex');}">
       <span class="form-check-label">I've granted MeshTender admin on this repeater (or I understand I must, before it will work here).</span>
     </label>
     <div class="btn-list mt-3">
-      <a class="btn btn-primary disabled" id="continue" href="/repeaters/add?step=details" aria-disabled="true" tabindex="-1"
+      <a class="btn btn-primary disabled" id="continue" href="/repeaters/add?step=details&method=kiss" aria-disabled="true" tabindex="-1"
          onclick="if(this.getAttribute('aria-disabled')==='true'){return false;}">Continue →</a>
-      <a class="btn" href="/">Cancel</a>
+      <a class="btn" href="/repeaters/add?step=method">← Back</a>
+    </div>
+    {{end}}
+  </div>
+</div>
+
+{{else if eq .Step "serial"}}
+{{/* ---- Step 3 (serial): configure a brand-new repeater and run over USB ---- */}}
+<div id="unsupported" class="alert alert-danger" role="alert" hidden>
+  This browser doesn't support the Web Serial API. Use Chrome, Edge, or another Chromium-based browser over HTTPS or on localhost.
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <h2 class="card-title">Step 3 · Configure your repeater</h2>
+    <p class="text-secondary">Fill in the details below. MeshTender will generate the exact command list, show it to
+      you, and then run it over USB.</p>
+
+    <div class="mb-3">
+      <label class="form-label" for="name">Name</label>
+      <input type="text" class="form-control" id="name" placeholder="Hilltop repeater" autofocus>
+    </div>
+
+    {{/* Identity / key */}}
+    <div class="mb-2"><label class="form-label">Identity (private key)</label></div>
+    <div class="mb-2">
+      <label class="form-check"><input class="form-check-input" type="radio" name="keymode" value="random" checked>
+        <span class="form-check-label">Generate a new random key</span></label>
+      <label class="form-check"><input class="form-check-input" type="radio" name="keymode" value="prefix">
+        <span class="form-check-label">Generate a key whose public key starts with a prefix (vanity)</span></label>
+      <label class="form-check"><input class="form-check-input" type="radio" name="keymode" value="paste">
+        <span class="form-check-label">Use an existing private key</span></label>
+    </div>
+
+    <div id="key-random" class="mb-2">
+      <button type="button" class="btn" id="regen">Regenerate</button>
+    </div>
+    <div id="key-prefix" class="mb-2" hidden>
+      <div class="input-group">
+        <input type="text" class="form-control font-monospace" id="prefix" placeholder="e.g. beef" pattern="[0-9a-fA-F]*">
+        <button type="button" class="btn" id="grind">Generate</button>
+        <button type="button" class="btn btn-link" id="grind-stop" hidden>Stop</button>
+      </div>
+      <small class="form-hint">Hex only (0-9, a-f). Each extra character takes ~16× longer to find — long prefixes may take a very long time.</small>
+    </div>
+    <div id="key-paste" class="mb-2" hidden>
+      <textarea class="form-control font-monospace" id="privkey" rows="2" placeholder="128 hex chars (64-byte key) or 64 hex chars (32-byte seed)"></textarea>
+    </div>
+
+    <div class="mb-3">
+      <div class="form-label">Resulting public key</div>
+      <code class="pubkey" id="pubkey">—</code>
+      <div id="grind-status" class="form-hint"></div>
+    </div>
+
+    {{/* Configuration source */}}
+    <div class="mb-3">
+      <label class="form-label" for="org">Organization configuration</label>
+      <select class="form-select" id="org">
+        <option value="0">None — use a radio preset</option>
+      </select>
+      <small class="form-hint">An org configuration supplies the radio settings, base settings, and location-based region.</small>
+    </div>
+
+    <div class="mb-3" id="profile-wrap" hidden>
+      <label class="form-label" for="profile">Configuration profile</label>
+      <select class="form-select" id="profile"></select>
+    </div>
+
+    <div id="preset-wrap">
+      <div class="mb-3">
+        <label class="form-label" for="region">Radio preset</label>
+        <select class="form-select" id="region" onchange="applyRegion()">
+          {{range .Presets}}
+          <option value="{{.ID}}" data-freq="{{.FreqHz}}" data-bw="{{.BwHz}}" data-sf="{{.SF}}" data-cr="{{.CR}}"{{if eq .ID $.DefaultPresetID}} selected{{end}}>{{.Label}}</option>
+          {{end}}
+          <option value="custom"{{if eq "custom" $.DefaultPresetID}} selected{{end}}>Custom…</option>
+        </select>
+      </div>
+      <div class="row g-2">
+        <div class="col-6 col-md-3"><label class="form-label" for="radio_freq_mhz">Freq (MHz)</label><input type="number" step="0.001" class="form-control" id="radio_freq_mhz" value="{{mhz .Defaults.FreqHz}}"></div>
+        <div class="col-6 col-md-3"><label class="form-label" for="radio_bw_khz">Bandwidth (kHz)</label><input type="number" step="0.1" class="form-control" id="radio_bw_khz" value="{{khz .Defaults.BwHz}}"></div>
+        <div class="col-6 col-md-3"><label class="form-label" for="radio_sf">SF</label><input type="number" class="form-control" id="radio_sf" value="{{.Defaults.SF}}" min="5" max="12"></div>
+        <div class="col-6 col-md-3"><label class="form-label" for="radio_cr">CR</label><input type="number" class="form-control" id="radio_cr" value="{{.Defaults.CR}}" min="5" max="8"></div>
+      </div>
+    </div>
+
+    {{/* Location */}}
+    <div class="mt-3">
+      <label class="form-label">Location</label>
+      <p class="form-hint mt-0">Click the map to place this repeater. Used for its coordinates and (with an org
+        configuration) to pick the right region.</p>
+      <div id="map" style="height:320px" class="rounded border"></div>
+      <div class="form-hint" id="loc-status">No location selected.</div>
+    </div>
+
+    <label class="form-check mt-3">
+      <input class="form-check-input" type="checkbox" id="show_on_public_org">
+      <span class="form-check-label">Show this repeater on <strong>public</strong> organization pages you're a member of.</span>
+    </label>
+
+    <div class="btn-list mt-3">
+      <button type="button" class="btn btn-primary" id="generate">Generate command list →</button>
+      <a class="btn" href="/repeaters/add?step=consent&method=serial">← Back</a>
     </div>
   </div>
 </div>
 
+{{/* Review + run */}}
+<div class="card mt-3" id="review-card" hidden>
+  <div class="card-header"><h3 class="card-title">Step 4 · Review &amp; run</h3></div>
+  <div class="card-body">
+    <p class="text-secondary">These commands will be sent to your repeater over USB, in order. The private key is
+      shown masked; it never leaves your browser.</p>
+    <pre class="mb-3"><code id="cmdlist"></code></pre>
+    <button id="run" class="btn btn-primary" type="button">{{template "icon-plug" "me-1"}}Connect over USB &amp; run</button>
+    <ul id="log" class="evlog console mt-3" role="log" aria-live="polite" aria-label="Setup activity"></ul>
+  </div>
+</div>
+
+<script>
+  window.SETUP_ORGS = {{.OrgsJS}};
+
+  // Radio preset → fields (shared with the KISS details step's behavior).
+  function trim(n) { return String(Math.round(n * 1e6) / 1e6); }
+  function applyRegion() {
+    var sel = document.getElementById("region");
+    var opt = sel.options[sel.selectedIndex];
+    if (!opt.dataset.freq) return;
+    document.getElementById("radio_freq_mhz").value = trim(opt.dataset.freq / 1e6);
+    document.getElementById("radio_bw_khz").value = trim(opt.dataset.bw / 1e3);
+    document.getElementById("radio_sf").value = opt.dataset.sf;
+    document.getElementById("radio_cr").value = opt.dataset.cr;
+  }
+</script>
+<link rel="stylesheet" href="/static/leaflet.css">
+<script src="/static/leaflet.js"></script>
+<script src="/static/regionmap.js"></script>
+<script src="/static/serial-setup.js"></script>
+
 {{else}}
+{{/* ---- Step 3 (KISS): details for a repeater that's already on the network ---- */}}
 <div class="card">
   <div class="card-body">
-    <h2 class="card-title">Step 2 · Repeater details</h2>
+    <h2 class="card-title">Step 3 · Repeater details</h2>
     <p class="text-secondary">Tell MeshTender which repeater you just granted access to, and how its radio is configured.</p>
     <form method="post" action="/repeaters">
       <div class="mb-3">
@@ -101,36 +287,28 @@
 
       <label class="form-check mt-3">
         <input class="form-check-input" type="checkbox" name="show_on_public_org" value="1">
-        <span class="form-check-label">Show this repeater on the <strong>public</strong> organization page.</span>
+        <span class="form-check-label">Show this repeater on <strong>public</strong> organization pages you're a member of.</span>
       </label>
 
       <div class="btn-list mt-3">
         <button type="submit" class="btn btn-primary">Add repeater</button>
-        <a class="btn" href="/repeaters/add?step=grant">← Back</a>
+        <a class="btn" href="/repeaters/add?step=consent&method=kiss">← Back</a>
       </div>
     </form>
   </div>
 </div>
 <script>
-  // The form fields display MHz/kHz; preset data-* attributes are Hz-canonical.
   var RADIO_FIELDS = ["radio_freq_mhz", "radio_bw_khz", "radio_sf", "radio_cr"];
-  function trim(n) { return String(Math.round(n * 1e6) / 1e6); } // drop float fuzz
-
-  // Seed the radio fields from the chosen preset. Fields stay editable — a
-  // preset is a starting point, not a lock.
+  function trim(n) { return String(Math.round(n * 1e6) / 1e6); }
   function applyRegion() {
     var sel = document.getElementById("region");
     var opt = sel.options[sel.selectedIndex];
-    if (!opt.dataset.freq) return; // "Custom" — leave the current values alone
+    if (!opt.dataset.freq) return;
     document.getElementById("radio_freq_mhz").value = trim(opt.dataset.freq / 1e6);
     document.getElementById("radio_bw_khz").value = trim(opt.dataset.bw / 1e3);
     document.getElementById("radio_sf").value = opt.dataset.sf;
     document.getElementById("radio_cr").value = opt.dataset.cr;
   }
-
-  // When a field is edited by hand, point the dropdown at whichever preset now
-  // matches (or "Custom" if none do), so it always reflects the actual values.
-  // Compare in Hz so display rounding can't cause a spurious mismatch.
   function syncPreset() {
     var sel = document.getElementById("region");
     var freqHz = Math.round(parseFloat(document.getElementById("radio_freq_mhz").value) * 1e6);
@@ -147,7 +325,6 @@
     }
     sel.value = "custom";
   }
-
   RADIO_FIELDS.forEach(function (id) {
     document.getElementById(id).addEventListener("input", syncPreset);
   });
