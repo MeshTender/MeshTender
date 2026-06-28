@@ -66,6 +66,39 @@
   </div>
 </div>
 
+<!-- Getting started: shown only while a step is still pending -->
+{{if or (not .OwnedCount) (not .OrgCount)}}
+<div class="row row-cards mt-1">
+  {{if not .OwnedCount}}
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-body text-center">
+        <span class="avatar avatar-lg bg-primary-lt mb-3">{{template "icon-antenna" ""}}</span>
+        <h3 class="card-title">Add your first repeater</h3>
+        <p class="text-secondary">Connect a repeater to MeshTender and test it with a modem.</p>
+        <a href="/repeaters/add" class="btn btn-primary">{{template "icon-plus" "me-1"}}Add repeater</a>
+      </div>
+    </div>
+  </div>
+  {{end}}
+  {{if not .OrgCount}}
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-body text-center">
+        <span class="avatar avatar-lg bg-azure-lt mb-3">{{template "icon-world" ""}}</span>
+        <h3 class="card-title">Join an organization</h3>
+        <p class="text-secondary">Find a local mesh community to share repeaters and coordinate.</p>
+        <div class="btn-list justify-content-center">
+          <a href="{{.RootURL}}/orgs" class="btn btn-primary">Browse organizations</a>
+          <a href="/orgs/new" class="btn">Create one</a>
+        </div>
+      </div>
+    </div>
+  </div>
+  {{end}}
+</div>
+{{end}}
+
 <div class="row row-cards mt-1">
   <!-- Left column -->
   <div class="col-lg-8">
