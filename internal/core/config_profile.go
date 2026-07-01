@@ -1,29 +1,22 @@
 package core
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/go-chi/chi/v5"
 
 	"github.com/jleight/meshtender/internal/geo"
 	"github.com/jleight/meshtender/internal/store"
 	"github.com/jleight/meshtender/internal/web"
 )
 
-// Bounds on how many profiles/regions one save may define, so a malformed or
-// abusive submission can't insert unbounded rows.
-const (
-	maxConfigProfiles = 50
-	maxConfigRegions  = 50
-)
-
-// configProfileView is a named base-settings profile in the admin editor.
-type configProfileView struct {
-	Name      string
-	StepsText string             // editor: one command per line
-	Steps     []store.ConfigStep // read-only: rendered list
-}
+// Bound on how many regions one save may define, so a malformed or abusive
+// submission can't insert unbounded rows. (Profiles are added one at a time.)
+const maxConfigRegions = 50
 
 // configRegionView is a region in the admin editor: its display name, MeshCore
 // token, layer (depth / region def order), and the raw GeoJSON geofence the map
@@ -33,6 +26,7 @@ type configRegionView struct {
 	Token        string
 	Layer        int
 	Primary      bool
+	AllowFlood   bool
 	GeofenceJSON string
 }
 
@@ -77,8 +71,10 @@ func (s *Handlers) pageOrgConfig(w http.ResponseWriter, r *http.Request) {
 	s.Render(w, r, "org_config.html", data)
 }
 
-// pageOrgConfigEdit is the admin editor for the org's profiles and regions.
-func (s *Handlers) pageOrgConfigEdit(w http.ResponseWriter, r *http.Request) {
+// pageConfigHub is the admin configuration overview: a list of profiles (each
+// edited on its own page) and a summary of the org's regions (edited on the map
+// page). It replaces the old single mega-form.
+func (s *Handlers) pageConfigHub(w http.ResponseWriter, r *http.Request) {
 	orgID, ok := s.requireOrgAdmin(w, r)
 	if !ok {
 		return
@@ -98,20 +94,189 @@ func (s *Handlers) pageOrgConfigEdit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not load config", http.StatusInternalServerError)
 		return
 	}
+	var primary string
+	for _, z := range regions {
+		if z.Primary {
+			primary = z.DisplayName
+			break
+		}
+	}
 	s.Render(w, r, "config_edit.html", map[string]any{
-		"Org":          org,
-		"Nav":          s.OrgNavFor(r.Context(), orgID, org.Slug, "config", true, true),
-		"EmptyProfile": configProfileView{},
-		"EmptyRegion":  configRegionView{},
-		"Profiles":     profileViews(profiles),
-		"Regions":      regionViews(regions),
+		"Org":           org,
+		"Nav":           s.OrgNavFor(r.Context(), orgID, org.Slug, "config", true, true),
+		"Profiles":      profiles,
+		"RegionCount":   len(regions),
+		"PrimaryRegion": primary,
 	})
 }
 
-// handleSaveOrgConfig validates and replaces the org's profiles + regions (admin
-// only). Any unknown command line blocks the save and the editor is re-rendered
-// with the errors and the entered text preserved.
-func (s *Handlers) handleSaveOrgConfig(w http.ResponseWriter, r *http.Request) {
+// pageProfileEdit renders the single-profile editor: blank for the /new route, or
+// pre-filled when a {pid} is present. 404s if the profile isn't this org's.
+func (s *Handlers) pageProfileEdit(w http.ResponseWriter, r *http.Request) {
+	orgID, ok := s.requireOrgAdmin(w, r)
+	if !ok {
+		return
+	}
+	org, err := s.Store.GetOrg(r.Context(), orgID)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	var pid int64
+	var name, stepsText string
+	if raw := chi.URLParam(r, "pid"); raw != "" {
+		pid, err = strconv.ParseInt(raw, 10, 64)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		p, err := s.Store.GetProfile(r.Context(), orgID, pid)
+		if errors.Is(err, store.ErrNotFound) {
+			http.NotFound(w, r)
+			return
+		}
+		if err != nil {
+			http.Error(w, "could not load profile", http.StatusInternalServerError)
+			return
+		}
+		name, stepsText = p.Name, stepsToText(p.Steps)
+	}
+	s.renderProfileEdit(w, r, org, pid, name, stepsText, nil, nil)
+}
+
+// renderProfileEdit renders the profile editor page (shared by the initial GET
+// and the error re-render). pid 0 means a new profile.
+func (s *Handlers) renderProfileEdit(w http.ResponseWriter, r *http.Request, org *store.Org, pid int64, name, stepsText string, errs, risky []string) {
+	s.Render(w, r, "config_profile_edit.html", map[string]any{
+		"Org":       org,
+		"Nav":       s.OrgNavFor(r.Context(), org.ID, org.Slug, "config", true, true),
+		"ProfileID": pid,
+		"Name":      name,
+		"StepsText": stepsText,
+		"Errors":    errs,
+		"RiskyWarn": risky,
+	})
+}
+
+// handleCreateProfile validates and inserts a new profile.
+func (s *Handlers) handleCreateProfile(w http.ResponseWriter, r *http.Request) {
+	orgID, ok := s.requireOrgAdmin(w, r)
+	if !ok {
+		return
+	}
+	s.saveProfile(w, r, orgID, 0)
+}
+
+// handleUpdateProfile validates and updates an existing profile.
+func (s *Handlers) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
+	orgID, ok := s.requireOrgAdmin(w, r)
+	if !ok {
+		return
+	}
+	pid, err := strconv.ParseInt(chi.URLParam(r, "pid"), 10, 64)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	s.saveProfile(w, r, orgID, pid)
+}
+
+// saveProfile parses the single-profile form and creates (pid 0) or updates it.
+// On a validation error it re-renders the editor with the entered text preserved;
+// on a duplicate name it reports a friendly message the same way.
+func (s *Handlers) saveProfile(w http.ResponseWriter, r *http.Request, orgID, pid int64) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	org, err := s.Store.GetOrg(r.Context(), orgID)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	catalog, err := s.Store.ListCommands(r.Context())
+	if err != nil {
+		http.Error(w, "could not load commands", http.StatusInternalServerError)
+		return
+	}
+	name := strings.TrimSpace(r.FormValue("profile_name"))
+	stepsText := r.FormValue("profile_steps")
+	var errs, risky []string
+	if name == "" {
+		errs = append(errs, "Give the profile a name.")
+	}
+	_, steps := parseConfigSteps(stepsText, catalog, "profile", &errs, &risky)
+
+	if len(errs) == 0 {
+		if pid == 0 {
+			_, err = s.Store.CreateProfile(r.Context(), orgID, name, steps)
+		} else {
+			err = s.Store.UpdateProfile(r.Context(), orgID, pid, name, steps)
+		}
+		switch {
+		case errors.Is(err, store.ErrDuplicate):
+			errs = append(errs, fmt.Sprintf("A profile named %q already exists.", name))
+		case errors.Is(err, store.ErrNotFound):
+			http.NotFound(w, r)
+			return
+		case err != nil:
+			http.Error(w, "could not save profile", http.StatusInternalServerError)
+			return
+		default:
+			http.Redirect(w, r, "/orgs/"+orgParam(r)+"/config/edit", http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
+			return
+		}
+	}
+	s.renderProfileEdit(w, r, org, pid, name, stepsText, errs, risky)
+}
+
+// handleDeleteProfile removes a profile and returns to the config hub.
+func (s *Handlers) handleDeleteProfile(w http.ResponseWriter, r *http.Request) {
+	orgID, ok := s.requireOrgAdmin(w, r)
+	if !ok {
+		return
+	}
+	pid, err := strconv.ParseInt(chi.URLParam(r, "pid"), 10, 64)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if err := s.Store.DeleteProfile(r.Context(), orgID, pid); err != nil && !errors.Is(err, store.ErrNotFound) {
+		http.Error(w, "could not delete profile", http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, "/orgs/"+orgParam(r)+"/config/edit", http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
+}
+
+// pageRegionsEdit renders the region map editor (map + side list).
+func (s *Handlers) pageRegionsEdit(w http.ResponseWriter, r *http.Request) {
+	orgID, ok := s.requireOrgAdmin(w, r)
+	if !ok {
+		return
+	}
+	org, err := s.Store.GetOrg(r.Context(), orgID)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	regions, err := s.Store.ListRegions(r.Context(), orgID)
+	if err != nil {
+		http.Error(w, "could not load regions", http.StatusInternalServerError)
+		return
+	}
+	s.Render(w, r, "config_regions_edit.html", map[string]any{
+		"Org":            org,
+		"Nav":            s.OrgNavFor(r.Context(), orgID, org.Slug, "config", true, true),
+		"EmptyRegion":    configRegionView{AllowFlood: true},
+		"Regions":        regionViews(regions),
+		"RootAllowFlood": org.RootAllowFlood,
+	})
+}
+
+// handleSaveRegions validates and atomically replaces just the org's regions
+// (profiles are left untouched). On error the editor is re-rendered with input
+// preserved.
+func (s *Handlers) handleSaveRegions(w http.ResponseWriter, r *http.Request) {
 	orgID, ok := s.requireOrgAdmin(w, r)
 	if !ok {
 		return
@@ -120,77 +285,30 @@ func (s *Handlers) handleSaveOrgConfig(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad form", http.StatusBadRequest)
 		return
 	}
-	catalog, err := s.Store.ListCommands(r.Context())
-	if err != nil {
-		http.Error(w, "could not load commands", http.StatusInternalServerError)
-		return
-	}
-
-	var errs, risky []string
-	profiles, profileVs := s.parseProfiles(r, catalog, &errs, &risky)
+	rootAllowFlood := r.FormValue("root_allow_flood") == "1"
+	var errs []string
 	regions, regionVs := s.parseRegions(r, &errs)
-
 	if len(errs) > 0 {
 		org, gerr := s.Store.GetOrg(r.Context(), orgID)
 		if gerr != nil {
 			http.NotFound(w, r)
 			return
 		}
-		s.Render(w, r, "config_edit.html", map[string]any{
-			"Org":          org,
-			"Nav":          s.OrgNavFor(r.Context(), orgID, org.Slug, "config", true, true),
-			"EmptyProfile": configProfileView{},
-			"EmptyRegion":  configRegionView{},
-			"Errors":       errs,
-			"RiskyWarn":    risky,
-			"Profiles":     profileVs,
-			"Regions":      regionVs,
+		s.Render(w, r, "config_regions_edit.html", map[string]any{
+			"Org":            org,
+			"Nav":            s.OrgNavFor(r.Context(), orgID, org.Slug, "config", true, true),
+			"EmptyRegion":    configRegionView{AllowFlood: true},
+			"Errors":         errs,
+			"Regions":        regionVs,
+			"RootAllowFlood": rootAllowFlood,
 		})
 		return
 	}
-
-	if err := s.Store.ReplaceOrgConfig(r.Context(), orgID, profiles, regions); err != nil {
+	if err := s.Store.ReplaceRegions(r.Context(), orgID, regions, rootAllowFlood); err != nil {
 		http.Error(w, "could not save", http.StatusInternalServerError)
 		return
 	}
 	http.Redirect(w, r, "/orgs/"+orgParam(r)+"/config", http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
-}
-
-// parseProfiles reads the repeated profile blocks from the form into store inputs
-// and editor views (for re-display on error). Empty blocks are ignored; a block
-// with steps but no name, or a duplicate name, is an error.
-func (s *Handlers) parseProfiles(r *http.Request, catalog []*store.Command, errs, risky *[]string) ([]store.ProfileInput, []configProfileView) {
-	names := r.Form["profile_name"]
-	if len(names) > maxConfigProfiles {
-		*errs = append(*errs, fmt.Sprintf("Too many profiles (max %d).", maxConfigProfiles))
-	}
-	seen := map[string]bool{}
-	var ins []store.ProfileInput
-	var views []configProfileView
-	for i := range names {
-		name := strings.TrimSpace(formAt(r, "profile_name", i))
-		stepsText := formAt(r, "profile_steps", i)
-		if name == "" && strings.TrimSpace(stepsText) == "" {
-			continue // empty block
-		}
-		view := configProfileView{Name: name, StepsText: stepsText}
-		if name == "" {
-			*errs = append(*errs, "A profile is missing a name.")
-			views = append(views, view)
-			continue
-		}
-		if seen[strings.ToLower(name)] {
-			*errs = append(*errs, fmt.Sprintf("Duplicate profile name %q.", name))
-			views = append(views, view)
-			continue
-		}
-		seen[strings.ToLower(name)] = true
-		steps, storeSteps := parseConfigSteps(stepsText, catalog, fmt.Sprintf("profile %q", name), errs, risky)
-		view.Steps = steps
-		views = append(views, view)
-		ins = append(ins, store.ProfileInput{Name: name, Steps: storeSteps})
-	}
-	return ins, views
 }
 
 // parseRegions reads the repeated region blocks from the form into store inputs
@@ -213,10 +331,11 @@ func (s *Handlers) parseRegions(r *http.Request, errs *[]string) ([]store.Region
 		geojson := strings.TrimSpace(formAt(r, "region_geojson", i))
 		layer, _ := strconv.Atoi(formAt(r, "region_layer", i))
 		primary := formAt(r, "region_primary", i) == "1"
+		allowFlood := formAt(r, "region_allow_flood", i) == "1"
 		if token == "" && display == "" && geojson == "" {
 			continue // empty block
 		}
-		zv := configRegionView{DisplayName: display, Token: token, Layer: layer, Primary: primary, GeofenceJSON: geojson}
+		zv := configRegionView{DisplayName: display, Token: token, Layer: layer, Primary: primary, AllowFlood: allowFlood, GeofenceJSON: geojson}
 		if token == "" {
 			*errs = append(*errs, "A region is missing its short name.")
 			views = append(views, zv)
@@ -237,6 +356,13 @@ func (s *Handlers) parseRegions(r *http.Request, errs *[]string) ([]store.Region
 			display = token
 			zv.DisplayName = display
 		}
+		// Non-root regions must have a drawn area; the root region (*) is the only
+		// "applies everywhere" region and lives on the org, not in this list.
+		if geojson == "" {
+			*errs = append(*errs, fmt.Sprintf("Region %q needs a drawn area — outline it on the map, or rely on the root region.", token))
+			views = append(views, zv)
+			continue
+		}
 		geofence, ok := regionGeofence(zv, token, errs)
 		if !ok {
 			views = append(views, zv)
@@ -249,7 +375,7 @@ func (s *Handlers) parseRegions(r *http.Request, errs *[]string) ([]store.Region
 			primaryTaken = true
 		}
 		views = append(views, zv)
-		ins = append(ins, store.RegionInput{Token: token, DisplayName: display, Layer: layer, Primary: primary, GeofenceJSON: geofence})
+		ins = append(ins, store.RegionInput{Token: token, DisplayName: display, Layer: layer, Primary: primary, AllowFlood: allowFlood, GeofenceJSON: geofence})
 	}
 	return ins, views
 }
@@ -348,15 +474,6 @@ func stepsToText(steps []store.ConfigStep) string {
 	return b.String()
 }
 
-// profileViews converts stored profiles into editor/read views.
-func profileViews(profiles []store.Profile) []configProfileView {
-	out := make([]configProfileView, 0, len(profiles))
-	for _, p := range profiles {
-		out = append(out, configProfileView{Name: p.Name, StepsText: stepsToText(p.Steps), Steps: p.Steps})
-	}
-	return out
-}
-
 // regionViews converts stored regions into editor views, carrying each geofence's
 // raw GeoJSON through verbatim so the map editor round-trips arbitrary polygons.
 func regionViews(regions []store.Region) []configRegionView {
@@ -364,7 +481,7 @@ func regionViews(regions []store.Region) []configRegionView {
 	for _, z := range regions {
 		out = append(out, configRegionView{
 			DisplayName: z.DisplayName, Token: z.Token, Layer: z.Layer, Primary: z.Primary,
-			GeofenceJSON: string(z.GeofenceJSON),
+			AllowFlood: z.AllowFlood, GeofenceJSON: string(z.GeofenceJSON),
 		})
 	}
 	return out
@@ -393,7 +510,11 @@ func (s *Handlers) resolvedProfilesForRepeater(r *http.Request, rep *store.Repea
 		if err != nil {
 			continue
 		}
-		cmds := store.RegionDefCommands(regions, rep.Latitude, rep.Longitude)
+		rootAllow, err := s.Store.RootAllowFlood(r.Context(), o.OrgID)
+		if err != nil {
+			continue
+		}
+		cmds := store.RegionDefCommands(regions, rootAllow, rep.Latitude, rep.Longitude)
 		if len(cmds) == 0 {
 			continue
 		}

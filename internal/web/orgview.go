@@ -114,7 +114,11 @@ func BuildConfigView(ctx context.Context, st *store.Store, orgID int64, selected
 		cv.MapBounds = []float64{union.minLat, union.minLon, union.maxLat, union.maxLon}
 	}
 	if cv.PreviewActive {
-		cv.RegionDef = store.RegionDefCommands(regions, lat, lon)
+		rootAllow, err := st.RootAllowFlood(ctx, orgID)
+		if err != nil {
+			return ConfigView{}, err
+		}
+		cv.RegionDef = store.RegionDefCommands(regions, rootAllow, lat, lon)
 	}
 	return cv, nil
 }

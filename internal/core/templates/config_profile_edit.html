@@ -1,0 +1,60 @@
+{{define "title"}}{{if .ProfileID}}Edit profile{{else}}Add profile{{end}} · {{.Org.Name}} · MeshTender{{end}}
+{{define "header"}}
+<div class="row g-2 align-items-center">
+  <div class="col">
+    <div class="page-pretitle">{{.Org.Name}} · Configuration</div>
+    <h2 class="page-title">{{if .ProfileID}}Edit profile{{else}}Add profile{{end}}</h2>
+  </div>
+  <div class="col-auto ms-auto d-print-none">
+    <a class="btn" href="/orgs/{{.Org.Slug}}/config/edit">Back to configuration</a>
+  </div>
+</div>
+{{end}}
+{{define "content"}}
+{{template "org-tabs" .Nav}}
+
+{{if .Errors}}
+<div class="alert alert-danger">
+  <div class="fw-bold">Nothing was saved — fix these first:</div>
+  <ul class="mb-0">{{range .Errors}}<li>{{.}}</li>{{end}}</ul>
+</div>
+{{end}}
+{{if .RiskyWarn}}
+<div class="alert alert-warning">
+  <div class="fw-bold">Risky commands in this profile</div>
+  <p class="mb-1">These can take over or brick a node — included on purpose?</p>
+  <ul class="mb-0">{{range .RiskyWarn}}<li><code>{{.}}</code></li>{{end}}</ul>
+</div>
+{{end}}
+
+<div class="card">
+  <div class="card-body">
+    <form method="post" action="{{if .ProfileID}}/orgs/{{.Org.Slug}}/config/profiles/{{.ProfileID}}{{else}}/orgs/{{.Org.Slug}}/config/profiles{{end}}">
+      <div class="mb-3">
+        <label class="form-label" for="profile_name">Profile name</label>
+        <input class="form-control" id="profile_name" name="profile_name" value="{{.Name}}" placeholder="ESP32" maxlength="60" autofocus>
+      </div>
+      <div class="mb-1">
+        <label class="form-label" for="profile_steps">Base settings</label>
+        <textarea class="form-control font-monospace" id="profile_steps" name="profile_steps" rows="10" spellcheck="false" placeholder="set tx 22&#10;# notes start with #">{{.StepsText}}</textarea>
+        <small class="form-hint">One command per line; lines starting with <code>#</code> are notes.</small>
+      </div>
+      <div class="btn-list mt-3">
+        <button type="submit" class="btn btn-primary">{{if .ProfileID}}Save profile{{else}}Create profile{{end}}</button>
+        <a class="btn" href="/orgs/{{.Org.Slug}}/config/edit">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+{{if .ProfileID}}
+<div class="card mt-3">
+  <div class="card-body">
+    <form method="post" action="/orgs/{{.Org.Slug}}/config/profiles/{{.ProfileID}}/delete" onsubmit="return confirm('Delete this profile?')">
+      <button type="submit" class="btn btn-ghost-danger">Delete profile</button>
+      <small class="form-hint mt-1">Removes this profile and its base settings.</small>
+    </form>
+  </div>
+</div>
+{{end}}
+{{end}}

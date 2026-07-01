@@ -1,0 +1,124 @@
+{{define "title"}}Edit regions · {{.Org.Name}} · MeshTender{{end}}
+{{define "header"}}
+<div class="row g-2 align-items-center">
+  <div class="col">
+    <div class="page-pretitle">{{.Org.Name}} · Configuration</div>
+    <h2 class="page-title">Edit regions</h2>
+  </div>
+  <div class="col-auto ms-auto d-print-none">
+    <a class="btn" href="/orgs/{{.Org.Slug}}/config/edit">Back to configuration</a>
+  </div>
+</div>
+{{end}}
+{{define "content"}}
+{{template "org-tabs" .Nav}}
+
+{{if .Errors}}
+<div class="alert alert-danger">
+  <div class="fw-bold">Nothing was saved — fix these first:</div>
+  <ul class="mb-0">{{range .Errors}}<li>{{.}}</li>{{end}}</ul>
+</div>
+{{end}}
+
+<link rel="stylesheet" href="/static/leaflet.css">
+<link rel="stylesheet" href="/static/leaflet-geoman.css">
+<style>
+  @media (min-width: 992px) { .region-map-sticky { position: sticky; top: 1rem; } }
+</style>
+
+<p class="text-secondary">Each region has a <strong>display name</strong> (e.g. Buffalo), a short <strong>name</strong> used by MeshCore (e.g. <code>buf</code>), and a <strong>level</strong> for its depth (lower = broader, e.g. country 1 → state 2 → city 3). Pick a region in the list, then use the map tools to outline where it applies — every region needs an area (the root region at the top of the list is the one that applies everywhere).</p>
+
+<form method="post" action="/orgs/{{.Org.Slug}}/config/regions">
+  <div class="row g-3">
+    <div class="col-lg-7">
+      <div class="region-map-sticky">
+        <div id="region-map" style="height:520px; border-radius:var(--tblr-border-radius)" role="region" aria-label="Map for drawing region boundaries"></div>
+        <p class="text-secondary small mt-2 mb-0">Draw with the tools at the top-left of the map. New shapes fill the selected region; drawing again adds a new region.</p>
+      </div>
+    </div>
+    <div class="col-lg-5">
+      {{/* The root region (*) is pinned first in the list. It is not a .region-block,
+           so the map editor ignores it; its only setting is flood policy. */}}
+      <div class="card card-sm mb-2">
+        <div class="card-body d-flex align-items-center gap-3">
+          <div class="flex-fill" style="min-width:0">
+            <div class="fw-bold">Root <span class="text-secondary fw-normal">· <code>*</code> · everywhere</span></div>
+            <div class="text-secondary small">Applies to every repeater. Deny flood to scope flooding to your defined regions.</div>
+          </div>
+          <label class="form-check form-switch m-0 flex-shrink-0 text-nowrap">
+            <input type="hidden" name="root_allow_flood" value="{{if .RootAllowFlood}}1{{end}}">
+            <input class="form-check-input" type="checkbox" {{if .RootAllowFlood}}checked{{end}} onchange="this.previousElementSibling.value = this.checked ? '1' : ''">
+            <span class="form-check-label">Allow flood</span>
+          </label>
+        </div>
+      </div>
+      <div id="regions">
+        {{range .Regions}}{{template "region-block" .}}{{end}}
+      </div>
+      <button type="button" class="btn btn-outline-primary w-100" onclick="addBlock('region')">{{template "icon-plus" "me-1"}}Add region</button>
+      <div class="btn-list mt-3">
+        <button type="submit" class="btn btn-primary">Save regions</button>
+        <a class="btn" href="/orgs/{{.Org.Slug}}/config">Cancel</a>
+      </div>
+    </div>
+  </div>
+</form>
+
+{{/* Hidden prototype cloned by addBlock(); kept out of the form via the template tag. */}}
+<template id="region-proto">{{template "region-block" .EmptyRegion}}</template>
+<script>
+function addBlock(kind) {
+  const proto = document.getElementById(kind + '-proto');
+  document.getElementById(kind + 's').appendChild(proto.content.cloneNode(true));
+}
+function removeBlock(btn, cls) { btn.closest('.' + cls).remove(); }
+// Only one region may be primary: toggle the clicked one and clear the rest.
+function setPrimaryRegion(btn) {
+  const block = btn.closest('.region-block');
+  const makePrimary = block.querySelector('input[name="region_primary"]').value !== '1';
+  document.querySelectorAll('#regions .region-block').forEach(function (b) {
+    const on = b === block && makePrimary;
+    b.querySelector('input[name="region_primary"]').value = on ? '1' : '';
+    const pb = b.querySelector('.region-primary-btn');
+    pb.classList.toggle('btn-primary', on);
+    pb.textContent = on ? '★ Primary' : 'Make primary';
+  });
+}
+</script>
+<script src="/static/leaflet.js"></script>
+<script src="/static/leaflet-geoman.js"></script>
+<script src="/static/regionmap.js"></script>
+<script>initRegionEditor('region-map', 'regions');</script>
+{{end}}
+
+{{/* region-block is one node of the region hierarchy, shown as a card in the side
+     list. Its area is drawn on the map; region_geojson carries the GeoJSON the map
+     writes. regionmap.js keys off .region-block / region_geojson /
+     .region-clear / .region-active. */}}
+{{define "region-block"}}
+<div class="region-block card card-sm mb-2">
+  <div class="card-body">
+    <div class="row g-2 align-items-end">
+      <div class="col-12"><label class="form-label mb-1">Display name</label>
+        <input class="form-control" name="region_display" value="{{.DisplayName}}" placeholder="Buffalo"></div>
+      <div class="col"><label class="form-label mb-1">Name</label>
+        <input class="form-control font-monospace" name="region_token" value="{{.Token}}" placeholder="buf"></div>
+      <div class="col-auto"><label class="form-label mb-1">Level</label>
+        <input class="form-control" type="number" name="region_layer" value="{{.Layer}}" style="width:5rem"></div>
+    </div>
+    <div class="d-flex align-items-center flex-wrap gap-2 mt-2">
+      <button type="button" class="btn btn-sm region-edit-btn">Edit</button>
+      <input type="hidden" name="region_primary" value="{{if .Primary}}1{{end}}">
+      <button type="button" class="btn btn-sm region-primary-btn{{if .Primary}} btn-primary{{end}}" onclick="setPrimaryRegion(this)">{{if .Primary}}★ Primary{{else}}Make primary{{end}}</button>
+      <label class="form-check form-check-inline m-0">
+        <input type="hidden" name="region_allow_flood" value="{{if .AllowFlood}}1{{end}}">
+        <input class="form-check-input" type="checkbox" {{if .AllowFlood}}checked{{end}} onchange="this.previousElementSibling.value = this.checked ? '1' : ''">
+        <span class="form-check-label">Allow flood</span>
+      </label>
+      <button type="button" class="btn btn-sm btn-ghost-secondary region-clear">Clear area</button>
+      <button type="button" class="btn btn-sm btn-ghost-danger ms-auto" onclick="removeBlock(this,'region-block')">Remove</button>
+    </div>
+    <input type="hidden" name="region_geojson" value="{{.GeofenceJSON}}">
+  </div>
+</div>
+{{end}}

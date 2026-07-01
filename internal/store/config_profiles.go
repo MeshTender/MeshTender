@@ -52,6 +52,7 @@ type Region struct {
 	DisplayName  string
 	Layer        int
 	Primary      bool // the org's primary region (frames the config preview map)
+	AllowFlood   bool // whether flooding is allowed in this region (region allowf/denyf)
 	Geofence     *geo.Shape
 	GeofenceJSON []byte
 }
@@ -67,6 +68,7 @@ type RegionInput struct {
 	DisplayName  string
 	Layer        int
 	Primary      bool
+	AllowFlood   bool
 	GeofenceJSON []byte
 }
 
@@ -128,14 +130,14 @@ func (s *Store) ListProfiles(ctx context.Context, orgID int64) ([]Profile, error
 // the order their tokens appear in a `region def` chain.
 func (s *Store) ListRegions(ctx context.Context, orgID int64) ([]Region, error) {
 	rrows, err := s.pool.Query(ctx,
-		`SELECT id, token, display_name, layer, is_primary, geofence FROM config_regions WHERE org_id = $1 ORDER BY layer, token`, orgID)
+		`SELECT id, token, display_name, layer, is_primary, allow_flood, geofence FROM config_regions WHERE org_id = $1 ORDER BY layer, token`, orgID)
 	if err != nil {
 		return nil, fmt.Errorf("list regions: %w", err)
 	}
 	regions, err := collectRows(rrows, func(r pgx.Row) (Region, error) {
 		var z Region
 		var raw []byte
-		if err := r.Scan(&z.ID, &z.Token, &z.DisplayName, &z.Layer, &z.Primary, &raw); err != nil {
+		if err := r.Scan(&z.ID, &z.Token, &z.DisplayName, &z.Layer, &z.Primary, &z.AllowFlood, &raw); err != nil {
 			return Region{}, err
 		}
 		if z.Geofence, err = geo.Parse(raw); err != nil {
@@ -155,37 +157,157 @@ func (s *Store) ListRegions(ctx context.Context, orgID int64) ([]Region, error) 
 // version history — so the editor sends the full desired state each save.
 func (s *Store) ReplaceOrgConfig(ctx context.Context, orgID int64, profiles []ProfileInput, regions []RegionInput) error {
 	return s.inTx(ctx, func(tx pgx.Tx) error {
-		// Steps cascade from their profile/region, so deleting the parents is enough.
 		if _, err := tx.Exec(ctx, `DELETE FROM config_profiles WHERE org_id = $1`, orgID); err != nil {
 			return fmt.Errorf("clear profiles: %w", err)
 		}
-		if _, err := tx.Exec(ctx, `DELETE FROM config_regions WHERE org_id = $1`, orgID); err != nil {
-			return fmt.Errorf("clear regions: %w", err)
-		}
 		for pos, p := range profiles {
-			var pid int64
-			if err := tx.QueryRow(ctx,
-				`INSERT INTO config_profiles (org_id, name, position) VALUES ($1, $2, $3) RETURNING id`,
-				orgID, p.Name, pos).Scan(&pid); err != nil {
-				return fmt.Errorf("insert profile %q: %w", p.Name, err)
-			}
-			if err := insertConfigSteps(ctx, tx, "config_profile_steps", "profile_id", pid, p.Steps); err != nil {
-				return fmt.Errorf("insert profile %q steps: %w", p.Name, err)
+			if _, err := insertProfile(ctx, tx, orgID, p.Name, pos, p.Steps); err != nil {
+				return err
 			}
 		}
-		for _, z := range regions {
-			var geofence []byte // nil → SQL NULL → everywhere
-			if len(z.GeofenceJSON) > 0 {
-				geofence = z.GeofenceJSON
-			}
-			if _, err := tx.Exec(ctx,
-				`INSERT INTO config_regions (org_id, token, display_name, layer, is_primary, geofence) VALUES ($1, $2, $3, $4, $5, $6)`,
-				orgID, z.Token, z.DisplayName, z.Layer, z.Primary, geofence); err != nil {
-				return fmt.Errorf("insert region %q: %w", z.Token, err)
-			}
-		}
-		return nil
+		return replaceRegionsTx(ctx, tx, orgID, regions)
 	})
+}
+
+// ReplaceRegions replaces just an org's regions (profiles untouched) and sets the
+// org's root (*) flood policy, in one transaction. Regions are spatially
+// interdependent — parenting is derived from overlap — so the region editor sends
+// the full desired set each save.
+func (s *Store) ReplaceRegions(ctx context.Context, orgID int64, regions []RegionInput, rootAllowFlood bool) error {
+	return s.inTx(ctx, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx,
+			`UPDATE organizations SET root_allow_flood = $2 WHERE id = $1`, orgID, rootAllowFlood); err != nil {
+			return fmt.Errorf("set root flood: %w", err)
+		}
+		return replaceRegionsTx(ctx, tx, orgID, regions)
+	})
+}
+
+// RootAllowFlood reports whether flooding is allowed at the org's root region (*).
+func (s *Store) RootAllowFlood(ctx context.Context, orgID int64) (bool, error) {
+	var allow bool
+	if err := s.pool.QueryRow(ctx,
+		`SELECT root_allow_flood FROM organizations WHERE id = $1`, orgID).Scan(&allow); err != nil {
+		return false, fmt.Errorf("root allow flood: %w", err)
+	}
+	return allow, nil
+}
+
+// CreateProfile inserts a new named profile for an org, appended after existing
+// ones. Returns ErrDuplicate if the org already has a profile with that name.
+func (s *Store) CreateProfile(ctx context.Context, orgID int64, name string, steps []ConfigStep) (int64, error) {
+	var id int64
+	err := s.inTx(ctx, func(tx pgx.Tx) error {
+		var pos int
+		if err := tx.QueryRow(ctx,
+			`SELECT count(*) FROM config_profiles WHERE org_id = $1`, orgID).Scan(&pos); err != nil {
+			return fmt.Errorf("count profiles: %w", err)
+		}
+		var err error
+		id, err = insertProfile(ctx, tx, orgID, name, pos, steps)
+		return err
+	})
+	if isUniqueViolation(err) {
+		return 0, ErrDuplicate
+	}
+	return id, err
+}
+
+// GetProfile returns a single profile (with steps) scoped to its org, or
+// ErrNotFound if no such profile belongs to the org.
+func (s *Store) GetProfile(ctx context.Context, orgID, profileID int64) (*Profile, error) {
+	var p Profile
+	err := s.pool.QueryRow(ctx,
+		`SELECT id, name, position FROM config_profiles WHERE id = $1 AND org_id = $2`, profileID, orgID).
+		Scan(&p.ID, &p.Name, &p.Position)
+	if err != nil {
+		return nil, notFoundOr(err, "get profile")
+	}
+	rows, err := s.pool.Query(ctx,
+		`SELECT position, command_line, command_id, comment FROM config_profile_steps
+		 WHERE profile_id = $1 ORDER BY position, id`, profileID)
+	if err != nil {
+		return nil, fmt.Errorf("get profile steps: %w", err)
+	}
+	p.Steps, err = collectRows(rows, func(r pgx.Row) (ConfigStep, error) {
+		var st ConfigStep
+		return st, r.Scan(&st.Position, &st.CommandLine, &st.CommandID, &st.Comment)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &p, nil
+}
+
+// UpdateProfile renames a profile and replaces its steps, scoped to its org. Its
+// position is preserved. Returns ErrNotFound if the profile isn't the org's, or
+// ErrDuplicate if the new name collides with another profile.
+func (s *Store) UpdateProfile(ctx context.Context, orgID, profileID int64, name string, steps []ConfigStep) error {
+	err := s.inTx(ctx, func(tx pgx.Tx) error {
+		tag, err := tx.Exec(ctx,
+			`UPDATE config_profiles SET name = $3 WHERE id = $1 AND org_id = $2`, profileID, orgID, name)
+		if err != nil {
+			return fmt.Errorf("rename profile: %w", err)
+		}
+		if tag.RowsAffected() == 0 {
+			return ErrNotFound
+		}
+		if _, err := tx.Exec(ctx, `DELETE FROM config_profile_steps WHERE profile_id = $1`, profileID); err != nil {
+			return fmt.Errorf("clear profile steps: %w", err)
+		}
+		return insertConfigSteps(ctx, tx, "config_profile_steps", "profile_id", profileID, steps)
+	})
+	if isUniqueViolation(err) {
+		return ErrDuplicate
+	}
+	return err
+}
+
+// DeleteProfile removes a profile (its steps cascade), scoped to its org.
+// Returns ErrNotFound if no such profile belongs to the org.
+func (s *Store) DeleteProfile(ctx context.Context, orgID, profileID int64) error {
+	tag, err := s.pool.Exec(ctx,
+		`DELETE FROM config_profiles WHERE id = $1 AND org_id = $2`, profileID, orgID)
+	if err != nil {
+		return fmt.Errorf("delete profile: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// insertProfile inserts one profile row plus its steps, returning the new id.
+func insertProfile(ctx context.Context, tx pgx.Tx, orgID int64, name string, pos int, steps []ConfigStep) (int64, error) {
+	var pid int64
+	if err := tx.QueryRow(ctx,
+		`INSERT INTO config_profiles (org_id, name, position) VALUES ($1, $2, $3) RETURNING id`,
+		orgID, name, pos).Scan(&pid); err != nil {
+		return 0, fmt.Errorf("insert profile %q: %w", name, err)
+	}
+	if err := insertConfigSteps(ctx, tx, "config_profile_steps", "profile_id", pid, steps); err != nil {
+		return 0, fmt.Errorf("insert profile %q steps: %w", name, err)
+	}
+	return pid, nil
+}
+
+// replaceRegionsTx clears an org's regions and inserts the given set within tx.
+func replaceRegionsTx(ctx context.Context, tx pgx.Tx, orgID int64, regions []RegionInput) error {
+	if _, err := tx.Exec(ctx, `DELETE FROM config_regions WHERE org_id = $1`, orgID); err != nil {
+		return fmt.Errorf("clear regions: %w", err)
+	}
+	for _, z := range regions {
+		var geofence []byte // nil → SQL NULL → everywhere
+		if len(z.GeofenceJSON) > 0 {
+			geofence = z.GeofenceJSON
+		}
+		if _, err := tx.Exec(ctx,
+			`INSERT INTO config_regions (org_id, token, display_name, layer, is_primary, allow_flood, geofence) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+			orgID, z.Token, z.DisplayName, z.Layer, z.Primary, z.AllowFlood, geofence); err != nil {
+			return fmt.Errorf("insert region %q: %w", z.Token, err)
+		}
+	}
+	return nil
 }
 
 // insertConfigSteps writes an ordered run of steps into a step table keyed by a
@@ -240,12 +362,18 @@ func betterParent(a, b Region) bool {
 
 // RegionDefCommands renders the regions that apply at (lat, lon) into the MeshCore
 // commands to run on a repeater: a single `region def …` line describing the
-// region tree for the location, followed by `region save`. The tree is the subset
-// of regions whose geofence contains the point (match-all regions always apply),
-// re-parented onto their nearest matching ancestor and serialized depth-first with
-// the `child|ancestor` pop-back syntax so sibling branches (overlapping same-layer
-// regions) come out correctly. Returns nil when no region covers the location.
-func RegionDefCommands(regions []Region, lat, lon *float64) []string {
+// region tree for the location, then explicit flood policy for the root (*) and
+// each applied region, then `region save`. The tree is the subset of regions whose
+// geofence contains the point (match-all regions always apply), re-parented onto
+// their nearest matching ancestor and serialized depth-first with the
+// `child|ancestor` pop-back syntax so sibling branches (overlapping same-layer
+// regions) come out correctly. Flood lines are always explicit (allowf/denyf) so
+// applying the config normalizes the node over any prior manual settings.
+//
+// Returns nil when no region covers the location. This is the safety guard: a lone
+// `region denyf *` with nothing allowed would kill all flooding, so the root deny
+// only ever ships alongside a real def + at least one applied region.
+func RegionDefCommands(regions []Region, rootAllowFlood bool, lat, lon *float64) []string {
 	parents := regionParents(regions)
 	matched := make([]bool, len(regions))
 	any := false
@@ -322,7 +450,21 @@ func RegionDefCommands(regions []Region, lat, lon *float64) []string {
 		}
 		tokens = append(tokens, regions[node].Token)
 	}
-	return []string{"region def " + strings.Join(tokens, " "), "region save"}
+	// Def line, then explicit flood policy (root first, then each applied region in
+	// def order), then persist.
+	out := []string{"region def " + strings.Join(tokens, " "), floodCommand("*", rootAllowFlood)}
+	for _, node := range seq {
+		out = append(out, floodCommand(regions[node].Token, regions[node].AllowFlood))
+	}
+	return append(out, "region save")
+}
+
+// floodCommand returns the MeshCore command setting a region's flood policy.
+func floodCommand(name string, allow bool) string {
+	if allow {
+		return "region allowf " + name
+	}
+	return "region denyf " + name
 }
 
 // RegionMatches reports whether a region applies at (lat, lon): a match-all region

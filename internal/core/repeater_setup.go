@@ -97,7 +97,12 @@ func (s *Handlers) handleSetupCommands(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "could not load regions", http.StatusInternalServerError)
 			return
 		}
-		cmds = append(cmds, store.RegionDefCommands(regions, req.Lat, req.Lon)...)
+		rootAllow, err := s.Store.RootAllowFlood(r.Context(), req.OrgID)
+		if err != nil {
+			http.Error(w, "could not load regions", http.StatusInternalServerError)
+			return
+		}
+		cmds = append(cmds, store.RegionDefCommands(regions, rootAllow, req.Lat, req.Lon)...)
 	} else {
 		if radio.FreqMHz <= 0 || radio.BwKHz <= 0 {
 			http.Error(w, "radio settings are required", http.StatusBadRequest)

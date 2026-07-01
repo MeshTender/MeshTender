@@ -53,18 +53,26 @@ func TestSerialSetupFlow(t *testing.T) {
 
 	// A profile whose steps set the radio, plus a geofenced region (lon 30-40,
 	// lat 10-20). Steps resolve against the seeded command catalog.
-	form := url.Values{
-		"profile_name":   {"Std"},
-		"profile_steps":  {"set radio 910.525,62.5,7,5\nset tx 22"},
-		"region_display": {"Zone"},
-		"region_token":   {"zone"},
-		"region_layer":   {"1"},
-		"region_geojson": {`{"type":"Polygon","coordinates":[[[30,10],[40,10],[40,20],[30,20],[30,10]]]}`},
-	}
-	save := post(t, ts, h.app, "/orgs/"+org.Slug+"/config/edit", form, sess)
+	save := post(t, ts, h.app, "/orgs/"+org.Slug+"/config/profiles", url.Values{
+		"profile_name":  {"Std"},
+		"profile_steps": {"set radio 910.525,62.5,7,5\nset tx 22"},
+	}, sess)
 	save.Body.Close()
 	if save.StatusCode != http.StatusSeeOther {
-		t.Fatalf("config save status = %d, want 303", save.StatusCode)
+		t.Fatalf("profile save status = %d, want 303", save.StatusCode)
+	}
+	// Scoped-flooding pattern: allow flood inside the zone, deny at the root
+	// (root_allow_flood omitted = unchecked = deny).
+	rsave := post(t, ts, h.app, "/orgs/"+org.Slug+"/config/regions", url.Values{
+		"region_display":     {"Zone"},
+		"region_token":       {"zone"},
+		"region_layer":       {"1"},
+		"region_allow_flood": {"1"},
+		"region_geojson":     {`{"type":"Polygon","coordinates":[[[30,10],[40,10],[40,20],[30,20],[30,10]]]}`},
+	}, sess)
+	rsave.Body.Close()
+	if rsave.StatusCode != http.StatusSeeOther {
+		t.Fatalf("region save status = %d, want 303", rsave.StatusCode)
 	}
 
 	// Build the command list for a point inside the region.
@@ -91,7 +99,8 @@ func TestSerialSetupFlow(t *testing.T) {
 
 	joined := strings.Join(cmdResp.Commands, "\n")
 	for _, want := range []string{
-		"set name Hilltop", "set radio 910.525,62.5,7,5", "region def zone", "region save",
+		"set name Hilltop", "set radio 910.525,62.5,7,5", "region def zone",
+		"region denyf *", "region allowf zone", "region save",
 		"set lat 15.000000", "set lon 35.000000", "reboot",
 	} {
 		if !strings.Contains(joined, want) {

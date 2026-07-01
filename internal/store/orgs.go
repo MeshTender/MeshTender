@@ -19,8 +19,11 @@ type Org struct {
 	Name        string
 	Description string
 	Region      string
-	CreatedBy   *int64
-	CreatedAt   time.Time
+	// RootAllowFlood is the flood policy for the org's root region (*): whether
+	// flooding is allowed everywhere by default. See RegionDefCommands.
+	RootAllowFlood bool
+	CreatedBy      *int64
+	CreatedAt      time.Time
 }
 
 // OrgSummary is a public directory entry for an organization.
@@ -115,8 +118,8 @@ func (s *Store) CreateOrg(ctx context.Context, name string, creatorID int64) (*O
 		}
 		if err := tx.QueryRow(ctx,
 			`INSERT INTO organizations (slug, name, created_by) VALUES ($1, $2, $3)
-			 RETURNING id, slug, name, description, region, created_by, created_at`,
-			slug, name, creatorID).Scan(&o.ID, &o.Slug, &o.Name, &o.Description, &o.Region, &o.CreatedBy, &o.CreatedAt); err != nil {
+			 RETURNING id, slug, name, description, region, root_allow_flood, created_by, created_at`,
+			slug, name, creatorID).Scan(&o.ID, &o.Slug, &o.Name, &o.Description, &o.Region, &o.RootAllowFlood, &o.CreatedBy, &o.CreatedAt); err != nil {
 			return fmt.Errorf("insert org: %w", err)
 		}
 		if _, err := tx.Exec(ctx,
@@ -138,8 +141,8 @@ func (s *Store) CreateOrg(ctx context.Context, name string, creatorID int64) (*O
 func (s *Store) GetOrg(ctx context.Context, id int64) (*Org, error) {
 	var o Org
 	err := s.pool.QueryRow(ctx,
-		`SELECT id, slug, name, description, region, created_by, created_at FROM organizations WHERE id = $1`, id).
-		Scan(&o.ID, &o.Slug, &o.Name, &o.Description, &o.Region, &o.CreatedBy, &o.CreatedAt)
+		`SELECT id, slug, name, description, region, root_allow_flood, created_by, created_at FROM organizations WHERE id = $1`, id).
+		Scan(&o.ID, &o.Slug, &o.Name, &o.Description, &o.Region, &o.RootAllowFlood, &o.CreatedBy, &o.CreatedAt)
 	if err != nil {
 		return nil, notFoundOr(err, "get org")
 	}

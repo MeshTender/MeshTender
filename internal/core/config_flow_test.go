@@ -31,18 +31,27 @@ func TestOrgConfigProfilesFlow(t *testing.T) {
 		t.Fatalf("create org: %v", err)
 	}
 
-	form := url.Values{
-		"profile_name":   {"ESP32", "nRF52"},
-		"profile_steps":  {"# esp base", "# nrf base"},
-		"region_display": {"Mountains"},
-		"region_token":   {"mtns"},
-		"region_layer":   {"2"},
-		"region_geojson": {`{"type":"Polygon","coordinates":[[[30,10],[40,10],[40,20],[30,20],[30,10]]]}`},
+	// Two profiles, each created on its own page.
+	for _, p := range []struct{ name, steps string }{{"ESP32", "# esp base"}, {"nRF52", "# nrf base"}} {
+		save := post(t, ts, h.app, "/orgs/"+org.Slug+"/config/profiles",
+			url.Values{"profile_name": {p.name}, "profile_steps": {p.steps}}, sess)
+		save.Body.Close()
+		if save.StatusCode != http.StatusSeeOther {
+			t.Fatalf("create profile %s status = %d, want 303", p.name, save.StatusCode)
+		}
 	}
-	save := post(t, ts, h.app, "/orgs/"+org.Slug+"/config/edit", form, sess)
-	save.Body.Close()
-	if save.StatusCode != http.StatusSeeOther {
-		t.Fatalf("save status = %d, want 303", save.StatusCode)
+	// A geofenced region, saved on the region page.
+	rsave := post(t, ts, h.app, "/orgs/"+org.Slug+"/config/regions", url.Values{
+		"region_display":     {"Mountains"},
+		"region_token":       {"mtns"},
+		"region_layer":       {"2"},
+		"region_allow_flood": {"1"},
+		"root_allow_flood":   {"1"},
+		"region_geojson":     {`{"type":"Polygon","coordinates":[[[30,10],[40,10],[40,20],[30,20],[30,10]]]}`},
+	}, sess)
+	rsave.Body.Close()
+	if rsave.StatusCode != http.StatusSeeOther {
+		t.Fatalf("save regions status = %d, want 303", rsave.StatusCode)
 	}
 
 	body := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/config", sess))
@@ -61,6 +70,26 @@ func TestOrgConfigProfilesFlow(t *testing.T) {
 	sel := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/config?profile=nRF52", sess))
 	if !strings.Contains(sel, "nRF52 · base settings") {
 		t.Fatalf("?profile=nRF52 should show nRF52's base settings")
+	}
+
+	// The admin editor pages render: the hub lists the profiles + region summary,
+	// the new-profile page shows the base-settings editor, and the region page has
+	// the map + a region row.
+	hub := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/config/edit", sess))
+	for _, want := range []string{"ESP32", "nRF52", "Add profile", "Edit regions", "1 region"} {
+		if !strings.Contains(hub, want) {
+			t.Fatalf("config hub missing %q", want)
+		}
+	}
+	newProf := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/config/profiles/new", sess))
+	if !strings.Contains(newProf, "Base settings") || !strings.Contains(newProf, "Create profile") {
+		t.Fatalf("new-profile page missing its form")
+	}
+	rgn := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/config/regions", sess))
+	for _, want := range []string{"region-map", "Mountains", "mtns", "Add region", "everywhere", "Allow flood"} {
+		if !strings.Contains(rgn, want) {
+			t.Fatalf("regions editor missing %q", want)
+		}
 	}
 
 	// A non-admin member of a config-less org does NOT see the Configuration tab.

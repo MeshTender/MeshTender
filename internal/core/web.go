@@ -165,8 +165,14 @@ func (s *Handlers) appRouter() chi.Router {
 		r.Get("/orgs/{id}/my-commands", s.pageOrgCommands)
 		r.Post("/orgs/{id}/my-commands", s.handleSaveOrgCommands)
 		r.Get("/orgs/{id}/config", s.pageOrgConfig)
-		r.Get("/orgs/{id}/config/edit", s.pageOrgConfigEdit)
-		r.Post("/orgs/{id}/config/edit", s.handleSaveOrgConfig)
+		r.Get("/orgs/{id}/config/edit", s.pageConfigHub)
+		r.Get("/orgs/{id}/config/profiles/new", s.pageProfileEdit)
+		r.Post("/orgs/{id}/config/profiles", s.handleCreateProfile)
+		r.Get("/orgs/{id}/config/profiles/{pid}/edit", s.pageProfileEdit)
+		r.Post("/orgs/{id}/config/profiles/{pid}", s.handleUpdateProfile)
+		r.Post("/orgs/{id}/config/profiles/{pid}/delete", s.handleDeleteProfile)
+		r.Get("/orgs/{id}/config/regions", s.pageRegionsEdit)
+		r.Post("/orgs/{id}/config/regions", s.handleSaveRegions)
 		// Custom org domains are hidden for now — the hosting/TLS infrastructure
 		// isn't in place yet. Leave the handlers in tree but don't expose them.
 		// r.Post("/orgs/{id}/domains", s.handleAddOrgDomain)

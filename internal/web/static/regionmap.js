@@ -98,7 +98,7 @@
     map.on("pm:drawend", function () { drawing = false; });
 
     function setStatus(b) {
-      if (b.status) b.status.textContent = b.layer ? "Custom area" : "Applies everywhere";
+      if (b.status) b.status.textContent = b.layer ? "Custom area" : "No area yet";
     }
     function serialize(b) {
       b.hidden.value = b.layer ? geomString(b.layer) : "";
@@ -111,7 +111,16 @@
     }
     function setActive(b) {
       active = b;
-      blocks.forEach(function (x) { x.el.classList.toggle("region-active", x === b); });
+      blocks.forEach(function (x) {
+        var on = x === b;
+        x.el.classList.toggle("region-active", on);
+        // The Edit button is the visible selection affordance: it lights up and
+        // reads "Editing" for the active region, "Edit" otherwise.
+        if (x.edit) {
+          x.edit.classList.toggle("btn-primary", on);
+          x.edit.textContent = on ? "Editing" : "Edit";
+        }
+      });
       if (banner) banner.textContent = b ? regionName(b) : "—";
       restyle();
     }
@@ -163,12 +172,15 @@
           el: el,
           hidden: el.querySelector('input[name="region_geojson"]'),
           status: el.querySelector(".region-shape-status"),
+          edit: el.querySelector(".region-edit-btn"),
           layer: null,
         };
         var layer = layerFromGeoJSON(b.hidden && b.hidden.value);
         if (layer) bindLayer(b, layer);
         setStatus(b);
-        el.addEventListener("click", function () { if (!drawing) setActive(b); });
+        // Selection is driven by the explicit Edit button (and clicking the shape on
+        // the map) — the card itself isn't clickable, which read as unintuitive.
+        if (b.edit) b.edit.addEventListener("click", function () { if (!drawing) setActive(b); });
         var clearBtn = el.querySelector(".region-clear");
         if (clearBtn) clearBtn.addEventListener("click", function (e) {
           e.stopPropagation();

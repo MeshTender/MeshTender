@@ -1,9 +1,9 @@
-{{define "title"}}Edit configuration · {{.Org.Name}} · MeshTender{{end}}
+{{define "title"}}Configuration · {{.Org.Name}} · MeshTender{{end}}
 {{define "header"}}
 <div class="row g-2 align-items-center">
   <div class="col">
     <div class="page-pretitle">{{.Org.Name}}</div>
-    <h2 class="page-title">Edit Configuration</h2>
+    <h2 class="page-title">Edit configuration</h2>
   </div>
   <div class="col-auto ms-auto d-print-none">
     <a class="btn" href="/orgs/{{.Org.Slug}}/config">Back to configuration</a>
@@ -13,118 +13,52 @@
 {{define "content"}}
 {{template "org-tabs" .Nav}}
 
-{{if .Errors}}
-<div class="alert alert-danger">
-  <div class="fw-bold">Nothing was saved — fix these first:</div>
-  <ul class="mb-0">{{range .Errors}}<li>{{.}}</li>{{end}}</ul>
-</div>
-{{end}}
-{{if .RiskyWarn}}
-<div class="alert alert-warning">
-  <div class="fw-bold">Risky commands in this configuration</div>
-  <p class="mb-1">These can take over or brick a node — included on purpose?</p>
-  <ul class="mb-0">{{range .RiskyWarn}}<li><code>{{.}}</code></li>{{end}}</ul>
-</div>
-{{end}}
-
-<form method="post" action="/orgs/{{.Org.Slug}}/config/edit">
-  <div class="card">
-    <div class="card-header"><h3 class="card-title">Profiles</h3></div>
-    <div class="card-body">
-      <p class="text-secondary">Named sets of base settings — e.g. one per board family. Members pick the profile matching their hardware. One command per line; lines starting with <code>#</code> are notes.</p>
-      <div id="profiles">
-        {{range .Profiles}}{{template "profile-block" .}}{{end}}
+<div class="card">
+  <div class="card-header">
+    <div>
+      <h3 class="card-title">Profiles</h3>
+      <div class="text-secondary small">Named sets of base settings — e.g. one per board family. Members pick the profile matching their use case.</div>
+    </div>
+    <div class="card-actions">
+      <a class="btn btn-primary" href="/orgs/{{.Org.Slug}}/config/profiles/new">{{template "icon-plus" "me-1"}}Add profile</a>
+    </div>
+  </div>
+  {{if .Profiles}}
+  <div class="list-group list-group-flush">
+    {{range .Profiles}}
+    <div class="list-group-item d-flex align-items-center gap-3">
+      <div class="flex-fill" style="min-width:0">
+        <div class="fw-bold text-truncate">{{.Name}}</div>
+        <div class="text-secondary small">{{len .Steps}} step{{if ne (len .Steps) 1}}s{{end}}</div>
       </div>
-      <button type="button" class="btn btn-outline-primary mt-2" onclick="addBlock('profile')">{{template "icon-plus" "me-1"}}Add profile</button>
+      <a class="btn btn-sm" href="/orgs/{{$.Org.Slug}}/config/profiles/{{.ID}}/edit">Edit</a>
+      <form method="post" action="/orgs/{{$.Org.Slug}}/config/profiles/{{.ID}}/delete" class="m-0" onsubmit="return confirm('Delete the profile “{{.Name}}”?')">
+        <button type="submit" class="btn btn-sm btn-ghost-danger">Delete</button>
+      </form>
     </div>
+    {{end}}
   </div>
-
-  <div class="card mt-3">
-    <div class="card-header"><h3 class="card-title">Regions</h3></div>
-    <div class="card-body">
-      <p class="text-secondary">A hierarchy of named areas. Each region has a <strong>display name</strong> (e.g. Buffalo), a short <strong>name</strong> used by MeshCore (e.g. <code>buf</code>), and a <strong>layer</strong> for its depth. Select a region below, then use the map tools to outline where it applies — a region with no shape applies everywhere. A repeater is assigned to every region whose area contains it; sorted by layer, their names form a <code>region def</code> command (e.g. <code>region def us ny buf</code>).</p>
-      <link rel="stylesheet" href="/static/leaflet.css">
-      <link rel="stylesheet" href="/static/leaflet-geoman.css">
-      <p class="text-secondary small mb-1">Drawing area for: <strong id="region-map-active">—</strong></p>
-      <div id="region-map" style="height:420px" role="region" aria-label="Map for drawing region boundaries"></div>
-      <div id="regions" class="mt-3">
-        {{range .Regions}}{{template "region-block" .}}{{end}}
-      </div>
-      <button type="button" class="btn btn-outline-primary mt-2" onclick="addBlock('region')">{{template "icon-plus" "me-1"}}Add region</button>
-    </div>
-  </div>
-
-  <div class="card mt-3">
-    <div class="card-body">
-      <div class="btn-list">
-        <button type="submit" class="btn btn-primary">Save configuration</button>
-        <a class="btn" href="/orgs/{{.Org.Slug}}/config">Cancel</a>
-      </div>
-    </div>
-  </div>
-</form>
-
-{{/* Hidden prototypes cloned by addBlock(); kept out of the form via template tags. */}}
-<template id="profile-proto">{{template "profile-block" .EmptyProfile}}</template>
-<template id="region-proto">{{template "region-block" .EmptyRegion}}</template>
-<script>
-function addBlock(kind) {
-  const proto = document.getElementById(kind + '-proto');
-  document.getElementById(kind + 's').appendChild(proto.content.cloneNode(true));
-}
-function removeBlock(btn, cls) { btn.closest('.' + cls).remove(); }
-// Only one region may be primary: toggle the clicked one and clear the rest.
-function setPrimaryRegion(btn) {
-  const block = btn.closest('.region-block');
-  const makePrimary = block.querySelector('input[name="region_primary"]').value !== '1';
-  document.querySelectorAll('#regions .region-block').forEach(function (b) {
-    const on = b === block && makePrimary;
-    b.querySelector('input[name="region_primary"]').value = on ? '1' : '';
-    const pb = b.querySelector('.region-primary-btn');
-    pb.classList.toggle('btn-primary', on);
-    pb.textContent = on ? '★ Primary' : 'Make primary';
-  });
-}
-</script>
-<script src="/static/leaflet.js"></script>
-<script src="/static/leaflet-geoman.js"></script>
-<script src="/static/regionmap.js"></script>
-<script>initRegionEditor('region-map', 'regions');</script>
-{{end}}
-
-{{/* profile-block is one editable named profile. */}}
-{{define "profile-block"}}
-<div class="profile-block border rounded p-3 mb-3">
-  <label class="form-label">Profile name</label>
-  <input class="form-control" name="profile_name" value="{{.Name}}" placeholder="ESP32">
-  <div class="mt-2"><label class="form-label">Base settings</label>
-    <textarea class="form-control font-monospace" name="profile_steps" rows="5" spellcheck="false" placeholder="set tx 22&#10;# notes start with #">{{.StepsText}}</textarea>
-  </div>
-  <button type="button" class="btn btn-ghost-danger btn-sm mt-2" onclick="removeBlock(this,'profile-block')">Remove profile</button>
+  {{else}}
+  <div class="card-body"><p class="text-secondary mb-0">No profiles yet. Add one to give members a base-settings preset for their hardware.</p></div>
+  {{end}}
 </div>
-{{end}}
 
-{{/* region-block is one node of the region hierarchy in the admin form. Its area
-     is drawn on the shared map above; region_geojson carries the GeoJSON the map
-     writes. Display name is the human label; Name is the MeshCore token used in
-     region def; Layer is its depth/order in the chain. */}}
-{{define "region-block"}}
-<div class="region-block border rounded p-3 mb-3">
-  <div class="row g-2 align-items-end">
-    <div class="col-md"><label class="form-label">Display name</label>
-      <input class="form-control" name="region_display" value="{{.DisplayName}}" placeholder="Buffalo"></div>
-    <div class="col-md-auto"><label class="form-label">Name</label>
-      <input class="form-control font-monospace" name="region_token" value="{{.Token}}" placeholder="buf" style="width:8rem"></div>
-    <div class="col-md-auto"><label class="form-label">Layer</label>
-      <input class="form-control" type="number" name="region_layer" value="{{.Layer}}" style="width:5rem"></div>
-    <div class="col-md-auto">
-      <input type="hidden" name="region_primary" value="{{if .Primary}}1{{end}}">
-      <button type="button" class="btn btn-sm region-primary-btn{{if .Primary}} btn-primary{{end}}" onclick="setPrimaryRegion(this)">{{if .Primary}}★ Primary{{else}}Make primary{{end}}</button>
-      <span class="badge bg-blue-lt region-shape-status ms-1">Applies everywhere</span>
-      <button type="button" class="btn btn-sm btn-ghost-secondary region-clear ms-1">Clear area</button>
+<div class="card mt-3">
+  <div class="card-header">
+    <div>
+      <h3 class="card-title">Regions</h3>
+      <div class="text-secondary small">Named areas drawn on a map. A repeater is auto-assigned to every region whose area contains it, forming its <code>region def</code>.</div>
+    </div>
+    <div class="card-actions">
+      <a class="btn btn-primary" href="/orgs/{{.Org.Slug}}/config/regions">{{template "icon-map-pin" "me-1"}}Edit regions</a>
     </div>
   </div>
-  <input type="hidden" name="region_geojson" value="{{.GeofenceJSON}}">
-  <button type="button" class="btn btn-ghost-danger btn-sm mt-2" onclick="removeBlock(this,'region-block')">Remove region</button>
+  <div class="card-body">
+    {{if .RegionCount}}
+    <div class="text-secondary">{{.RegionCount}} region{{if ne .RegionCount 1}}s{{end}} defined{{if .PrimaryRegion}} · primary: <span class="text-body">{{.PrimaryRegion}}</span>{{end}}.</div>
+    {{else}}
+    <p class="text-secondary mb-0">No regions yet. Add regions to apply location-based settings automatically.</p>
+    {{end}}
+  </div>
 </div>
 {{end}}
