@@ -54,6 +54,121 @@
 </div>
 
 <div class="card mt-3">
+  <div class="card-header"><h3 class="card-title">Public profile</h3></div>
+  <div class="card-body">
+    <p class="text-secondary">These appear on your public page{{if .RootURL}} at <a href="{{.RootURL}}/u/{{.User.Username}}" target="_blank" rel="noopener">{{.RootURL}}/u/{{.User.Username}}</a>{{end}}, which anyone can view. Leave a field blank to keep it off your page.</p>
+    <form method="post" action="/account/profile-fields">
+      <div class="mb-3">
+        <label class="form-label" for="acct_bio">Bio <span class="form-label-description">optional</span></label>
+        <textarea class="form-control" id="acct_bio" name="bio" rows="3" maxlength="500" placeholder="A short blurb about you">{{.Bio}}</textarea>
+      </div>
+      <div class="row g-3">
+        <div class="col-md">
+          <label class="form-label" for="acct_location">Location <span class="form-label-description">optional</span></label>
+          <input type="text" class="form-control" id="acct_location" name="location" maxlength="120" value="{{.Location}}" placeholder="General area you operate in">
+        </div>
+        <div class="col-md">
+          <label class="form-label" for="acct_callsign">Callsign <span class="form-label-description">optional</span></label>
+          <input type="text" class="form-control" id="acct_callsign" name="callsign" maxlength="32" value="{{.Callsign}}" placeholder="e.g. KD2ABC">
+        </div>
+      </div>
+      <div class="mt-3">
+        <button type="submit" class="btn btn-primary">Save profile</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card mt-3">
+  <div class="card-header"><h3 class="card-title">Links <span class="text-secondary">(public)</span></h3></div>
+  <div class="card-body">
+    <p class="text-secondary">Ways to reach or find you — social media, a website, or your MeshCore public key (shown as a QR code). Mark one non-MeshCore link as your <strong>primary contact</strong> so people know the best way to reach you.</p>
+    <form method="post" action="/account/links" id="user-links-form">
+      <div id="user-links-rows">
+        {{range $i, $l := .Links}}
+        <div class="row g-2 mb-2 align-items-center link-row">
+          <div class="col-12 col-sm-3">
+            <select class="form-select" name="link_platform" aria-label="Link type">
+              {{$sel := $l.Platform}}
+              {{range $.Platforms}}<option value="{{.Key}}"{{if eq .Key $sel}} selected{{end}}>{{.Name}}</option>{{end}}
+            </select>
+          </div>
+          <div class="col-12 col-sm-3">
+            <input class="form-control" name="link_label" value="{{$l.Label}}" maxlength="60" placeholder="Label (optional)" aria-label="Link label">
+          </div>
+          <div class="col">
+            <input class="form-control" type="text" name="link_url" value="{{$l.URL}}" maxlength="300" placeholder="URL, email, Signal username, or MeshCore key" aria-label="Link value">
+          </div>
+          <div class="col-auto">
+            <label class="form-check form-check-inline m-0" title="Primary contact">
+              <input class="form-check-input" type="radio" name="link_primary" value="{{$i}}"{{if $l.IsPrimary}} checked{{end}}>
+              <span class="form-check-label">Primary</span>
+            </label>
+          </div>
+          <div class="col-auto">
+            <button type="button" class="btn btn-ghost-danger btn-icon remove-link" aria-label="Remove link">{{template "icon-trash" ""}}</button>
+          </div>
+        </div>
+        {{end}}
+      </div>
+      <div class="btn-list mt-2">
+        <button type="button" class="btn" id="add-user-link">{{template "icon-plus" "me-1"}}Add link</button>
+        <button type="submit" class="btn btn-primary">Save links</button>
+      </div>
+    </form>
+    <template id="user-link-row-tpl">
+      <div class="row g-2 mb-2 align-items-center link-row">
+        <div class="col-12 col-sm-3">
+          <select class="form-select" name="link_platform" aria-label="Link type">
+            {{range .Platforms}}<option value="{{.Key}}">{{.Name}}</option>{{end}}
+          </select>
+        </div>
+        <div class="col-12 col-sm-3">
+          <input class="form-control" name="link_label" maxlength="60" placeholder="Label (optional)" aria-label="Link label">
+        </div>
+        <div class="col">
+          <input class="form-control" type="text" name="link_url" maxlength="300" placeholder="URL, email, Signal username, or MeshCore key" aria-label="Link value">
+        </div>
+        <div class="col-auto">
+          <label class="form-check form-check-inline m-0" title="Primary contact">
+            <input class="form-check-input" type="radio" name="link_primary" value="">
+            <span class="form-check-label">Primary</span>
+          </label>
+        </div>
+        <div class="col-auto">
+          <button type="button" class="btn btn-ghost-danger btn-icon remove-link" aria-label="Remove link">{{template "icon-trash" ""}}</button>
+        </div>
+      </div>
+    </template>
+    <script>
+    (function(){
+      var form = document.getElementById('user-links-form');
+      var wrap = document.getElementById('user-links-rows');
+      var tpl = document.getElementById('user-link-row-tpl');
+      var add = document.getElementById('add-user-link');
+      if(!form || !wrap || !tpl || !add) return;
+      add.addEventListener('click', function(){
+        wrap.appendChild(tpl.content.cloneNode(true));
+      });
+      wrap.addEventListener('click', function(e){
+        var btn = e.target.closest('.remove-link');
+        if(btn){ btn.closest('.link-row').remove(); }
+      });
+      // Renumber the primary-contact radios to DOM order so the selected one's
+      // value matches its row's index in the submitted arrays (rows may have been
+      // added or removed).
+      form.addEventListener('submit', function(){
+        wrap.querySelectorAll('.link-row').forEach(function(row, i){
+          var radio = row.querySelector('input[name="link_primary"]');
+          if(radio) radio.value = i;
+        });
+      });
+    })();
+    </script>
+  </div>
+</div>
+
+<div class="card mt-3">
   <div class="card-header"><h3 class="card-title">Passkeys</h3></div>
   <div class="card-body">
     <p class="text-secondary">Passkeys let you sign in with your device's fingerprint, face, or PIN — no password to remember or leak.</p>

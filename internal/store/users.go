@@ -24,6 +24,11 @@ type User struct {
 	Username     string
 	DisplayName  *string
 	PasswordHash *string
+	// Public profile fields, shown on the user's public page (/u/{username}).
+	// Empty when unset; a blank field simply doesn't render.
+	Bio      string
+	Location string
+	Callsign string
 	// Instance-level capability flags.
 	CapManageUsers   bool
 	CapManageCatalog bool
@@ -37,12 +42,12 @@ func (u *User) Name() string {
 	return u.Username
 }
 
-const userCols = `id, username, display_name, password_hash, cap_manage_users, cap_manage_catalog`
+const userCols = `id, username, display_name, password_hash, bio, location, callsign, cap_manage_users, cap_manage_catalog`
 
 func scanUser(row pgx.Row) (*User, error) {
 	var u User
 	if err := row.Scan(&u.ID, &u.Username, &u.DisplayName, &u.PasswordHash,
-		&u.CapManageUsers, &u.CapManageCatalog); err != nil {
+		&u.Bio, &u.Location, &u.Callsign, &u.CapManageUsers, &u.CapManageCatalog); err != nil {
 		return nil, err
 	}
 	return &u, nil
@@ -171,6 +176,35 @@ func (s *Store) SetDisplayName(ctx context.Context, userID int64, displayName st
 		return fmt.Errorf("set display name: %w", err)
 	}
 	return nil
+}
+
+// SetProfile updates a user's public profile fields (bio, location, callsign).
+// Empty strings clear a field. Length bounding is the caller's responsibility.
+func (s *Store) SetProfile(ctx context.Context, userID int64, bio, location, callsign string) error {
+	_, err := s.pool.Exec(ctx,
+		`UPDATE users SET bio = $2, location = $3, callsign = $4 WHERE id = $1`,
+		userID, bio, location, callsign)
+	if err != nil {
+		return fmt.Errorf("set profile: %w", err)
+	}
+	return nil
+}
+
+// UserHasPublicRole reports whether the user is listed on any public page: as an
+// org admin, or as the owner or steward of a repeater with a published public
+// page. Such users are nudged to add a way to be reached.
+func (s *Store) UserHasPublicRole(ctx context.Context, userID int64) (bool, error) {
+	var yes bool
+	err := s.pool.QueryRow(ctx, `SELECT
+		    EXISTS(SELECT 1 FROM org_members WHERE user_id = $1 AND role = 'admin')
+		 OR EXISTS(SELECT 1 FROM repeaters WHERE owner_id = $1 AND expose_public_page)
+		 OR EXISTS(SELECT 1 FROM repeater_shares rs JOIN repeaters r ON r.id = rs.repeater_id
+		            WHERE rs.user_id = $1 AND rs.steward AND r.expose_public_page)`,
+		userID).Scan(&yes)
+	if err != nil {
+		return false, fmt.Errorf("user has public role: %w", err)
+	}
+	return yes, nil
 }
 
 // SetPassword sets a user's bcrypt password hash.

@@ -76,7 +76,7 @@
         <div class="hr-text">Admins</div>
         {{if .Admins}}
         <div class="d-flex flex-wrap gap-2">
-          {{range .Admins}}<span class="badge bg-success-lt">{{.}}</span>{{end}}
+          {{range .Admins}}<a class="badge bg-success-lt" href="{{$.RootURL}}/u/{{.Username}}">{{.Name}}</a>{{end}}
         </div>
         {{else}}<p class="text-secondary mb-0">No admins listed.</p>{{end}}
         {{if .Links}}

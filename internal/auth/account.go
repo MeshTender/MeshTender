@@ -4,8 +4,12 @@ import (
 	"encoding/hex"
 	"errors"
 	"net/http"
+	"net/mail"
 	"strconv"
+	"strings"
 	"time"
+
+	meshcore "github.com/meshcore-go/meshcore-go"
 
 	"github.com/jleight/meshtender/internal/store"
 	"github.com/jleight/meshtender/internal/web"
@@ -60,9 +64,19 @@ func (s *Handlers) pageAccount(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not load account", http.StatusInternalServerError)
 		return
 	}
+	links, err := s.Store.ListUserLinks(r.Context(), uid)
+	if err != nil {
+		http.Error(w, "could not load profile links", http.StatusInternalServerError)
+		return
+	}
 	s.Render(w, r, "account.html", map[string]any{
 		"User":        u,
 		"DisplayName": u.DisplayName, // nil when unset
+		"Bio":         u.Bio,
+		"Location":    u.Location,
+		"Callsign":    u.Callsign,
+		"Links":       links,
+		"Platforms":   store.UserLinkPlatforms(),
 		"HasPassword": u.PasswordHash != nil,
 		"Passkeys":    views,
 		"NextRename":  nextRename, // nil when a rename is allowed now
@@ -108,6 +122,143 @@ func (s *Handlers) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	accountRedirect(w, r, "ok", "Profile updated.")
+}
+
+// handleSetProfileFields saves the user's public profile fields (bio, location,
+// callsign) shown on their public page. Each field is trimmed and bounded; a
+// blank field simply won't render.
+func (s *Handlers) handleSetProfileFields(w http.ResponseWriter, r *http.Request) {
+	uid := s.Auth.CurrentUserID(r.Context())
+	bio := boundedText(r.FormValue("bio"), 500)
+	location := boundedText(r.FormValue("location"), 120)
+	callsign := boundedText(r.FormValue("callsign"), 32)
+	if err := s.Store.SetProfile(r.Context(), uid, bio, location, callsign); err != nil {
+		accountRedirect(w, r, "error", "Could not save your profile.")
+		return
+	}
+	accountRedirect(w, r, "ok", "Profile updated.")
+}
+
+// handleSetUserLinks replaces the current user's whole set of public profile
+// links from the repeatable rows posted by the editor. Rows with a blank value
+// are dropped. Most rows carry an http(s) URL; a "meshcore" row carries a
+// MeshCore public key (validated as hex) and renders as a QR code. The optional
+// primary-contact radio flags one non-MeshCore link as the preferred way to
+// reach the user.
+func (s *Handlers) handleSetUserLinks(w http.ResponseWriter, r *http.Request) {
+	uid := s.Auth.CurrentUserID(r.Context())
+	if err := r.ParseForm(); err != nil {
+		accountRedirect(w, r, "error", "Could not save links.")
+		return
+	}
+	// Index-aligned parallel arrays, one entry per row, in row order.
+	platforms := r.Form["link_platform"]
+	labels := r.Form["link_label"]
+	urls := r.Form["link_url"]
+	// The primary radio's value is the row index (renumbered to DOM order on
+	// submit), or absent when no primary is chosen.
+	primaryIdx := -1
+	if v := r.FormValue("link_primary"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			primaryIdx = n
+		}
+	}
+	var links []store.UserLink
+	for i, raw := range urls {
+		val := strings.TrimSpace(raw)
+		if val == "" {
+			continue // empty row — skip it
+		}
+		platform := ""
+		if i < len(platforms) {
+			platform = platforms[i]
+		}
+		if !store.ValidUserLinkPlatform(platform) {
+			accountRedirect(w, r, "error", "Choose a type for each link.")
+			return
+		}
+		switch platform {
+		case store.MeshCorePlatform:
+			val = strings.ToLower(val)
+			if !validMeshCoreKey(val) {
+				accountRedirect(w, r, "error", "Enter a valid MeshCore public key (64-character hex).")
+				return
+			}
+		case store.EmailPlatform:
+			addr, err := mail.ParseAddress(val)
+			if err != nil || addr.Name != "" {
+				accountRedirect(w, r, "error", "Enter a valid email address.")
+				return
+			}
+			val = addr.Address
+		case store.SignalPlatform:
+			val = strings.TrimPrefix(val, "@")
+			if !validSignalUsername(val) {
+				accountRedirect(w, r, "error", "Enter a valid Signal username (3–32 characters: letters, digits, . and _).")
+				return
+			}
+		default:
+			if !store.ValidLinkURL(val) {
+				accountRedirect(w, r, "error", "Each link must be a valid http:// or https:// URL.")
+				return
+			}
+		}
+		label := ""
+		if i < len(labels) {
+			label = strings.TrimSpace(labels[i])
+		}
+		if len(val) > 300 {
+			val = val[:300]
+		}
+		if len(label) > 60 {
+			label = label[:60]
+		}
+		// A MeshCore key is an identity, not a way to reach someone, so it can't be
+		// the primary contact (mirrors excluding callsign/node info).
+		primary := i == primaryIdx && platform != store.MeshCorePlatform
+		links = append(links, store.UserLink{Platform: platform, Label: label, URL: val, IsPrimary: primary})
+		if len(links) >= store.MaxUserLinks {
+			break
+		}
+	}
+	if err := s.Store.ReplaceUserLinks(r.Context(), uid, links); err != nil {
+		accountRedirect(w, r, "error", "Could not save links.")
+		return
+	}
+	accountRedirect(w, r, "ok", "Links updated.")
+}
+
+// boundedText trims s and caps it at max bytes (empty means "unset").
+func boundedText(s string, max int) string {
+	s = strings.TrimSpace(s)
+	if len(s) > max {
+		s = s[:max]
+	}
+	return s
+}
+
+// validMeshCoreKey reports whether s is a valid MeshCore public key (a 32-byte
+// Ed25519 key, hex-encoded), using the MeshCore library's own parser.
+func validMeshCoreKey(s string) bool {
+	_, err := meshcore.NewIdentityFromHex(s)
+	return err == nil
+}
+
+// validSignalUsername reports whether s is a plausible Signal username: 3–32
+// characters of letters, digits, dot, or underscore (Signal usernames carry a
+// dotted numeric discriminator, e.g. alice.42).
+func validSignalUsername(s string) bool {
+	if len(s) < 3 || len(s) > 32 {
+		return false
+	}
+	for _, c := range s {
+		switch {
+		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c >= '0' && c <= '9', c == '.', c == '_':
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 // handleChangePassword sets, changes, or removes the user's password.

@@ -299,6 +299,28 @@ func (s *Handlers) pageDashboard(w http.ResponseWriter, r *http.Request) {
 			Done:   len(orgs) > 0,
 		},
 	}
+	// People listed publicly (org admins, public repeater owners/stewards) should
+	// give visitors a way to reach them. Only nudge those users, and only until
+	// they set a primary contact link.
+	publicRole, err := s.Store.UserHasPublicRole(ctx, uid)
+	if err != nil {
+		http.Error(w, "could not load account", http.StatusInternalServerError)
+		return
+	}
+	if publicRole {
+		links, err := s.Store.ListUserLinks(ctx, uid)
+		if err != nil {
+			http.Error(w, "could not load account", http.StatusInternalServerError)
+			return
+		}
+		steps = append(steps, onboardingStep{
+			Title:  "Add a contact link",
+			Desc:   "You're listed publicly as an admin or steward — add a way for people to reach you.",
+			Action: "Edit profile",
+			Href:   s.Origin(r, s.Cfg.AuthHost) + "/account",
+			Done:   store.PrimaryUserLink(links) != nil,
+		})
+	}
 	total := len(steps)
 	doneCount := 0
 	for _, st := range steps {

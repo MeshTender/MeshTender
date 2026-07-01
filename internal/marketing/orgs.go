@@ -65,7 +65,7 @@ func (s *Handlers) pageOrgs(w http.ResponseWriter, r *http.Request) {
 // renderOrgPublic renders the public-facing org page (name, description, admins,
 // counts, and a map of repeaters opted into public display).
 func (s *Handlers) renderOrgPublic(w http.ResponseWriter, r *http.Request, org *store.Org, isMember, isAdmin bool) {
-	admins, err := s.Store.ListOrgAdminNames(r.Context(), org.ID)
+	admins, err := s.Store.ListOrgAdmins(r.Context(), org.ID)
 	if err != nil {
 		http.Error(w, "could not load org", http.StatusInternalServerError)
 		return

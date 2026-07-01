@@ -1,0 +1,58 @@
+{{define "title"}}{{.ProfileUser.Name}} · MeshTender{{end}}
+{{define "header"}}
+<div class="row g-2 align-items-center">
+  <div class="col">
+    <div class="page-pretitle">Profile</div>
+    <h2 class="page-title">{{.ProfileUser.Name}}</h2>
+    <div class="text-secondary">@{{.ProfileUser.Username}}</div>
+  </div>
+</div>
+{{end}}
+{{define "content"}}
+<div class="row row-cards">
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">About</h3></div>
+      <div class="card-body">
+        {{if .Location}}<div class="d-flex align-items-center text-secondary mb-2">{{template "icon-map-pin" "me-1"}}{{.Location}}</div>{{end}}
+        {{if .Callsign}}<div class="mb-2"><span class="text-secondary">Callsign:</span> <span class="font-monospace">{{.Callsign}}</span></div>{{end}}
+        {{if .Bio}}<p class="mb-0">{{.Bio}}</p>{{end}}
+        {{if not .HasDetails}}<p class="text-secondary mb-0">This person hasn't added any profile details yet.</p>{{end}}
+
+        {{if .Links}}
+        <div class="hr-text">Links</div>
+        <div class="btn-list">
+          {{range .Links}}
+          {{if .Href}}
+          <a class="btn" href="{{.Href}}" target="_blank" rel="noopener noreferrer nofollow">{{template "link-icon" .Platform}}<span class="ms-1">{{.Display}}</span>{{if .IsPrimary}} <span class="badge bg-primary-lt ms-1">Primary</span>{{end}}</a>
+          {{else}}
+          <span class="btn disabled">{{template "link-icon" .Platform}}<span class="ms-1">{{.URL}}</span>{{if .IsPrimary}} <span class="badge bg-primary-lt ms-1">Primary</span>{{end}}</span>
+          {{end}}
+          {{end}}
+        </div>
+        {{end}}
+      </div>
+    </div>
+  </div>
+
+  {{if .MeshKeys}}
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">MeshCore</h3></div>
+      <div class="card-body">
+        {{range .MeshKeys}}
+        <div class="mb-3">
+          {{if .QR}}<div class="text-center mb-2"><img src="{{.QR}}" width="200" height="200" alt="MeshCore contact QR for {{.Label}}"></div>{{end}}
+          <div class="form-label">{{.Label}}</div>
+          <code class="pk d-block">{{.Key}}</code>
+        </div>
+        {{end}}
+        <p class="text-secondary small mb-0">Scan to add this contact in the MeshCore app.</p>
+      </div>
+    </div>
+  </div>
+  {{end}}
+</div>
+
+<a class="back-link mt-3" href="{{.RootURL}}/orgs">{{template "icon-arrow-left" "me-1"}}All organizations</a>
+{{end}}

@@ -1,20 +1,16 @@
 package core
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"html/template"
-	"image/color"
 	"math"
 	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 
 	meshcore "github.com/meshcore-go/meshcore-go"
-	qrcode "github.com/skip2/go-qrcode"
 
 	"github.com/jleight/meshtender/internal/config"
 	"github.com/jleight/meshtender/internal/store"
@@ -120,24 +116,15 @@ func (s *Handlers) pageRepeater(w http.ResponseWriter, r *http.Request) {
 	if isOwner && rep.ExposePublicPage {
 		publicURL := s.Origin(r, s.rootHost()) + "/r/" + rep.PublicID
 		data["PublicPageURL"] = publicURL
-		if qr, err := qrcode.New(publicURL, qrcode.Medium); err == nil {
-			qr.BackgroundColor = color.Transparent
-			qr.ForegroundColor = color.RGBA{R: 0x8a, G: 0x97, B: 0xa8, A: 0xff}
-			if png, err := qr.PNG(256); err == nil {
-				data["PublicPageQR"] = template.URL("data:image/png;base64," + base64.StdEncoding.EncodeToString(png)) //nolint:gosec // G203: fixed data: URI over base64 PNG, no user input
-			}
+		if qr, ok := web.QRDataURI(publicURL); ok {
+			data["PublicPageQR"] = qr
 		}
 	}
 	// QR code that adds the repeater as a MeshCore contact. Embedded as a data
 	// URI so it needs no extra route or asset; if encoding fails the page just
-	// renders without it. Light modules on a transparent quiet zone so it sits on
-	// the dark card instead of a stark white block (scanners decode inverted QR).
-	if qr, err := qrcode.New(contactURI, qrcode.Medium); err == nil {
-		qr.BackgroundColor = color.Transparent
-		qr.ForegroundColor = color.RGBA{R: 0x8a, G: 0x97, B: 0xa8, A: 0xff}
-		if png, err := qr.PNG(256); err == nil {
-			data["ContactQR"] = template.URL("data:image/png;base64," + base64.StdEncoding.EncodeToString(png)) //nolint:gosec // G203: fixed data: URI over base64 PNG, no user input
-		}
+	// renders without it.
+	if qr, ok := web.QRDataURI(contactURI); ok {
+		data["ContactQR"] = qr
 	}
 	if isOwner {
 		orgs, err := s.Store.ListRepeaterOrgs(r.Context(), id)
@@ -153,11 +140,7 @@ func (s *Handlers) pageRepeater(w http.ResponseWriter, r *http.Request) {
 // repeaterContactURI builds the meshcore:// deep link that adds the repeater as
 // a contact in the MeshCore app. type=2 is MeshCore's repeater contact type.
 func repeaterContactURI(rep *store.Repeater) string {
-	q := url.Values{}
-	q.Set("name", rep.Name)
-	q.Set("public_key", rep.PublicKeyHex)
-	q.Set("type", "2")
-	return "meshcore://contact/add?" + q.Encode()
+	return web.MeshCoreContactURI(rep.Name, rep.PublicKeyHex, int(meshcore.AdvertTypeRepeater))
 }
 
 func addErr(w http.ResponseWriter, r *http.Request, msg string) {

@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"fmt"
+	"net/url"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -51,6 +52,17 @@ func LinkPlatforms() []LinkPlatform { return linkPlatforms }
 func ValidLinkPlatform(key string) bool {
 	_, ok := linkPlatformByKey[key]
 	return ok
+}
+
+// ValidLinkURL reports whether s is an absolute http(s) URL with a host. Limiting
+// the scheme keeps javascript:/data: URLs out of rendered hrefs. Shared by the
+// org- and user-link editors.
+func ValidLinkURL(s string) bool {
+	u, err := url.Parse(s)
+	if err != nil {
+		return false
+	}
+	return (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
 }
 
 // linkPlatformName returns the display name for a platform key, or the key itself

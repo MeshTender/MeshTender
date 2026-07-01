@@ -3,7 +3,6 @@ package core
 import (
 	"errors"
 	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 
@@ -148,7 +147,7 @@ func (s *Handlers) pageOrg(w http.ResponseWriter, r *http.Request) {
 // ?view=public) sees a "Back to member view" link. The data shape matches the
 // marketing surface's anonymous rendering of the same template.
 func (s *Handlers) renderOrgPublic(w http.ResponseWriter, r *http.Request, org *store.Org, isMember, isAdmin bool) {
-	admins, err := s.Store.ListOrgAdminNames(r.Context(), org.ID)
+	admins, err := s.Store.ListOrgAdmins(r.Context(), org.ID)
 	if err != nil {
 		http.Error(w, "could not load org", http.StatusInternalServerError)
 		return
@@ -321,7 +320,7 @@ func (s *Handlers) handleSetOrgLinks(w http.ResponseWriter, r *http.Request) {
 			orgErr(w, r, "Choose a type for each link.")
 			return
 		}
-		if !validLinkURL(u) {
+		if !store.ValidLinkURL(u) {
 			orgErr(w, r, "Each link must be a valid http:// or https:// URL.")
 			return
 		}
@@ -345,16 +344,6 @@ func (s *Handlers) handleSetOrgLinks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Redirect(w, r, "/orgs/"+orgParam(r), http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
-}
-
-// validLinkURL reports whether s is an absolute http(s) URL with a host. Limiting
-// the scheme keeps javascript:/data: URLs out of rendered hrefs.
-func validLinkURL(s string) bool {
-	u, err := url.Parse(s)
-	if err != nil {
-		return false
-	}
-	return (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
 }
 
 // requireOrgAdmin resolves {id} and verifies the current user is an org admin.

@@ -395,22 +395,23 @@ func (s *Store) ListOrgMembers(ctx context.Context, orgID int64) ([]OrgMemberInf
 	})
 }
 
-// ListOrgAdminNames returns just the display names of an org's admins, ordered
-// for display. The public org page only needs admin names, so this avoids
-// loading every member row via ListOrgMembers.
-func (s *Store) ListOrgAdminNames(ctx context.Context, orgID int64) ([]string, error) {
+// ListOrgAdmins returns an org's admins (id, username, display name) ordered for
+// display. The public org page links each admin to their public profile, so it
+// needs the username alongside the display name. It avoids loading every member
+// row via ListOrgMembers.
+func (s *Store) ListOrgAdmins(ctx context.Context, orgID int64) ([]OrgMemberInfo, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT COALESCE(NULLIF(u.display_name, ''), u.username) AS name
+		SELECT u.id, u.username, u.display_name, m.role
 		FROM org_members m JOIN users u ON u.id = m.user_id
 		WHERE m.org_id = $1 AND m.role = 'admin'
-		ORDER BY name`, orgID)
+		ORDER BY COALESCE(NULLIF(u.display_name, ''), u.username)`, orgID)
 	if err != nil {
 		return nil, fmt.Errorf("list org admins: %w", err)
 	}
-	return collectRows(rows, func(r pgx.Row) (string, error) {
-		var name string
-		err := r.Scan(&name)
-		return name, err
+	return collectRows(rows, func(r pgx.Row) (OrgMemberInfo, error) {
+		var m OrgMemberInfo
+		err := r.Scan(&m.UserID, &m.Username, &m.DisplayName, &m.Role)
+		return m, err
 	})
 }
 

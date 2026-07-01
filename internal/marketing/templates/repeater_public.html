@@ -81,13 +81,13 @@
       <div class="list-group list-group-flush">
         <div class="list-group-item d-flex align-items-center gap-2">
           <span class="text-secondary">{{template "icon-user" ""}}</span>
-          <div class="flex-fill"><span class="fw-bold">{{.Repeater.OwnerName}}</span></div>
+          <div class="flex-fill"><a class="fw-bold" href="{{$.RootURL}}/u/{{.Repeater.OwnerUsername}}">{{.Repeater.OwnerName}}</a></div>
           <span class="badge bg-success-lt">Primary</span>
         </div>
         {{range .Stewards}}
         <div class="list-group-item d-flex align-items-center gap-2">
           <span class="text-secondary">{{template "icon-user" ""}}</span>
-          <div class="flex-fill"><span class="fw-bold">{{.Name}}</span></div>
+          <div class="flex-fill"><a class="fw-bold" href="{{$.RootURL}}/u/{{.Username}}">{{.Name}}</a></div>
           <span class="badge bg-azure-lt">Backup</span>
         </div>
         {{end}}
