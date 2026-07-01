@@ -153,6 +153,18 @@ code.pubkey {
   border-bottom-color: var(--tblr-border-color, #2b2f36);
 }
 .leaflet-container .leaflet-bar a:hover { background: var(--tblr-bg-surface-secondary, #22262e); }
+/* Base-layer (Dark/Light) switcher: match the dark UI so the native radios render
+   correctly. On the default white box + dark color-scheme, an unselected radio
+   shows as a black dot; a dark box fixes that, and accent-color tints the selected
+   one. Scoped under .leaflet-container to beat leaflet.css (loaded after app.css). */
+.leaflet-container .leaflet-control-layers {
+  background: var(--tblr-bg-surface, #1a1d24);
+  color: var(--tblr-body-color, #e6edf3);
+  border-color: var(--tblr-border-color, #2b2f36);
+  box-shadow: var(--tblr-box-shadow, 0 1px 2px rgba(0, 0, 0, 0.4));
+}
+.leaflet-container .leaflet-control-layers-list label { margin: 0; color: var(--tblr-body-color, #e6edf3); }
+.leaflet-container .leaflet-control-layers-selector { accent-color: var(--tblr-primary, #4dabf7); }
 
 /* Active region block in the config editor: highlight the block currently being
    drawn on the shared region map. */

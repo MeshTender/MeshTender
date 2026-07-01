@@ -1,3 +1,37 @@
+// meshBaseLayers adds the dark (default) and a light basemap to a map, with a
+// layers control to toggle between them. The choice is remembered in localStorage
+// so it carries across maps and pages. Dark matches the UI; the light layer (CARTO
+// Voyager) reads better in bright conditions and for some eyes. The control is
+// left expanded — Leaflet's collapsed toggle needs an icon asset we don't bundle.
+function meshBaseLayers(map) {
+  var attribution = "&copy; OpenStreetMap &copy; CARTO";
+  var dark = L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+    maxZoom: 19,
+    subdomains: "abcd",
+    attribution: attribution,
+  });
+  var light = L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
+    maxZoom: 19,
+    subdomains: "abcd",
+    attribution: attribution,
+  });
+  var pref = null;
+  try {
+    pref = localStorage.getItem("mt_map_base");
+  } catch (e) {
+    /* storage unavailable (private mode); fall back to dark */
+  }
+  (pref === "light" ? light : dark).addTo(map);
+  L.control.layers({ Dark: dark, Light: light }, null, { position: "topright", collapsed: false }).addTo(map);
+  map.on("baselayerchange", function (e) {
+    try {
+      localStorage.setItem("mt_map_base", e.name === "Light" ? "light" : "dark");
+    } catch (e) {
+      /* ignore */
+    }
+  });
+}
+
 // meshMap renders a dark-mode Leaflet map of points into the element with the
 // given id. pts is an array of {name, lat, lon}. Does nothing if pts is empty.
 function meshMap(elId, pts) {
@@ -11,12 +45,7 @@ function meshMap(elId, pts) {
     fadeAnimation: false,
     markerZoomAnimation: false,
   });
-  // CARTO "dark matter" basemap (OpenStreetMap data) for a dark UI.
-  L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-    maxZoom: 19,
-    subdomains: "abcd",
-    attribution: "&copy; OpenStreetMap &copy; CARTO",
-  }).addTo(map);
+  meshBaseLayers(map);
   var group = L.featureGroup(
     pts.map(function (p) {
       return L.circleMarker([p.lat, p.lon], {

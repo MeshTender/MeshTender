@@ -11,13 +11,37 @@
   // Distinct translucent fills so overlapping regions read as layered colors.
   var PALETTE = ["#4dabf7", "#f783ac", "#69db7c", "#ffa94d", "#9775fa", "#ffd43b", "#3bc9db", "#ff8787"];
 
-  function darkTiles(map) {
-    // CARTO "dark matter" basemap, matching the read-only maps (see meshmap.js).
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+  // baseLayers adds the dark (default) and a light basemap with a layers control to
+  // toggle between them, remembering the choice in localStorage (shared with
+  // meshmap.js's meshBaseLayers, so the preference carries across maps). Left
+  // expanded — Leaflet's collapsed toggle needs an icon asset we don't bundle.
+  function baseLayers(map) {
+    var attribution = "&copy; OpenStreetMap &copy; CARTO";
+    var dark = L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
       maxZoom: 19,
       subdomains: "abcd",
-      attribution: "&copy; OpenStreetMap &copy; CARTO",
-    }).addTo(map);
+      attribution: attribution,
+    });
+    var light = L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
+      maxZoom: 19,
+      subdomains: "abcd",
+      attribution: attribution,
+    });
+    var pref = null;
+    try {
+      pref = localStorage.getItem("mt_map_base");
+    } catch (e) {
+      /* storage unavailable */
+    }
+    (pref === "light" ? light : dark).addTo(map);
+    L.control.layers({ Dark: dark, Light: light }, null, { position: "topright", collapsed: false }).addTo(map);
+    map.on("baselayerchange", function (e) {
+      try {
+        localStorage.setItem("mt_map_base", e.name === "Light" ? "light" : "dark");
+      } catch (e) {
+        /* ignore */
+      }
+    });
   }
 
   function styleFor(i, active) {
@@ -64,7 +88,7 @@
     var listEl = document.getElementById(listId);
     if (!listEl) return;
     var map = L.map(mapId);
-    darkTiles(map);
+    baseLayers(map);
 
     // Geoman toolbar: only the tools that make sense for area geofences.
     map.pm.addControls({
@@ -242,7 +266,7 @@
   window.regionMapView = function (mapId, opts) {
     opts = opts || {};
     var map = L.map(mapId, { scrollWheelZoom: false });
-    darkTiles(map);
+    baseLayers(map);
     if (opts.pickURL) {
       map.on("click", function (e) {
         window.location = opts.pickURL + "lat=" + e.latlng.lat.toFixed(6) + "&lon=" + e.latlng.lng.toFixed(6);
