@@ -27,21 +27,22 @@
   <div class="col-md-6">
     <div class="card card-link h-100">
       <div class="card-body d-flex flex-column">
-        <h3 class="card-title">{{template "icon-plug" "me-1"}}Set up a brand-new repeater</h3>
-        <p class="text-secondary">Connect a freshly-flashed repeater over <strong>USB serial</strong> and let
-          MeshTender generate and run the whole setup — identity, radio, region, name, and the admin grant —
-          straight down the wire. Best for a repeater that isn't on the network yet.</p>
-        <a class="btn btn-primary mt-auto align-self-start" href="/repeaters/add?step=consent&method=serial">Set up over USB →</a>
+        <h3 class="card-title">{{template "icon-antenna" "me-1"}}Add a repeater that's already on the network</h3>
+        <p class="text-secondary">Register a repeater that's already configured and on the mesh, then control it
+          remotely through a <strong>KISS modem</strong> over the air. You'll grant MeshTender admin yourself first.
+          This is the usual choice.</p>
+        <a class="btn btn-primary mt-auto align-self-start" href="/repeaters/add?step=consent&method=kiss">Add existing →</a>
       </div>
     </div>
   </div>
   <div class="col-md-6">
     <div class="card card-link h-100">
       <div class="card-body d-flex flex-column">
-        <h3 class="card-title">{{template "icon-antenna" "me-1"}}Add a repeater that's already on the network</h3>
-        <p class="text-secondary">Register a repeater that's already configured and on the mesh, then control it
-          remotely through a <strong>KISS modem</strong> over the air. You'll grant MeshTender admin yourself first.</p>
-        <a class="btn mt-auto align-self-start" href="/repeaters/add?step=consent&method=kiss">Add existing →</a>
+        <h3 class="card-title">{{template "icon-plug" "me-1"}}Set up a brand-new repeater</h3>
+        <p class="text-secondary">Connect a freshly-flashed repeater over <strong>USB serial</strong> and let
+          MeshTender generate and run the whole setup — identity, radio, region, name, and the admin grant —
+          straight down the wire. Best for a repeater that isn't on the network yet.</p>
+        <a class="btn mt-auto align-self-start" href="/repeaters/add?step=consent&method=serial">Set up over USB →</a>
       </div>
     </div>
   </div>
