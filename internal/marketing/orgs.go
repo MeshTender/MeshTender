@@ -43,7 +43,7 @@ func (s *Handlers) pageOrgs(w http.ResponseWriter, r *http.Request) {
 
 	all, hasMore, err := s.Store.ListPublicOrgsPage(r.Context(), p)
 	if err != nil {
-		http.Error(w, "could not load orgs", http.StatusInternalServerError)
+		http.Error(w, "could not load organizations", http.StatusInternalServerError)
 		return
 	}
 	data := map[string]any{
@@ -67,22 +67,22 @@ func (s *Handlers) pageOrgs(w http.ResponseWriter, r *http.Request) {
 func (s *Handlers) renderOrgPublic(w http.ResponseWriter, r *http.Request, org *store.Org, isMember, isAdmin bool) {
 	admins, err := s.Store.ListOrgAdmins(r.Context(), org.ID)
 	if err != nil {
-		http.Error(w, "could not load org", http.StatusInternalServerError)
+		http.Error(w, "could not load organization", http.StatusInternalServerError)
 		return
 	}
 	memberCount, repeaterCount, err := s.Store.OrgCounts(r.Context(), org.ID)
 	if err != nil {
-		http.Error(w, "could not load org", http.StatusInternalServerError)
+		http.Error(w, "could not load organization", http.StatusInternalServerError)
 		return
 	}
 	pubReps, err := s.Store.ListPublicRepeaters(r.Context(), org.ID)
 	if err != nil {
-		http.Error(w, "could not load org", http.StatusInternalServerError)
+		http.Error(w, "could not load organization", http.StatusInternalServerError)
 		return
 	}
 	links, err := s.Store.ListOrgLinks(r.Context(), org.ID)
 	if err != nil {
-		http.Error(w, "could not load org", http.StatusInternalServerError)
+		http.Error(w, "could not load organization", http.StatusInternalServerError)
 		return
 	}
 	uid := s.Auth.CurrentUserID(r.Context())

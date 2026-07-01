@@ -174,7 +174,11 @@ func (s *Handlers) wsConfirm(w http.ResponseWriter, r *http.Request) {
 	if !lr.IsAdmin {
 		// Guests can't run CLI commands (including get lat/lon), so there's
 		// nothing more to do — stop here rather than fruitlessly querying.
-		_ = bridge.Status("warning", fmt.Sprintf("Repeater reached, but MeshTender only has GUEST access (permissions=%d). Guest is open to anyone with a blank password, so MeshTender can't administer this repeater — re-run `%s` to grant admin.", lr.Permissions, s.Identity.SetPermCommand()))
+		msg := fmt.Sprintf("Repeater reached, but MeshTender only has GUEST access (permissions=%d). Guest is open to anyone with a blank password, so MeshTender can't administer this repeater — re-run `%s` to grant admin.", lr.Permissions, s.Identity.SetPermCommand())
+		if s.Cfg.RootHost != "" {
+			msg += " See " + s.Origin(r, s.Cfg.RootHost) + "/docs#setperm for help."
+		}
+		_ = bridge.Status("warning", msg)
 		return
 	}
 	_ = bridge.Status("confirmed", "Repeater reached with admin access. ✓")

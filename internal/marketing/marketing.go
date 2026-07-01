@@ -48,6 +48,7 @@ func (s *Handlers) Routes() chi.Router {
 	// docs/auth-cross-host.md.
 	r.Get("/session/beacon", s.Auth.BeaconCallback)
 	r.Get("/", s.pageLanding)
+	r.Get("/docs", s.pageDocs)                        // public help / how-it-works
 	r.Get("/orgs", s.pageOrgs)                        // public organization directory
 	r.Get("/orgs/{id}", s.pageOrgPublic)              // public org page
 	r.Get("/orgs/{id}/repeaters", s.pageOrgRepeaters) // public repeater list + map

@@ -158,7 +158,7 @@ func (s *Handlers) pageRepeaterAdded(w http.ResponseWriter, r *http.Request) {
 	}
 	orgs, err := s.Store.ListOrgsForUser(r.Context(), uid)
 	if err != nil {
-		http.Error(w, "could not load orgs", http.StatusInternalServerError)
+		http.Error(w, "could not load organizations", http.StatusInternalServerError)
 		return
 	}
 	s.Render(w, r, "repeater_added.html", map[string]any{

@@ -48,7 +48,7 @@ func (s *Handlers) pageOrgConfig(w http.ResponseWriter, r *http.Request) {
 	}
 	role, isMember, err := s.Store.OrgRole(r.Context(), id, uid)
 	if err != nil {
-		http.Error(w, "could not load org", http.StatusInternalServerError)
+		http.Error(w, "could not load organization", http.StatusInternalServerError)
 		return
 	}
 

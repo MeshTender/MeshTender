@@ -62,6 +62,12 @@
                 <span class="nav-link-title">Organizations</span>
               </a>
             </li>
+            <li class="nav-item">
+              <a class="nav-link" href="{{.RootURL}}/docs">
+                <span class="nav-link-icon d-md-none d-lg-inline-block">{{template "icon-help" ""}}</span>
+                <span class="nav-link-title">Docs</span>
+              </a>
+            </li>
             {{if .CanAdmin}}
             <li class="nav-item">
               <a class="nav-link" href="{{.AppURL}}/admin">
@@ -132,6 +138,12 @@
           <a class="nav-link" href="/orgs">
             <span class="nav-link-icon d-md-none d-lg-inline-block">{{template "icon-world" ""}}</span>
             <span class="nav-link-title">Organizations</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="/docs">
+            <span class="nav-link-icon d-md-none d-lg-inline-block">{{template "icon-help" ""}}</span>
+            <span class="nav-link-title">Docs</span>
           </a>
         </li>
       </ul>

@@ -1,0 +1,99 @@
+{{define "title"}}Docs · MeshTender{{end}}
+{{define "header"}}
+<div class="row g-2 align-items-center">
+  <div class="col">
+    <div class="page-pretitle">Help</div>
+    <h2 class="page-title">How MeshTender works</h2>
+  </div>
+</div>
+{{end}}
+{{define "content"}}
+<div class="row row-cards">
+  <div class="col-lg-8">
+
+    <div class="card">
+      <div class="card-body">
+        <p>MeshTender helps you register, configure, and maintain your <a href="https://meshcore.io" target="_blank" rel="noopener">MeshCore</a> repeaters, and share them with your community. It talks to your repeaters <strong>over the mesh</strong> under its own identity (a "server identity"), so once a repeater grants it access, you can manage that repeater remotely from here.</p>
+        <p class="mb-0">The one thing MeshTender needs from each repeater is <strong>admin access</strong> — otherwise it can only read public info. That's the <a href="#setperm">setperm</a> step below.</p>
+      </div>
+    </div>
+
+    <div class="card mt-3" id="setperm">
+      <div class="card-header"><h3 class="card-title">Granting MeshTender admin (<code>setperm</code>)</h3></div>
+      <div class="card-body">
+        <p>MeshTender signs in to a repeater as its server identity — one fixed public key. Until a repeater grants that key <strong>admin</strong> (permission level 3), MeshTender only has <strong>guest</strong> access — open to anyone with a blank password — and can't administer the repeater.</p>
+        <p>Run this on your repeater — through the <strong>repeater console in the MeshCore companion app</strong>, directly over USB serial, or let MeshTender run it for you during USB setup:</p>
+        {{if .SetPermCommand}}
+        <div class="input-group mb-2">
+          <input type="text" class="form-control font-monospace" id="setperm-cmd" value="{{.SetPermCommand}}" readonly>
+          <button type="button" class="btn" onclick="navigator.clipboard&amp;&amp;navigator.clipboard.writeText(document.getElementById('setperm-cmd').value)">Copy</button>
+        </div>
+        <p class="text-secondary small mb-0">The long value is <strong>MeshTender's</strong> public key — not your repeater's. If you see a guest-access warning after confirming a repeater, this is the fix: run the command above, then confirm again.</p>
+        {{else}}
+        <p class="text-secondary mb-0">Run <code>setperm &lt;MeshTender's public key&gt; 3</code> on your repeater. Sign in and start adding a repeater to see the exact command with the key filled in.</p>
+        {{end}}
+      </div>
+    </div>
+
+    <div class="card mt-3" id="add">
+      <div class="card-header"><h3 class="card-title">Adding a repeater</h3></div>
+      <div class="card-body">
+        <p>There are two ways in, matching how you reach the repeater:</p>
+        <ul class="mb-2">
+          <li><strong>Set up a brand-new repeater (USB)</strong> — connect a freshly-flashed repeater over USB serial and MeshTender runs the whole setup for you: identity, radio, region, name, and the admin grant. Best for a repeater that isn't on the mesh yet.</li>
+          <li><strong>Add one that's already on the network (over the air)</strong> — for a repeater you've already configured, MeshTender reaches it over the air through a <a href="#kiss">KISS modem</a> attached to your browser. You grant MeshTender admin with the <a href="#setperm"><code>setperm</code></a> command yourself first, then <em>confirm</em> it here.</li>
+        </ul>
+        <p>Confirming does a live login round-trip to prove MeshTender can reach and administer the repeater. If it reports guest access, the <code>setperm</code> grant hasn't been applied yet.</p>
+        <p class="mb-0">Either way, the device must already be running MeshCore's <strong>Repeater</strong> firmware — MeshTender configures repeaters, it doesn't flash them. A MeshCore device runs one firmware at a time (Repeater, a Companion variant, or KISS modem), so switching roles means re-flashing.</p>
+      </div>
+    </div>
+
+    <div class="card mt-3" id="kiss">
+      <div class="card-header"><h3 class="card-title">What's a KISS modem?</h3></div>
+      <div class="card-body">
+        <p>A <strong>KISS modem</strong> turns a MeshCore device into a plain radio for a host to drive: instead of acting as a repeater or companion, it just relays raw packets to and from whatever's connected to it. That's how MeshTender talks to your mesh <strong>over the air</strong> — you attach a KISS-modem device to your browser over USB serial, and MeshTender uses it as its radio to reach repeaters that are already deployed (the <a href="#add">over-the-air</a> flow above).</p>
+        <p>It's a relatively new addition to MeshCore, and it's a <strong>standard firmware variant</strong> — you flash it right from the standard MeshCore flasher, the same place you'd flash Repeater or a Companion. It's available for a <strong>large number</strong> of MeshCore devices, though <strong>not all</strong> of them — check the flasher for your specific board.</p>
+        <p class="mb-0">Remember that firmware variants are exclusive: a device running KISS-modem firmware is your radio interface, not a repeater. To turn that same device into a repeater later, you'd re-flash it with Repeater firmware.</p>
+      </div>
+    </div>
+
+    <div class="card mt-3" id="config">
+      <div class="card-header"><h3 class="card-title">Organizations</h3></div>
+      <div class="card-body">
+        <p>An <strong>organization</strong> is a community that coordinates repeaters together. It helps you generate the commands to run to configure your repeater properly, and share settings with others in your area.</p>
+        <p class="mb-0">Browse communities on the <a href="/orgs">Organizations</a> page.</p>
+      </div>
+    </div>
+
+    <div class="card mt-3" id="sharing">
+      <div class="card-header"><h3 class="card-title">Sharing &amp; stewards</h3></div>
+      <div class="card-body">
+        <p class="mb-0">You can share a repeater with other people so they can help operate it, and mark trusted helpers as <strong>stewards</strong> — co-maintainers listed on the repeater's public page. Public repeater and organization pages link to each person's <strong>public profile</strong>, so visitors can find a way to reach the people who keep the mesh running.</p>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">On this page</h3></div>
+      <div class="list-group list-group-flush">
+        <a class="list-group-item list-group-item-action" href="#setperm">Granting admin (setperm)</a>
+        <a class="list-group-item list-group-item-action" href="#add">Adding a repeater</a>
+        <a class="list-group-item list-group-item-action" href="#kiss">What's a KISS modem?</a>
+        <a class="list-group-item list-group-item-action" href="#config">Organizations</a>
+        <a class="list-group-item list-group-item-action" href="#sharing">Sharing &amp; stewards</a>
+      </div>
+    </div>
+    {{if .ServerKey}}
+    <div class="card mt-3">
+      <div class="card-header"><h3 class="card-title">MeshTender's key</h3></div>
+      <div class="card-body">
+        <div class="form-label">MeshTender server public key</div>
+        <code class="pk d-block">{{.ServerKey}}</code>
+      </div>
+    </div>
+    {{end}}
+  </div>
+</div>
+{{end}}

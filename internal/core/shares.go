@@ -34,7 +34,7 @@ func (s *Handlers) pageShare(w http.ResponseWriter, r *http.Request) {
 	// repeater participates (the default) or has been opted out.
 	orgs, err := s.Store.ListRepeaterOrgMemberships(r.Context(), id)
 	if err != nil {
-		http.Error(w, "could not load orgs", http.StatusInternalServerError)
+		http.Error(w, "could not load organizations", http.StatusInternalServerError)
 		return
 	}
 	s.Render(w, r, "share.html", map[string]any{
