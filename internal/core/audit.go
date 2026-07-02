@@ -1,8 +1,6 @@
 package core
 
 import (
-	"encoding/base64"
-	"encoding/json"
 	"net/http"
 	"time"
 
@@ -42,22 +40,14 @@ type logCursor struct {
 
 // encodeLogCursor packs a session position into an opaque, URL-safe token.
 func encodeLogCursor(startedAt time.Time, id int64) string {
-	b, _ := json.Marshal(logCursor{StartedAt: startedAt, ID: id})
-	return base64.RawURLEncoding.EncodeToString(b)
+	return web.EncodeCursor(logCursor{StartedAt: startedAt, ID: id})
 }
 
 // decodeLogCursor reverses encodeLogCursor. A missing or malformed token decodes
 // to nil — the first page — so a tampered URL just resets paging.
 func decodeLogCursor(tok string) *store.CommandLogCursor {
-	if tok == "" {
-		return nil
-	}
-	b, err := base64.RawURLEncoding.DecodeString(tok)
-	if err != nil {
-		return nil
-	}
-	var c logCursor
-	if json.Unmarshal(b, &c) != nil {
+	c, ok := web.DecodeCursor[logCursor](tok)
+	if !ok {
 		return nil
 	}
 	return &store.CommandLogCursor{StartedAt: c.StartedAt, ID: c.ID}

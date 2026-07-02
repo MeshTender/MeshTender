@@ -1,8 +1,6 @@
 package marketing
 
 import (
-	"encoding/base64"
-	"encoding/json"
 	"net/http"
 	"strings"
 	"time"
@@ -178,24 +176,13 @@ type repCursor struct {
 }
 
 func encodeRepCursor(name string, id int64) string {
-	b, _ := json.Marshal(repCursor{Name: name, ID: id})
-	return base64.RawURLEncoding.EncodeToString(b)
+	return web.EncodeCursor(repCursor{Name: name, ID: id})
 }
 
 // decodeRepCursor reverses encodeRepCursor; a missing or malformed cursor decodes
 // to the first page ("", 0).
 func decodeRepCursor(tok string) (name string, id int64) {
-	if tok == "" {
-		return "", 0
-	}
-	b, err := base64.RawURLEncoding.DecodeString(tok)
-	if err != nil {
-		return "", 0
-	}
-	var c repCursor
-	if json.Unmarshal(b, &c) != nil {
-		return "", 0
-	}
+	c, _ := web.DecodeCursor[repCursor](tok)
 	return c.Name, c.ID
 }
 
@@ -229,23 +216,11 @@ func nextOrgCursor(sort store.OrgSort, query string, last store.OrgSummary) orgC
 
 // encodeOrgCursor packs a directory position into an opaque, URL-safe token.
 func encodeOrgCursor(c orgCursor) string {
-	b, _ := json.Marshal(c)
-	return base64.RawURLEncoding.EncodeToString(b)
+	return web.EncodeCursor(c)
 }
 
 // decodeOrgCursor reverses encodeOrgCursor. A missing or malformed cursor decodes
 // to ok=false, i.e. the first page.
 func decodeOrgCursor(tok string) (orgCursor, bool) {
-	if tok == "" {
-		return orgCursor{}, false
-	}
-	b, err := base64.RawURLEncoding.DecodeString(tok)
-	if err != nil {
-		return orgCursor{}, false
-	}
-	var c orgCursor
-	if json.Unmarshal(b, &c) != nil {
-		return orgCursor{}, false
-	}
-	return c, true
+	return web.DecodeCursor[orgCursor](tok)
 }
