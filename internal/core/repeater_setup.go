@@ -125,10 +125,10 @@ func (s *Handlers) handleSetupCommands(w http.ResponseWriter, r *http.Request) {
 	cmds = append(cmds, "reboot")
 
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]any{
-		"commands":            cmds,
-		"identityPlaceholder": identityPlaceholder,
-		"radio":               radio,
+	_ = json.NewEncoder(w).Encode(setupCommandsResponse{
+		Commands:            cmds,
+		IdentityPlaceholder: identityPlaceholder,
+		Radio:               radio,
 	})
 }
 
@@ -139,6 +139,21 @@ type setupRadio struct {
 	BwKHz   float64 `json:"bwKhz"`
 	SF      int     `json:"sf"`
 	CR      int     `json:"cr"`
+}
+
+// setupCommandsResponse is the JSON handleSetupCommands returns: the ordered CLI
+// lines (with identityPlaceholder standing in for the private-key command the
+// client splices locally) and the resolved radio the client persists on save.
+type setupCommandsResponse struct {
+	Commands            []string   `json:"commands"`
+	IdentityPlaceholder string     `json:"identityPlaceholder"`
+	Radio               setupRadio `json:"radio"`
+}
+
+// setupCompleteResponse is the JSON handleSetupComplete returns after creating
+// the repeater record: where the client should navigate next.
+type setupCompleteResponse struct {
+	Redirect string `json:"redirect"`
 }
 
 func defaultSetupRadio() setupRadio {
@@ -252,7 +267,7 @@ func (s *Handlers) handleSetupComplete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]any{
-		"redirect": "/repeaters/" + rep.PublicID + "/added",
+	_ = json.NewEncoder(w).Encode(setupCompleteResponse{
+		Redirect: "/repeaters/" + rep.PublicID + "/added",
 	})
 }

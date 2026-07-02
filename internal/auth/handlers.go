@@ -146,7 +146,7 @@ func (s *Service) RegisterFinish(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, "login")
 		return
 	}
-	writeJSON(w, map[string]any{"ok": true, "redirect": s.PostAuthRedirect(r, u.ID)})
+	writeJSON(w, authResult{OK: true, Redirect: s.PostAuthRedirect(r, u.ID)})
 }
 
 // --- Passkey login ---
@@ -222,7 +222,7 @@ func (s *Service) LoginFinish(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, "login")
 		return
 	}
-	writeJSON(w, map[string]any{"ok": true, "redirect": s.PostAuthRedirect(r, u.ID)})
+	writeJSON(w, authResult{OK: true, Redirect: s.PostAuthRedirect(r, u.ID)})
 }
 
 // --- usernameless (discoverable) passkey login ---
@@ -294,7 +294,7 @@ func (s *Service) LoginDiscoverableFinish(w http.ResponseWriter, r *http.Request
 		httpError(w, http.StatusInternalServerError, "login")
 		return
 	}
-	writeJSON(w, map[string]any{"ok": true, "redirect": s.PostAuthRedirect(r, resolved.ID)})
+	writeJSON(w, authResult{OK: true, Redirect: s.PostAuthRedirect(r, resolved.ID)})
 }
 
 // --- ceremony state helpers ---
@@ -392,6 +392,14 @@ func writeJSONStatus(w http.ResponseWriter, code int, v any) {
 
 func writeJSON(w http.ResponseWriter, v any) {
 	writeJSONStatus(w, 0, v)
+}
+
+// authResult is the JSON body returned after a successful credential ceremony
+// (passkey register/login). OK is a legacy success flag; the client actually
+// keys off the HTTP status and follows Redirect.
+type authResult struct {
+	OK       bool   `json:"ok"`
+	Redirect string `json:"redirect"`
 }
 
 func httpError(w http.ResponseWriter, code int, msg string) {
