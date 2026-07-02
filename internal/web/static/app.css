@@ -108,6 +108,15 @@ code.pubkey {
 .form-check-input.cc-member:checked { background-color: var(--tblr-blue);   border-color: var(--tblr-blue); }
 .form-check-input.cc-admin:checked  { background-color: var(--tblr-orange); border-color: var(--tblr-orange); }
 
+/* ---------- Limit-commands opt-out table (org page) ----------
+   Fixed layout with shared column widths so the checkbox / command / description /
+   access columns line up across the per-feature cards (each is its own table).
+   Long command templates wrap rather than overflow the fixed command column. */
+.cmd-table { table-layout: fixed; }
+.cmd-table th:nth-child(1), .cmd-table td:nth-child(1) { width: 2.5rem; }
+.cmd-table th:nth-child(2), .cmd-table td:nth-child(2) { width: 30%; overflow-wrap: anywhere; }
+.cmd-table th:nth-child(4), .cmd-table td:nth-child(4) { width: 6rem; }
+
 /* ---------- Members list filter (org members page) ----------
    The members page filters rows by role + search in JS (text search can't be
    pure CSS). Rows carry `.d-flex` (display:flex !important), so the JS toggles

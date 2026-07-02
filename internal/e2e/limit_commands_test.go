@@ -43,7 +43,12 @@ func TestE2ELimitCommandsSelectAll(t *testing.T) {
 		});
 	})()`
 
+	// Every command row carries an Access badge (Members or Admins), the tier
+	// column the table was added for. Count how many the table renders.
+	const countAccessBadges = `document.querySelectorAll('[data-check-scope] tbody tr td .badge.bg-azure-lt, [data-check-scope] tbody tr td .badge.bg-success-lt').length`
+
 	var initial, afterNone, afterAll [][]int
+	var accessBadges int
 	if err := chromedp.Run(bctx,
 		network.Enable(),
 		cdplog.Enable(),
@@ -51,6 +56,7 @@ func TestE2ELimitCommandsSelectAll(t *testing.T) {
 		chromedp.Navigate(url),
 		chromedp.WaitVisible(`[data-check-scope]`, chromedp.ByQuery),
 		chromedp.Evaluate(countChecked, &initial),
+		chromedp.Evaluate(countAccessBadges, &accessBadges),
 		// Uncheck only the first section.
 		chromedp.Click(`[data-check-scope]:first-of-type [data-check-none]`, chromedp.ByQuery),
 		chromedp.Evaluate(countChecked, &afterNone),
@@ -59,6 +65,15 @@ func TestE2ELimitCommandsSelectAll(t *testing.T) {
 		chromedp.Evaluate(countChecked, &afterAll),
 	); err != nil {
 		t.Fatalf("browser run against %s: %v", url, err)
+	}
+
+	// One Access badge per command row: total should match the total checkbox count.
+	totalBoxes := 0
+	for _, s := range initial {
+		totalBoxes += s[0]
+	}
+	if accessBadges != totalBoxes {
+		t.Fatalf("Access column rendered %d tier badges, want one per command row (%d)", accessBadges, totalBoxes)
 	}
 
 	if len(initial) < 2 {

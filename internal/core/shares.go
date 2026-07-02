@@ -215,11 +215,16 @@ func (s *Handlers) handleAcceptInvite(w http.ResponseWriter, r *http.Request) {
 type commandGroup = categoryGroup[commandChoice]
 
 type commandChoice struct {
-	ID       int64
-	Template string
-	Args     string
-	Risky    bool
-	Checked  bool
+	ID          int64
+	Template    string
+	Args        string
+	Description string
+	Risky       bool
+	Checked     bool
+	// MemberAllowed is true when regular members (and, implicitly, admins) may run
+	// the command; false means it's restricted to org admins. Surfaced as the
+	// "Access" column on the org Limit-commands page.
+	MemberAllowed bool
 }
 
 // groupCommands buckets the catalog by feature, marking those whose id is in
@@ -227,7 +232,8 @@ type commandChoice struct {
 func groupCommands(catalog []*store.Command, checked map[int64]bool) []commandGroup {
 	return groupByFeature(catalog, func(c *store.Command) commandChoice {
 		return commandChoice{
-			ID: c.ID, Template: c.Template, Args: c.Args, Risky: c.Risky, Checked: checked[c.ID],
+			ID: c.ID, Template: c.Template, Args: c.Args, Description: c.Description,
+			Risky: c.Risky, Checked: checked[c.ID], MemberAllowed: c.OrgMemberAllowed,
 		}
 	})
 }
