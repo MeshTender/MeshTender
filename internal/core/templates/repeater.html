@@ -69,7 +69,6 @@
             <a class="fw-bold text-reset" href="/orgs/{{.OrgSlug}}">{{.OrgName}}</a>
           </div>
           <div class="btn-list flex-nowrap">
-            <a class="btn btn-sm" href="/orgs/{{.OrgSlug}}/my-commands" title="Limit which commands this org may run on your repeaters">{{template "icon-list" "me-1"}}Commands</a>
             <a class="btn btn-sm" href="/orgs/{{.OrgSlug}}/config{{if $.Repeater.Latitude}}?lat={{$.Repeater.Latitude}}&lon={{$.Repeater.Longitude}}{{end}}" title="This org's recommended config for this repeater">{{template "icon-settings" "me-1"}}Config</a>
           </div>
         </div>

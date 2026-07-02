@@ -63,7 +63,8 @@ func (s *Handlers) pageOrgCommands(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	if _, isMember, err := s.Store.OrgRole(r.Context(), id, uid); err != nil || !isMember {
+	role, isMember, err := s.Store.OrgRole(r.Context(), id, uid)
+	if err != nil || !isMember {
 		http.NotFound(w, r)
 		return
 	}
@@ -87,6 +88,7 @@ func (s *Handlers) pageOrgCommands(w http.ResponseWriter, r *http.Request) {
 	}
 	s.Render(w, r, "org_commands.html", map[string]any{
 		"Org":        org,
+		"Nav":        s.OrgNavFor(r.Context(), org.ID, org.Slug, "", true, role == "admin"),
 		"Groups":     groupCommands(ceiling, checked),
 		"Restricted": restricted,
 	})

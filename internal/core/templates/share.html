@@ -18,8 +18,9 @@
     <h3 class="card-title">Organizations</h3>
     <p class="text-secondary">
       This repeater is shared with every organization you belong to, so their admins and members can run
-      the commands those organizations are permitted to run on it. Opt it out of any organization here, or
-      limit which commands an organization may run from its <strong>Limit commands</strong> page.
+      the commands those organizations are permitted to run on it. Opt it out of any organization here. To
+      limit which commands an organization may run across all your shared repeaters, use
+      <strong>Actions &rarr; Limit commands</strong> on that organization's page.
     </p>
 
     {{if .Orgs}}
@@ -31,7 +32,6 @@
         <span class="badge bg-secondary-lt">Opted out</span>
         {{else}}
         <span class="badge bg-success-lt">Shared</span>
-        <a class="text-secondary small" href="/orgs/{{.OrgSlug}}/my-commands">Limit commands</a>
         {{end}}
         <form method="post" action="/repeaters/{{$.Repeater.PublicID}}/orgs/{{.OrgSlug}}/participation" class="m-0 ms-auto">
           {{if .Excluded}}
