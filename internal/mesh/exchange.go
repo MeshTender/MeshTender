@@ -136,8 +136,16 @@ func (e *Exchanger) exchange(ctx context.Context, build func(ts time.Time, attem
 func (e *Exchanger) Login(ctx context.Context, password string, onAttempt func(attempt, max int)) (*LoginResponse, error) {
 	var result *LoginResponse
 	err := e.exchange(ctx,
-		func(ts time.Time, _ int) ([]byte, error) {
-			// Login is always flood: it's the first contact, before any path is known.
+		func(ts time.Time, attempt int) ([]byte, error) {
+			// With a path known (learned or user-supplied), route the login directly
+			// on early attempts; fall back to flood on later ones in case it's stale.
+			e.mu.Lock()
+			direct := e.pathKnown && attempt <= e.directThreshold()
+			path, pathLen := e.outPath, e.outPathLen
+			e.mu.Unlock()
+			if direct {
+				return BuildLoginPacketDirect(e.server, e.repeater, password, ts, path, pathLen)
+			}
 			return BuildLoginPacket(e.server, e.repeater, password, ts)
 		},
 		func(raw []byte) bool {
@@ -153,13 +161,28 @@ func (e *Exchanger) Login(ctx context.Context, password string, onAttempt func(a
 	if err != nil {
 		return nil, err
 	}
-	// Learn the route home so subsequent commands can use direct routing.
 	e.mu.Lock()
 	e.pathKnown = true
-	e.outPath = result.OutPath
-	e.outPathLen = result.OutPathLen
+	// Only adopt the route from the reply when it carried one (a PATH reply from a
+	// flooded login). A direct login answered by a plain RESPONSE has no path, so
+	// keep the path we already had (e.g. one the user supplied) rather than wiping it.
+	if result.FromPath {
+		e.outPath = result.OutPath
+		e.outPathLen = result.OutPathLen
+	}
 	e.mu.Unlock()
 	return result, nil
+}
+
+// SetPath pre-seeds the route to the repeater (e.g. a user-supplied path), so the
+// login and subsequent commands route directly from the start, with flood as the
+// fallback. path/pathLen are as in LoginResponse.OutPath/OutPathLen.
+func (e *Exchanger) SetPath(path []byte, pathLen byte) {
+	e.mu.Lock()
+	e.pathKnown = true
+	e.outPath = path
+	e.outPathLen = pathLen
+	e.mu.Unlock()
 }
 
 // directThreshold is the highest attempt number that uses direct routing once a

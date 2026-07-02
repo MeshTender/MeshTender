@@ -30,6 +30,40 @@ var perTryReply = 10 * time.Second
 
 const maxSendTries = 4
 
+// applyUserPath seeds the exchanger with a caller-supplied route (the optional
+// ?path= query param from the confirm/console page) so the login and commands
+// route directly with flood fallback. A malformed path is reported and ignored
+// (we fall back to flood) rather than failing the session. It returns whether a
+// path was set, so the caller can report whether that path actually worked.
+func applyUserPath(ex *mesh.Exchanger, r *http.Request, bridge *wsbridge.Conn) bool {
+	raw := r.URL.Query().Get("path")
+	if raw == "" {
+		return false
+	}
+	path, pathLen, err := mesh.ParsePath(raw)
+	if err != nil {
+		_ = bridge.Status("warning", "Ignoring the path you entered ("+err.Error()+") — using flood.")
+		return false
+	}
+	if path == nil {
+		return false
+	}
+	ex.SetPath(path, pathLen)
+	_ = bridge.Status("info", "Using the path you specified (direct routing, with flood fallback).")
+	return true
+}
+
+// reportPathOutcome logs whether the login reached the repeater over the
+// user-supplied path (a direct RESPONSE reply) or had to fall back to flood (a
+// PATH return reply). Only meaningful when a path was set and login succeeded.
+func reportPathOutcome(bridge *wsbridge.Conn, lr *mesh.LoginResponse) {
+	if lr.FromPath {
+		_ = bridge.Status("warning", "The path you specified didn't get through — reached the repeater by flood instead.")
+	} else {
+		_ = bridge.Status("info", "Reached the repeater directly over the path you specified. ✓")
+	}
+}
+
 // pageConfirm renders the WebSerial confirm page for a repeater the user can access.
 func (s *Handlers) pageConfirm(w http.ResponseWriter, r *http.Request) {
 	rep, _, ok := s.requireRepeaterAccess(w, r)
@@ -89,6 +123,7 @@ func (s *Handlers) wsConfirm(w http.ResponseWriter, r *http.Request) {
 	modem.SetDataHandler(func(data []byte, _ float32, _ int8, _ bool) {
 		ex.HandleData(data)
 	})
+	userPathSet := applyUserPath(ex, r, bridge)
 	if debug {
 		// Dump every inbound KISS frame as hex so we can see exactly what the
 		// modem reports back (e.g. whether the repeater replies at all).
@@ -162,6 +197,9 @@ func (s *Handlers) wsConfirm(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		return // context cancelled or a build/transmit error already reported
+	}
+	if userPathSet {
+		reportPathOutcome(bridge, lr)
 	}
 
 	if err := s.Store.SetRepeaterConfirmed(ctx, id, uid, lr.IsAdmin, int16(lr.Permissions)); err != nil {

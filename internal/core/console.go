@@ -206,6 +206,7 @@ func (s *Handlers) wsConsole(w http.ResponseWriter, r *http.Request) {
 	modem.SetDataHandler(func(data []byte, _ float32, _ int8, _ bool) {
 		ex.HandleData(data)
 	})
+	userPathSet := applyUserPath(ex, r, bridge)
 
 	// Group this connection's commands into a session (required for logging).
 	sessionID, err := s.Store.StartConsoleSession(ctx, id, uid)
@@ -285,14 +286,18 @@ func (s *Handlers) wsConsole(w http.ResponseWriter, r *http.Request) {
 	// direct routing. If login gets no reply we proceed anyway — the repeater may
 	// still have us cached as an admin client from an earlier session.
 	_ = bridge.Status("info", "Establishing session…")
-	if _, err := ex.Login(ctx, "", func(attempt, max int) {
+	lr, err := ex.Login(ctx, "", func(attempt, max int) {
 		if attempt > 1 {
 			_ = bridge.Status("info", fmt.Sprintf("No reply yet — retrying (%d/%d)…", attempt, max))
 		}
-	}); errors.Is(err, mesh.ErrNoReply) {
+	})
+	switch {
+	case errors.Is(err, mesh.ErrNoReply):
 		_ = bridge.Status("warning", "Couldn't reach the repeater to establish a session — commands will still be attempted (flood), but may not work if it doesn't recognize MeshTender.")
-	} else if err != nil {
+	case err != nil:
 		return // context cancelled
+	case userPathSet:
+		reportPathOutcome(bridge, lr)
 	}
 	_ = bridge.Status("info", "Connected. Ready for commands.")
 

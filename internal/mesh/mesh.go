@@ -49,10 +49,23 @@ type LoginResponse struct {
 }
 
 // BuildLoginPacket builds the raw MeshCore LoRa packet bytes that perform an
-// anonymous login to repeater using server's identity. password may be empty
-// when access was granted via `setperm <pubkey> 3` (pubkey ACL). now is the
-// timestamp embedded in the request (the repeater uses it for clock sync).
+// anonymous login to repeater using server's identity, sent as flood (first
+// contact, before any path is known). password may be empty when access was
+// granted via `setperm <pubkey> 3` (pubkey ACL). now is the timestamp embedded
+// in the request (the repeater uses it for clock sync).
 func BuildLoginPacket(server meshcore.LocalIdentity, repeater meshcore.Identity, password string, now time.Time) ([]byte, error) {
+	return buildLoginPacket(server, repeater, password, now, meshcore.RouteTypeFlood, floodPathLen, nil)
+}
+
+// BuildLoginPacketDirect builds an anonymous login routed directly over a known
+// path (path/pathLen as in LoginResponse.OutPath/OutPathLen, or supplied by the
+// user) rather than flooded — useful for distant repeaters where the flood login
+// is unreliable.
+func BuildLoginPacketDirect(server meshcore.LocalIdentity, repeater meshcore.Identity, password string, now time.Time, path []byte, pathLen byte) ([]byte, error) {
+	return buildLoginPacket(server, repeater, password, now, meshcore.RouteTypeDirect, pathLen, path)
+}
+
+func buildLoginPacket(server meshcore.LocalIdentity, repeater meshcore.Identity, password string, now time.Time, routeType, pathLen byte, path []byte) ([]byte, error) {
 	shared, err := server.SharedSecret(repeater)
 	if err != nil {
 		return nil, fmt.Errorf("derive shared secret: %w", err)
@@ -81,8 +94,9 @@ func BuildLoginPacket(server meshcore.LocalIdentity, repeater meshcore.Identity,
 	}
 
 	pkt := &meshcore.Packet{
-		Header:     meshcore.MakeHeader(meshcore.RouteTypeFlood, meshcore.PayloadTypeAnonReq, 0),
-		PathLength: floodPathLen,
+		Header:     meshcore.MakeHeader(routeType, meshcore.PayloadTypeAnonReq, 0),
+		PathLength: pathLen,
+		Path:       path,
 		Payload:    payload,
 	}
 	raw, err := pkt.ToBytes()

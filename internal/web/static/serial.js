@@ -6,6 +6,17 @@
   const connectBtn = document.getElementById("connect");
   const log = document.getElementById("log");
 
+  // wsURL appends the optional user-entered path (#path) to the base ws URL so
+  // the server routes login/commands directly (with flood fallback).
+  function wsURL() {
+    let url = window.MESHTENDER_WS;
+    const el = document.getElementById("path");
+    if (el && el.value.trim()) {
+      url += (url.indexOf("?") === -1 ? "?" : "&") + "path=" + encodeURIComponent(el.value.trim());
+    }
+    return url;
+  }
+
   if (!("serial" in navigator)) {
     document.getElementById("unsupported").hidden = false;
     connectBtn.disabled = true;
@@ -57,7 +68,7 @@
       keepReading = true;
       addLog("info", "Serial port open (115200 8N1). Connecting to server…");
 
-      ws = new WebSocket(window.MESHTENDER_WS);
+      ws = new WebSocket(wsURL());
       ws.binaryType = "arraybuffer";
 
       ws.onopen = () => {
