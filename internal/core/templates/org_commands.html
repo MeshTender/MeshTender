@@ -25,8 +25,14 @@
 
 <form method="post" action="/orgs/{{.Org.Slug}}/my-commands" id="cmdform-perms">
   {{range .Groups}}
-  <div class="card mt-3">
-    <div class="card-header"><h3 class="card-title">{{.Name}}</h3></div>
+  <div class="card mt-3" data-check-scope>
+    <div class="card-header d-flex align-items-center">
+      <h3 class="card-title mb-0">{{.Name}}</h3>
+      <div class="btn-list ms-auto">
+        <button type="button" class="btn btn-sm" data-check-all>Select all</button>
+        <button type="button" class="btn btn-sm" data-check-none>Select none</button>
+      </div>
+    </div>
     <div class="card-body">
       {{range .Commands}}
       <label class="form-check">

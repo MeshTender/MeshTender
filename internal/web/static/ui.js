@@ -12,6 +12,10 @@
 //                                    it is (un)checked.
 //   [data-gated]                  — a link/button whose activation is blocked while
 //                                    aria-disabled="true".
+//   [data-check-all] /            — a button that checks (all) or unchecks (none)
+//   [data-check-none]               every enabled checkbox within its scope. The
+//                                    scope is the closest [data-check-scope]
+//                                    ancestor, or the whole document if none.
 (function () {
   "use strict";
 
@@ -39,6 +43,19 @@
     if (confirmEl && confirmEl.tagName !== "FORM" && !window.confirm(confirmEl.getAttribute("data-confirm"))) {
       e.preventDefault();
       e.stopPropagation();
+      return;
+    }
+
+    // Select-all / select-none for a group of checkboxes.
+    var checkBtn = el.closest("[data-check-all], [data-check-none]");
+    if (checkBtn) {
+      e.preventDefault();
+      var scope = checkBtn.closest("[data-check-scope]") || document;
+      var checked = checkBtn.hasAttribute("data-check-all");
+      var boxes = scope.querySelectorAll("input[type=checkbox]");
+      for (var i = 0; i < boxes.length; i++) {
+        if (!boxes[i].disabled) boxes[i].checked = checked;
+      }
       return;
     }
 
