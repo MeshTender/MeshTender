@@ -486,39 +486,3 @@ func regionViews(regions []store.Region) []configRegionView {
 	}
 	return out
 }
-
-// repeaterProfiles is an org's region-def commands resolved for a specific
-// repeater's location, for the console reference block. Base-settings profiles are
-// a viewing choice on the org config page, so they aren't auto-applied here.
-type repeaterProfiles struct {
-	OrgName  string
-	OrgSlug  string
-	Commands []string
-}
-
-// resolvedProfilesForRepeater returns, for each org the repeater is contributed to
-// whose regions cover the repeater's location, the `region def`/`region save`
-// commands to apply that region hierarchy.
-func (s *Handlers) resolvedProfilesForRepeater(r *http.Request, rep *store.Repeater) []repeaterProfiles {
-	orgs, err := s.Store.ListRepeaterOrgs(r.Context(), rep.ID)
-	if err != nil {
-		return nil
-	}
-	var out []repeaterProfiles
-	for _, o := range orgs {
-		regions, err := s.Store.ListRegions(r.Context(), o.OrgID)
-		if err != nil {
-			continue
-		}
-		rootAllow, err := s.Store.RootAllowFlood(r.Context(), o.OrgID)
-		if err != nil {
-			continue
-		}
-		cmds := store.RegionDefCommands(regions, rootAllow, rep.Latitude, rep.Longitude)
-		if len(cmds) == 0 {
-			continue
-		}
-		out = append(out, repeaterProfiles{OrgName: o.OrgName, OrgSlug: o.OrgSlug, Commands: cmds})
-	}
-	return out
-}

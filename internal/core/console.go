@@ -156,9 +156,6 @@ func (s *Handlers) pageConsole(w http.ResponseWriter, r *http.Request) {
 	s.Render(w, r, "console.html", map[string]any{
 		"Repeater": rep,
 		"Commands": allowed,
-		// Recommended configuration from each org this repeater is contributed to,
-		// resolved for the repeater's location (region commands vary by lat/lon).
-		"Profiles": s.resolvedProfilesForRepeater(r, rep),
 	})
 }
 
