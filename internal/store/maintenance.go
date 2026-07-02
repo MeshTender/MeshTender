@@ -12,8 +12,10 @@ import (
 // records of physical service work (antenna swap, battery replacement, site
 // visit) that would otherwise live only in the builder's head.
 
-// MaintenanceEntry is one logged maintenance record. AuthorName is denormalized
-// so the record stays readable after the author leaves (author_id goes NULL).
+// MaintenanceEntry is one logged maintenance record. AuthorName is resolved live
+// at read time (ListMaintenance) from the author's current display name/username,
+// falling back to the write-time snapshot only once the author is gone
+// (author_id goes NULL) — the snapshot is that deleted-author tombstone.
 type MaintenanceEntry struct {
 	ID          int64
 	AuthorID    *int64
@@ -38,11 +40,19 @@ func (s *Store) AddMaintenanceEntry(ctx context.Context, repeaterID, authorID in
 
 // ListMaintenance returns a repeater's maintenance history, most recent first.
 func (s *Store) ListMaintenance(ctx context.Context, repeaterID int64) ([]MaintenanceEntry, error) {
+	// Resolve the author's *current* name (display name, else username) via the
+	// live users row; fall back to the denormalized snapshot only when the author
+	// has been deleted (author_id NULL → the join yields no user). LEFT JOIN
+	// because author_id is nullable. Matches the name expression used across the
+	// codebase (see repeaterSelect's corroborators, orgs.go member listings).
 	rows, err := s.pool.Query(ctx, `
-		SELECT id, author_id, author_name, note, performed_at, created_at
-		FROM repeater_maintenance
-		WHERE repeater_id = $1
-		ORDER BY performed_at DESC, id DESC`, repeaterID)
+		SELECT m.id, m.author_id,
+		       COALESCE(NULLIF(u.display_name, ''), u.username, NULLIF(m.author_name, '')) AS author_name,
+		       m.note, m.performed_at, m.created_at
+		FROM repeater_maintenance m
+		LEFT JOIN users u ON u.id = m.author_id
+		WHERE m.repeater_id = $1
+		ORDER BY m.performed_at DESC, m.id DESC`, repeaterID)
 	if err != nil {
 		return nil, fmt.Errorf("list maintenance: %w", err)
 	}
