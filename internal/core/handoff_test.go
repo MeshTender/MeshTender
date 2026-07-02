@@ -240,51 +240,115 @@ func TestHostRouting(t *testing.T) {
 	})
 }
 
-// TestSingleLogout verifies sign-out clears BOTH sessions: the app host's
-// /logout chains to the auth host, and the auth host's /logout destroys the SSO
-// session so it can't silently re-authenticate.
+// TestSingleLogout verifies the single-revoke logout model: one POST to a host's
+// /logout revokes the shared login row, dropping every host bound to it. An
+// auth-host sign-in is handed off to the app so both sessions share one login row;
+// logging out on the APP host then invalidates the AUTH host's SSO session on its
+// next request — with no redirect chain between them. See docs/auth-cross-host.md.
 func TestSingleLogout(t *testing.T) {
 	t.Parallel()
-	st, ctx, ts, h := splitServer(t)
+	_, _, ts, h := splitServer(t)
 
-	// An app session (via the handoff) logs out by bouncing to the auth host.
-	u, _ := st.CreateUser(ctx, "logoutuser", "")
-	loginID, _ := st.CreateLogin(ctx, u.ID)
-	code, _ := st.CreateAuthCode(ctx, u.ID, loginID, "/")
+	// Sign up on the auth host: creates login row L and the auth SSO session, then
+	// hands off to the app with a single-use code carrying L.
+	su := post(t, ts, h.auth, "/signup/password", url.Values{"username": {"sharuser"}, "password": {"supersecret"}})
+	su.Body.Close()
+	sso := cookieByName(su, "meshtender_session")
+	if sso == nil {
+		t.Fatal("expected an SSO session from signup")
+	}
+	loc, _ := url.Parse(su.Header.Get("Location"))
+	code := loc.Query().Get("code")
+	if code == "" {
+		t.Fatalf("signup did not hand off to the app (Location %q)", su.Header.Get("Location"))
+	}
+	// Redeem the code on the app host, binding its session to the SAME row L.
 	cb := do(t, ts, h.app, "/session/callback?code="+code+"&state=s1", &http.Cookie{Name: "mt_state", Value: "s1"})
 	cb.Body.Close()
 	appSess := cookieByName(cb, "meshtender_session")
 	if appSess == nil {
 		t.Fatal("expected an app session from the callback")
 	}
-	out := post(t, ts, h.app, "/logout", url.Values{}, appSess)
-	out.Body.Close()
-	if loc, _ := url.Parse(out.Header.Get("Location")); out.StatusCode != http.StatusSeeOther || loc.Host != h.auth || loc.Path != "/logout" {
-		t.Fatalf("app logout = %d %q, want 303 to auth /logout", out.StatusCode, out.Header.Get("Location"))
+
+	// Both live: auth /login re-hands-off (303) rather than showing the form.
+	live := do(t, ts, h.auth, "/login?next=%2F&state=x", sso)
+	live.Body.Close()
+	if live.StatusCode != http.StatusSeeOther {
+		t.Fatalf("pre-logout auth /login = %d, want 303 handoff (SSO live)", live.StatusCode)
 	}
 
-	// Sign up on the auth host to hold an SSO session, then confirm it is live
-	// (auth /login hands off) until /logout, after which it no longer does.
-	su := post(t, ts, h.auth, "/signup/password", url.Values{"username": {"ssouser"}, "password": {"supersecret"}})
+	// Log out on the APP host: it revokes L and lands on the public root — no hop
+	// through the auth host.
+	out := post(t, ts, h.app, "/logout", url.Values{}, appSess)
+	out.Body.Close()
+	if loc, _ := url.Parse(out.Header.Get("Location")); out.StatusCode != http.StatusSeeOther || loc.Hostname() != testRootHost {
+		t.Fatalf("app logout = %d %q, want 303 to the root host", out.StatusCode, out.Header.Get("Location"))
+	}
+
+	// The AUTH host's SSO session is now dead too: /login shows the form (200)
+	// instead of re-handing-off, because ValidateSession dropped the revoked login.
+	after := do(t, ts, h.auth, "/login", sso)
+	after.Body.Close()
+	if after.StatusCode != http.StatusOK {
+		t.Fatalf("post-logout auth /login = %d, want 200 (SSO cleared via shared-login revoke)", after.StatusCode)
+	}
+}
+
+// TestAuthLogoutClearsSSO covers the auth host's own POST /logout: a visitor who
+// authenticated on the auth host (e.g. for account settings) with no app session
+// signs out there directly, revoking and clearing the SSO session.
+func TestAuthLogoutClearsSSO(t *testing.T) {
+	t.Parallel()
+	_, _, ts, h := splitServer(t)
+
+	su := post(t, ts, h.auth, "/signup/password", url.Values{"username": {"ssoonly"}, "password": {"supersecret"}})
 	su.Body.Close()
 	sso := cookieByName(su, "meshtender_session")
 	if sso == nil {
 		t.Fatal("expected an SSO session from signup")
 	}
-	live := do(t, ts, h.auth, "/login?next=%2F&state=x", sso)
-	live.Body.Close()
-	if live.StatusCode != http.StatusSeeOther {
-		t.Fatalf("authed /login = %d, want 303 handoff (SSO live)", live.StatusCode)
+
+	out := post(t, ts, h.auth, "/logout", url.Values{}, sso)
+	out.Body.Close()
+	if loc, _ := url.Parse(out.Header.Get("Location")); out.StatusCode != http.StatusSeeOther || loc.Hostname() != testRootHost {
+		t.Fatalf("auth logout = %d %q, want 303 to the root host", out.StatusCode, out.Header.Get("Location"))
 	}
-	lo := do(t, ts, h.auth, "/logout", sso)
-	lo.Body.Close()
-	if lo.StatusCode != http.StatusSeeOther {
-		t.Fatalf("auth /logout = %d, want 303", lo.StatusCode)
-	}
+
 	after := do(t, ts, h.auth, "/login", sso)
-	defer after.Body.Close()
+	after.Body.Close()
 	if after.StatusCode != http.StatusOK {
-		t.Fatalf("post-logout /login = %d, want 200 (SSO cleared, no re-handoff)", after.StatusCode)
+		t.Fatalf("post-logout auth /login = %d, want 200 (SSO cleared)", after.StatusCode)
+	}
+}
+
+// TestLogoutRejectsGet locks in that /logout is POST-only on both the auth and app
+// hosts: a forged cross-site GET (e.g. <img src=".../logout">) must not sign
+// anyone out. This is the rule (state-changing actions are POST) the old
+// side-effecting GET /logout violated.
+func TestLogoutRejectsGet(t *testing.T) {
+	t.Parallel()
+	_, _, ts, h := splitServer(t)
+
+	su := post(t, ts, h.auth, "/signup/password", url.Values{"username": {"getlogout"}, "password": {"supersecret"}})
+	su.Body.Close()
+	sso := cookieByName(su, "meshtender_session")
+	if sso == nil {
+		t.Fatal("expected an SSO session from signup")
+	}
+
+	for _, host := range []string{h.auth, h.app} {
+		g := do(t, ts, host, "/logout", sso)
+		g.Body.Close()
+		if g.StatusCode != http.StatusMethodNotAllowed {
+			t.Fatalf("GET %s/logout = %d, want 405 (POST-only)", host, g.StatusCode)
+		}
+	}
+
+	// The GET left the session untouched: auth /login still re-hands-off (SSO live).
+	after := do(t, ts, h.auth, "/login?next=%2F&state=x", sso)
+	after.Body.Close()
+	if after.StatusCode != http.StatusSeeOther {
+		t.Fatalf("auth /login after GET /logout = %d, want 303 (SSO still live)", after.StatusCode)
 	}
 }
 

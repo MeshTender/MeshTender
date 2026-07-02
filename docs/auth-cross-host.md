@@ -54,10 +54,30 @@ auth, root beacon, custom org domains) stores `login_id` in its scs `data` blob
 and is validated against the parent on each request.
 
 - **Logout = one write:** set `revoked_at` on the `logins` row. Every host drops
-  to anonymous on its next request — including custom org domains, which the old
+  to anonymous on its next request (`ValidateSession` destroys any session whose
+  backing login is revoked) — including custom org domains, which the old
   redirect-chain logout never covered.
 - Per-device logout = revoke one row; "log out everywhere" = revoke all of a
   user's rows.
 - Do **not** add per-host token columns to the scs `sessions` table — scs
   resolves a cookie by its single `token` PK, and the host set is unbounded
   (every custom domain is another host).
+
+### Logout is a per-host POST, never a cross-host GET chain
+
+Sign-out is a **POST** on the host that holds the session (app, auth, or a custom
+org domain). That handler revokes the shared login row and lands the visitor on
+the public root. Because a single real sign-in maps to exactly one login row
+(the handoff callbacks reuse it via `loginWithID`), revoking it once on *any* of
+those hosts drops all of them on their next request — so there is **no** redirect
+chain from the app host to an auth-host `/logout`. The auth host's own POST
+`/logout` still exists to cover the auth-local case: a visitor who authenticated
+on the auth host (e.g. for account settings) with no app session signs out there
+directly.
+
+`/logout` is **POST-only** on every host — state-changing actions are POST
+(rule 3's spirit applied everywhere), so a forged cross-site GET like
+`<img src=".../logout">` cannot sign anyone out. The template picks the right
+target via `LogoutURL` (relative `/logout` on mutating surfaces); the **root
+host** is side-effect-free GET and therefore has no `/logout` at all — its chrome
+hides the sign-out control and the user signs out from the app dashboard.

@@ -366,10 +366,11 @@ func splitOwnedShared(repeaters []*store.Repeater) (owned, shared []*store.Repea
 	return owned, shared
 }
 
-// handleLogout signs the user out of the app host, then chains to the auth host's
-// /logout to clear the SSO session too — otherwise the surviving SSO session
-// would silently re-authenticate on the next request.
+// handleLogout signs the user out. It revokes the login row backing the session,
+// which drops every host sharing it (auth SSO, root beacon, custom org domains)
+// to anonymous on their next request — so no redirect chain to the auth host is
+// needed. See docs/auth-cross-host.md's global logout model.
 func (s *Handlers) handleLogout(w http.ResponseWriter, r *http.Request) {
 	_ = s.Auth.Logout(r.Context())
-	http.Redirect(w, r, s.Origin(r, s.Cfg.AuthHost)+"/logout", http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
+	s.RedirectAfterLogout(w, r)
 }

@@ -43,8 +43,10 @@ func (s *Handlers) Routes() chi.Router {
 	s.baseMW(r)
 	s.SharedRoutes(r)
 	s.credentialRoutes(r)
-	// Single logout: clears the SSO session (chained to from the app host).
-	r.Get("/logout", s.handleAuthLogout)
+	// Logout: revokes the login row (dropping every host to anonymous on its next
+	// request) and clears this host's SSO session. POST-only — sign-out is a state
+	// change, so a forged cross-site GET can't trigger it.
+	r.Post("/logout", s.handleAuthLogout)
 
 	// Account/credential management lives here so credentials are created on the
 	// same origin used to sign in. Guarded by the SSO session.
@@ -118,16 +120,11 @@ func (s *Handlers) pageSignup(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// handleAuthLogout clears the auth host's SSO session and lands the visitor on
-// the public root (or the app in narrower configs).
+// handleAuthLogout revokes the login row backing this session and lands the
+// visitor on the public root. Revoking the shared row is what signs the user out
+// of every host (app, root beacon, custom org domains) on their next request; it
+// also directly clears an auth-local SSO session that never had an app session.
 func (s *Handlers) handleAuthLogout(w http.ResponseWriter, r *http.Request) {
 	_ = s.Auth.Logout(r.Context())
-	switch {
-	case s.Cfg.RootHost != "":
-		http.Redirect(w, r, s.Origin(r, s.Cfg.RootHost)+"/", http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
-	case s.Cfg.PrimaryHost != "":
-		http.Redirect(w, r, s.Origin(r, s.Cfg.PrimaryHost)+"/", http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
-	default:
-		http.Redirect(w, r, "/login", http.StatusSeeOther)
-	}
+	s.RedirectAfterLogout(w, r)
 }

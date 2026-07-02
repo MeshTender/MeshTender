@@ -44,8 +44,7 @@
             <form method="post" action="/invite/{{.Token}}/accept" class="m-0">
               <button type="submit" class="btn btn-primary">Accept as {{.UserName}}</button>
             </form>
-            <form method="post" action="/logout" class="m-0">
-              <input type="hidden" name="next" value="/invite/{{.Token}}">
+            <form method="post" action="{{.LogoutURL}}" class="m-0">
               <button type="submit" class="btn btn-link">Switch account</button>
             </form>
           </div>

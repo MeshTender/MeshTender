@@ -87,6 +87,21 @@ func (e *Env) Origin(r *http.Request, host string) string {
 	return originFor(e.Cfg, r, host)
 }
 
+// RedirectAfterLogout lands a signed-out visitor on the public root (or the app,
+// or the local sign-in page in narrower configs). Shared by every host's POST
+// /logout so sign-out ends in the same place regardless of which surface it was
+// triggered from.
+func (e *Env) RedirectAfterLogout(w http.ResponseWriter, r *http.Request) {
+	switch {
+	case e.Cfg.RootHost != "":
+		http.Redirect(w, r, e.Origin(r, e.Cfg.RootHost)+"/", http.StatusSeeOther) //nolint:gosec // G710: config-pinned origin
+	case e.Cfg.PrimaryHost != "":
+		http.Redirect(w, r, e.Origin(r, e.Cfg.PrimaryHost)+"/", http.StatusSeeOther) //nolint:gosec // G710: config-pinned origin
+	default:
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+	}
+}
+
 func originFor(cfg *config.Config, r *http.Request, host string) string {
 	scheme := "http"
 	if cfg.Secure {
@@ -186,6 +201,15 @@ func (rn *Renderer) Render(w http.ResponseWriter, r *http.Request, page string, 
 		if rn.cfg.RootHost != "" {
 			data["RootURL"] = originFor(rn.cfg, r, rn.cfg.RootHost)
 		}
+	}
+	// LogoutURL: sign-out is a POST that revokes the login row, so it must target a
+	// host that owns a /logout endpoint AND holds this browser's session. The app
+	// host, auth host, and custom org domains all do (relative "/logout", a
+	// same-host POST). The root host is strictly side-effect-free GET (see
+	// docs/auth-cross-host.md), so it has no logout of its own — the template hides
+	// the control there and the user signs out from the app dashboard instead.
+	if rn.cfg.RootHost == "" || HostWithoutPort(r.Host) != rn.cfg.RootHost {
+		data["LogoutURL"] = "/logout"
 	}
 	if rn.userInfo != nil {
 		if name, canAdmin, ok := rn.userInfo(r.Context()); ok {
