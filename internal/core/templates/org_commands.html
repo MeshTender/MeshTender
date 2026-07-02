@@ -9,6 +9,21 @@
 {{end}}
 {{define "content"}}
 {{template "org-tabs" .Nav}}
+<div class="alert alert-warning" role="alert">
+  <div class="d-flex">
+    <div class="me-2">{{template "icon-alert" ""}}</div>
+    <div>
+      <h4 class="alert-title">Consider leaving these commands available</h4>
+      <p class="mb-0">
+        Organizations use MeshTender to keep their mesh alive even when members take breaks or lose interest
+        in the technology. It's important to have backup stewards with permission to modify settings on your
+        repeaters. Please consider leaving all of these commands available so <strong>{{.Org.Name}}</strong>
+        can manage your repeater if they can't reach you &mdash; or if you haven't shared your repeaters with
+        other stewards.
+      </p>
+    </div>
+  </div>
+</div>
 <div class="card">
   <div class="card-body">
     <p class="text-secondary mb-0">
