@@ -126,6 +126,53 @@ func (s *Store) ListProfiles(ctx context.Context, orgID int64) ([]Profile, error
 	return profiles, srows.Err()
 }
 
+// OrgProfileNames is an org paired with just the names of its config profiles,
+// for pickers that need the names but not the full step bodies.
+type OrgProfileNames struct {
+	OrgID    int64
+	OrgName  string
+	Profiles []string
+}
+
+// ListOrgProfileNamesForUser returns every org the user belongs to together with
+// that org's config-profile names, in a single query (avoids the per-org N+1 of
+// calling ListProfiles in a loop). Orgs with no profiles are included with an
+// empty Profiles slice. Rows are ordered to match ListOrgsForUser (org name, id)
+// then profile display order (position, name), and are grouped by org here.
+func (s *Store) ListOrgProfileNamesForUser(ctx context.Context, userID int64) ([]OrgProfileNames, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT o.id, o.name, p.name
+		FROM org_members m
+		JOIN organizations o ON o.id = m.org_id
+		LEFT JOIN config_profiles p ON p.org_id = o.id
+		WHERE m.user_id = $1
+		ORDER BY lower(o.name), o.id, p.position, p.name`, userID)
+	if err != nil {
+		return nil, fmt.Errorf("list org profile names: %w", err)
+	}
+	defer rows.Close()
+
+	// Rows for one org are contiguous (ordered by org first), so we can group by
+	// index without a map — and index-based appends never dangle a pointer.
+	var out []OrgProfileNames
+	for rows.Next() {
+		var orgID int64
+		var orgName string
+		var profileName *string // NULL for an org with no profiles (LEFT JOIN)
+		if err := rows.Scan(&orgID, &orgName, &profileName); err != nil {
+			return nil, fmt.Errorf("scan org profile name: %w", err)
+		}
+		if len(out) == 0 || out[len(out)-1].OrgID != orgID {
+			out = append(out, OrgProfileNames{OrgID: orgID, OrgName: orgName})
+		}
+		if profileName != nil {
+			last := &out[len(out)-1]
+			last.Profiles = append(last.Profiles, *profileName)
+		}
+	}
+	return out, rows.Err()
+}
+
 // ListRegions returns an org's regions ordered (layer, token) — i.e. root to leaf,
 // the order their tokens appear in a `region def` chain.
 func (s *Store) ListRegions(ctx context.Context, orgID int64) ([]Region, error) {

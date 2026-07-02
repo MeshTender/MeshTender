@@ -69,23 +69,17 @@ func (s *Handlers) pageAddRepeater(w http.ResponseWriter, r *http.Request) {
 }
 
 // setupOrgOptions lists the current user's orgs with their config profile names,
-// for the serial-setup config selector. Best-effort: an org whose profiles fail
-// to load is included with none.
+// for the serial-setup config selector, in a single query. Best-effort: on a
+// store error it returns nil (the selector renders with no orgs).
 func (s *Handlers) setupOrgOptions(r *http.Request) []setupOrgOption {
 	uid := s.Auth.CurrentUserID(r.Context())
-	memberships, err := s.Store.ListOrgsForUser(r.Context(), uid)
+	orgs, err := s.Store.ListOrgProfileNamesForUser(r.Context(), uid)
 	if err != nil {
 		return nil
 	}
-	out := make([]setupOrgOption, 0, len(memberships))
-	for _, m := range memberships {
-		opt := setupOrgOption{ID: m.Org.ID, Name: m.Org.Name}
-		if profiles, err := s.Store.ListProfiles(r.Context(), m.Org.ID); err == nil {
-			for _, p := range profiles {
-				opt.Profiles = append(opt.Profiles, p.Name)
-			}
-		}
-		out = append(out, opt)
+	out := make([]setupOrgOption, 0, len(orgs))
+	for _, o := range orgs {
+		out = append(out, setupOrgOption{ID: o.OrgID, Name: o.OrgName, Profiles: o.Profiles})
 	}
 	return out
 }
