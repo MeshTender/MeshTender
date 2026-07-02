@@ -8,6 +8,7 @@ when:
 depends_on:
   - test
   - lint
+  - vuln
 
 steps:
   publish:

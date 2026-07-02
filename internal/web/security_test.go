@@ -8,6 +8,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/jleight/meshtender/internal/config"
 )
 
 func TestSecurityHeadersCSPNonce(t *testing.T) {
@@ -33,8 +35,38 @@ func TestSecurityHeadersCSPNonce(t *testing.T) {
 	if rec1.Header().Get("X-Content-Type-Options") != "nosniff" {
 		t.Errorf("missing X-Content-Type-Options: nosniff")
 	}
+	if rec1.Header().Get("X-Frame-Options") != "DENY" {
+		t.Errorf("missing X-Frame-Options: DENY")
+	}
+	if rec1.Header().Get("Cross-Origin-Opener-Policy") != "same-origin" {
+		t.Errorf("missing Cross-Origin-Opener-Policy: same-origin")
+	}
+	// Permissions-Policy must keep the features we actually use.
+	pp := rec1.Header().Get("Permissions-Policy")
+	if !strings.Contains(pp, "serial=(self)") || !strings.Contains(pp, "publickey-credentials-get=(self)") {
+		t.Errorf("Permissions-Policy doesn't allow serial/webauthn: %q", pp)
+	}
 	if seen[0] == "" || seen[1] == "" || seen[0] == seen[1] {
 		t.Errorf("nonce not fresh per request: %q, %q", seen[0], seen[1])
+	}
+}
+
+func TestSecurityHeadersHSTSGatedOnTLS(t *testing.T) {
+	t.Parallel()
+	// No TLS (nil/insecure config): no HSTS.
+	rec := httptest.NewRecorder()
+	(&Env{}).securityHeaders(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})).
+		ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	if rec.Header().Get("Strict-Transport-Security") != "" {
+		t.Errorf("HSTS set without TLS: %q", rec.Header().Get("Strict-Transport-Security"))
+	}
+	// TLS on: HSTS present.
+	rec = httptest.NewRecorder()
+	(&Env{Cfg: &config.Config{Secure: true}}).
+		securityHeaders(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})).
+		ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	if !strings.HasPrefix(rec.Header().Get("Strict-Transport-Security"), "max-age=") {
+		t.Errorf("HSTS missing under TLS: %q", rec.Header().Get("Strict-Transport-Security"))
 	}
 }
 
