@@ -80,7 +80,8 @@ async function postJSON(url, body) {
 }
 
 async function passkeyRegister() {
-  const username = document.getElementById("username").value.trim();
+  const nameEl = document.getElementById("username");
+  const username = nameEl ? nameEl.value.trim() : "";
   const dnEl = document.getElementById("displayName");
   const displayName = dnEl ? dnEl.value.trim() : "";
   try {
@@ -140,7 +141,8 @@ async function addPasskey() {
 // passkeyLogin runs a username-scoped assertion (for credentials that aren't
 // discoverable, where the server needs to know which account to challenge).
 async function passkeyLogin() {
-  const username = document.getElementById("username").value.trim();
+  const nameEl = document.getElementById("username");
+  const username = nameEl ? nameEl.value.trim() : "";
   try {
     setStatus("Starting…");
     const options = await postJSON("/api/login/begin", { username });

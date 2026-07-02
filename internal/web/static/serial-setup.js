@@ -13,6 +13,12 @@
   "use strict";
 
   var $ = function (id) { return document.getElementById(id); };
+  // on wires an event handler, skipping silently if the element is absent, so a
+  // trimmed-down template can omit controls without breaking setup.
+  var on = function (id, event, fn) {
+    var el = $(id);
+    if (el) el.addEventListener(event, fn);
+  };
   var hex = function (bytes) {
     return Array.prototype.map.call(bytes, function (b) {
       return b.toString(16).padStart(2, "0");
@@ -339,15 +345,15 @@
   document.querySelectorAll('input[name="keymode"]').forEach(function (el) {
     el.addEventListener("change", refreshKeyMode);
   });
-  $("regen").addEventListener("click", function () {
+  on("regen", "click", function () {
     generateKeyPair().then(function (k) { setKeyState(k.privHex, k.pubHex); });
   });
-  $("privkey").addEventListener("input", function () {
+  on("privkey", "input", function () {
     if (selectedKeyMode() === "paste") applyPastedKey();
   });
-  $("grind").addEventListener("click", grind);
-  $("grind-stop").addEventListener("click", function () { grinding = false; });
-  $("org").addEventListener("change", refreshOrg);
-  $("generate").addEventListener("click", generate);
-  $("run").addEventListener("click", run);
+  on("grind", "click", grind);
+  on("grind-stop", "click", function () { grinding = false; });
+  on("org", "change", refreshOrg);
+  on("generate", "click", generate);
+  on("run", "click", run);
 })();

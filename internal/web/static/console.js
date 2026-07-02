@@ -21,8 +21,9 @@
   }
 
   if (!("serial" in navigator)) {
-    document.getElementById("unsupported").hidden = false;
-    connectBtn.disabled = true;
+    const unsupportedEl = document.getElementById("unsupported");
+    if (unsupportedEl) unsupportedEl.hidden = false;
+    if (connectBtn) connectBtn.disabled = true;
     return;
   }
 
