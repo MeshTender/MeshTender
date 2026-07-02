@@ -74,19 +74,45 @@ be fully covered by Go tests. For UI or client-JS changes, run the app (on :8090
 and check it in a browser **with the devtools console open** (CSP violations only
 show there). If you can't validate it, say so — don't claim it works.
 
+**Browser tests (`mise run e2e`).** Regressions worth locking in get a `chromedp`
+test. These live in their own black-box package `internal/e2e/` (one
+`<feature>_test.go` per feature, sharing `harness_test.go`) behind a
+`//go:build browser` tag, so `go test ./...` never needs a browser — only
+`mise run e2e` runs them. That task starts a `chromedp/headless-shell` **Docker
+container** (no local Chrome install) and runs the `browser`-tagged suite against
+an in-process test server; the browser reaches the server via
+`host.docker.internal`, and the harness fails the test on any CSP violation. If
+the container isn't up, the tests **skip** (never fail). Reuse the `e2eServer`
+harness (`newE2EServer`, `login`, `newRepeater`, `startBrowser`,
+`setSessionCookie`) — it authenticates via the public `/session/callback` handoff
+and depends only on exported app APIs, so keep it that way (no reaching into
+package internals). Give elements a stable `data-testid`/class hook rather than
+selecting on Bootstrap layout classes. CI runs these non-gating
+(`.woodpecker/e2e.yaml`); `E2E_DEVTOOLS_URL`/`E2E_BROWSER_HOST` override the
+addresses there.
+
 ### 5. CI is the gate, not the first line
 Woodpecker (`.woodpecker/`): `test` + `lint` + `vuln` (govulncheck) must pass
 before `build`; `deploy` follows `build` on `main`. A reachable CVE blocks the
 build. Catch problems locally first; if CI catches something you didn't, close the
 local-testing gap.
 
-### 6. Git hygiene — stage, don't commit
+### 6. Git hygiene — stage one batch at a time, don't commit
 This is a single-developer project with no PR workflow. **Stage your changes but do
-NOT commit or push** — the developer does the committing. Keep each staged set to
-one logical change (so it becomes one clean commit): stage exactly those files with
-explicit `git add <file> …` (never `-A`/`.`), and review `git diff --cached` before
-handing off. If a task spans two logical changes, finish and hand off the first
-(staged) before starting the second.
+NOT commit or push** — the developer commits from a git GUI. Stage exactly the
+files for one logical change with explicit `git add <file> …` (never `-A`/`.`).
+
+**One batch at a time.** When a task spans multiple logical commits, do NOT stage
+everything at once — that co-mingles the batches in the single index and makes them
+impossible to commit separately. Instead:
+1. Stage exactly one batch, give a one-line description the developer can base a
+   commit message on, and **stop** — hand off and wait.
+2. The developer reviews `git diff --cached` and commits that batch in their GUI.
+3. Continue only when the developer says so; then stage the next batch.
+
+Order batches so each is independently green (builds/tests pass) once committed.
+Provide file-list `git add` commands only as reference — do not run the next
+batch's staging until told to.
 
 ## Performance
 The product is server-rendered over Postgres; perf work lives mostly in SQL and

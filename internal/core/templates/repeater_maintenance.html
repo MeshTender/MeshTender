@@ -39,7 +39,7 @@
         <div class="text-secondary float-end">{{.PerformedAt.Format "Jan 2, 2006"}}</div>
         <div style="white-space: pre-wrap">{{.Note}}</div>
         <div class="text-secondary small mt-2 d-flex align-items-center gap-2">
-          <span>{{if .AuthorName}}{{.AuthorName}}{{else}}(unknown){{end}}</span>
+          <span class="maint-author" data-testid="maint-author">{{if .AuthorName}}{{.AuthorName}}{{else}}(unknown){{end}}</span>
           {{if $.IsOwner}}
           <form method="post" action="/repeaters/{{$.Repeater.PublicID}}/maintenance/delete" class="m-0 ms-auto" data-confirm="Delete this maintenance entry?">
             <input type="hidden" name="entry_id" value="{{.ID}}">

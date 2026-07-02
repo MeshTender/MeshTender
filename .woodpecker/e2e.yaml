@@ -1,0 +1,45 @@
+# Browser (end-to-end) tests: drive a real headless Chrome against the app to
+# catch rendered-DOM and CSP regressions the Go tests can't. Runs the
+# `browser`-tagged suite in internal/e2e.
+#
+# This is its OWN workflow and deliberately NOT a `build` dependency: a flaky
+# browser must never block the release gate. Promote it to gating (add it to
+# build.yaml's depends_on) once it has proven stable.
+#
+# NOTE: the container<->step networking here is unverified against this
+# Woodpecker instance/backend. Two addresses must line up:
+#   - E2E_DEVTOOLS_URL: this step reaching the browser service (by service name;
+#     mirrors how the test step reaches `postgres`, which is known to work).
+#   - E2E_BROWSER_HOST: the browser service reaching back to this step's
+#     in-process test server. On the docker backend a step is reachable by its
+#     name (`e2e`); on other backends this may need adjusting. The tests skip
+#     cleanly if the DevTools endpoint can't be reached, so a misconfig here
+#     yields skips, not false failures.
+when:
+  - event: [push, pull_request]
+
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: meshtender
+      POSTGRES_PASSWORD: meshtender
+      POSTGRES_DB: meshtender_test
+  headless:
+    image: chromedp/headless-shell:latest
+
+steps:
+  e2e:
+    image: golang:1.26.4
+    environment:
+      MESHTENDER_TEST_DATABASE_URL: postgres://meshtender:meshtender@postgres:5432/meshtender_test?sslmode=disable
+      # This step -> the browser's DevTools endpoint (service by name).
+      E2E_DEVTOOLS_URL: http://headless:9222
+      # The browser service -> this step's in-process test server (step by name).
+      E2E_BROWSER_HOST: e2e
+    commands:
+      - until bash -c 'echo > /dev/tcp/postgres/5432' 2>/dev/null; do sleep 1; done
+      - until bash -c 'echo > /dev/tcp/headless/9222' 2>/dev/null; do sleep 1; done
+      - go test -tags browser ./internal/e2e/
+
+depends_on: []

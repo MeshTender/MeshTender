@@ -20,3 +20,12 @@ run = "go run ./cmd/meshtender --seed"
 
 [tasks.reset]
 run = "go run ./cmd/meshtender --reset"
+
+[tasks.e2e]
+run = """
+docker run -d --rm --name mt-headless -p 9222:9222 \
+  --add-host=host.docker.internal:host-gateway chromedp/headless-shell:latest >/dev/null
+trap 'docker stop mt-headless >/dev/null' EXIT
+until curl -sf http://127.0.0.1:9222/json/version >/dev/null; do sleep 0.5; done
+go test -tags browser ./internal/e2e/
+"""
