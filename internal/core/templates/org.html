@@ -8,7 +8,7 @@
   <div class="col-auto ms-auto d-print-none">
     <div class="btn-list">
       <a class="btn" href="/orgs/{{.Org.Slug}}?view=public">{{template "icon-world" "me-1"}}Public page</a>
-      <form method="post" action="/orgs/{{.Org.Slug}}/leave" class="m-0" onsubmit="return confirm('Leave this organization?')">
+      <form method="post" action="/orgs/{{.Org.Slug}}/leave" class="m-0" data-confirm="Leave this organization?">
         <button type="submit" class="btn btn-ghost-danger">Leave</button>
       </form>
     </div>
@@ -168,7 +168,7 @@
             </div>
           </div>
         </template>
-        <script>
+        <script nonce="{{.Nonce}}">
         (function(){
           var wrap = document.getElementById('links-rows');
           var tpl = document.getElementById('link-row-tpl');
@@ -251,7 +251,7 @@
         <div id="map" style="height:260px" role="region" aria-label="Map of organization repeater locations"></div>
         <script src="/static/leaflet.js"></script>
         <script src="/static/meshmap.js"></script>
-        <script>
+        <script nonce="{{.Nonce}}">
           meshMap('map', [
             {{range .Repeaters}}{{if .HasLocation}}{name: {{.Name}}, lat: {{.Lat}}, lon: {{.Lon}}},{{end}}{{end}}
           ]);

@@ -91,7 +91,7 @@
         <div class="form-label">Public key</div>
         <div class="d-flex align-items-start gap-2">
           <code class="pk flex-fill">{{.Repeater.PublicKeyHex}}</code>
-          <button type="button" class="btn btn-icon btn-ghost-secondary" title="Copy public key" aria-label="Copy public key" onclick="navigator.clipboard.writeText('{{.Repeater.PublicKeyHex}}')">{{template "icon-copy" ""}}</button>
+          <button type="button" class="btn btn-icon btn-ghost-secondary" title="Copy public key" aria-label="Copy public key" data-copy="{{.Repeater.PublicKeyHex}}">{{template "icon-copy" ""}}</button>
         </div>
         {{if .ContactQR}}
         <hr class="my-3">
@@ -114,7 +114,7 @@
         <p class="text-secondary small">Anyone with this link (or who taps an NFC tag / scans the QR inside the enclosure) sees the public documentation and stewards.</p>
         <div class="input-group mb-2">
           <code class="form-control font-monospace" id="public-url">{{.PublicPageURL}}</code>
-          <button type="button" class="btn" onclick="navigator.clipboard.writeText(document.getElementById('public-url').textContent)">{{template "icon-copy" ""}}</button>
+          <button type="button" class="btn" data-copy-target="#public-url">{{template "icon-copy" ""}}</button>
         </div>
         {{if .PublicPageQR}}
         <button class="btn btn-sm w-100" type="button" data-bs-toggle="collapse" data-bs-target="#public-qr" aria-expanded="false" aria-controls="public-qr">{{template "icon-qrcode" "me-1"}}<span class="collapse-show">Show</span><span class="collapse-hide">Hide</span>&nbsp;enclosure QR code</button>
@@ -140,7 +140,7 @@
         <div id="map" style="height:240px" role="region" aria-label="Map of this repeater's location"></div>
         <script src="/static/leaflet.js"></script>
         <script src="/static/meshmap.js"></script>
-        <script>
+        <script nonce="{{.Nonce}}">
           meshMap('map', [{name: {{.Repeater.Name}}, lat: {{.Repeater.Latitude}}, lon: {{.Repeater.Longitude}}}]);
         </script>
         <div class="text-secondary small mt-2 text-center">{{template "icon-map-pin" "me-1"}}<span class="font-monospace">{{.Repeater.Latitude}}, {{.Repeater.Longitude}}</span></div>

@@ -13,7 +13,7 @@
       </div>
 
       <div class="form-footer mt-0">
-        <button type="button" class="btn btn-primary w-100" id="passkey-btn" onclick="passkeyButton()">{{template "icon-key" "me-2"}}Sign in with a passkey</button>
+        <button type="button" class="btn btn-primary w-100" id="passkey-btn">{{template "icon-key" "me-2"}}Sign in with a passkey</button>
       </div>
       <p id="passkey-status" class="text-secondary text-center small mt-2 mb-0" style="min-height:1.2em"></p>
 
@@ -36,5 +36,5 @@
 </div>
 <div class="text-center text-secondary mt-3">Don't have an account yet? <a href="/signup{{if .Next}}?next={{.Next}}{{end}}" tabindex="-1">Create one</a></div>
 <script src="/static/webauthn.js"></script>
-<script>document.addEventListener("DOMContentLoaded", initSigninPasskey);</script>
+<script nonce="{{.Nonce}}">document.addEventListener("DOMContentLoaded", initSigninPasskey);</script>
 {{end}}

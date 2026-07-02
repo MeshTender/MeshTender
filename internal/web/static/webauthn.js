@@ -203,6 +203,20 @@ async function initSigninPasskey() {
   }
 }
 
+// Bind the passkey buttons by id (only the one on the current page exists). This
+// replaces inline onclick handlers so the page carries no inline JS (CSP).
+(function () {
+  var bindings = [
+    ["add-passkey-btn", addPasskey],
+    ["passkey-btn", passkeyButton],
+    ["signup-passkey-btn", passkeyRegister],
+  ];
+  bindings.forEach(function (b) {
+    var el = document.getElementById(b[0]);
+    if (el) el.addEventListener("click", b[1]);
+  });
+})();
+
 // Show/hide password toggles (any element with data-pwtoggle="<input id>").
 document.addEventListener("click", function (e) {
   const t = e.target.closest("[data-pwtoggle]");

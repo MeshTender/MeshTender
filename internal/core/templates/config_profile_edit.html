@@ -50,7 +50,7 @@
 {{if .ProfileID}}
 <div class="card mt-3">
   <div class="card-body">
-    <form method="post" action="/orgs/{{.Org.Slug}}/config/profiles/{{.ProfileID}}/delete" onsubmit="return confirm('Delete this profile?')">
+    <form method="post" action="/orgs/{{.Org.Slug}}/config/profiles/{{.ProfileID}}/delete" data-confirm="Delete this profile?">
       <button type="submit" class="btn btn-ghost-danger">Delete profile</button>
       <small class="form-hint mt-1">Removes this profile and its base settings.</small>
     </form>

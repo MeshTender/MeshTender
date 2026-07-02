@@ -32,7 +32,7 @@
         <div class="text-secondary small">{{len .Steps}} step{{if ne (len .Steps) 1}}s{{end}}</div>
       </div>
       <a class="btn btn-sm" href="/orgs/{{$.Org.Slug}}/config/profiles/{{.ID}}/edit">Edit</a>
-      <form method="post" action="/orgs/{{$.Org.Slug}}/config/profiles/{{.ID}}/delete" class="m-0" onsubmit="return confirm('Delete the profile “{{.Name}}”?')">
+      <form method="post" action="/orgs/{{$.Org.Slug}}/config/profiles/{{.ID}}/delete" class="m-0" data-confirm="Delete the profile “{{.Name}}”?">
         <button type="submit" class="btn btn-sm btn-ghost-danger">Delete</button>
       </form>
     </div>

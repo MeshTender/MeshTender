@@ -21,7 +21,7 @@
       </div>
       <div class="mb-3">
         <label class="form-label" for="region">Region preset</label>
-        <select class="form-select" id="region" onchange="applyRegion()">
+        <select class="form-select" id="region">
           {{range .Presets}}
           <option value="{{.ID}}" data-freq="{{.FreqHz}}" data-bw="{{.BwHz}}" data-sf="{{.SF}}" data-cr="{{.CR}}"{{if eq .ID $.SelectedPreset}} selected{{end}}>{{.Label}}</option>
           {{end}}
@@ -54,7 +54,7 @@
     {{template "revokedoc" .RevokeCommand}}
   </div>
 </div>
-<script>
+<script nonce="{{.Nonce}}">
   // The form fields display MHz/kHz; preset data-* attributes are Hz-canonical.
   var RADIO_FIELDS = ["radio_freq_mhz", "radio_bw_khz", "radio_sf", "radio_cr"];
   function trim(n) { return String(Math.round(n * 1e6) / 1e6); } // drop float fuzz
@@ -94,5 +94,6 @@
   RADIO_FIELDS.forEach(function (id) {
     document.getElementById(id).addEventListener("input", syncPreset);
   });
+  document.getElementById("region").addEventListener("change", applyRegion);
 </script>
 {{end}}

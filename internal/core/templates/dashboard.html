@@ -130,7 +130,7 @@
         <div id="map" style="height:260px" role="region" aria-label="Map of your repeater locations"></div>
         <script src="/static/leaflet.js"></script>
         <script src="/static/meshmap.js"></script>
-        <script>
+        <script nonce="{{.Nonce}}">
           meshMap('map', [
             {{range .Mapped}}{name: {{.Name}}, lat: {{.Latitude}}, lon: {{.Longitude}}},{{end}}
           ]);

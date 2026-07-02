@@ -41,7 +41,7 @@
         <div class="text-secondary small mt-2 d-flex align-items-center gap-2">
           <span>{{if .AuthorName}}{{.AuthorName}}{{else}}(unknown){{end}}</span>
           {{if $.IsOwner}}
-          <form method="post" action="/repeaters/{{$.Repeater.PublicID}}/maintenance/delete" class="m-0 ms-auto" onsubmit="return confirm('Delete this maintenance entry?')">
+          <form method="post" action="/repeaters/{{$.Repeater.PublicID}}/maintenance/delete" class="m-0 ms-auto" data-confirm="Delete this maintenance entry?">
             <input type="hidden" name="entry_id" value="{{.ID}}">
             <button type="submit" class="btn btn-sm btn-ghost-danger">Delete</button>
           </form>

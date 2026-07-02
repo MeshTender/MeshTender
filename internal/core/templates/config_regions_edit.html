@@ -28,7 +28,7 @@
 
 <p class="text-secondary">Each region has a <strong>display name</strong> (e.g. Buffalo), a short <strong>name</strong> used by MeshCore (e.g. <code>buf</code>), and a <strong>level</strong> for its depth (lower = broader, e.g. country 1 → state 2 → city 3). Pick a region in the list, then use the map tools to outline where it applies — every region needs an area (the root region at the top of the list is the one that applies everywhere).</p>
 
-<form method="post" action="/orgs/{{.Org.Slug}}/config/regions">
+<form method="post" action="/orgs/{{.Org.Slug}}/config/regions" id="regions-form">
   <div class="row g-3">
     <div class="col-lg-7">
       <div class="region-map-sticky">
@@ -47,7 +47,7 @@
           </div>
           <label class="form-check form-switch m-0 flex-shrink-0 text-nowrap">
             <input type="hidden" name="root_allow_flood" value="{{if .RootAllowFlood}}1{{end}}">
-            <input class="form-check-input" type="checkbox" {{if .RootAllowFlood}}checked{{end}} onchange="this.previousElementSibling.value = this.checked ? '1' : ''">
+            <input class="form-check-input" type="checkbox" {{if .RootAllowFlood}}checked{{end}} data-flood>
             <span class="form-check-label">Allow flood</span>
           </label>
         </div>
@@ -55,7 +55,7 @@
       <div id="regions">
         {{range .Regions}}{{template "region-block" .}}{{end}}
       </div>
-      <button type="button" class="btn btn-outline-primary w-100" onclick="addBlock('region')">{{template "icon-plus" "me-1"}}Add region</button>
+      <button type="button" class="btn btn-outline-primary w-100" id="add-region">{{template "icon-plus" "me-1"}}Add region</button>
       <div class="btn-list mt-3">
         <button type="submit" class="btn btn-primary">Save regions</button>
         <a class="btn" href="/orgs/{{.Org.Slug}}/config">Cancel</a>
@@ -66,29 +66,54 @@
 
 {{/* Hidden prototype cloned by addBlock(); kept out of the form via the template tag. */}}
 <template id="region-proto">{{template "region-block" .EmptyRegion}}</template>
-<script>
+<script nonce="{{.Nonce}}">
+// addBlock stays global: regionmap.js calls it when a freshly drawn shape needs a
+// new region row (then it reconciles the map). The rest is delegated off the form
+// so cloned rows work without inline handlers (CSP-friendly).
 function addBlock(kind) {
   const proto = document.getElementById(kind + '-proto');
   document.getElementById(kind + 's').appendChild(proto.content.cloneNode(true));
 }
-function removeBlock(btn, cls) { btn.closest('.' + cls).remove(); }
-// Only one region may be primary: toggle the clicked one and clear the rest.
-function setPrimaryRegion(btn) {
-  const block = btn.closest('.region-block');
-  const makePrimary = block.querySelector('input[name="region_primary"]').value !== '1';
-  document.querySelectorAll('#regions .region-block').forEach(function (b) {
-    const on = b === block && makePrimary;
-    b.querySelector('input[name="region_primary"]').value = on ? '1' : '';
-    const pb = b.querySelector('.region-primary-btn');
-    pb.classList.toggle('btn-primary', on);
-    pb.textContent = on ? '★ Primary' : 'Make primary';
+(function () {
+  const form = document.getElementById('regions-form');
+  const rows = document.getElementById('regions');
+  if (!form || !rows) return;
+  const addBtn = document.getElementById('add-region');
+  if (addBtn) addBtn.addEventListener('click', function () { addBlock('region'); });
+
+  // Keep each flood checkbox synced to its hidden input (its previous sibling).
+  form.addEventListener('change', function (e) {
+    if (e.target.matches && e.target.matches('[data-flood]')) {
+      e.target.previousElementSibling.value = e.target.checked ? '1' : '';
+    }
   });
-}
+
+  form.addEventListener('click', function (e) {
+    if (!e.target.closest) return;
+    const primaryBtn = e.target.closest('.region-primary-btn');
+    if (primaryBtn) { setPrimaryRegion(primaryBtn); return; }
+    const removeBtn = e.target.closest('.region-remove-btn');
+    if (removeBtn) { const b = removeBtn.closest('.region-block'); if (b) b.remove(); }
+  });
+
+  // Only one region may be primary: toggle the clicked one and clear the rest.
+  function setPrimaryRegion(btn) {
+    const block = btn.closest('.region-block');
+    const makePrimary = block.querySelector('input[name="region_primary"]').value !== '1';
+    rows.querySelectorAll('.region-block').forEach(function (b) {
+      const on = b === block && makePrimary;
+      b.querySelector('input[name="region_primary"]').value = on ? '1' : '';
+      const pb = b.querySelector('.region-primary-btn');
+      pb.classList.toggle('btn-primary', on);
+      pb.textContent = on ? '★ Primary' : 'Make primary';
+    });
+  }
+})();
 </script>
 <script src="/static/leaflet.js"></script>
 <script src="/static/leaflet-geoman.js"></script>
 <script src="/static/regionmap.js"></script>
-<script>initRegionEditor('region-map', 'regions');</script>
+<script nonce="{{.Nonce}}">initRegionEditor('region-map', 'regions');</script>
 {{end}}
 
 {{/* region-block is one node of the region hierarchy, shown as a card in the side
@@ -109,14 +134,14 @@ function setPrimaryRegion(btn) {
     <div class="d-flex align-items-center flex-wrap gap-2 mt-2">
       <button type="button" class="btn btn-sm region-edit-btn">Edit</button>
       <input type="hidden" name="region_primary" value="{{if .Primary}}1{{end}}">
-      <button type="button" class="btn btn-sm region-primary-btn{{if .Primary}} btn-primary{{end}}" onclick="setPrimaryRegion(this)">{{if .Primary}}★ Primary{{else}}Make primary{{end}}</button>
+      <button type="button" class="btn btn-sm region-primary-btn{{if .Primary}} btn-primary{{end}}">{{if .Primary}}★ Primary{{else}}Make primary{{end}}</button>
       <label class="form-check form-check-inline m-0">
         <input type="hidden" name="region_allow_flood" value="{{if .AllowFlood}}1{{end}}">
-        <input class="form-check-input" type="checkbox" {{if .AllowFlood}}checked{{end}} onchange="this.previousElementSibling.value = this.checked ? '1' : ''">
+        <input class="form-check-input" type="checkbox" {{if .AllowFlood}}checked{{end}} data-flood>
         <span class="form-check-label">Allow flood</span>
       </label>
       <button type="button" class="btn btn-sm btn-ghost-secondary region-clear">Clear area</button>
-      <button type="button" class="btn btn-sm btn-ghost-danger ms-auto" onclick="removeBlock(this,'region-block')">Remove</button>
+      <button type="button" class="btn btn-sm btn-ghost-danger ms-auto region-remove-btn">Remove</button>
     </div>
     <input type="hidden" name="region_geojson" value="{{.GeofenceJSON}}">
   </div>

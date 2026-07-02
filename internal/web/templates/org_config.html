@@ -50,7 +50,7 @@
       <div class="card-header"><h3 class="card-title">Profile</h3></div>
       <div class="card-body">
         <form method="get" action="/orgs/{{.Org.Slug}}/config">
-          <select class="form-select" name="profile" aria-label="Choose a configuration profile" onchange="this.form.submit()">
+          <select class="form-select" name="profile" aria-label="Choose a configuration profile" data-autosubmit>
             {{range .Config.Profiles}}<option value="{{.Name}}"{{if eq .Name $.Config.Selected}} selected{{end}}>{{.Name}}</option>{{end}}
           </select>
           {{if .PreviewLat}}<input type="hidden" name="lat" value="{{.PreviewLat}}">{{end}}
@@ -71,7 +71,7 @@
         <div id="region-map" style="height:240px" role="region" aria-label="Click the map to preview a repeater's region config"></div>
         <script src="/static/leaflet.js"></script>
         <script src="/static/regionmap.js"></script>
-        <script>
+        <script nonce="{{.Nonce}}">
           regionMapView('region-map', {
             pickURL: '/orgs/{{.Org.Slug}}/config?{{if .Config.Profiles}}profile={{.Config.Selected | urlquery}}&{{end}}',
             {{if .Config.PreviewActive}}preview: {lat: {{.PreviewLat}}, lon: {{.PreviewLon}}},{{end}}

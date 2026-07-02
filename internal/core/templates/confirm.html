@@ -42,7 +42,7 @@
   </div>
 </div>
 
-<script>
+<script nonce="{{.Nonce}}">
   window.MESHTENDER_WS = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/repeaters/{{.Repeater.PublicID}}/ws{{if .Debug}}?debug=1{{end}}";
 </script>
 <script src="/static/serial.js"></script>

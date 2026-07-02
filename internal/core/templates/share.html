@@ -39,7 +39,7 @@
           <button type="submit" class="btn btn-sm">Share with {{.OrgName}}</button>
           {{else}}
           <input type="hidden" name="action" value="exclude">
-          <button type="submit" class="btn btn-sm btn-ghost-danger" onclick="return confirm('Opt this repeater out of {{.OrgName}}?')">Opt out</button>
+          <button type="submit" class="btn btn-sm btn-ghost-danger" data-confirm="Opt this repeater out of {{.OrgName}}?">Opt out</button>
           {{end}}
         </form>
       </div>
@@ -80,7 +80,7 @@
         {{if not .UsedAt}}
         <div class="input-group mb-2">
           <code class="form-control font-monospace" id="link-{{.ID}}">{{$.BaseURL}}/invite/{{.Token}}</code>
-          <button type="button" class="btn" onclick="navigator.clipboard.writeText(document.getElementById('link-{{.ID}}').textContent)">{{template "icon-copy" ""}}Copy</button>
+          <button type="button" class="btn" data-copy-target="#link-{{.ID}}">{{template "icon-copy" ""}}Copy</button>
         </div>
         {{end}}
         <form method="post" action="/repeaters/{{$.Repeater.PublicID}}/share/link/delete" class="m-0">
@@ -110,7 +110,7 @@
         {{if .Steward}}<span class="badge bg-azure-lt" title="Co-operator: can run every command, including risky ones">Steward · full access</span>{{end}}
         <form method="post" action="/repeaters/{{$.Repeater.PublicID}}/share/{{.UserID}}/steward" class="m-0 ms-auto">
           <input type="hidden" name="steward" value="{{if .Steward}}0{{else}}1{{end}}">
-          <button type="submit" class="btn btn-sm"{{if not .Steward}} onclick="return confirm('Make this person a steward? They will be able to run every command on this repeater, including risky ones.')"{{end}}>{{if .Steward}}Remove as steward{{else}}Make steward{{end}}</button>
+          <button type="submit" class="btn btn-sm"{{if not .Steward}} data-confirm="Make this person a steward? They will be able to run every command on this repeater, including risky ones."{{end}}>{{if .Steward}}Remove as steward{{else}}Make steward{{end}}</button>
         </form>
         {{if not .Steward}}<a class="btn btn-sm" href="/repeaters/{{$.Repeater.PublicID}}/share/{{.UserID}}/commands">Edit commands</a>{{end}}
         <form method="post" action="/repeaters/{{$.Repeater.PublicID}}/unshare" class="m-0">

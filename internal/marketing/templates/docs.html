@@ -26,7 +26,7 @@
         {{if .SetPermCommand}}
         <div class="input-group mb-2">
           <input type="text" class="form-control font-monospace" id="setperm-cmd" value="{{.SetPermCommand}}" readonly>
-          <button type="button" class="btn" onclick="navigator.clipboard&amp;&amp;navigator.clipboard.writeText(document.getElementById('setperm-cmd').value)">Copy</button>
+          <button type="button" class="btn" data-copy-target="#setperm-cmd">Copy</button>
         </div>
         <p class="text-secondary small mb-0">The long value is <strong>MeshTender's</strong> public key — not your repeater's. If you see a guest-access warning after confirming a repeater, this is the fix: run the command above, then confirm again.</p>
         {{else}}

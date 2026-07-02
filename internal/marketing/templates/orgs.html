@@ -49,7 +49,7 @@
                placeholder="Search by name, description, or region…" aria-label="Search organizations">
       </div>
       <div class="col-auto">
-        <select class="form-select" name="sort" aria-label="Sort organizations" onchange="this.form.submit()">
+        <select class="form-select" name="sort" aria-label="Sort organizations" data-autosubmit>
           <option value="members"{{if eq .Sort "members"}} selected{{end}}>Most members</option>
           <option value="repeaters"{{if eq .Sort "repeaters"}} selected{{end}}>Most repeaters</option>
           <option value="name"{{if eq .Sort "name"}} selected{{end}}>Name (A–Z)</option>

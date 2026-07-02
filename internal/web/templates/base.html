@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="/static/app.css">
   <script src="/static/tabler.min.js" defer></script>
   <script src="/static/htmx.min.js" defer></script>
+  <script src="/static/ui.js" defer></script>
 </head>
 <body>
   <a href="#main-content" class="visually-hidden-focusable btn btn-primary position-absolute top-0 start-0 m-2" style="z-index:1080">Skip to main content</a>
@@ -166,6 +167,7 @@
   <link rel="stylesheet" href="/static/app.css">
   <script src="/static/tabler.min.js" defer></script>
   <script src="/static/htmx.min.js" defer></script>
+  <script src="/static/ui.js" defer></script>
 </head>
 <body>
   <a href="#main-content" class="visually-hidden-focusable btn btn-primary position-absolute top-0 start-0 m-2" style="z-index:1080">Skip to main content</a>
@@ -209,6 +211,7 @@
   <link rel="stylesheet" href="/static/tabler.min.css">
   <link rel="stylesheet" href="/static/app.css">
   <script src="/static/tabler.min.js" defer></script>
+  <script src="/static/ui.js" defer></script>
 </head>
 <body class="d-flex flex-column">
   <div class="page page-center">
@@ -237,6 +240,7 @@
   <link rel="stylesheet" href="/static/tabler.min.css">
   <link rel="stylesheet" href="/static/app.css">
   <script src="/static/tabler.min.js" defer></script>
+  <script src="/static/ui.js" defer></script>
 </head>
 <body>
   {{template "rootnav" .}}
@@ -262,7 +266,7 @@
   </p>
   <div class="input-group">
     <code class="form-control font-monospace text-secondary">{{.}}</code>
-    <button type="button" class="btn" onclick="navigator.clipboard.writeText(this.previousElementSibling.textContent)">{{template "icon-copy" ""}}Copy</button>
+    <button type="button" class="btn" data-copy-prev>{{template "icon-copy" ""}}Copy</button>
   </div>
   <p class="text-secondary mt-2 mb-0">With no level argument, that <strong>removes MeshTender from the repeater's ACL entirely</strong>.</p>
 </details>

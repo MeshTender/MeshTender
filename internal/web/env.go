@@ -193,6 +193,8 @@ func (rn *Renderer) Render(w http.ResponseWriter, r *http.Request, page string, 
 			data["CanAdmin"] = canAdmin
 		}
 	}
+	// Per-request CSP nonce for inline <script nonce="{{.Nonce}}"> blocks.
+	data["Nonce"] = NonceFromContext(r.Context())
 	t, ok := rn.pages[page]
 	if !ok {
 		http.Error(w, "unknown page: "+page, http.StatusInternalServerError)
@@ -220,6 +222,7 @@ func (e *Env) CommonMiddleware(r chi.Router) {
 	r.Use(middleware.RequestID)
 	r.Use(CaptureRemoteAddr) // preserve the true TCP peer before we resolve
 	r.Use(e.resolveClientIP) // trusted-proxy-aware X-Forwarded-For resolution
+	r.Use(e.securityHeaders) // CSP (+ per-request script nonce) and hardening headers
 	r.Use(middleware.Recoverer)
 }
 

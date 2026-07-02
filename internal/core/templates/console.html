@@ -55,7 +55,7 @@
 
 <a class="back-link mt-3" href="/">{{template "icon-arrow-left" "me-1"}}Back to dashboard</a>
 
-<script>
+<script nonce="{{.Nonce}}">
   window.MESHTENDER_WS = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/repeaters/{{.Repeater.PublicID}}/console/ws";
 </script>
 <script src="/static/console.js"></script>
