@@ -2,6 +2,8 @@ package core
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
 	"time"
@@ -11,6 +13,32 @@ import (
 	"github.com/jleight/meshtender/internal/store"
 	"github.com/jleight/meshtender/internal/testdb"
 )
+
+// appLogin creates a user and returns it plus a live app-host session cookie,
+// established through the real /session/callback handoff. Endpoint tests pass the
+// returned cookie to post()/do() to drive authenticated app routes.
+func appLogin(t *testing.T, ts *httptest.Server, st *store.Store, ctx context.Context, host, username string) (*store.User, *http.Cookie) {
+	t.Helper()
+	u, err := st.CreateUser(ctx, username, "")
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	loginID, err := st.CreateLogin(ctx, u.ID)
+	if err != nil {
+		t.Fatalf("create login: %v", err)
+	}
+	code, err := st.CreateAuthCode(ctx, u.ID, loginID, "/")
+	if err != nil {
+		t.Fatalf("create auth code: %v", err)
+	}
+	resp := do(t, ts, host, "/session/callback?code="+code+"&state=s1", &http.Cookie{Name: "mt_state", Value: "s1"})
+	resp.Body.Close()
+	c := cookieByName(resp, "meshtender_session")
+	if c == nil {
+		t.Fatalf("no app session cookie after handoff for %q", username)
+	}
+	return u, c
+}
 
 // testConfig/testAuthConfig give the integration tests the app/auth/root hosts,
 // using the same constants as splitServer (testAuthHost/testAppHost/testRootHost/
