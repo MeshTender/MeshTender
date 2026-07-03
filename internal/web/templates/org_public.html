@@ -72,7 +72,7 @@
       <div class="card-header"><h3 class="card-title">About</h3></div>
       <div class="card-body">
         {{if .Org.Region}}<div class="d-flex align-items-center text-secondary mb-2">{{template "icon-map-pin" "me-1"}}{{.Org.Region}}</div>{{end}}
-        {{if .Org.Description}}<p class="mb-0">{{.Org.Description}}</p>{{else}}<p class="text-secondary mb-0">This organization hasn't added a description yet.</p>{{end}}
+        {{if .Org.Description}}<div class="markdown">{{markdown .Org.Description}}</div>{{else}}<p class="text-secondary mb-0">This organization hasn't added a description yet.</p>{{end}}
         <div class="hr-text">Admins</div>
         {{if .Admins}}
         <div class="d-flex flex-wrap gap-2">

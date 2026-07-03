@@ -131,6 +131,11 @@ func (e *Env) SetDefaultLayout(name string) { e.Renderer.defaultLayout = name }
 var templateFuncs = template.FuncMap{
 	"mhz": func(hz int64) string { return strconv.FormatFloat(float64(hz)/1e6, 'f', -1, 64) },
 	"khz": func(hz int64) string { return strconv.FormatFloat(float64(hz)/1e3, 'f', -1, 64) },
+	// markdown renders user-authored markdown (e.g. an org description) to
+	// sanitized HTML. Wrap the output in a `.markdown` container for spacing.
+	"markdown": Markdown,
+	// markdowntext flattens that same markdown to plain text for compact teasers.
+	"markdowntext": MarkdownText,
 }
 
 func NewRenderer(cfg *config.Config, surfaceTemplates fs.FS) (*Renderer, error) {

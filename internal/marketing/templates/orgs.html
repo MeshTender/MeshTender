@@ -19,7 +19,7 @@
     <span class="fw-bold">{{.Name}}</span>
     {{if .Region}}<span class="badge bg-secondary-lt">{{.Region}}</span>{{end}}
   </div>
-  {{if .Description}}<p class="text-secondary mb-1 mt-1">{{.Description}}</p>{{end}}
+  {{if .Description}}<p class="text-secondary mb-1 mt-1">{{markdowntext .Description}}</p>{{end}}
   <div class="text-secondary small">{{.MemberCount}} member{{if ne .MemberCount 1}}s{{end}} · {{.RepeaterCount}} repeater{{if ne .RepeaterCount 1}}s{{end}}</div>
 </a>
 {{end}}

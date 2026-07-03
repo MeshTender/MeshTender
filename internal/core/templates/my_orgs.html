@@ -25,7 +25,7 @@
         {{if .Org.Region}}<span class="badge bg-secondary-lt">{{.Org.Region}}</span>{{end}}
         {{if eq .Role "admin"}}<span class="badge bg-success-lt">admin</span>{{else}}<span class="badge bg-azure-lt">member</span>{{end}}
       </div>
-      {{if .Org.Description}}<p class="text-secondary mb-0 mt-1">{{.Org.Description}}</p>{{end}}
+      {{if .Org.Description}}<p class="text-secondary mb-0 mt-1">{{markdowntext .Org.Description}}</p>{{end}}
     </a>
     {{end}}
   </div>
