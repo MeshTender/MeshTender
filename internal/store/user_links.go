@@ -73,6 +73,15 @@ func (l UserLink) Display() string {
 // a QR code) rather than an ordinary URL.
 func (l UserLink) IsMeshCore() bool { return l.Platform == MeshCorePlatform }
 
+// PlatformName is the platform's display name (e.g. "GitHub"), used as the icon's
+// hover title. Falls back to the raw key for an unknown platform.
+func (l UserLink) PlatformName() string {
+	if p, ok := userLinkPlatformByKey[l.Platform]; ok {
+		return p.Name
+	}
+	return l.Platform
+}
+
 // Href is the hyperlink target for this link, or "" when it isn't directly
 // linkable (a MeshCore key renders as a QR; Signal/Discord handles as plain
 // text). An email becomes a mailto: link; handle/URL platforms use the stored

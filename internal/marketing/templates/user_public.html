@@ -9,7 +9,7 @@
 </div>
 {{end}}
 {{define "content"}}
-{{$hasSidebar := or .Links .MeshKeys}}
+{{$hasSidebar := .Links}}
 <div class="row row-cards">
   <!-- Left: about -->
   <div class="{{if $hasSidebar}}col-lg-8{{else}}col-12{{end}}">
@@ -30,53 +30,43 @@
     </div>
   </div>
 
-  <!-- Right: contact links + MeshCore -->
+  <!-- Right: contact links (MeshCore keys expand inline to a QR code) -->
   {{if $hasSidebar}}
   <div class="col-lg-4">
-    {{if .Links}}
     <div class="card">
       <div class="card-header"><h3 class="card-title">Links</h3></div>
       <div class="list-group list-group-flush">
-        {{range .Links}}
-        {{if .Href}}
-        <a class="list-group-item list-group-item-action d-flex align-items-center gap-2" href="{{.Href}}" target="_blank" rel="noopener noreferrer nofollow">
-          <span class="text-secondary d-flex">{{template "link-icon" .Platform}}</span>
-          <span class="flex-fill text-truncate">{{.Display}}</span>
-          {{if .IsPrimary}}<span class="badge bg-primary-lt">Primary</span>{{end}}
+        {{range $i, $l := .Links}}
+        {{if $l.IsMeshCore}}
+        <div class="list-group-item">
+          <a class="d-flex align-items-center gap-2 text-reset" data-bs-toggle="collapse" href="#mesh-{{$i}}" role="button" aria-expanded="false" aria-controls="mesh-{{$i}}">
+            <span class="text-secondary d-flex" title="{{$l.PlatformName}}">{{template "link-icon" $l.Platform}}</span>
+            <span class="flex-fill text-truncate">{{$l.Display}}</span>
+            <span class="text-secondary d-flex">{{template "icon-qrcode" ""}}</span>
+          </a>
+          <div class="collapse" id="mesh-{{$i}}">
+            {{if $l.QR}}<div class="text-center mt-3"><img class="rounded border" src="{{$l.QR}}" width="200" height="200" alt="MeshCore contact QR for {{$l.Display}}"></div>{{end}}
+            <code class="pk d-block mt-2">{{$l.URL}}</code>
+            <div class="text-secondary small mt-1">Scan to add this contact in the MeshCore app.</div>
+          </div>
+        </div>
+        {{else if $l.Href}}
+        <a class="list-group-item list-group-item-action d-flex align-items-center gap-2" href="{{$l.Href}}" target="_blank" rel="noopener noreferrer nofollow">
+          <span class="text-secondary d-flex" title="{{$l.PlatformName}}">{{template "link-icon" $l.Platform}}</span>
+          <span class="flex-fill text-truncate">{{$l.Display}}</span>
+          {{if $l.IsPrimary}}<span class="badge bg-primary-lt">Primary</span>{{end}}
           <span class="text-secondary d-flex">{{template "icon-arrow-right" ""}}</span>
         </a>
         {{else}}
-        <div class="list-group-item">
-          <div class="d-flex align-items-center gap-2">
-            <span class="text-secondary d-flex">{{template "link-icon" .Platform}}</span>
-            <span class="flex-fill">{{.Display}}</span>
-            {{if .IsPrimary}}<span class="badge bg-primary-lt">Primary</span>{{end}}
-          </div>
-          <div class="text-secondary font-monospace text-truncate mt-1">{{.URL}}</div>
+        <div class="list-group-item d-flex align-items-center gap-2">
+          <span class="text-secondary d-flex" title="{{$l.PlatformName}}">{{template "link-icon" $l.Platform}}</span>
+          <span class="flex-fill text-truncate">{{$l.Display}}</span>
+          {{if $l.IsPrimary}}<span class="badge bg-primary-lt">Primary</span>{{end}}
         </div>
         {{end}}
         {{end}}
       </div>
     </div>
-    {{end}}
-
-    {{if .MeshKeys}}
-    <div class="card {{if .Links}}mt-3{{end}}">
-      <div class="card-header">
-        <h3 class="card-title">MeshCore</h3>
-        <div class="card-subtitle">Scan to add this contact in the MeshCore app.</div>
-      </div>
-      <div class="card-body">
-        {{range $i, $mk := .MeshKeys}}
-        <div class="{{if $i}}mt-3{{end}}">
-          {{if $mk.QR}}<div class="text-center mb-2"><img class="rounded border" src="{{$mk.QR}}" width="200" height="200" alt="MeshCore contact QR for {{$mk.Label}}"></div>{{end}}
-          <div class="form-label mb-1">{{$mk.Label}}</div>
-          <code class="pk d-block">{{$mk.Key}}</code>
-        </div>
-        {{end}}
-      </div>
-    </div>
-    {{end}}
   </div>
   {{end}}
 </div>

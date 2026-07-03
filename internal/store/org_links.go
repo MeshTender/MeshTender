@@ -304,6 +304,15 @@ func (l OrgLink) Href() string {
 	return linkHref(linkPlatformByKey[l.Platform], l.URL)
 }
 
+// PlatformName is the platform's display name (e.g. "Discord"), used as the
+// icon's hover title. Falls back to the raw key for an unknown platform.
+func (l OrgLink) PlatformName() string {
+	if p, ok := linkPlatformByKey[l.Platform]; ok {
+		return p.Name
+	}
+	return l.Platform
+}
+
 // linkDisplay computes the default display text for a link value given its
 // platform descriptor (zero value if the key is unknown).
 func linkDisplay(p LinkPlatform, key, value string) string {
@@ -313,11 +322,12 @@ func linkDisplay(p LinkPlatform, key, value string) string {
 			return h
 		}
 		return p.Name
-	case KindText:
+	case KindText, KindEmail:
+		// Show the handle / email address itself rather than the platform name.
 		return value
 	case "":
 		return key // unknown platform — show the raw key defensively
-	default:
+	default: // KindURL, KindKey — the platform name (or a custom label upstream)
 		return p.Name
 	}
 }

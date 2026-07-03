@@ -118,6 +118,13 @@ func authReachableHosts() hostLayout {
 	return hostLayout{app: "app." + browserHost(), auth: browserHost(), root: "root." + browserHost()}
 }
 
+// rootReachableHosts puts the ROOT (public marketing) surface on the
+// browser-reachable host so a browser test can drive public pages like the
+// /u/{username} profile.
+func rootReachableHosts() hostLayout {
+	return hostLayout{app: "app." + browserHost(), auth: "auth." + browserHost(), root: browserHost()}
+}
+
 // newE2EServer stands up the app on a 0.0.0.0 listener so the browser container
 // can connect back to it, and returns both address forms. An optional hostLayout
 // selects which surface the browser can reach (defaults to the app surface).

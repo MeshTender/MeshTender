@@ -109,8 +109,8 @@ func TestHandleFromURLAndDisplay(t *testing.T) {
 		// Text platform: display the handle text, no link.
 		{UserLink{Platform: "discord", URL: "cooluser"}, "cooluser", ""},
 		{UserLink{Platform: SignalPlatform, URL: "alice.42"}, "alice.42", ""},
-		// Email: mailto:, name as the default display.
-		{UserLink{Platform: EmailPlatform, URL: "a@b.com"}, "Email", "mailto:a@b.com"},
+		// Email: mailto:, and the address itself as the display (not "Email").
+		{UserLink{Platform: EmailPlatform, URL: "a@b.com"}, "a@b.com", "mailto:a@b.com"},
 		// URL platform with no label falls back to the platform name.
 		{UserLink{Platform: "website", URL: "https://example.org"}, "Website", "https://example.org"},
 		// MeshCore key: no href.
