@@ -60,4 +60,32 @@ func TestRunSeeds(t *testing.T) {
 	if publicOnOrg == 0 {
 		t.Fatalf("no repeaters surface on any org public page")
 	}
+
+	// Seeded users should have profile data and a spread of links. With 60 users
+	// and the seeding odds, all of these being zero is astronomically unlikely.
+	var withProfile, totalLinks, primaryLinks, meshLinks int
+	_ = st.Pool().QueryRow(ctx, `SELECT count(*) FROM users WHERE bio <> '' OR location <> '' OR callsign <> ''`).Scan(&withProfile)
+	_ = st.Pool().QueryRow(ctx, `SELECT count(*) FROM user_links`).Scan(&totalLinks)
+	_ = st.Pool().QueryRow(ctx, `SELECT count(*) FROM user_links WHERE is_primary`).Scan(&primaryLinks)
+	_ = st.Pool().QueryRow(ctx, `SELECT count(*) FROM user_links WHERE platform = 'meshcore'`).Scan(&meshLinks)
+	if withProfile == 0 || totalLinks == 0 || primaryLinks == 0 || meshLinks == 0 {
+		t.Fatalf("seed profile data too sparse: withProfile=%d links=%d primary=%d mesh=%d", withProfile, totalLinks, primaryLinks, meshLinks)
+	}
+
+	// Orgs also get public links.
+	var orgLinks int
+	_ = st.Pool().QueryRow(ctx, `SELECT count(*) FROM org_links`).Scan(&orgLinks)
+	if orgLinks == 0 {
+		t.Fatalf("no org links were seeded")
+	}
+
+	// Handle-platform links are stored in canonical URL form (as the editor would),
+	// so the public page can link them directly.
+	for _, tbl := range []string{"user_links", "org_links"} {
+		var bad int
+		_ = st.Pool().QueryRow(ctx, `SELECT count(*) FROM `+tbl+` WHERE platform = 'github' AND url NOT LIKE 'https://github.com/%'`).Scan(&bad)
+		if bad != 0 {
+			t.Fatalf("%s: %d github links are not canonical https://github.com/ URLs", tbl, bad)
+		}
+	}
 }

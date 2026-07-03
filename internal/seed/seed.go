@@ -1,9 +1,10 @@
-// Package seed populates the database with realistic fake data (users, orgs,
-// memberships, repeaters, shares, docs, locations) for local testing of things
-// like directory pagination, maps, and the public pages. It is strictly
-// additive — it never deletes or overwrites existing rows — so it is safe to run
-// against a dev database more than once. Realistic values come from gofakeit
-// (https://github.com/brianvoe/gofakeit), Go's analogue to .NET's Bogus.
+// Package seed populates the database with realistic fake data (users with
+// profiles and social links, orgs with public links, memberships, repeaters,
+// shares, docs, locations) for local testing of things like directory
+// pagination, maps, and the public pages. It is strictly additive — it never deletes or overwrites
+// existing rows — so it is safe to run against a dev database more than once.
+// Realistic values come from gofakeit (https://github.com/brianvoe/gofakeit),
+// Go's analogue to .NET's Bogus.
 package seed
 
 import (
@@ -79,12 +80,147 @@ func seedUsers(ctx context.Context, st *store.Store, f *gofakeit.Faker, logger *
 			continue
 		}
 		taken[username] = true
+		seedUserProfile(ctx, st, f, u)
 		users = append(users, u)
 	}
 	if len(users) == 0 {
 		return nil, fmt.Errorf("seed: created no users")
 	}
 	return users, nil
+}
+
+// mastodonInstances are a few real-looking Mastodon instances to spread seeded
+// Mastodon handles across.
+var mastodonInstances = []string{"mastodon.social", "fosstodon.org", "hachyderm.io", "mstdn.social"}
+
+// socialSeeds lists the handle-based platforms sprinkled onto seeded profiles,
+// with the odds each user gets one. Keys must exist in store.UserLinkPlatforms.
+var socialSeeds = []struct {
+	key string
+	pct int
+}{
+	{"github", 45}, {"x", 40}, {"instagram", 35}, {"mastodon", 25},
+	{"bluesky", 25}, {"youtube", 20}, {"linkedin", 20}, {"telegram", 15},
+	{"reddit", 15}, {"tiktok", 10}, {"twitch", 10}, {"facebook", 15},
+}
+
+// seedUserProfile fills a seeded user's public profile fields and a random spread
+// of contact/social links. Best-effort: it logs nothing and ignores errors, like
+// the other optional seed steps.
+func seedUserProfile(ctx context.Context, st *store.Store, f *gofakeit.Faker, u *store.User) {
+	var bio, location, callsign string
+	if chance(f, 80) {
+		bio = f.Sentence(f.Number(8, 18))
+	}
+	if chance(f, 70) {
+		location = f.City() + ", " + f.StateAbr()
+	}
+	if chance(f, 40) {
+		callsign = fakeCallsign(f)
+	}
+	if bio != "" || location != "" || callsign != "" {
+		_ = st.SetProfile(ctx, u.ID, bio, location, callsign)
+	}
+
+	if links := seedUserLinks(f); len(links) > 0 {
+		_ = st.ReplaceUserLinks(ctx, u.ID, links)
+	}
+}
+
+// seedUserLinks builds a random, plausible set of profile links, all pre-stored
+// in canonical form (handle platforms hold their canonical profile URL, matching
+// what the editor produces). One non-MeshCore link is usually the primary contact.
+func seedUserLinks(f *gofakeit.Faker) []store.UserLink {
+	var links []store.UserLink
+	if chance(f, 40) {
+		links = append(links, store.UserLink{Platform: "website", URL: f.URL()})
+	}
+	if chance(f, 30) {
+		links = append(links, store.UserLink{Platform: store.EmailPlatform, URL: f.Email()})
+	}
+	for _, s := range socialSeeds {
+		if !chance(f, s.pct) {
+			continue
+		}
+		if p, ok := store.UserLinkPlatform(s.key); ok {
+			if v, ok := handleSeedURL(p, f); ok {
+				links = append(links, store.UserLink{Platform: s.key, URL: v})
+			}
+		}
+	}
+	if chance(f, 25) {
+		links = append(links, store.UserLink{Platform: store.SignalPlatform, URL: seedHandle(f)})
+	}
+	if chance(f, 25) {
+		links = append(links, store.UserLink{Platform: "discord", URL: seedHandle(f)})
+	}
+	if chance(f, 50) {
+		if pk, err := randomHex(32); err == nil {
+			links = append(links, store.UserLink{Platform: store.MeshCorePlatform, Label: f.City() + " Node", URL: pk})
+		}
+	}
+	// Promote the first reachable (non-MeshCore) link to primary contact.
+	if chance(f, 75) {
+		for i := range links {
+			if links[i].Platform != store.MeshCorePlatform {
+				links[i].IsPrimary = true
+				break
+			}
+		}
+	}
+	return links
+}
+
+// handleSeedURL builds a canonical profile URL for a freshly generated handle on
+// platform p (the social descriptors are shared by org and user links), via the
+// platform's own canonicaliser. Mastodon handles get a random instance.
+func handleSeedURL(p store.LinkPlatform, f *gofakeit.Faker) (string, bool) {
+	h := seedHandle(f)
+	if p.Key == "mastodon" {
+		h += "@" + mastodonInstances[f.Number(0, len(mastodonInstances)-1)]
+	}
+	return p.CanonicalHandleURL(h)
+}
+
+// seedOrgLinks builds a random set of public links for a seeded org: a website, a
+// community Discord, and a spread of social platforms, all in canonical form. Org
+// links have no email/Signal/MeshCore or primary contact.
+func seedOrgLinks(f *gofakeit.Faker) []store.OrgLink {
+	var links []store.OrgLink
+	if chance(f, 70) {
+		links = append(links, store.OrgLink{Platform: "website", URL: f.URL()})
+	}
+	if chance(f, 45) {
+		links = append(links, store.OrgLink{Platform: "discord", URL: seedHandle(f)})
+	}
+	for _, s := range socialSeeds {
+		if !chance(f, s.pct) {
+			continue
+		}
+		if p, ok := store.OrgLinkPlatform(s.key); ok {
+			if v, ok := handleSeedURL(p, f); ok {
+				links = append(links, store.OrgLink{Platform: s.key, URL: v})
+			}
+		}
+	}
+	return links
+}
+
+// seedHandle returns a valid social handle (letters/digits/._-).
+func seedHandle(f *gofakeit.Faker) string { return sanitizeUsername(f.Username()) }
+
+// fakeCallsign builds a plausible amateur-radio callsign, e.g. "W1AW" or "KD7ABC".
+func fakeCallsign(f *gofakeit.Faker) string {
+	const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	prefix := []string{"K", "N", "W", "A"}[f.Number(0, 3)]
+	if chance(f, 40) {
+		prefix += string(letters[f.Number(0, 25)])
+	}
+	var suffix strings.Builder
+	for i, n := 0, f.Number(1, 3); i < n; i++ {
+		suffix.WriteByte(letters[f.Number(0, 25)])
+	}
+	return fmt.Sprintf("%s%d%s", prefix, f.Number(0, 9), suffix.String())
 }
 
 // repRef is the minimum we keep about a created repeater for the sharing pass.
@@ -153,6 +289,9 @@ func seedOrgs(ctx context.Context, st *store.Store, f *gofakeit.Faker, users []*
 			continue
 		}
 		_ = st.UpdateOrg(ctx, org.ID, org.Slug, org.Name, f.Sentence(f.Number(8, 20)), f.State())
+		if links := seedOrgLinks(f); len(links) > 0 {
+			_ = st.ReplaceOrgLinks(ctx, org.ID, links)
+		}
 		// A random subset of users join, so member counts vary across orgs.
 		joined := map[int64]bool{creator.ID: true}
 		for s := 0; s < f.Number(0, len(users)-1); s++ {

@@ -26,9 +26,20 @@ func TestReset(t *testing.T) {
 	if err := st.SetPassword(ctx, owner.ID, "bcrypt-hash"); err != nil {
 		t.Fatal(err)
 	}
-	// A seeded-style account with no password and no passkey: Reset should prune it.
-	if _, err := st.CreateUser(ctx, "seeded", ""); err != nil {
+	// A seeded-style account with no password and no passkey: Reset should prune it,
+	// along with its profile fields (columns on the deleted row).
+	seeded, err := st.CreateUser(ctx, "seeded", "")
+	if err != nil {
 		t.Fatal(err)
+	}
+	if err := st.SetProfile(ctx, seeded.ID, "hi", "NYC", "W1AW"); err != nil {
+		t.Fatal(err)
+	}
+	// Profile links on both users — user_links is disposable and wiped entirely.
+	for _, uid := range []int64{owner.ID, seeded.ID} {
+		if err := st.ReplaceUserLinks(ctx, uid, []UserLink{{Platform: "github", URL: "https://github.com/x"}}); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if err := st.InsertServerIdentity(ctx, strings.Repeat("a", 64), []byte("sealed")); err != nil {
 		t.Fatal(err)
@@ -40,7 +51,11 @@ func TestReset(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := st.CreateOrg(ctx, "Region", owner.ID); err != nil {
+	org, err := st.CreateOrg(ctx, "Region", owner.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.ReplaceOrgLinks(ctx, org.ID, []OrgLink{{Platform: "website", URL: "https://example.org"}}); err != nil {
 		t.Fatal(err)
 	}
 	_ = rep
@@ -78,6 +93,14 @@ func TestReset(t *testing.T) {
 	}
 	if got := count("org_members"); got != 0 {
 		t.Errorf("org_members after reset = %d, want 0", got)
+	}
+	// Seeded profile data is gone: user_links wiped for everyone (disposable table),
+	// and the pruned user took its bio/location/callsign with it.
+	if got := count("user_links"); got != 0 {
+		t.Errorf("user_links after reset = %d, want 0", got)
+	}
+	if got := count("org_links"); got != 0 {
+		t.Errorf("org_links after reset = %d, want 0", got)
 	}
 
 	// The kept user can still be looked up (login still works).
