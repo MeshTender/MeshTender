@@ -14,35 +14,82 @@
 {{if .Error}}<div class="alert alert-danger" role="alert">{{.Error}}</div>{{end}}
 
 {{if .Repeaters}}
-<div class="row row-cards">
-  {{range .Repeaters}}
-  <div class="col-12">
-    <a class="card card-link card-link-pop text-reset" href="/repeaters/{{.PublicID}}">
-      <div class="card-body py-3">
-        <div class="d-flex align-items-center gap-3">
-          <span class="avatar bg-blue-lt d-none d-sm-flex">{{template "icon-antenna" ""}}</span>
-          <div class="flex-fill" style="min-width:0">
-            <div class="d-flex align-items-center flex-wrap gap-2">
-              <h3 class="m-0 fs-3">{{.Name}}</h3>
-              {{if .Shared}}<span class="badge bg-purple-lt">Shared</span>{{else}}<span class="badge bg-blue-lt">Owned</span>{{end}}
-              {{template "repstatus" .}}
+<div class="row row-cards" data-filter-root>
+  <!-- Left: repeater cards -->
+  <div class="col-lg-9">
+    <div class="row row-cards">
+      {{range .Repeaters}}
+      {{$shareCounts := index $.ShareCounts .ID}}
+      <div class="col-12" data-filter-item
+           data-name="{{.Name}}"
+           data-access="{{if .Shared}}shared{{else}}owned{{end}}"
+           data-status="{{if .Confirmed}}confirmed{{else}}unconfirmed{{end}}"
+           data-sharedout="{{if and (not .Shared) (or (gt $shareCounts.Users 0) (gt $shareCounts.Orgs 0))}}1{{else}}0{{end}}">
+        <a class="card card-link card-link-pop text-reset" href="/repeaters/{{.PublicID}}">
+          <div class="card-body py-3">
+            <div class="d-flex align-items-center gap-3">
+              <span class="avatar bg-blue-lt d-none d-sm-flex">{{template "icon-antenna" ""}}</span>
+              <div class="flex-fill" style="min-width:0">
+                <div class="d-flex align-items-center flex-wrap gap-2">
+                  <h3 class="m-0 fs-3">{{.Name}}</h3>
+                  {{if .Shared}}<span class="badge bg-purple-lt">Shared with me</span>{{else}}<span class="badge bg-blue-lt">Owned</span>{{end}}
+                  {{template "repstatus" .}}
+                </div>
+                <div class="d-flex align-items-center flex-wrap gap-2 mt-1 text-secondary">
+                  <span class="font-monospace">{{slice .PublicKeyHex 0 8}}…</span>
+                  <span class="ms-1">·</span>
+                  {{if .Shared}}<span>Shared by {{.OwnerName}}</span>{{else}}<span>{{template "sharetext" $shareCounts}}</span>{{end}}
+                </div>
+              </div>
             </div>
-            <div class="d-flex align-items-center flex-wrap gap-2 mt-1 text-secondary">
-              <span class="font-monospace">{{slice .PublicKeyHex 0 8}}…</span>
-              <span class="ms-1">·</span>
-              {{if .Shared}}<span>Shared by {{.OwnerName}}</span>{{else}}<span>{{template "sharetext" (index $.ShareCounts .ID)}}</span>{{end}}
+            {{if and (not .Shared) .Confirmed .AccessKnown (not .IsAdmin)}}
+            <div class="alert alert-warning mt-3 mb-0">
+              MeshTender only has <strong>guest</strong> access here. Guest is available to anyone with a blank password, so there's no point operating at this level — re-run <code>setperm &lt;your key&gt; 3</code> on the repeater to grant admin, then re-test.
             </div>
+            {{end}}
           </div>
-        </div>
-        {{if and (not .Shared) .Confirmed .AccessKnown (not .IsAdmin)}}
-        <div class="alert alert-warning mt-3 mb-0">
-          MeshTender only has <strong>guest</strong> access here. Guest is available to anyone with a blank password, so there's no point operating at this level — re-run <code>setperm &lt;your key&gt; 3</code> on the repeater to grant admin, then re-test.
-        </div>
-        {{end}}
+        </a>
       </div>
-    </a>
+      {{end}}
+    </div>
+    <div class="empty py-4" data-filter-empty hidden>
+      <p class="empty-title">No matches</p>
+      <p class="empty-subtitle text-secondary">No repeaters match your search and filters.</p>
+    </div>
   </div>
-  {{end}}
+
+  <!-- Right: search + filter -->
+  <div class="col-lg-3">
+    <div class="card">
+      <div class="card-body">
+        <div class="mb-3">
+          <label class="form-label" for="rep-search">Search</label>
+          <input type="search" id="rep-search" class="form-control" data-filter-search placeholder="Repeater name" aria-label="Search your repeaters">
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="rep-access">Access</label>
+          <select id="rep-access" class="form-select" data-filter-key="access" aria-label="Filter by access">
+            <option value="">All</option>
+            <option value="owned">Owned</option>
+            <option value="shared">Shared with me</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="rep-status">Status</label>
+          <select id="rep-status" class="form-select" data-filter-key="status" aria-label="Filter by confirmation status">
+            <option value="">Any status</option>
+            <option value="confirmed">Confirmed</option>
+            <option value="unconfirmed">Unconfirmed</option>
+          </select>
+        </div>
+        <label class="form-check">
+          <input class="form-check-input" type="checkbox" data-filter-flag="sharedout">
+          <span class="form-check-label">Shared with others</span>
+          <span class="form-hint mt-0">Repeaters you own and have shared to at least one person or organization.</span>
+        </label>
+      </div>
+    </div>
+  </div>
 </div>
 {{else}}
 <div class="empty">

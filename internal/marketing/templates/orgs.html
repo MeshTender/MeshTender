@@ -41,36 +41,44 @@
 
 {{define "content"}}
 {{if .Error}}<div class="alert alert-danger">{{.Error}}</div>{{end}}
-<div class="card mb-3">
-  <div class="card-body">
-    <form class="row g-2 align-items-center" method="get" action="/orgs">
-      <div class="col">
-        <input type="search" class="form-control" name="q" value="{{.Query}}"
-               placeholder="Search by name, description, or region…" aria-label="Search organizations">
+<div class="row row-cards">
+  <!-- Left: the directory -->
+  <div class="col-lg-9">
+    <div class="card">
+      {{if .All}}
+      <div class="list-group list-group-flush" id="org-list">
+        {{template "org-rows" .}}
+        {{if .NextCursor}}{{template "org-more" .}}{{end}}
       </div>
-      <div class="col-auto">
-        <select class="form-select" name="sort" aria-label="Sort organizations" data-autosubmit>
-          <option value="members"{{if eq .Sort "members"}} selected{{end}}>Most members</option>
-          <option value="repeaters"{{if eq .Sort "repeaters"}} selected{{end}}>Most repeaters</option>
-          <option value="name"{{if eq .Sort "name"}} selected{{end}}>Name (A–Z)</option>
-          <option value="newest"{{if eq .Sort "newest"}} selected{{end}}>Newest</option>
-        </select>
-      </div>
-      <div class="col-auto">
-        <button class="btn" type="submit">{{template "icon-search" "me-1"}}Search</button>
-      </div>
-    </form>
+      {{else}}
+      <div class="card-body"><p class="text-secondary mb-0">{{if .Query}}No organizations match “{{.Query}}”.{{else}}No organizations yet.{{end}}</p></div>
+      {{end}}
+    </div>
   </div>
-</div>
 
-<div class="card">
-  {{if .All}}
-  <div class="list-group list-group-flush" id="org-list">
-    {{template "org-rows" .}}
-    {{if .NextCursor}}{{template "org-more" .}}{{end}}
+  <!-- Right: search + sort -->
+  <div class="col-lg-3">
+    <div class="card">
+      <div class="card-body">
+        <form method="get" action="/orgs">
+          <div class="mb-3">
+            <label class="form-label" for="org-q">Search</label>
+            <input type="search" id="org-q" class="form-control" name="q" value="{{.Query}}"
+                   placeholder="Name, description, or region" aria-label="Search organizations">
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="org-sort">Sort by</label>
+            <select id="org-sort" class="form-select" name="sort" aria-label="Sort organizations" data-autosubmit>
+              <option value="members"{{if eq .Sort "members"}} selected{{end}}>Most members</option>
+              <option value="repeaters"{{if eq .Sort "repeaters"}} selected{{end}}>Most repeaters</option>
+              <option value="name"{{if eq .Sort "name"}} selected{{end}}>Name (A–Z)</option>
+              <option value="newest"{{if eq .Sort "newest"}} selected{{end}}>Newest</option>
+            </select>
+          </div>
+          <button class="btn btn-primary w-100" type="submit">{{template "icon-search" "me-1"}}Search</button>
+        </form>
+      </div>
+    </div>
   </div>
-  {{else}}
-  <div class="card-body"><p class="text-secondary mb-0">{{if .Query}}No organizations match “{{.Query}}”.{{else}}No organizations yet.{{end}}</p></div>
-  {{end}}
 </div>
 {{end}}
