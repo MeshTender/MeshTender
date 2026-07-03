@@ -6,9 +6,32 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jleight/meshtender/internal/auth"
+	"github.com/jleight/meshtender/internal/config"
 	"github.com/jleight/meshtender/internal/store"
 	"github.com/jleight/meshtender/internal/testdb"
 )
+
+// testConfig/testAuthConfig give the integration tests the app/auth/root hosts,
+// using the same constants as splitServer (testAuthHost/testAppHost/testRootHost/
+// testWWWHost, defined in handoff_test.go). Requests to a plain httptest listener
+// arrive with Host 127.0.0.1, which matches none of these, so they route to the
+// app surface by default — while the handoff/beacon still target real, distinct
+// origins.
+func testConfig() *config.Config {
+	return &config.Config{
+		PrimaryHost: testAppHost, AuthHost: testAuthHost,
+		RootHost: testRootHost, WWWHost: testWWWHost,
+	}
+}
+
+func testAuthConfig() auth.Config {
+	return auth.Config{
+		RPID: "localhost", RPDisplayName: "t",
+		RPOrigins: []string{"http://" + testAuthHost, "http://" + testAppHost},
+		AppHost:   testAppHost, AuthHost: testAuthHost, RootHost: testRootHost,
+	}
+}
 
 // coreStore returns a Store backed by a fresh, throwaway database cloned from
 // the migrated template (see internal/testdb). Each call is fully isolated —

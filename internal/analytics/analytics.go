@@ -129,12 +129,12 @@ func (rec *Recorder) record(r *http.Request, status int) {
 // surface classifies a request host into one of the known surfaces.
 func (rec *Recorder) surface(host string) string {
 	switch {
-	case rec.cfg.AuthHost != "" && strings.EqualFold(host, rec.cfg.AuthHost):
+	case strings.EqualFold(host, rec.cfg.AuthHost):
 		return "auth"
-	case rec.cfg.RootHost != "" && strings.EqualFold(host, rec.cfg.RootHost),
+	case strings.EqualFold(host, rec.cfg.RootHost),
 		rec.cfg.WWWHost != "" && strings.EqualFold(host, rec.cfg.WWWHost):
 		return "root"
-	case rec.cfg.PrimaryHost != "" && strings.EqualFold(host, rec.cfg.PrimaryHost):
+	case strings.EqualFold(host, rec.cfg.PrimaryHost):
 		return "app"
 	default:
 		return "custom"

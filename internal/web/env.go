@@ -87,19 +87,11 @@ func (e *Env) Origin(r *http.Request, host string) string {
 	return originFor(e.Cfg, r, host)
 }
 
-// RedirectAfterLogout lands a signed-out visitor on the public root (or the app,
-// or the local sign-in page in narrower configs). Shared by every host's POST
-// /logout so sign-out ends in the same place regardless of which surface it was
-// triggered from.
+// RedirectAfterLogout lands a signed-out visitor on the public root host. Shared
+// by every host's POST /logout so sign-out ends in the same place regardless of
+// which surface it was triggered from.
 func (e *Env) RedirectAfterLogout(w http.ResponseWriter, r *http.Request) {
-	switch {
-	case e.Cfg.RootHost != "":
-		http.Redirect(w, r, e.Origin(r, e.Cfg.RootHost)+"/", http.StatusSeeOther) //nolint:gosec // G710: config-pinned origin
-	case e.Cfg.PrimaryHost != "":
-		http.Redirect(w, r, e.Origin(r, e.Cfg.PrimaryHost)+"/", http.StatusSeeOther) //nolint:gosec // G710: config-pinned origin
-	default:
-		http.Redirect(w, r, "/login", http.StatusSeeOther)
-	}
+	http.Redirect(w, r, e.Origin(r, e.Cfg.RootHost)+"/", http.StatusSeeOther) //nolint:gosec // G710: config-pinned origin
 }
 
 func originFor(cfg *config.Config, r *http.Request, host string) string {
@@ -192,23 +184,18 @@ func (rn *Renderer) Render(w http.ResponseWriter, r *http.Request, page string, 
 	if data == nil {
 		data = map[string]any{}
 	}
-	// Absolute origins for cross-host links (sessions are host-scoped, so a link
-	// from root/app to a sibling surface must be absolute). Empty in single-host
-	// mode, where templates' relative paths already resolve correctly.
-	if rn.cfg.AuthHost != "" {
-		data["AppURL"] = originFor(rn.cfg, r, rn.cfg.PrimaryHost)
-		data["AuthURL"] = originFor(rn.cfg, r, rn.cfg.AuthHost)
-		if rn.cfg.RootHost != "" {
-			data["RootURL"] = originFor(rn.cfg, r, rn.cfg.RootHost)
-		}
-	}
+	// Absolute origins for cross-host links: sessions are host-scoped, so a link
+	// from one surface to a sibling must be absolute.
+	data["AppURL"] = originFor(rn.cfg, r, rn.cfg.PrimaryHost)
+	data["AuthURL"] = originFor(rn.cfg, r, rn.cfg.AuthHost)
+	data["RootURL"] = originFor(rn.cfg, r, rn.cfg.RootHost)
 	// LogoutURL: sign-out is a POST that revokes the login row, so it must target a
 	// host that owns a /logout endpoint AND holds this browser's session. The app
 	// host, auth host, and custom org domains all do (relative "/logout", a
 	// same-host POST). The root host is strictly side-effect-free GET (see
 	// docs/auth-cross-host.md), so it has no logout of its own — the template hides
 	// the control there and the user signs out from the app dashboard instead.
-	if rn.cfg.RootHost == "" || HostWithoutPort(r.Host) != rn.cfg.RootHost {
+	if HostWithoutPort(r.Host) != rn.cfg.RootHost {
 		data["LogoutURL"] = "/logout"
 	}
 	if rn.userInfo != nil {
@@ -282,19 +269,17 @@ func RedirectErr(w http.ResponseWriter, r *http.Request, path, msg string) {
 	RedirectFlash(w, r, path, "error", msg)
 }
 
-// Dispatcher routes by hostname across the surfaces. authH/rootH/appH are the
-// per-surface handlers; rootH may be nil (single-host). When AuthHost is empty,
-// appH serves everything (single-host mode).
+// Dispatcher routes by hostname across the three surfaces: the auth host, the
+// root (public discovery) host, and — for everything else, including custom org
+// domains — the app host. AuthHost and RootHost are always configured (see
+// config.Load); the WWWHost redirect is optional.
 func Dispatcher(cfg *config.Config, authH, rootH, appH http.Handler) http.Handler {
-	if cfg.AuthHost == "" {
-		return appH
-	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		host := HostWithoutPort(r.Host)
 		switch {
 		case strings.EqualFold(host, cfg.AuthHost):
 			authH.ServeHTTP(w, r)
-		case rootH != nil && strings.EqualFold(host, cfg.RootHost):
+		case strings.EqualFold(host, cfg.RootHost):
 			rootH.ServeHTTP(w, r)
 		case cfg.WWWHost != "" && strings.EqualFold(host, cfg.WWWHost):
 			http.Redirect(w, r, originFor(cfg, r, cfg.RootHost)+r.URL.RequestURI(), http.StatusMovedPermanently) //nolint:gosec // G710: local path or config-pinned origin

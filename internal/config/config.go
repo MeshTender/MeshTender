@@ -38,14 +38,13 @@ type Config struct {
 
 	// AuthHost is the dedicated hostname that serves the login/signup UI and
 	// runs WebAuthn ceremonies (e.g. "auth.meshtender.com"). A successful
-	// sign-in there hands off to PrimaryHost via a single-use code. When
-	// empty, auth is served from PrimaryHost (single-host mode).
+	// sign-in there hands off to PrimaryHost via a single-use code. Required.
 	AuthHost string
 
 	// RootHost is the public marketing + organization-discovery hostname (the
 	// bare apex, e.g. "meshtender.com" / dev "localhost"). It carries no
-	// session (cookies are host-only), so it serves only public content. When
-	// empty, that content stays on PrimaryHost.
+	// session (cookies are host-only), so it serves only public content.
+	// Required.
 	RootHost string
 
 	// WWWHost redirects to RootHost (e.g. "www.meshtender.com"). Defaults to
@@ -101,7 +100,15 @@ func Load() (*Config, error) {
 		TrustedProxies: parseTrustedProxies(os.Getenv("MESHTENDER_TRUSTED_PROXIES")),
 	}
 
-	if c.RootHost != "" && c.WWWHost == "" {
+	// MeshTender runs across three hosts (auth + app + root). Require the two that
+	// have no sane default (PrimaryHost falls back to RPID above).
+	if c.AuthHost == "" {
+		return nil, fmt.Errorf("MESHTENDER_AUTH_HOST is required")
+	}
+	if c.RootHost == "" {
+		return nil, fmt.Errorf("MESHTENDER_ROOT_HOST is required")
+	}
+	if c.WWWHost == "" {
 		c.WWWHost = "www." + c.RootHost
 	}
 	// HTTPS deployments advertise https:// origins; this drives Secure cookies

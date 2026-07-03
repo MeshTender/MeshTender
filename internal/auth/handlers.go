@@ -14,9 +14,8 @@ import (
 	"github.com/jleight/meshtender/internal/store"
 )
 
-// RequireUser is middleware that sends unauthenticated requests to the sign-in
-// page — local in single-host mode, or the auth host (with a handoff back) when
-// auth lives on a dedicated host.
+// RequireUser is middleware that sends unauthenticated requests to the auth
+// host's sign-in page (with a handoff back to where they were going).
 func (s *Service) RequireUser(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if s.CurrentUserID(r.Context()) == 0 {

@@ -56,7 +56,7 @@
 <div class="card mt-3">
   <div class="card-header"><h3 class="card-title">Public profile</h3></div>
   <div class="card-body">
-    <p class="text-secondary">These appear on your public page{{if .RootURL}} at <a href="{{.RootURL}}/u/{{.User.Username}}" target="_blank" rel="noopener">{{.RootURL}}/u/{{.User.Username}}</a>{{end}}, which anyone can view. Leave a field blank to keep it off your page.</p>
+    <p class="text-secondary">These appear on your public page at <a href="{{.RootURL}}/u/{{.User.Username}}" target="_blank" rel="noopener">{{.RootURL}}/u/{{.User.Username}}</a>, which anyone can view. Leave a field blank to keep it off your page.</p>
     <form method="post" action="/account/profile-fields">
       <div class="mb-3">
         <label class="form-label" for="acct_bio">Bio <span class="form-label-description">optional</span></label>

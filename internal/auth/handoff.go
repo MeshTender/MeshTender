@@ -27,10 +27,6 @@ const (
 	maxStateLen      = 256              // bound stored/echoed state length
 )
 
-// SplitHost returns true when this Service runs the auth front door on a
-// separate host from the app (cross-host handoff mode).
-func (s *Service) SplitHost() bool { return s.authHost != "" }
-
 // scheme is the URL scheme matching the cookie Secure setting.
 func (s *Service) scheme() string {
 	if s.secure {
@@ -79,12 +75,11 @@ func (s *Service) popAuthState(ctx context.Context) string {
 	return state
 }
 
-// PostAuthRedirect is the destination after a successful sign-in. In single-host
-// mode it's the stored post-auth path. In split-host mode (on the auth host) it
-// mints a handoff code and points at the app host's callback — UNLESS the login
-// was initiated for an auth-host-local page (e.g. account settings), in which
-// case it returns that local path with no handoff. The caller must already have
-// run login() for the auth host's own (SSO) session.
+// PostAuthRedirect is the destination after a successful sign-in on the auth
+// host: it mints a single-use handoff code and points at the app host's callback
+// — UNLESS the login was initiated for an auth-host-local page (e.g. account
+// settings), in which case it returns that local path with no handoff. The caller
+// must already have run login() for the auth host's own (SSO) session.
 func (s *Service) PostAuthRedirect(r *http.Request, userID int64) string {
 	ctx := r.Context()
 	next := s.PopNext(ctx)
@@ -93,7 +88,9 @@ func (s *Service) PostAuthRedirect(r *http.Request, userID int64) string {
 	if s.Sessions.PopBool(ctx, sessKeyAuthLocal) {
 		return next
 	}
-	if !s.SplitHost() || !s.onAuthHost(r) {
+	// Defensive: ceremonies always finish on the auth host, but if somehow not,
+	// there's nothing to hand off — just return the local path.
+	if !s.onAuthHost(r) {
 		return next
 	}
 	// Thread this host's login row into the code so the app callback reuses it
@@ -137,18 +134,13 @@ func (s *Service) StartSignup(w http.ResponseWriter, r *http.Request, next strin
 	s.startAuth(w, r, next, "/signup")
 }
 
-// startAuth begins a sign-in/sign-up. In split-host mode it redirects to the
-// auth host's page, first dropping a host-only state cookie on the app host that
-// the returning callback must match — which is why auth entry must always go
-// through the app host, never a direct link to the auth host. In single-host
-// mode it just redirects to the local page.
+// startAuth begins a sign-in/sign-up: it redirects to the auth host's page, first
+// dropping a host-only state cookie on the app host that the returning callback
+// must match — which is why auth entry must always go through the app host, never
+// a direct link to the auth host.
 func (s *Service) startAuth(w http.ResponseWriter, r *http.Request, next, page string) {
 	if !SafeLocalPath(next) {
 		next = "/"
-	}
-	if !s.SplitHost() {
-		http.Redirect(w, r, page+"?next="+url.QueryEscape(next), http.StatusSeeOther)
-		return
 	}
 	state, err := randomState()
 	if err != nil {
@@ -204,11 +196,9 @@ func (s *Service) SessionCallback(w http.ResponseWriter, r *http.Request) {
 	// land on the requested app page. The beacon code carries the same login row
 	// and the app-local next; if minting fails we just skip the root cookie this
 	// round (discovery renders anonymous until the next sign-in).
-	if s.rootHost != "" {
-		if code, err := s.store.CreateAuthCode(ctx, userID, loginID, next); err == nil {
-			http.Redirect(w, r, s.rootOrigin(r)+"/session/beacon?code="+url.QueryEscape(code), http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
-			return
-		}
+	if code, err := s.store.CreateAuthCode(ctx, userID, loginID, next); err == nil {
+		http.Redirect(w, r, s.rootOrigin(r)+"/session/beacon?code="+url.QueryEscape(code), http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
+		return
 	}
 	http.Redirect(w, r, next, http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
 }

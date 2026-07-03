@@ -16,8 +16,8 @@ import (
 // chrome carries a POST /logout form, submitting it clears the session, and a
 // protected page then bounces the (now anonymous) browser to sign-in. Driving the
 // endpoint with same-origin fetch (rather than clicking through) keeps the test
-// independent of where the single-host harness lands after logout, while still
-// exercising real browser cookies and the strict CSP (connect-src 'self').
+// independent of the cross-host redirect logout lands on, while still exercising
+// real browser cookies and the strict CSP (connect-src 'self').
 func TestE2ELogout(t *testing.T) {
 	srv := newE2EServer(t)
 	_, cookie := srv.login(t, "logoutuser")

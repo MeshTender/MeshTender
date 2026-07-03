@@ -111,15 +111,25 @@ func newE2EServer(t *testing.T) *e2eServer {
 	var masterKey [32]byte
 	_, _ = rand.Read(masterKey[:])
 	idSvc, _ := identity.LoadOrCreate(ctx, st, masterKey)
+
+	// The server runs across three hosts. The browser only ever navigates the APP
+	// surface, which it reaches at browserHost() (host.docker.internal) — so that
+	// is PrimaryHost, and requests there route to the app by default. The auth/root
+	// hosts are distinct names the browser never navigates (cross-host links exist
+	// on pages but aren't clicked); they only need to differ from PrimaryHost so the
+	// Dispatcher can tell surfaces apart.
+	appHost := browserHost()
+	authHost, rootHost := "auth."+browserHost(), "root."+browserHost()
 	authSvc, err := auth.New(st, st.Pool(), auth.Config{
 		RPID: "localhost", RPDisplayName: "test", RPOrigins: []string{"http://localhost"},
+		AppHost: appHost, AuthHost: authHost, RootHost: rootHost,
 	})
 	if err != nil {
 		t.Fatalf("auth: %v", err)
 	}
-	// Empty config → the Dispatcher serves every host from the app surface, so
-	// no Host-header juggling is needed (the browser hits host.docker.internal).
-	srv, err := core.NewServer(st, authSvc, idSvc, &config.Config{})
+	srv, err := core.NewServer(st, authSvc, idSvc, &config.Config{
+		PrimaryHost: appHost, AuthHost: authHost, RootHost: rootHost,
+	})
 	if err != nil {
 		t.Fatalf("server: %v", err)
 	}

@@ -17,7 +17,6 @@ import (
 	"github.com/meshcore-go/meshcore-go/hardware"
 
 	"github.com/jleight/meshtender/internal/auth"
-	"github.com/jleight/meshtender/internal/config"
 	"github.com/jleight/meshtender/internal/identity"
 	"github.com/jleight/meshtender/internal/store"
 )
@@ -51,8 +50,8 @@ func TestConfirmFetchesLocation(t *testing.T) {
 	var masterKey [32]byte
 	_, _ = rand.Read(masterKey[:])
 	idSvc, _ := identity.LoadOrCreate(ctx, st, masterKey)
-	authSvc, _ := auth.New(st, st.Pool(), auth.Config{RPID: "localhost", RPDisplayName: "t", RPOrigins: []string{"http://localhost"}})
-	srv, _ := NewServer(st, authSvc, idSvc, &config.Config{})
+	authSvc, _ := auth.New(st, st.Pool(), testAuthConfig())
+	srv, _ := NewServer(st, authSvc, idSvc, testConfig())
 	ts := httptest.NewServer(srv.Handler())
 	defer ts.Close()
 

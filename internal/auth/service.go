@@ -30,9 +30,8 @@ type Service struct {
 	store    *store.Store
 	Sessions *scs.SessionManager
 
-	// Host split: when authHost is set, sign-in happens on a dedicated host and
-	// hands off to appHost via a single-use code. Empty authHost ⇒ single-host
-	// mode (auth served from appHost, no cross-host handoff).
+	// Sign-in happens on the dedicated authHost and hands off to appHost via a
+	// single-use code; both are always configured.
 	appHost  string
 	authHost string
 	// rootHost is the public discovery host. When set, a fresh app sign-in
@@ -47,14 +46,14 @@ type Config struct {
 	RPID          string
 	RPDisplayName string
 	RPOrigins     []string
-	// AppHost serves the product; AuthHost (optional) serves the login UI and
-	// runs ceremonies, handing off to AppHost. Both are bare hostnames (no
-	// scheme/port). Empty AuthHost selects single-host mode.
+	// AppHost serves the product; AuthHost serves the login UI and runs
+	// ceremonies, handing off to AppHost. Both are bare hostnames (no
+	// scheme/port) and are always set.
 	AppHost  string
 	AuthHost string
-	// RootHost (optional) serves public discovery; a fresh app sign-in drops a
-	// minimal identity cookie there via its beacon so it can render
-	// logged-in-aware UI without sharing a session.
+	// RootHost serves public discovery; a fresh app sign-in drops a minimal
+	// identity cookie there via its beacon so it can render logged-in-aware UI
+	// without sharing a session. Always set.
 	RootHost string
 	// Secure marks cookies Secure (set false for plain-HTTP localhost dev).
 	Secure bool

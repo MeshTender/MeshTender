@@ -17,7 +17,6 @@ import (
 	"github.com/meshcore-go/meshcore-go/hardware"
 
 	"github.com/jleight/meshtender/internal/auth"
-	"github.com/jleight/meshtender/internal/config"
 	"github.com/jleight/meshtender/internal/identity"
 	"github.com/jleight/meshtender/internal/store"
 )
@@ -35,11 +34,11 @@ func TestConsoleRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("identity: %v", err)
 	}
-	authSvc, err := auth.New(st, st.Pool(), auth.Config{RPID: "localhost", RPDisplayName: "t", RPOrigins: []string{"http://localhost"}})
+	authSvc, err := auth.New(st, st.Pool(), testAuthConfig())
 	if err != nil {
 		t.Fatalf("auth: %v", err)
 	}
-	srv, err := NewServer(st, authSvc, idSvc, &config.Config{})
+	srv, err := NewServer(st, authSvc, idSvc, testConfig())
 	if err != nil {
 		t.Fatalf("server: %v", err)
 	}
