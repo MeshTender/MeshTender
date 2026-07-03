@@ -170,8 +170,11 @@ func (s *Handlers) renderOrgPublic(w http.ResponseWriter, r *http.Request, org *
 	}
 	uid := s.Auth.CurrentUserID(r.Context())
 	s.Render(w, r, "org_public.html", map[string]any{
-		"Org":           org,
-		"Nav":           s.OrgNavFor(r.Context(), org.ID, org.Slug, "home", isMember, isAdmin),
+		"Org": org,
+		// The public view never exposes the Members tab — membership isn't public,
+		// only the admin list is — so build the nav as a non-member regardless of who
+		// is viewing (a member previews the public page via ?view=public).
+		"Nav":           s.OrgNavFor(r.Context(), org.ID, org.Slug, "home", false, isAdmin),
 		"Admins":        admins,
 		"MemberCount":   memberCount,
 		"RepeaterCount": repeaterCount,
