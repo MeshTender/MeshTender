@@ -25,7 +25,7 @@ func TestUserLinksReplaceAndList(t *testing.T) {
 
 	// Replace with three links; order is preserved and the second is primary.
 	links := []UserLink{
-		{Platform: "discord", URL: "https://discord.gg/abc"},
+		{Platform: "discord", URL: "cooluser"},
 		{Platform: "website", Label: "Home", URL: "https://example.org", IsPrimary: true},
 		{Platform: MeshCorePlatform, URL: strings.Repeat("a", 64)},
 	}
@@ -48,8 +48,9 @@ func TestUserLinksReplaceAndList(t *testing.T) {
 	if !got[2].IsMeshCore() {
 		t.Errorf("link[2] should be a MeshCore link")
 	}
-	if d := got[0].Display(); d != "Discord" {
-		t.Errorf("link[0].Display() = %q, want %q", d, "Discord")
+	// Discord is a text platform now: no custom label, so Display is the handle.
+	if d := got[0].Display(); d != "cooluser" {
+		t.Errorf("link[0].Display() = %q, want %q", d, "cooluser")
 	}
 }
 

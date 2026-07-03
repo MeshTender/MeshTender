@@ -31,9 +31,9 @@ func TestE2EUserLinksClientValidation(t *testing.T) {
 	// Phase 1: an invalid email row must block the submit client-side. We assert
 	// the inline error appears and that we never navigated (no ?ok, no server
 	// success banner) — i.e. the JS called preventDefault.
-	sel := `#user-links-rows .link-row select[name="link_platform"]`
-	urlInput := `#user-links-rows .link-row input[name="link_url"]`
-	submit := `#user-links-form button[type="submit"]`
+	sel := `[data-link-rows] .link-row .link-platform`
+	urlInput := `[data-link-rows] .link-row .link-value`
+	submit := `form[data-link-editor] button[type="submit"]`
 
 	var inlineErr, afterBlockURL string
 	if err := chromedp.Run(bctx,
@@ -41,15 +41,15 @@ func TestE2EUserLinksClientValidation(t *testing.T) {
 		cdplog.Enable(),
 		setSessionCookie(cookie),
 		chromedp.Navigate(accountURL),
-		chromedp.WaitVisible(`#user-links-form`, chromedp.ByQuery),
-		chromedp.Click(`#add-user-link`, chromedp.ByQuery),
+		chromedp.WaitVisible(`form[data-link-editor]`, chromedp.ByQuery),
+		chromedp.Click(`[data-link-add]`, chromedp.ByQuery),
 		chromedp.WaitVisible(sel, chromedp.ByQuery),
 		chromedp.SetValue(sel, "email", chromedp.ByQuery),
 		chromedp.SetValue(urlInput, "notanemail", chromedp.ByQuery),
 		chromedp.Click(submit, chromedp.ByQuery),
 		// The blocked submit reveals an inline error on the row rather than reloading.
-		chromedp.WaitVisible(`#user-links-rows .link-row .link-error`, chromedp.ByQuery),
-		chromedp.Text(`#user-links-rows .link-row .link-error`, &inlineErr, chromedp.ByQuery),
+		chromedp.WaitVisible(`[data-link-rows] .link-row .link-error`, chromedp.ByQuery),
+		chromedp.Text(`[data-link-rows] .link-row .link-error`, &inlineErr, chromedp.ByQuery),
 		chromedp.Location(&afterBlockURL),
 	); err != nil {
 		t.Fatalf("phase 1 (invalid row) against %s: %v", accountURL, err)
@@ -79,6 +79,35 @@ func TestE2EUserLinksClientValidation(t *testing.T) {
 	}
 	if len(links) != 1 || links[0].URL != "https://example.com" {
 		t.Fatalf("stored links = %+v, want one https://example.com", links)
+	}
+
+	// Phase 3: add a GitHub row and type a bare "@handle" — the redesign accepts it
+	// and the server canonicalises to the profile URL. Reload first to a clean page
+	// so the success banner we wait on is this save's, not phase 2's leftover.
+	if err := chromedp.Run(bctx,
+		chromedp.Navigate(accountURL),
+		chromedp.WaitVisible(`form[data-link-editor]`, chromedp.ByQuery),
+		chromedp.Click(`[data-link-add]`, chromedp.ByQuery),
+		// The new row is the last one; target its controls.
+		chromedp.SetValue(`[data-link-rows] .link-row:last-child .link-platform`, "github", chromedp.ByQuery),
+		chromedp.SetValue(`[data-link-rows] .link-row:last-child .link-value`, "@octocat", chromedp.ByQuery),
+		chromedp.Click(submit, chromedp.ByQuery),
+		chromedp.WaitVisible(`.alert-success`, chromedp.ByQuery),
+	); err != nil {
+		t.Fatalf("phase 3 (github handle) against %s: %v", accountURL, err)
+	}
+	links, err = srv.store.ListUserLinks(srv.ctx, user.ID)
+	if err != nil {
+		t.Fatalf("list links after github: %v", err)
+	}
+	var gotGitHub string
+	for _, l := range links {
+		if l.Platform == "github" {
+			gotGitHub = l.URL
+		}
+	}
+	if gotGitHub != "https://github.com/octocat" {
+		t.Fatalf("stored github link = %q, want https://github.com/octocat (all: %+v)", gotGitHub, links)
 	}
 
 	watch.assertClean(t)

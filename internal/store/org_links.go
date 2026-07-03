@@ -13,29 +13,70 @@ import (
 // usual suspects (Discord, a few sites) without turning the page into a directory.
 const MaxOrgLinks = 20
 
-// LinkPlatform is a known destination an org link can point at. Key is the stable
-// identifier persisted in org_links.platform and used to pick a brand icon; Name
-// is the human label shown when a link has no custom label of its own.
+// LinkKind classifies how a platform's value is entered, validated, stored, and
+// rendered. It replaces the per-platform switch statements the link editors used
+// to carry: behaviour is a property of the platform, looked up once here.
+type LinkKind string
+
+const (
+	// KindURL is a full http(s) URL the user pastes verbatim (e.g. Website).
+	KindURL LinkKind = "url"
+	// KindHandle is a username: the user types "@handle" or pastes a profile URL,
+	// and we store the canonical profile URL (URLFmt applied to the handle). Href
+	// is that URL; Display shows the "@handle".
+	KindHandle LinkKind = "handle"
+	// KindText is a handle shown as plain text with no hyperlink — the platform has
+	// no public per-user URL (Discord, Signal).
+	KindText LinkKind = "text"
+	// KindEmail is an email address, rendered as a mailto: link.
+	KindEmail LinkKind = "email"
+	// KindKey is a MeshCore public key (hex), rendered as a QR code rather than a
+	// link.
+	KindKey LinkKind = "key"
+)
+
+// LinkPlatform is a known destination a link can point at, plus the rules for how
+// its value is entered, stored, and rendered. Key is the stable identifier
+// persisted in the platform column; Name is the human label shown when a link has
+// no custom label of its own; Icon names the "icon-*" template used by link-icon.
+//
+// For KindHandle: URLFmt is the canonical profile URL with a single %s for the
+// handle, and Hosts are the URL hosts we recognise when a user pastes a full
+// profile URL instead of a bare handle. Placeholder is the editor input hint.
 type LinkPlatform struct {
-	Key  string
-	Name string
+	Key         string
+	Name        string
+	Kind        LinkKind
+	Icon        string
+	URLFmt      string
+	Hosts       []string
+	Placeholder string
 }
 
-// linkPlatforms is the curated, ordered set of platforms an admin can choose from.
-// "website" is the generic fallback for anything without a dedicated brand icon.
-// To add a platform: append it here and define a matching "icon-brand-<key>" (or
-// reuse an existing icon) in the link-icon partial in web/templates/icons.html.
+// mastodonKey is special-cased in handle canonicalisation because a Mastodon
+// handle carries its own instance (@user@instance ↔ https://instance/@user), so
+// there's no single URLFmt.
+const mastodonKey = "mastodon"
+
+// linkPlatforms is the curated, ordered set of platforms shared by the org- and
+// user-link editors. To add one: append it here with its Kind/URLFmt/Hosts and
+// define its Icon's "icon-*" template (add a branch to link-icon in
+// web/templates/icons.html). "website" is the generic full-URL fallback.
 var linkPlatforms = []LinkPlatform{
-	{"website", "Website"},
-	{"discord", "Discord"},
-	{"facebook", "Facebook"},
-	{"instagram", "Instagram"},
-	{"x", "X (Twitter)"},
-	{"youtube", "YouTube"},
-	{"github", "GitHub"},
-	{"telegram", "Telegram"},
-	{"reddit", "Reddit"},
-	{"linkedin", "LinkedIn"},
+	{Key: "website", Name: "Website", Kind: KindURL, Icon: "icon-link", Placeholder: "https://example.com"},
+	{Key: "github", Name: "GitHub", Kind: KindHandle, Icon: "icon-brand-github", URLFmt: "https://github.com/%s", Hosts: []string{"github.com", "www.github.com"}, Placeholder: "@username or profile URL"},
+	{Key: "x", Name: "X (Twitter)", Kind: KindHandle, Icon: "icon-brand-x", URLFmt: "https://x.com/%s", Hosts: []string{"x.com", "www.x.com", "twitter.com", "www.twitter.com", "mobile.twitter.com"}, Placeholder: "@username or profile URL"},
+	{Key: "instagram", Name: "Instagram", Kind: KindHandle, Icon: "icon-brand-instagram", URLFmt: "https://instagram.com/%s", Hosts: []string{"instagram.com", "www.instagram.com"}, Placeholder: "@username or profile URL"},
+	{Key: "facebook", Name: "Facebook", Kind: KindHandle, Icon: "icon-brand-facebook", URLFmt: "https://facebook.com/%s", Hosts: []string{"facebook.com", "www.facebook.com", "m.facebook.com", "fb.com"}, Placeholder: "username or profile URL"},
+	{Key: "youtube", Name: "YouTube", Kind: KindHandle, Icon: "icon-brand-youtube", URLFmt: "https://youtube.com/@%s", Hosts: []string{"youtube.com", "www.youtube.com", "m.youtube.com"}, Placeholder: "@handle or channel URL"},
+	{Key: "tiktok", Name: "TikTok", Kind: KindHandle, Icon: "icon-brand-tiktok", URLFmt: "https://tiktok.com/@%s", Hosts: []string{"tiktok.com", "www.tiktok.com"}, Placeholder: "@username or profile URL"},
+	{Key: "twitch", Name: "Twitch", Kind: KindHandle, Icon: "icon-brand-twitch", URLFmt: "https://twitch.tv/%s", Hosts: []string{"twitch.tv", "www.twitch.tv"}, Placeholder: "username or channel URL"},
+	{Key: "linkedin", Name: "LinkedIn", Kind: KindHandle, Icon: "icon-brand-linkedin", URLFmt: "https://linkedin.com/in/%s", Hosts: []string{"linkedin.com", "www.linkedin.com"}, Placeholder: "username or profile URL"},
+	{Key: "reddit", Name: "Reddit", Kind: KindHandle, Icon: "icon-brand-reddit", URLFmt: "https://reddit.com/user/%s", Hosts: []string{"reddit.com", "www.reddit.com", "old.reddit.com"}, Placeholder: "u/username or profile URL"},
+	{Key: "telegram", Name: "Telegram", Kind: KindHandle, Icon: "icon-brand-telegram", URLFmt: "https://t.me/%s", Hosts: []string{"t.me", "telegram.me"}, Placeholder: "@username or profile URL"},
+	{Key: mastodonKey, Name: "Mastodon", Kind: KindHandle, Icon: "icon-brand-mastodon", Placeholder: "@user@instance or profile URL"},
+	{Key: "bluesky", Name: "Bluesky", Kind: KindHandle, Icon: "icon-brand-bluesky", URLFmt: "https://bsky.app/profile/%s", Hosts: []string{"bsky.app"}, Placeholder: "@handle or profile URL"},
+	{Key: "discord", Name: "Discord", Kind: KindText, Icon: "icon-brand-discord", Placeholder: "username"},
 }
 
 var linkPlatformByKey = func() map[string]LinkPlatform {
@@ -53,6 +94,158 @@ func LinkPlatforms() []LinkPlatform { return linkPlatforms }
 func ValidLinkPlatform(key string) bool {
 	_, ok := linkPlatformByKey[key]
 	return ok
+}
+
+// OrgLinkPlatform returns the descriptor for an org-link platform key.
+func OrgLinkPlatform(key string) (LinkPlatform, bool) {
+	p, ok := linkPlatformByKey[key]
+	return p, ok
+}
+
+// CanonicalHandleURL interprets a KindHandle value that is either a bare handle
+// (optionally "@"-prefixed, or a "u/" Reddit prefix) or a full profile URL on one
+// of the platform's Hosts, and returns the canonical profile URL to store. It
+// reports false when the value can't be read as a handle or an on-platform URL.
+func (p LinkPlatform) CanonicalHandleURL(raw string) (string, bool) {
+	s := strings.TrimSpace(raw)
+	if s == "" {
+		return "", false
+	}
+	if p.Key == mastodonKey {
+		return canonicalMastodon(s)
+	}
+	// A pasted URL is accepted only on a known host; the handle is its last path
+	// segment. Anything else is treated as a bare handle.
+	if looksLikeURL(s) {
+		u, err := url.Parse(NormalizeLinkURL(s))
+		if err != nil || !hostAllowed(u.Host, p.Hosts) {
+			return "", false
+		}
+		s = lastPathSegment(u.Path)
+	}
+	h := strings.TrimPrefix(strings.TrimSpace(s), "@")
+	h = strings.TrimPrefix(h, "u/") // Reddit's "u/name" shorthand
+	h = strings.Trim(h, "/")
+	if !validHandle(h) {
+		return "", false
+	}
+	return fmt.Sprintf(p.URLFmt, h), true
+}
+
+// HandleFromURL derives the display handle for a stored KindHandle URL: "@handle"
+// for most platforms, "@user@instance" for Mastodon. Returns "" if it can't parse
+// (callers fall back to the platform name).
+func (p LinkPlatform) HandleFromURL(stored string) string {
+	u, err := url.Parse(stored)
+	if err != nil || u.Host == "" {
+		return ""
+	}
+	if p.Key == mastodonKey {
+		user := strings.TrimPrefix(lastPathSegment(u.Path), "@")
+		if user == "" {
+			return ""
+		}
+		return "@" + user + "@" + strings.ToLower(u.Host)
+	}
+	seg := strings.TrimPrefix(lastPathSegment(u.Path), "@")
+	if seg == "" {
+		return ""
+	}
+	return "@" + seg
+}
+
+// canonicalMastodon accepts "@user@instance", "user@instance", or a profile URL
+// (https://instance/@user) and returns the canonical https://instance/@user.
+func canonicalMastodon(s string) (string, bool) {
+	if looksLikeURL(s) {
+		u, err := url.Parse(NormalizeLinkURL(s))
+		if err != nil || u.Host == "" {
+			return "", false
+		}
+		user := strings.TrimPrefix(lastPathSegment(u.Path), "@")
+		if !validHandle(user) {
+			return "", false
+		}
+		return "https://" + strings.ToLower(u.Host) + "/@" + user, true
+	}
+	parts := strings.SplitN(strings.TrimPrefix(s, "@"), "@", 2)
+	if len(parts) != 2 || !validHandle(parts[0]) || !validInstanceHost(parts[1]) {
+		return "", false
+	}
+	return "https://" + strings.ToLower(parts[1]) + "/@" + parts[0], true
+}
+
+// looksLikeURL reports whether s is a pasted URL rather than a bare handle. It
+// catches an explicit scheme, a protocol-relative "//", and the scheme-less form
+// ("github.com/octocat") — distinguished from a handle or Reddit's "u/name"
+// shorthand by the segment before the first slash looking like a host (a dot).
+func looksLikeURL(s string) bool {
+	if strings.Contains(s, "://") || strings.HasPrefix(s, "//") {
+		return true
+	}
+	if i := strings.IndexByte(s, '/'); i > 0 {
+		return strings.Contains(s[:i], ".")
+	}
+	return false
+}
+
+// hostAllowed reports whether host (case-insensitive, port stripped) is one of
+// the platform's recognised hosts.
+func hostAllowed(host string, hosts []string) bool {
+	host = strings.ToLower(host)
+	if i := strings.IndexByte(host, ':'); i >= 0 {
+		host = host[:i]
+	}
+	for _, h := range hosts {
+		if host == h {
+			return true
+		}
+	}
+	return false
+}
+
+// lastPathSegment returns the last non-empty "/"-separated segment of a URL path.
+func lastPathSegment(path string) string {
+	segs := strings.Split(strings.Trim(path, "/"), "/")
+	for i := len(segs) - 1; i >= 0; i-- {
+		if segs[i] != "" {
+			return segs[i]
+		}
+	}
+	return ""
+}
+
+// validHandle reports whether h is a plausible platform handle: letters, digits,
+// and a few separators (dots allow domain-style handles like Bluesky's), bounded
+// in length. It's intentionally lenient — a wrong guess just yields a slightly
+// off URL, and the user can always paste the full profile URL instead.
+func validHandle(h string) bool {
+	if h == "" || len(h) > 100 {
+		return false
+	}
+	for _, r := range h {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
+		case r == '.' || r == '_' || r == '-':
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+// validInstanceHost reports whether s is a plausible Mastodon instance hostname
+// (a dotted domain of handle-safe labels).
+func validInstanceHost(s string) bool {
+	if !strings.Contains(s, ".") {
+		return false
+	}
+	for _, label := range strings.Split(s, ".") {
+		if label == "" || !validHandle(label) {
+			return false
+		}
+	}
+	return true
 }
 
 // NormalizeLinkURL prepares a user-entered link value for validation: it trims
@@ -84,15 +277,6 @@ func ValidLinkURL(s string) bool {
 	return (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
 }
 
-// linkPlatformName returns the display name for a platform key, or the key itself
-// if it is unknown (defensive — stored rows should always be valid).
-func linkPlatformName(key string) string {
-	if p, ok := linkPlatformByKey[key]; ok {
-		return p.Name
-	}
-	return key
-}
-
 // OrgLink is a single social/third-party link on an org's public page.
 type OrgLink struct {
 	ID       int64
@@ -104,12 +288,51 @@ type OrgLink struct {
 }
 
 // Display is the text to show for the link: the admin's custom label if set,
-// otherwise the platform's name (e.g. "Discord").
+// otherwise a per-kind default (an "@handle" for handle platforms, the stored
+// handle for text platforms, else the platform name).
 func (l OrgLink) Display() string {
 	if l.Label != "" {
 		return l.Label
 	}
-	return linkPlatformName(l.Platform)
+	return linkDisplay(linkPlatformByKey[l.Platform], l.Platform, l.URL)
+}
+
+// Href is the hyperlink target for this link, or "" when it isn't directly
+// linkable (a text-only platform such as Discord). Handle/URL platforms store a
+// ready-to-use URL; unknown platforms fall back to the stored value.
+func (l OrgLink) Href() string {
+	return linkHref(linkPlatformByKey[l.Platform], l.URL)
+}
+
+// linkDisplay computes the default display text for a link value given its
+// platform descriptor (zero value if the key is unknown).
+func linkDisplay(p LinkPlatform, key, value string) string {
+	switch p.Kind {
+	case KindHandle:
+		if h := p.HandleFromURL(value); h != "" {
+			return h
+		}
+		return p.Name
+	case KindText:
+		return value
+	case "":
+		return key // unknown platform — show the raw key defensively
+	default:
+		return p.Name
+	}
+}
+
+// linkHref computes the hyperlink target for a link value given its platform
+// descriptor. Text/key platforms aren't linkable; email becomes mailto:.
+func linkHref(p LinkPlatform, value string) string {
+	switch p.Kind {
+	case KindText, KindKey:
+		return ""
+	case KindEmail:
+		return "mailto:" + value
+	default: // url, handle, or unknown → the stored value
+		return value
+	}
 }
 
 // ListOrgLinks returns an org's links in display order.

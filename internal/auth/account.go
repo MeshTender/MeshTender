@@ -84,6 +84,7 @@ func (s *Handlers) renderAccount(w http.ResponseWriter, r *http.Request, uid int
 		"Callsign":    u.Callsign,
 		"Links":       links,
 		"Platforms":   store.UserLinkPlatforms(),
+		"PlatformsJS": web.LinkPlatformsJS(store.UserLinkPlatforms()),
 		"HasPassword": u.PasswordHash != nil,
 		"Passkeys":    views,
 		"NextRename":  nextRename, // nil when a rename is allowed now
@@ -189,31 +190,43 @@ func (s *Handlers) handleSetUserLinks(w http.ResponseWriter, r *http.Request) {
 		if i < len(platforms) {
 			platform = platforms[i]
 		}
-		if !store.ValidUserLinkPlatform(platform) {
+		p, ok := store.UserLinkPlatform(platform)
+		if !ok {
 			setIfEmpty(&errMsg, "Choose a type for each link.")
 			continue
 		}
-		switch platform {
-		case store.MeshCorePlatform:
+		// Validate and canonicalise the value according to the platform's kind. Each
+		// case leaves `val` as the string we'd persist.
+		switch p.Kind {
+		case store.KindKey:
 			val = strings.ToLower(val)
 			if !validMeshCoreKey(val) {
 				setIfEmpty(&errMsg, "Enter a valid MeshCore public key (64-character hex).")
 				continue
 			}
-		case store.EmailPlatform:
+		case store.KindEmail:
 			addr, err := mail.ParseAddress(val)
 			if err != nil || addr.Name != "" {
 				setIfEmpty(&errMsg, "Enter a valid email address.")
 				continue
 			}
 			val = addr.Address
-		case store.SignalPlatform:
-			val = strings.TrimPrefix(val, "@")
-			if !validSignalUsername(val) {
-				setIfEmpty(&errMsg, "Enter a valid Signal username (3–32 characters: letters, digits, . and _).")
+		case store.KindText:
+			v, msg := normalizeTextHandle(platform, val)
+			if msg != "" {
+				setIfEmpty(&errMsg, msg)
 				continue
 			}
-		default:
+			val = v
+		case store.KindHandle:
+			// Accept a bare "@handle" or a pasted profile URL; store the canonical URL.
+			canon, ok := p.CanonicalHandleURL(val)
+			if !ok {
+				setIfEmpty(&errMsg, "Enter a valid "+p.Name+" username or profile URL.")
+				continue
+			}
+			val = canon
+		default: // KindURL
 			// Accept a bare domain ("example.com") by assuming https://; only then
 			// require it to be a real http(s) URL.
 			val = store.NormalizeLinkURL(val)
@@ -234,7 +247,7 @@ func (s *Handlers) handleSetUserLinks(w http.ResponseWriter, r *http.Request) {
 		}
 		// A MeshCore key is an identity, not a way to reach someone, so it can't be
 		// the primary contact (mirrors excluding callsign/node info).
-		primary := i == primaryIdx && platform != store.MeshCorePlatform
+		primary := i == primaryIdx && p.Kind != store.KindKey
 		links = append(links, store.UserLink{Platform: platform, Label: label, URL: val, IsPrimary: primary})
 		if len(links) >= store.MaxUserLinks {
 			break
@@ -308,6 +321,24 @@ func boundedText(s string, max int) string {
 func validMeshCoreKey(s string) bool {
 	_, err := meshcore.NewIdentityFromHex(s)
 	return err == nil
+}
+
+// normalizeTextHandle validates and trims a KindText handle (a value shown as
+// plain text, no link) and returns (stored value, "") or ("", errorMessage).
+// Signal enforces its username grammar; other text platforms (Discord) just need
+// a non-empty, space-free handle.
+func normalizeTextHandle(platform, val string) (string, string) {
+	v := strings.TrimPrefix(strings.TrimSpace(val), "@")
+	if platform == store.SignalPlatform {
+		if !validSignalUsername(v) {
+			return "", "Enter a valid Signal username (3–32 characters: letters, digits, . and _)."
+		}
+		return v, ""
+	}
+	if v == "" || len(v) > 64 || strings.ContainsAny(v, " \t\n\r") {
+		return "", "Enter a valid username (no spaces)."
+	}
+	return v, ""
 }
 
 // validSignalUsername reports whether s is a plausible Signal username: 3–32

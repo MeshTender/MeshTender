@@ -26,7 +26,7 @@ func TestOrgLinksReplaceAndList(t *testing.T) {
 
 	// Replace with two links; order is preserved by insertion order.
 	links := []OrgLink{
-		{Platform: "discord", URL: "https://discord.gg/abc"},
+		{Platform: "discord", URL: "guildmaster"},
 		{Platform: "website", Label: "Wiki", URL: "https://wiki.example.org"},
 	}
 	if err := st.ReplaceOrgLinks(ctx, org.ID, links); err != nil {
@@ -39,16 +39,16 @@ func TestOrgLinksReplaceAndList(t *testing.T) {
 	if len(got) != 2 {
 		t.Fatalf("links = %d, want 2", len(got))
 	}
-	if got[0].Platform != "discord" || got[0].URL != "https://discord.gg/abc" {
+	if got[0].Platform != "discord" || got[0].URL != "guildmaster" {
 		t.Errorf("link[0] = %+v", got[0])
 	}
 	if got[0].Position != 0 || got[1].Position != 1 {
 		t.Errorf("positions = %d,%d, want 0,1", got[0].Position, got[1].Position)
 	}
-	// Display falls back to the platform name when no label is set, and uses the
-	// label when present.
-	if d := got[0].Display(); d != "Discord" {
-		t.Errorf("link[0].Display() = %q, want %q", d, "Discord")
+	// Discord is a text platform: with no label, Display is the handle itself; a
+	// custom label (the website's "Wiki") still wins when present.
+	if d := got[0].Display(); d != "guildmaster" {
+		t.Errorf("link[0].Display() = %q, want %q", d, "guildmaster")
 	}
 	if d := got[1].Display(); d != "Wiki" {
 		t.Errorf("link[1].Display() = %q, want %q", d, "Wiki")

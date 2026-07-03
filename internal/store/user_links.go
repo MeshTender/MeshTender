@@ -24,9 +24,9 @@ const (
 // userLinkPlatforms is the curated set a user can choose from: direct contact
 // channels first (email, Signal, MeshCore), then the shared social platforms.
 var userLinkPlatforms = append([]LinkPlatform{
-	{EmailPlatform, "Email"},
-	{SignalPlatform, "Signal"},
-	{MeshCorePlatform, "MeshCore"},
+	{Key: EmailPlatform, Name: "Email", Kind: KindEmail, Icon: "icon-mail", Placeholder: "you@example.com"},
+	{Key: SignalPlatform, Name: "Signal", Kind: KindText, Icon: "icon-brand-signal", Placeholder: "@username"},
+	{Key: MeshCorePlatform, Name: "MeshCore", Kind: KindKey, Icon: "icon-key", Placeholder: "64-character public key"},
 }, linkPlatforms...)
 
 var userLinkPlatformByKey = func() map[string]LinkPlatform {
@@ -40,17 +40,10 @@ var userLinkPlatformByKey = func() map[string]LinkPlatform {
 // UserLinkPlatforms returns the platforms a user may pick for a profile link.
 func UserLinkPlatforms() []LinkPlatform { return userLinkPlatforms }
 
-// ValidUserLinkPlatform reports whether key is a platform a user link may use.
-func ValidUserLinkPlatform(key string) bool {
-	_, ok := userLinkPlatformByKey[key]
-	return ok
-}
-
-func userLinkPlatformName(key string) string {
-	if p, ok := userLinkPlatformByKey[key]; ok {
-		return p.Name
-	}
-	return key
+// UserLinkPlatform returns the descriptor for a user-link platform key.
+func UserLinkPlatform(key string) (LinkPlatform, bool) {
+	p, ok := userLinkPlatformByKey[key]
+	return p, ok
 }
 
 // UserLink is a single contact/social link on a user's public profile.
@@ -66,13 +59,14 @@ type UserLink struct {
 	IsPrimary bool
 }
 
-// Display is the text to show for the link: the custom label if set, otherwise
-// the platform's name (e.g. "Discord").
+// Display is the text to show for the link: the custom label if set, otherwise a
+// per-kind default (an "@handle" for handle platforms, the stored handle for text
+// platforms such as Signal, else the platform name).
 func (l UserLink) Display() string {
 	if l.Label != "" {
 		return l.Label
 	}
-	return userLinkPlatformName(l.Platform)
+	return linkDisplay(userLinkPlatformByKey[l.Platform], l.Platform, l.URL)
 }
 
 // IsMeshCore reports whether this link carries a MeshCore public key (rendered as
@@ -80,17 +74,11 @@ func (l UserLink) Display() string {
 func (l UserLink) IsMeshCore() bool { return l.Platform == MeshCorePlatform }
 
 // Href is the hyperlink target for this link, or "" when it isn't directly
-// linkable (a MeshCore key renders as a QR; a Signal username as plain text). An
-// email becomes a mailto: link; everything else uses the stored URL as-is.
+// linkable (a MeshCore key renders as a QR; Signal/Discord handles as plain
+// text). An email becomes a mailto: link; handle/URL platforms use the stored
+// URL as-is.
 func (l UserLink) Href() string {
-	switch l.Platform {
-	case MeshCorePlatform, SignalPlatform:
-		return ""
-	case EmailPlatform:
-		return "mailto:" + l.URL
-	default:
-		return l.URL
-	}
+	return linkHref(userLinkPlatformByKey[l.Platform], l.URL)
 }
 
 // PrimaryUserLink returns the link flagged as the primary contact, or nil if

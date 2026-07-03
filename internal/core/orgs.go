@@ -130,6 +130,7 @@ func (s *Handlers) pageOrg(w http.ResponseWriter, r *http.Request) {
 		"Repeaters":     repeaters,
 		"Links":         links,
 		"Platforms":     store.LinkPlatforms(),
+		"PlatformsJS":   web.LinkPlatformsJS(store.LinkPlatforms()),
 		"HasMap":        mapped > 0,
 		"MemberCount":   len(members),
 		"RepeaterCount": len(repeaters),
@@ -316,15 +317,33 @@ func (s *Handlers) handleSetOrgLinks(w http.ResponseWriter, r *http.Request) {
 		if i < len(platforms) {
 			platform = platforms[i]
 		}
-		if !store.ValidLinkPlatform(platform) {
+		p, ok := store.OrgLinkPlatform(platform)
+		if !ok {
 			orgErr(w, r, "Choose a type for each link.")
 			return
 		}
-		// Accept a bare domain ("example.com") by assuming https:// before validating.
-		u = store.NormalizeLinkURL(u)
-		if !store.ValidLinkURL(u) {
-			orgErr(w, r, "Each link must be a valid http:// or https:// URL.")
-			return
+		// Validate/canonicalise per kind, leaving `u` as the value to persist.
+		switch p.Kind {
+		case store.KindText: // Discord — a handle shown as text.
+			v := strings.TrimPrefix(u, "@")
+			if v == "" || len(v) > 64 || strings.ContainsAny(v, " \t\n\r") {
+				orgErr(w, r, "Enter a valid username (no spaces).")
+				return
+			}
+			u = v
+		case store.KindHandle:
+			canon, ok := p.CanonicalHandleURL(u)
+			if !ok {
+				orgErr(w, r, "Enter a valid "+p.Name+" username or profile URL.")
+				return
+			}
+			u = canon
+		default: // KindURL — accept a bare domain by assuming https:// before validating.
+			u = store.NormalizeLinkURL(u)
+			if !store.ValidLinkURL(u) {
+				orgErr(w, r, "Each link must be a valid http:// or https:// URL.")
+				return
+			}
 		}
 		label := ""
 		if i < len(labels) {

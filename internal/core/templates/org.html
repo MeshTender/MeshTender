@@ -128,21 +128,21 @@
       <div class="card-header"><h3 class="card-title">Links <span class="text-secondary">(public)</span></h3></div>
       <div class="card-body">
         <p class="text-secondary">Social media and other sites for your organization. These appear on your public page.</p>
-        <form method="post" action="/orgs/{{.Org.Slug}}/links">
-          <div id="links-rows">
+        <form method="post" action="/orgs/{{.Org.Slug}}/links" data-link-editor>
+          <div data-link-rows>
             {{range .Links}}
-            <div class="row g-2 mb-2 align-items-center link-row">
+            <div class="link-row row g-2 mb-2 align-items-center">
               <div class="col-12 col-sm-3">
-                <select class="form-select" name="link_platform" aria-label="Link type">
+                <select class="form-select link-platform" name="link_platform" aria-label="Link type">
                   {{$sel := .Platform}}
                   {{range $.Platforms}}<option value="{{.Key}}"{{if eq .Key $sel}} selected{{end}}>{{.Name}}</option>{{end}}
                 </select>
               </div>
-              <div class="col-12 col-sm-3">
-                <input class="form-control" name="link_label" value="{{.Label}}" maxlength="60" placeholder="Label (optional)" aria-label="Link label">
+              <div class="col-12 col-sm-3 link-label-col">
+                <input class="form-control link-label" name="link_label" value="{{.Label}}" maxlength="60" placeholder="Label (optional)" aria-label="Link label">
               </div>
               <div class="col">
-                <input class="form-control" type="url" name="link_url" value="{{.URL}}" maxlength="300" placeholder="https://…" aria-label="Link URL">
+                <input class="form-control link-value" type="text" name="link_url" value="{{.URL}}" maxlength="300" aria-label="Link value">
               </div>
               <div class="col-auto">
                 <button type="button" class="btn btn-ghost-danger btn-icon remove-link" aria-label="Remove link">{{template "icon-trash" ""}}</button>
@@ -151,43 +151,30 @@
             {{end}}
           </div>
           <div class="btn-list mt-2">
-            <button type="button" class="btn" id="add-link">{{template "icon-plus" "me-1"}}Add link</button>
+            <button type="button" class="btn" data-link-add>{{template "icon-plus" "me-1"}}Add link</button>
             <button type="submit" class="btn btn-primary">Save links</button>
           </div>
+          <template data-link-tpl>
+            <div class="link-row row g-2 mb-2 align-items-center">
+              <div class="col-12 col-sm-3">
+                <select class="form-select link-platform" name="link_platform" aria-label="Link type">
+                  {{range .Platforms}}<option value="{{.Key}}">{{.Name}}</option>{{end}}
+                </select>
+              </div>
+              <div class="col-12 col-sm-3 link-label-col">
+                <input class="form-control link-label" name="link_label" maxlength="60" placeholder="Label (optional)" aria-label="Link label">
+              </div>
+              <div class="col">
+                <input class="form-control link-value" type="text" name="link_url" maxlength="300" aria-label="Link value">
+              </div>
+              <div class="col-auto">
+                <button type="button" class="btn btn-ghost-danger btn-icon remove-link" aria-label="Remove link">{{template "icon-trash" ""}}</button>
+              </div>
+            </div>
+          </template>
         </form>
-        <template id="link-row-tpl">
-          <div class="row g-2 mb-2 align-items-center link-row">
-            <div class="col-12 col-sm-3">
-              <select class="form-select" name="link_platform" aria-label="Link type">
-                {{range .Platforms}}<option value="{{.Key}}">{{.Name}}</option>{{end}}
-              </select>
-            </div>
-            <div class="col-12 col-sm-3">
-              <input class="form-control" name="link_label" maxlength="60" placeholder="Label (optional)" aria-label="Link label">
-            </div>
-            <div class="col">
-              <input class="form-control" type="url" name="link_url" maxlength="300" placeholder="https://…" aria-label="Link URL">
-            </div>
-            <div class="col-auto">
-              <button type="button" class="btn btn-ghost-danger btn-icon remove-link" aria-label="Remove link">{{template "icon-trash" ""}}</button>
-            </div>
-          </div>
-        </template>
-        <script nonce="{{.Nonce}}">
-        (function(){
-          var wrap = document.getElementById('links-rows');
-          var tpl = document.getElementById('link-row-tpl');
-          var add = document.getElementById('add-link');
-          if(!wrap || !tpl || !add) return;
-          add.addEventListener('click', function(){
-            wrap.appendChild(tpl.content.cloneNode(true));
-          });
-          wrap.addEventListener('click', function(e){
-            var btn = e.target.closest('.remove-link');
-            if(btn){ btn.closest('.link-row').remove(); }
-          });
-        })();
-        </script>
+        <script nonce="{{.Nonce}}">window.MESHTENDER_LINK_PLATFORMS = {{.PlatformsJS}};</script>
+        <script src="/static/link-editor.js"></script>
       </div>
     </div>
 
