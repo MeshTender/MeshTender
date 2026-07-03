@@ -66,28 +66,17 @@
 </div>
 
 <div class="row row-cards mt-1">
-  <!-- Left column: details -->
+  <!-- Left column: description (grows with content) -->
   <div class="col-lg-8">
     <div class="card">
       <div class="card-header"><h3 class="card-title">About</h3></div>
       <div class="card-body">
-        {{if .Org.Region}}<div class="d-flex align-items-center text-secondary mb-2">{{template "icon-map-pin" "me-1"}}{{.Org.Region}}</div>{{end}}
         {{if .Org.Description}}<div class="markdown">{{markdown .Org.Description}}</div>{{else}}<p class="text-secondary mb-0">This organization hasn't added a description yet.</p>{{end}}
-        <div class="hr-text">Admins</div>
-        {{if .Admins}}
-        <div class="d-flex flex-wrap gap-2">
-          {{range .Admins}}<a class="badge bg-success-lt" href="{{$.RootURL}}/u/{{.Username}}">{{.Name}}</a>{{end}}
-        </div>
-        {{else}}<p class="text-secondary mb-0">No admins listed.</p>{{end}}
-        {{if .Links}}
-        <div class="hr-text">Links</div>
-        {{template "link-list" .Links}}
-        {{end}}
       </div>
     </div>
   </div>
 
-  <!-- Right column: map -->
+  <!-- Right column: repeater map, admins, links -->
   <div class="col-lg-4">
     <div class="card">
       <div class="card-header"><h3 class="card-title">Repeaters</h3></div>
@@ -107,6 +96,43 @@
       <div class="card-body"><p class="text-secondary mb-0">No repeaters are shown publicly.</p></div>
       {{end}}
     </div>
+
+    <div class="card mt-3">
+      <div class="card-header"><h3 class="card-title">Admins</h3></div>
+      {{if .Admins}}
+      <div class="list-group list-group-flush">
+        {{range .Admins}}
+        <a class="list-group-item list-group-item-action d-flex align-items-center gap-2" href="{{$.RootURL}}/u/{{.Username}}">
+          <span class="text-secondary d-flex">{{template "icon-user" ""}}</span>
+          <span class="flex-fill text-truncate">{{.Name}}</span>
+          <span class="text-secondary d-flex">{{template "icon-arrow-right" ""}}</span>
+        </a>
+        {{end}}
+      </div>
+      {{else}}<div class="card-body"><p class="text-secondary mb-0">No admins listed.</p></div>{{end}}
+    </div>
+
+    {{if .Links}}
+    <div class="card mt-3">
+      <div class="card-header"><h3 class="card-title">Links</h3></div>
+      <div class="list-group list-group-flush">
+        {{range .Links}}
+        {{if .Href}}
+        <a class="list-group-item list-group-item-action d-flex align-items-center gap-2" href="{{.Href}}" target="_blank" rel="noopener noreferrer nofollow">
+          <span class="text-secondary d-flex" title="{{.PlatformName}}">{{template "link-icon" .Platform}}</span>
+          <span class="flex-fill text-truncate">{{.Display}}</span>
+          <span class="text-secondary d-flex">{{template "icon-arrow-right" ""}}</span>
+        </a>
+        {{else}}
+        <div class="list-group-item d-flex align-items-center gap-2">
+          <span class="text-secondary d-flex" title="{{.PlatformName}}">{{template "link-icon" .Platform}}</span>
+          <span class="flex-fill text-truncate">{{.Display}}</span>
+        </div>
+        {{end}}
+        {{end}}
+      </div>
+    </div>
+    {{end}}
   </div>
 </div>
 
