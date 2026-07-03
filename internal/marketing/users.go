@@ -4,6 +4,7 @@ import (
 	"errors"
 	"html/template"
 	"net/http"
+	"sort"
 
 	"github.com/go-chi/chi/v5"
 	meshcore "github.com/meshcore-go/meshcore-go"
@@ -54,6 +55,11 @@ func (s *Handlers) pageUserPublic(w http.ResponseWriter, r *http.Request) {
 		}
 		webLinks = append(webLinks, l)
 	}
+	// Surface the primary contact first (it's how people are meant to reach this
+	// person); keep the editor's order otherwise.
+	sort.SliceStable(webLinks, func(i, j int) bool {
+		return webLinks[i].IsPrimary && !webLinks[j].IsPrimary
+	})
 	// Whether there's anything beyond the name to show — drives an empty-state hint.
 	hasDetails := u.Bio != "" || u.Location != "" || u.Callsign != "" || len(webLinks) > 0 || len(meshKeys) > 0
 	s.Render(w, r, "user_public.html", map[string]any{

@@ -9,47 +9,74 @@
 </div>
 {{end}}
 {{define "content"}}
+{{$hasSidebar := or .Links .MeshKeys}}
 <div class="row row-cards">
-  <div class="col-lg-8">
+  <!-- Left: about -->
+  <div class="{{if $hasSidebar}}col-lg-8{{else}}col-12{{end}}">
     <div class="card">
       <div class="card-header"><h3 class="card-title">About</h3></div>
       <div class="card-body">
-        {{if .Location}}<div class="d-flex align-items-center text-secondary mb-2">{{template "icon-map-pin" "me-1"}}{{.Location}}</div>{{end}}
-        {{if .Callsign}}<div class="mb-2"><span class="text-secondary">Callsign:</span> <span class="font-monospace">{{.Callsign}}</span></div>{{end}}
-        {{if .Bio}}<p class="mb-0">{{.Bio}}</p>{{end}}
-        {{if not .HasDetails}}<p class="text-secondary mb-0">This person hasn't added any profile details yet.</p>{{end}}
-
-        {{if .Links}}
-        <div class="hr-text">Links</div>
-        <div class="btn-list">
-          {{range .Links}}
-          {{if .Href}}
-          <a class="btn" href="{{.Href}}" target="_blank" rel="noopener noreferrer nofollow">{{template "link-icon" .Platform}}<span class="ms-1">{{.Display}}</span>{{if .IsPrimary}} <span class="badge bg-primary-lt ms-1">Primary</span>{{end}}</a>
-          {{else}}
-          <span class="btn disabled">{{template "link-icon" .Platform}}<span class="ms-1">{{.URL}}</span>{{if .IsPrimary}} <span class="badge bg-primary-lt ms-1">Primary</span>{{end}}</span>
-          {{end}}
-          {{end}}
+        {{if or .Location .Callsign}}
+        <div class="d-flex flex-wrap gap-3 mb-3 text-secondary">
+          {{if .Location}}<span class="d-inline-flex align-items-center">{{template "icon-map-pin" "me-1"}}{{.Location}}</span>{{end}}
+          {{if .Callsign}}<span class="d-inline-flex align-items-center">{{template "icon-world" "me-1"}}<span class="font-monospace">{{.Callsign}}</span></span>{{end}}
         </div>
         {{end}}
+
+        {{if .Bio}}<p class="mb-0">{{.Bio}}</p>{{end}}
+
+        {{if not .HasDetails}}<p class="text-secondary mb-0">This person hasn't added any profile details yet.</p>{{end}}
       </div>
     </div>
   </div>
 
-  {{if .MeshKeys}}
+  <!-- Right: contact links + MeshCore -->
+  {{if $hasSidebar}}
   <div class="col-lg-4">
+    {{if .Links}}
     <div class="card">
-      <div class="card-header"><h3 class="card-title">MeshCore</h3></div>
-      <div class="card-body">
-        {{range .MeshKeys}}
-        <div class="mb-3">
-          {{if .QR}}<div class="text-center mb-2"><img src="{{.QR}}" width="200" height="200" alt="MeshCore contact QR for {{.Label}}"></div>{{end}}
-          <div class="form-label">{{.Label}}</div>
-          <code class="pk d-block">{{.Key}}</code>
+      <div class="card-header"><h3 class="card-title">Links</h3></div>
+      <div class="list-group list-group-flush">
+        {{range .Links}}
+        {{if .Href}}
+        <a class="list-group-item list-group-item-action d-flex align-items-center gap-2" href="{{.Href}}" target="_blank" rel="noopener noreferrer nofollow">
+          <span class="text-secondary d-flex">{{template "link-icon" .Platform}}</span>
+          <span class="flex-fill text-truncate">{{.Display}}</span>
+          {{if .IsPrimary}}<span class="badge bg-primary-lt">Primary</span>{{end}}
+          <span class="text-secondary d-flex">{{template "icon-arrow-right" ""}}</span>
+        </a>
+        {{else}}
+        <div class="list-group-item">
+          <div class="d-flex align-items-center gap-2">
+            <span class="text-secondary d-flex">{{template "link-icon" .Platform}}</span>
+            <span class="flex-fill">{{.Display}}</span>
+            {{if .IsPrimary}}<span class="badge bg-primary-lt">Primary</span>{{end}}
+          </div>
+          <div class="text-secondary font-monospace text-truncate mt-1">{{.URL}}</div>
         </div>
         {{end}}
-        <p class="text-secondary small mb-0">Scan to add this contact in the MeshCore app.</p>
+        {{end}}
       </div>
     </div>
+    {{end}}
+
+    {{if .MeshKeys}}
+    <div class="card {{if .Links}}mt-3{{end}}">
+      <div class="card-header">
+        <h3 class="card-title">MeshCore</h3>
+        <div class="card-subtitle">Scan to add this contact in the MeshCore app.</div>
+      </div>
+      <div class="card-body">
+        {{range $i, $mk := .MeshKeys}}
+        <div class="{{if $i}}mt-3{{end}}">
+          {{if $mk.QR}}<div class="text-center mb-2"><img class="rounded border" src="{{$mk.QR}}" width="200" height="200" alt="MeshCore contact QR for {{$mk.Label}}"></div>{{end}}
+          <div class="form-label mb-1">{{$mk.Label}}</div>
+          <code class="pk d-block">{{$mk.Key}}</code>
+        </div>
+        {{end}}
+      </div>
+    </div>
+    {{end}}
   </div>
   {{end}}
 </div>
