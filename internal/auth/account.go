@@ -38,7 +38,14 @@ func passkeyRedirect(w http.ResponseWriter, r *http.Request, key, msg string) {
 
 // pageAccount renders the current user's account-settings page.
 func (s *Handlers) pageAccount(w http.ResponseWriter, r *http.Request) {
-	uid := s.Auth.CurrentUserID(r.Context())
+	s.renderAccount(w, r, s.Auth.CurrentUserID(r.Context()), nil)
+}
+
+// renderAccount assembles the account-page data and renders it, applying
+// overrides last. Overrides let a failed POST re-render the page with the user's
+// just-submitted values and an inline error instead of redirecting to a fresh
+// page (which would show the unchanged stored data and lose their work).
+func (s *Handlers) renderAccount(w http.ResponseWriter, r *http.Request, uid int64, overrides map[string]any) {
 	u, err := s.Store.GetUserByID(r.Context(), uid)
 	if err != nil {
 		http.Error(w, "could not load account", http.StatusInternalServerError)
@@ -69,7 +76,7 @@ func (s *Handlers) pageAccount(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not load profile links", http.StatusInternalServerError)
 		return
 	}
-	s.Render(w, r, "account.html", map[string]any{
+	data := map[string]any{
 		"User":        u,
 		"DisplayName": u.DisplayName, // nil when unset
 		"Bio":         u.Bio,
@@ -84,7 +91,11 @@ func (s *Handlers) pageAccount(w http.ResponseWriter, r *http.Request) {
 		"OK":          r.URL.Query().Get("ok"),
 		"PKMsg":       r.URL.Query().Get("pk"),
 		"PKErr":       r.URL.Query().Get("pkerr"),
-	})
+	}
+	for k, v := range overrides {
+		data[k] = v
+	}
+	s.Render(w, r, "account.html", data)
 }
 
 // handleChangeUsername renames the current user, enforcing validation, the
@@ -163,7 +174,12 @@ func (s *Handlers) handleSetUserLinks(w http.ResponseWriter, r *http.Request) {
 			primaryIdx = n
 		}
 	}
+	// Validate every non-empty row into the set we'd persist. On the first
+	// problem we remember the message but keep parsing, so a failed save can
+	// re-render every row the user entered (see errMsg handling below) rather
+	// than silently dropping the ones after the bad one.
 	var links []store.UserLink
+	errMsg := ""
 	for i, raw := range urls {
 		val := strings.TrimSpace(raw)
 		if val == "" {
@@ -174,33 +190,36 @@ func (s *Handlers) handleSetUserLinks(w http.ResponseWriter, r *http.Request) {
 			platform = platforms[i]
 		}
 		if !store.ValidUserLinkPlatform(platform) {
-			accountRedirect(w, r, "error", "Choose a type for each link.")
-			return
+			setIfEmpty(&errMsg, "Choose a type for each link.")
+			continue
 		}
 		switch platform {
 		case store.MeshCorePlatform:
 			val = strings.ToLower(val)
 			if !validMeshCoreKey(val) {
-				accountRedirect(w, r, "error", "Enter a valid MeshCore public key (64-character hex).")
-				return
+				setIfEmpty(&errMsg, "Enter a valid MeshCore public key (64-character hex).")
+				continue
 			}
 		case store.EmailPlatform:
 			addr, err := mail.ParseAddress(val)
 			if err != nil || addr.Name != "" {
-				accountRedirect(w, r, "error", "Enter a valid email address.")
-				return
+				setIfEmpty(&errMsg, "Enter a valid email address.")
+				continue
 			}
 			val = addr.Address
 		case store.SignalPlatform:
 			val = strings.TrimPrefix(val, "@")
 			if !validSignalUsername(val) {
-				accountRedirect(w, r, "error", "Enter a valid Signal username (3–32 characters: letters, digits, . and _).")
-				return
+				setIfEmpty(&errMsg, "Enter a valid Signal username (3–32 characters: letters, digits, . and _).")
+				continue
 			}
 		default:
+			// Accept a bare domain ("example.com") by assuming https://; only then
+			// require it to be a real http(s) URL.
+			val = store.NormalizeLinkURL(val)
 			if !store.ValidLinkURL(val) {
-				accountRedirect(w, r, "error", "Each link must be a valid http:// or https:// URL.")
-				return
+				setIfEmpty(&errMsg, "Each link must be a valid http:// or https:// URL.")
+				continue
 			}
 		}
 		label := ""
@@ -221,11 +240,58 @@ func (s *Handlers) handleSetUserLinks(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
+	if errMsg != "" {
+		// Re-render the editor with the user's own rows and the error, so their
+		// work survives the round-trip. 200, not a redirect: there's nothing new
+		// to bookmark and we need the POST body to rebuild the rows.
+		s.renderAccount(w, r, uid, map[string]any{
+			"Links": submittedUserLinks(urls, labels, platforms, primaryIdx),
+			"Error": errMsg,
+		})
+		return
+	}
 	if err := s.Store.ReplaceUserLinks(r.Context(), uid, links); err != nil {
 		accountRedirect(w, r, "error", "Could not save links.")
 		return
 	}
 	accountRedirect(w, r, "ok", "Links updated.")
+}
+
+// setIfEmpty stores msg in *dst only if it's still empty, so we surface the first
+// validation problem while continuing to parse the remaining rows.
+func setIfEmpty(dst *string, msg string) {
+	if *dst == "" {
+		*dst = msg
+	}
+}
+
+// submittedUserLinks reconstructs the editor rows a user just posted, keeping
+// their raw (untrimmed-of-meaning) values, so a failed save can re-render exactly
+// what they typed. Empty rows are dropped to match the save path; the primary
+// radio is preserved by index.
+func submittedUserLinks(urls, labels, platforms []string, primaryIdx int) []store.UserLink {
+	var rows []store.UserLink
+	for i, raw := range urls {
+		val := strings.TrimSpace(raw)
+		if val == "" {
+			continue
+		}
+		platform := ""
+		if i < len(platforms) {
+			platform = platforms[i]
+		}
+		label := ""
+		if i < len(labels) {
+			label = strings.TrimSpace(labels[i])
+		}
+		rows = append(rows, store.UserLink{
+			Platform:  platform,
+			Label:     label,
+			URL:       val,
+			IsPrimary: i == primaryIdx,
+		})
+	}
+	return rows
 }
 
 // boundedText trims s and caps it at max bytes (empty means "unset").

@@ -97,10 +97,36 @@ type e2eServer struct {
 	browserURL string // http://host.docker.internal:PORT — reachable from the container
 }
 
+// hostLayout names the three surfaces for a test server. The surface whose name
+// equals browserHost() is the one the browser can actually reach (that's the
+// only alias the container resolves back to this process); everything else is
+// reachable only host-side via 127.0.0.1 (the Dispatcher's default → app).
+type hostLayout struct{ app, auth, root string }
+
+// defaultHosts puts the APP surface on the browser-reachable host — the common
+// case, since most browser tests drive app pages.
+func defaultHosts() hostLayout {
+	return hostLayout{app: browserHost(), auth: "auth." + browserHost(), root: "root." + browserHost()}
+}
+
+// authReachableHosts puts the AUTH surface on the browser-reachable host so a
+// browser test can drive auth-host pages (e.g. /account). The app surface moves
+// to a name nothing navigates; login()'s /session/callback handoff still works
+// because it runs host-side over 127.0.0.1, which the Dispatcher routes to the
+// app surface by default.
+func authReachableHosts() hostLayout {
+	return hostLayout{app: "app." + browserHost(), auth: browserHost(), root: "root." + browserHost()}
+}
+
 // newE2EServer stands up the app on a 0.0.0.0 listener so the browser container
-// can connect back to it, and returns both address forms.
-func newE2EServer(t *testing.T) *e2eServer {
+// can connect back to it, and returns both address forms. An optional hostLayout
+// selects which surface the browser can reach (defaults to the app surface).
+func newE2EServer(t *testing.T, layout ...hostLayout) *e2eServer {
 	t.Helper()
+	hosts := defaultHosts()
+	if len(layout) > 0 {
+		hosts = layout[0]
+	}
 	ctx := context.Background()
 	st, err := store.New(ctx, testdb.Fresh(t, migrate))
 	if err != nil {
@@ -112,14 +138,11 @@ func newE2EServer(t *testing.T) *e2eServer {
 	_, _ = rand.Read(masterKey[:])
 	idSvc, _ := identity.LoadOrCreate(ctx, st, masterKey)
 
-	// The server runs across three hosts. The browser only ever navigates the APP
-	// surface, which it reaches at browserHost() (host.docker.internal) — so that
-	// is PrimaryHost, and requests there route to the app by default. The auth/root
-	// hosts are distinct names the browser never navigates (cross-host links exist
-	// on pages but aren't clicked); they only need to differ from PrimaryHost so the
-	// Dispatcher can tell surfaces apart.
-	appHost := browserHost()
-	authHost, rootHost := "auth."+browserHost(), "root."+browserHost()
+	// The server runs across three distinct hosts so the Dispatcher can tell the
+	// surfaces apart. The browser can navigate only the one named browserHost()
+	// (host.docker.internal) — the sole alias the container resolves back here; the
+	// layout decides which surface that is (app by default, auth for account tests).
+	appHost, authHost, rootHost := hosts.app, hosts.auth, hosts.root
 	authSvc, err := auth.New(st, st.Pool(), auth.Config{
 		RPID: "localhost", RPDisplayName: "test", RPOrigins: []string{"http://localhost"},
 		AppHost: appHost, AuthHost: authHost, RootHost: rootHost,

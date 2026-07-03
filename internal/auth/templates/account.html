@@ -154,14 +154,79 @@
         var btn = e.target.closest('.remove-link');
         if(btn){ btn.closest('.link-row').remove(); }
       });
-      // Renumber the primary-contact radios to DOM order so the selected one's
-      // value matches its row's index in the submitted arrays (rows may have been
-      // added or removed).
-      form.addEventListener('submit', function(){
+
+      // Client-side mirror of the server's per-platform link validation. It's a
+      // convenience only — the server re-validates and is authoritative — so it
+      // stays deliberately lenient and matches the server's normalization (a bare
+      // domain is treated as https://). Returns an error string, or "" if OK.
+      function validateValue(platform, raw){
+        var val = (raw == null ? '' : String(raw)).trim();
+        if(val === '') return '';
+        if(platform === 'meshcore'){
+          return /^[0-9a-f]{64}$/i.test(val) ? '' : 'Enter a valid MeshCore public key (64-character hex).';
+        }
+        if(platform === 'email'){
+          return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val) ? '' : 'Enter a valid email address.';
+        }
+        if(platform === 'signal'){
+          var u = val.replace(/^@/, '');
+          return /^[a-zA-Z0-9._]{3,32}$/.test(u) ? '' : 'Enter a valid Signal username (3–32 characters: letters, digits, . and _).';
+        }
+        // Everything else is an http(s) URL; assume https:// when no scheme given.
+        var candidate = val.indexOf('://') === -1 ? 'https://' + val.replace(/^\/\//, '') : val;
+        try {
+          var parsed = new URL(candidate);
+          if((parsed.protocol === 'http:' || parsed.protocol === 'https:') && parsed.hostname) return '';
+        } catch(e){ /* fall through to the error below */ }
+        return 'Each link must be a valid http:// or https:// URL.';
+      }
+
+      function clearError(row){
+        var input = row.querySelector('input[name="link_url"]');
+        if(input) input.classList.remove('is-invalid');
+        var msg = row.querySelector('.link-error');
+        if(msg) msg.remove();
+      }
+      function showError(row, text){
+        var input = row.querySelector('input[name="link_url"]');
+        if(!input) return;
+        input.classList.add('is-invalid');
+        var msg = document.createElement('div');
+        msg.className = 'invalid-feedback d-block link-error';
+        msg.textContent = text;
+        input.insertAdjacentElement('afterend', msg);
+      }
+
+      // Clear a row's error as soon as the user edits it, so stale messages don't
+      // linger after a fix.
+      wrap.addEventListener('input', function(e){
+        var row = e.target.closest('.link-row');
+        if(row) clearError(row);
+      });
+
+      form.addEventListener('submit', function(e){
+        var firstBad = null;
         wrap.querySelectorAll('.link-row').forEach(function(row, i){
+          clearError(row);
+          // Renumber the primary-contact radios to DOM order so the selected one's
+          // value matches its row's index in the submitted arrays (rows may have
+          // been added or removed).
           var radio = row.querySelector('input[name="link_primary"]');
           if(radio) radio.value = i;
+
+          var sel = row.querySelector('select[name="link_platform"]');
+          var input = row.querySelector('input[name="link_url"]');
+          var platform = sel ? sel.value : '';
+          var err = validateValue(platform, input ? input.value : '');
+          if(err){
+            showError(row, err);
+            if(!firstBad) firstBad = input || row;
+          }
         });
+        if(firstBad){
+          e.preventDefault();
+          firstBad.focus();
+        }
       });
     })();
     </script>

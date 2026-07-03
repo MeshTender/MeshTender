@@ -67,6 +67,60 @@ func TestOrgLinksReplaceAndList(t *testing.T) {
 	}
 }
 
+func TestNormalizeLinkURL(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		in   string
+		want string
+	}{
+		// A bare domain gets https:// so people can type "example.com".
+		{"example.com", "https://example.com"},
+		{"  example.com  ", "https://example.com"},
+		{"example.com/path?q=1", "https://example.com/path?q=1"},
+		// Protocol-relative loses the leading // and gains a scheme.
+		{"//example.com", "https://example.com"},
+		// An explicit scheme is left alone.
+		{"http://example.com", "http://example.com"},
+		{"https://example.com", "https://example.com"},
+		// A dangerous scheme without "://" is turned into an https host, so it
+		// fails ValidLinkURL rather than being trusted.
+		{"javascript:alert(1)", "https://javascript:alert(1)"},
+		// Empty stays empty (an empty row is dropped upstream, not normalized).
+		{"", ""},
+		{"   ", ""},
+	}
+	for _, c := range cases {
+		if got := NormalizeLinkURL(c.in); got != c.want {
+			t.Errorf("NormalizeLinkURL(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+
+	// Normalized bare domains must then pass validation; the neutered
+	// javascript: value must not.
+	if !ValidLinkURL(NormalizeLinkURL("example.com")) {
+		t.Error("normalized bare domain should be a valid link URL")
+	}
+	if ValidLinkURL(NormalizeLinkURL("javascript:alert(1)")) {
+		t.Error("javascript: value must not be a valid link URL after normalization")
+	}
+}
+
+func TestValidLinkURL(t *testing.T) {
+	t.Parallel()
+	valid := []string{"http://a.com", "https://a.com/x?y=1"}
+	for _, s := range valid {
+		if !ValidLinkURL(s) {
+			t.Errorf("ValidLinkURL(%q) = false, want true", s)
+		}
+	}
+	invalid := []string{"", "example.com", "ftp://a.com", "javascript:alert(1)", "https://"}
+	for _, s := range invalid {
+		if ValidLinkURL(s) {
+			t.Errorf("ValidLinkURL(%q) = true, want false", s)
+		}
+	}
+}
+
 func TestValidLinkPlatform(t *testing.T) {
 	t.Parallel()
 	if !ValidLinkPlatform("discord") {

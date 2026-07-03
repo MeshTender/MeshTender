@@ -320,6 +320,8 @@ func (s *Handlers) handleSetOrgLinks(w http.ResponseWriter, r *http.Request) {
 			orgErr(w, r, "Choose a type for each link.")
 			return
 		}
+		// Accept a bare domain ("example.com") by assuming https:// before validating.
+		u = store.NormalizeLinkURL(u)
 		if !store.ValidLinkURL(u) {
 			orgErr(w, r, "Each link must be a valid http:// or https:// URL.")
 			return

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -52,6 +53,24 @@ func LinkPlatforms() []LinkPlatform { return linkPlatforms }
 func ValidLinkPlatform(key string) bool {
 	_, ok := linkPlatformByKey[key]
 	return ok
+}
+
+// NormalizeLinkURL prepares a user-entered link value for validation: it trims
+// surrounding whitespace and, when the value carries no scheme (e.g. a bare
+// "example.com" or a protocol-relative "//example.com"), assumes https:// — what
+// people expect when they type a domain into a link box. It does not validate;
+// pair it with ValidLinkURL, which still rejects anything that isn't http(s). By
+// only prepending when "://" is absent, an explicit "javascript:..." becomes
+// "https://javascript:..." and is then rejected, rather than being trusted.
+func NormalizeLinkURL(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return s
+	}
+	if !strings.Contains(s, "://") {
+		s = "https://" + strings.TrimPrefix(s, "//")
+	}
+	return s
 }
 
 // ValidLinkURL reports whether s is an absolute http(s) URL with a host. Limiting
