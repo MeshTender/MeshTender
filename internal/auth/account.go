@@ -328,15 +328,26 @@ func validMeshCoreKey(s string) bool {
 // Signal enforces its username grammar; other text platforms (Discord) just need
 // a non-empty, space-free handle.
 func normalizeTextHandle(platform, val string) (string, string) {
-	v := strings.TrimPrefix(strings.TrimSpace(val), "@")
+	val = strings.TrimSpace(val)
 	if platform == store.SignalPlatform {
+		v := strings.TrimPrefix(val, "@")
 		if !validSignalUsername(v) {
 			return "", "Enter a valid Signal username (3–32 characters: letters, digits, . and _)."
 		}
 		return v, ""
 	}
+	// A text handle (Discord) also accepts an invite/profile URL, stored and
+	// rendered as a clickable link; a bare username stays plain text.
+	if store.LooksLikeURL(val) {
+		u := store.NormalizeLinkURL(val)
+		if !store.ValidLinkURL(u) {
+			return "", "Enter a valid username or invite link."
+		}
+		return u, ""
+	}
+	v := strings.TrimPrefix(val, "@")
 	if v == "" || len(v) > 64 || strings.ContainsAny(v, " \t\n\r") {
-		return "", "Enter a valid username (no spaces)."
+		return "", "Enter a valid username (no spaces) or an invite link."
 	}
 	return v, ""
 }

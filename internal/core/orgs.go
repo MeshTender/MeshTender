@@ -327,13 +327,21 @@ func (s *Handlers) handleSetOrgLinks(w http.ResponseWriter, r *http.Request) {
 		}
 		// Validate/canonicalise per kind, leaving `u` as the value to persist.
 		switch p.Kind {
-		case store.KindText: // Discord — a handle shown as text.
-			v := strings.TrimPrefix(u, "@")
-			if v == "" || len(v) > 64 || strings.ContainsAny(v, " \t\n\r") {
-				orgErr(w, r, "Enter a valid username (no spaces).")
-				return
+		case store.KindText: // Discord — a username shown as text, or an invite link.
+			if store.LooksLikeURL(u) {
+				u = store.NormalizeLinkURL(u)
+				if !store.ValidLinkURL(u) {
+					orgErr(w, r, "Enter a valid username or invite link.")
+					return
+				}
+			} else {
+				v := strings.TrimPrefix(u, "@")
+				if v == "" || len(v) > 64 || strings.ContainsAny(v, " \t\n\r") {
+					orgErr(w, r, "Enter a valid username (no spaces) or an invite link.")
+					return
+				}
+				u = v
 			}
-			u = v
 		case store.KindHandle:
 			canon, ok := p.CanonicalHandleURL(u)
 			if !ok {

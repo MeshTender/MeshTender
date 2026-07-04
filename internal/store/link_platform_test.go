@@ -108,6 +108,10 @@ func TestHandleFromURLAndDisplay(t *testing.T) {
 		{UserLink{Platform: "github", Label: "My code", URL: "https://github.com/octocat"}, "My code", "https://github.com/octocat"},
 		// Text platform: display the handle text, no link.
 		{UserLink{Platform: "discord", URL: "cooluser"}, "cooluser", ""},
+		// A new-style Discord username may contain dots but is still just text.
+		{UserLink{Platform: "discord", URL: "cool.user"}, "cool.user", ""},
+		// A Discord invite URL is clickable and reads as the platform name.
+		{UserLink{Platform: "discord", URL: "https://discord.gg/abc123"}, "Discord", "https://discord.gg/abc123"},
 		{UserLink{Platform: SignalPlatform, URL: "alice.42"}, "alice.42", ""},
 		// Email: mailto:, and the address itself as the display (not "Email").
 		{UserLink{Platform: EmailPlatform, URL: "a@b.com"}, "a@b.com", "mailto:a@b.com"},
@@ -131,5 +135,23 @@ func TestHandleFromURLAndDisplay(t *testing.T) {
 	}
 	if h := (OrgLink{Platform: "discord", URL: "guildmaster"}).Href(); h != "" {
 		t.Errorf("org discord Href() = %q, want empty", h)
+	}
+}
+
+func TestLooksLikeURL(t *testing.T) {
+	cases := map[string]bool{
+		"cooluser":               false, // bare handle
+		"cool.user":              false, // dotted handle (new Discord usernames)
+		"@handle":                false,
+		"discord.gg/abc":         true, // bare host + path
+		"discord.com/invite/abc": true,
+		"https://discord.gg/abc": true,
+		"http://example.com":     true,
+		"example.com":            false, // dotted host but no path — treated as a handle
+	}
+	for in, want := range cases {
+		if got := LooksLikeURL(in); got != want {
+			t.Errorf("LooksLikeURL(%q) = %v, want %v", in, got, want)
+		}
 	}
 }

@@ -76,7 +76,7 @@ var linkPlatforms = []LinkPlatform{
 	{Key: "telegram", Name: "Telegram", Kind: KindHandle, Icon: "icon-brand-telegram", URLFmt: "https://t.me/%s", Hosts: []string{"t.me", "telegram.me"}, Placeholder: "@username or profile URL"},
 	{Key: mastodonKey, Name: "Mastodon", Kind: KindHandle, Icon: "icon-brand-mastodon", Placeholder: "@user@instance or profile URL"},
 	{Key: "bluesky", Name: "Bluesky", Kind: KindHandle, Icon: "icon-brand-bluesky", URLFmt: "https://bsky.app/profile/%s", Hosts: []string{"bsky.app"}, Placeholder: "@handle or profile URL"},
-	{Key: "discord", Name: "Discord", Kind: KindText, Icon: "icon-brand-discord", Placeholder: "username"},
+	{Key: "discord", Name: "Discord", Kind: KindText, Icon: "icon-brand-discord", Placeholder: "username or invite link"},
 }
 
 var linkPlatformByKey = func() map[string]LinkPlatform {
@@ -322,8 +322,15 @@ func linkDisplay(p LinkPlatform, key, value string) string {
 			return h
 		}
 		return p.Name
-	case KindText, KindEmail:
-		// Show the handle / email address itself rather than the platform name.
+	case KindText:
+		// A text handle (e.g. a Discord username) shows itself; but the field also
+		// accepts an invite/profile URL, which reads better as the platform name.
+		if isHTTPURL(value) {
+			return p.Name
+		}
+		return value
+	case KindEmail:
+		// Show the email address itself rather than the platform name.
 		return value
 	case "":
 		return key // unknown platform — show the raw key defensively
@@ -333,16 +340,44 @@ func linkDisplay(p LinkPlatform, key, value string) string {
 }
 
 // linkHref computes the hyperlink target for a link value given its platform
-// descriptor. Text/key platforms aren't linkable; email becomes mailto:.
+// descriptor. Key platforms aren't linkable; email becomes mailto:. A text handle
+// isn't linkable either — except the field accepts a URL (e.g. a Discord invite),
+// which we do link.
 func linkHref(p LinkPlatform, value string) string {
 	switch p.Kind {
-	case KindText, KindKey:
+	case KindKey:
+		return ""
+	case KindText:
+		if isHTTPURL(value) {
+			return value
+		}
 		return ""
 	case KindEmail:
 		return "mailto:" + value
 	default: // url, handle, or unknown → the stored value
 		return value
 	}
+}
+
+// isHTTPURL reports whether value is already a stored http(s) URL. Stored values
+// are normalized on save, so a scheme prefix is a reliable signal.
+func isHTTPURL(value string) bool {
+	return strings.HasPrefix(value, "http://") || strings.HasPrefix(value, "https://")
+}
+
+// LooksLikeURL reports whether raw was entered as a web URL (a scheme, or a
+// dotted host followed by a path like "discord.gg/abc") rather than a bare handle.
+// A handle may contain dots (new Discord usernames do) but never a slash, so the
+// path is the reliable discriminator.
+func LooksLikeURL(raw string) bool {
+	raw = strings.TrimSpace(raw)
+	if strings.Contains(raw, "://") {
+		return true
+	}
+	if i := strings.IndexByte(raw, '/'); i > 0 {
+		return strings.Contains(raw[:i], ".")
+	}
+	return false
 }
 
 // ListOrgLinks returns an org's links in display order.
