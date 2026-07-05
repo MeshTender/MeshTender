@@ -69,7 +69,17 @@ func (rec *Recorder) Run(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			// Final flush on a fresh context, since ctx is already cancelled.
+			// Drain anything still queued (e.g. events recorded while in-flight
+			// requests were draining) into the batch, then final-flush on a fresh
+			// context since ctx is already cancelled.
+			for drained := true; drained; {
+				select {
+				case e := <-rec.ch:
+					batch = append(batch, e)
+				default:
+					drained = false
+				}
+			}
 			fc, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			write(fc)
 			cancel()

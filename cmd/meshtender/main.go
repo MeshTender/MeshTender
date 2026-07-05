@@ -101,9 +101,16 @@ func run(logger *slog.Logger) error {
 	}
 
 	// First-party traffic analytics: wrap the whole dispatcher so every host is
-	// captured, with a background goroutine doing the writes + rollups.
+	// captured, with a background goroutine doing the writes + rollups. It runs on
+	// its own context — NOT the signal context — so it keeps consuming events while
+	// in-flight requests drain during shutdown; we stop and drain it afterwards.
 	rec := analytics.New(st, cfg)
-	go rec.Run(ctx)
+	analyticsCtx, stopAnalytics := context.WithCancel(context.Background())
+	analyticsDone := make(chan struct{})
+	go func() {
+		defer close(analyticsDone)
+		rec.Run(analyticsCtx)
+	}()
 
 	httpSrv := &http.Server{
 		Addr:              cfg.Addr,
@@ -126,14 +133,25 @@ func run(logger *slog.Logger) error {
 		}
 	}()
 
+	var srvErr error
 	select {
 	case <-ctx.Done():
 		logger.Info("shutting down")
-	case err := <-errCh:
-		return err
+	case srvErr = <-errCh:
+		// Server failed to listen/serve; fall through to orderly teardown.
 	}
 
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	return httpSrv.Shutdown(shutdownCtx)
+	// Drain in-flight HTTP requests first — they may still record analytics events,
+	// so the flusher must stay alive through the drain.
+	if srvErr == nil {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		srvErr = httpSrv.Shutdown(shutdownCtx)
+		cancel()
+	}
+
+	// Now stop the flusher and wait for its final flush to complete before the
+	// deferred st.Close() closes the pool underneath it.
+	stopAnalytics()
+	<-analyticsDone
+	return srvErr
 }
