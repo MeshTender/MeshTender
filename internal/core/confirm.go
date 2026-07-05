@@ -223,49 +223,56 @@ func (s *Handlers) wsConfirm(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = bridge.Status("confirmed", "Repeater reached with admin access. ✓")
 
-	// Fetch and store the repeater's location. Each coordinate is a separate query
-	// so progress (and retries) are visible.
-	{
-		fetchCoord := func(label, cmd string, accept func(text string) bool) (float64, bool) {
-			reply, err := ex.CommandAccept(ctx, cmd, accept, func(attempt, max int) {
-				if attempt == 1 {
-					_ = bridge.Status("info", "Fetching "+label+"…")
-				} else {
-					_ = bridge.Status("info", fmt.Sprintf("Fetching %s — retry %d/%d…", label, attempt, max))
-				}
-			})
-			if err != nil {
-				return 0, false
-			}
-			return parseLocationFloat(reply)
-		}
-		lat, okLat := fetchCoord("latitude", "get lat", nil)
-		// A slow latitude fetch is retried, which makes the repeater re-run "get
-		// lat" and emit duplicate replies; one can straggle in during the "get
-		// lon" wait and be misread as the longitude (storing lat,lat). Since the
-		// two coordinates differ, reject a longitude reply whose value equals the
-		// latitude we just read and keep waiting for the genuine reply.
-		lon, okLon := fetchCoord("longitude", "get lon", func(text string) bool {
-			f, ok := parseLocationFloat(text)
-			if ok && okLat && f == lat {
-				if debug {
-					_ = bridge.Status("debug", "ignored a stale 'get lat' reply while awaiting longitude")
-				}
-				return false
-			}
-			return true
-		})
-		if okLat && okLon {
-			if err := s.Store.SetRepeaterLocation(ctx, id, lat, lon); err != nil {
-				web.LogError(r, "confirm: store location", err, "repeater_id", id)
-				_ = bridge.Status("error", "could not store location: "+err.Error())
+	s.fetchAndStoreLocation(ctx, r, ex, bridge, id, debug)
+}
+
+// fetchAndStoreLocation queries the connected repeater for its coordinates
+// ("get lat"/"get lon", each retried) and persists them. It reports progress via
+// bridge.Status and returns the stored coordinates (ok=false if either read
+// failed). Shared by the confirm flow and the console's confirm-on-connect so
+// both capture location the same way. Requires admin access (guests can't run the
+// get commands) — callers must gate on that first.
+func (s *Handlers) fetchAndStoreLocation(ctx context.Context, r *http.Request, ex *mesh.Exchanger, bridge *wsbridge.Conn, id int64, debug bool) (lat, lon float64, ok bool) {
+	fetchCoord := func(label, cmd string, accept func(text string) bool) (float64, bool) {
+		reply, err := ex.CommandAccept(ctx, cmd, accept, func(attempt, max int) {
+			if attempt == 1 {
+				_ = bridge.Status("info", "Fetching "+label+"…")
 			} else {
-				_ = bridge.Status("info", fmt.Sprintf("Stored location: %.5f, %.5f", lat, lon))
+				_ = bridge.Status("info", fmt.Sprintf("Fetching %s — retry %d/%d…", label, attempt, max))
 			}
-		} else {
-			_ = bridge.Status("warning", "Could not read a location from the repeater.")
+		})
+		if err != nil {
+			return 0, false
 		}
+		return parseLocationFloat(reply)
 	}
+	lat, okLat := fetchCoord("latitude", "get lat", nil)
+	// A slow latitude fetch is retried, which makes the repeater re-run "get lat"
+	// and emit duplicate replies; one can straggle in during the "get lon" wait and
+	// be misread as the longitude (storing lat,lat). Since the two coordinates
+	// differ, reject a longitude reply whose value equals the latitude we just read
+	// and keep waiting for the genuine reply.
+	lon, okLon := fetchCoord("longitude", "get lon", func(text string) bool {
+		f, ok := parseLocationFloat(text)
+		if ok && okLat && f == lat {
+			if debug {
+				_ = bridge.Status("debug", "ignored a stale 'get lat' reply while awaiting longitude")
+			}
+			return false
+		}
+		return true
+	})
+	if !okLat || !okLon {
+		_ = bridge.Status("warning", "Could not read a location from the repeater.")
+		return 0, 0, false
+	}
+	if err := s.Store.SetRepeaterLocation(ctx, id, lat, lon); err != nil {
+		web.LogError(r, "confirm: store location", err, "repeater_id", id)
+		_ = bridge.Status("error", "could not store location: "+err.Error())
+		return 0, 0, false
+	}
+	_ = bridge.Status("info", fmt.Sprintf("Stored location: %.5f, %.5f", lat, lon))
+	return lat, lon, true
 }
 
 // parseLocationFloat parses a "get lat"/"get lon" reply like "> 37.7749".

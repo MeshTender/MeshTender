@@ -302,5 +302,8 @@
     } else {
       map.setView([20, 0], 2, { animate: false });
     }
+    // Return the map so callers that show it inside an initially-hidden container
+    // (e.g. a modal) can invalidateSize() once it becomes visible.
+    return map;
   };
 })();

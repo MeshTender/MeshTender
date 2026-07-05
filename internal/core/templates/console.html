@@ -26,7 +26,12 @@
           <input type="text" class="form-control font-monospace" id="path" placeholder="e.g. 11, 22, 33" autocomplete="off" spellcheck="false">
           <small class="form-hint">Hex hops from your modem to the repeater, in order, same length each (e.g. <code>11, 22, 33</code>). Leave blank to reach it by flood.</small>
         </div>
-        <button id="connect" class="btn btn-primary" type="button">{{template "icon-plug" "me-1"}}Connect modem</button>
+        <div class="btn-list">
+          <button id="connect" class="btn btn-primary" type="button">{{template "icon-plug" "me-1"}}Connect modem</button>
+          {{if .ShowConfig}}
+          <button type="button" class="btn btn-outline-primary" data-bs-toggle="collapse" data-bs-target="#config-panel" aria-expanded="false" aria-controls="config-panel" data-testid="apply-config">{{template "icon-settings" "me-1"}}Apply org configuration…</button>
+          {{end}}
+        </div>
         <ul id="log" class="evlog console mt-3" role="log" aria-live="polite" aria-label="Console activity"></ul>
         <form id="cmdform" class="input-group mt-3" autocomplete="off" hidden>
           <input type="text" id="cmdinput" class="form-control font-monospace" placeholder="type a command, e.g. ver" aria-label="Command to send">
@@ -34,6 +39,42 @@
         </form>
       </div>
     </div>
+    {{if .ShowConfig}}
+    <div class="collapse mt-3" id="config-panel"
+         data-config-url="/repeaters/{{.Repeater.PublicID}}/config.json"
+         data-location-url="/repeaters/{{.Repeater.PublicID}}/location">
+      <div class="card">
+        <div class="card-header"><h3 class="card-title">Apply organization configuration</h3></div>
+        <div class="card-body">
+          <p class="text-secondary">
+            Pick an organization and profile to see its recommended configuration for this repeater. Every command is
+            listed; the ones you're allowed to send show a Run button. Connect the modem to run them — results appear in
+            the console log above and next to each command.
+          </p>
+          <div class="row g-2 mb-3">
+            <div class="col-sm-6">
+              <label class="form-label" for="cfg-org">Organization</label>
+              <select id="cfg-org" class="form-select" data-cfg="org"></select>
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label" for="cfg-profile">Profile</label>
+              <select id="cfg-profile" class="form-select" data-cfg="profile"></select>
+            </div>
+          </div>
+          <div data-cfg="location"></div>
+          <div id="config-map" data-cfg="map" style="height:220px;display:none" class="mb-3 rounded" role="region" aria-label="Pick the repeater's location"></div>
+          <div data-cfg="commands" data-testid="config-commands"></div>
+        </div>
+        <div class="card-footer d-flex align-items-center">
+          <span data-cfg="hint" class="text-secondary small" data-testid="config-hint"></span>
+          <div class="btn-list ms-auto">
+            <button type="button" class="btn btn-primary" data-cfg="connect" data-testid="config-connect">{{template "icon-plug" "me-1"}}<span data-cfg="connect-label">Connect modem</span></button>
+            <button type="button" class="btn btn-primary" data-cfg="run-all" data-testid="config-run-all">Run all</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    {{end}}
   </div>
   <div class="col-12 col-lg-4">
     <div class="card" data-testid="allowed-commands">
@@ -54,6 +95,13 @@
 </div>
 
 <a class="back-link mt-3" href="/">{{template "icon-arrow-left" "me-1"}}Back to dashboard</a>
+
+{{if .ShowConfig}}
+<link rel="stylesheet" href="/static/leaflet.css">
+<script src="/static/leaflet.js"></script>
+<script src="/static/regionmap.js"></script>
+<script src="/static/console-config.js"></script>
+{{end}}
 
 <script nonce="{{.Nonce}}">
   window.MESHTENDER_WS = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/repeaters/{{.Repeater.PublicID}}/console/ws";

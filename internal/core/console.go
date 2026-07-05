@@ -152,9 +152,17 @@ func (s *Handlers) pageConsole(w http.ResponseWriter, r *http.Request) {
 	}
 	allowed := s.allowedCommands(r.Context(), rep, uid, catalog)
 	sort.Slice(allowed, func(i, j int) bool { return allowed[i].Template < allowed[j].Template })
+	// Only offer the "Apply organization configuration" action when this repeater
+	// actually participates in an org that has a saved configuration.
+	configOrgs, err := s.Store.ListRepeaterConfigOrgs(r.Context(), rep.ID)
+	if err != nil {
+		s.ServerError(w, r, "could not load organizations", err)
+		return
+	}
 	s.Render(w, r, "console.html", map[string]any{
-		"Repeater": rep,
-		"Commands": allowed,
+		"Repeater":   rep,
+		"Commands":   allowed,
+		"ShowConfig": len(configOrgs) > 0,
 	})
 }
 
@@ -224,6 +232,7 @@ func (s *Handlers) wsConsole(w http.ResponseWriter, r *http.Request) {
 
 	ready := make(chan struct{}, 1)
 	cmdCh := make(chan string, 8)
+	locCh := make(chan struct{}, 1) // "getloc" requests: fetch the device's coordinates
 
 	go func() {
 		for {
@@ -255,6 +264,11 @@ func (s *Handlers) wsConsole(w http.ResponseWriter, r *http.Request) {
 					case cmdCh <- msg.Text:
 					default:
 						_ = bridge.Status("error", "busy — wait for the previous command")
+					}
+				case "getloc":
+					select {
+					case locCh <- struct{}{}:
+					default:
 					}
 				}
 			}
@@ -293,8 +307,22 @@ func (s *Handlers) wsConsole(w http.ResponseWriter, r *http.Request) {
 		_ = bridge.Status("warning", "Couldn't reach the repeater to establish a session — commands will still be attempted (flood), but may not work if it doesn't recognize MeshTender.")
 	case err != nil:
 		return // context cancelled
-	case userPathSet:
-		reportPathOutcome(bridge, lr)
+	default:
+		if userPathSet {
+			reportPathOutcome(bridge, lr)
+		}
+		// A successful admin login proves we reached the repeater, so treat connecting
+		// from the console as a confirmation (the same as the dedicated confirm flow).
+		// This is cheap — no extra packets. Fetching the location is deferred to an
+		// explicit "getloc" request (below) so a plain console session doesn't pay for
+		// a location round-trip it doesn't need.
+		if lr.IsAdmin {
+			if err := s.Store.SetRepeaterConfirmed(ctx, id, uid, lr.IsAdmin, int16(lr.Permissions)); err != nil {
+				web.LogError(r, "console: save confirmation", err, "repeater_id", id)
+			} else {
+				_ = bridge.Status("confirmed", "Repeater confirmed with admin access. ✓")
+			}
+		}
 	}
 	_ = bridge.Status("info", "Connected. Ready for commands.")
 
@@ -353,6 +381,14 @@ func (s *Handlers) wsConsole(w http.ResponseWriter, r *http.Request) {
 			return
 		case text := <-cmdCh:
 			runCommand(text)
+		case <-locCh:
+			// Handled in the same loop as commands so it never drives the exchanger
+			// concurrently with a command. Emits a "location" status on success so an
+			// open config panel refreshes its region commands.
+			idle.Reset(consoleIdleTimeout)
+			if _, _, ok := s.fetchAndStoreLocation(ctx, r, ex, bridge, id, false); ok {
+				_ = bridge.Status("location", "Location updated from the repeater.")
+			}
 		}
 	}
 }

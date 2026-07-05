@@ -236,3 +236,46 @@ func (s *Store) ListRepeaterOrgMemberships(ctx context.Context, repeaterID int64
 		return m, err
 	})
 }
+
+// RepeaterConfigOrg is an org whose recommended configuration applies to a
+// repeater: the repeater's owner is a member, the repeater isn't excluded, and
+// the org has configuration (profiles and/or regions). Profiles lists that org's
+// profile names (empty for a region-only org) for the console config picker.
+type RepeaterConfigOrg struct {
+	OrgID    int64    `json:"orgId"`
+	OrgSlug  string   `json:"orgSlug"`
+	OrgName  string   `json:"orgName"`
+	Profiles []string `json:"profiles"`
+}
+
+// ListRepeaterConfigOrgs returns the orgs whose configuration applies to the
+// repeater — those it participates in (owner is a member and it isn't excluded,
+// the same predicate GetRepeaterForUser/CanSendCommand use) that have any config
+// — each with its profile names. Ordered by org name. Used to populate the
+// console's "Apply organization configuration" picker.
+func (s *Store) ListRepeaterConfigOrgs(ctx context.Context, repeaterID int64) ([]RepeaterConfigOrg, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT o.id, o.slug, o.name,
+		       COALESCE(
+		           array_agg(p.name ORDER BY p.position, p.name) FILTER (WHERE p.id IS NOT NULL),
+		           '{}') AS profiles
+		FROM repeaters r
+		JOIN org_members om ON om.user_id = r.owner_id
+		JOIN organizations o ON o.id = om.org_id
+		LEFT JOIN config_profiles p ON p.org_id = o.id
+		WHERE r.id = $1
+		  AND NOT EXISTS (SELECT 1 FROM org_repeater_excludes e
+		                  WHERE e.org_id = o.id AND e.repeater_id = r.id)
+		  AND (EXISTS (SELECT 1 FROM config_profiles cp WHERE cp.org_id = o.id)
+		       OR EXISTS (SELECT 1 FROM config_regions cr WHERE cr.org_id = o.id))
+		GROUP BY o.id, o.slug, o.name
+		ORDER BY o.name`, repeaterID)
+	if err != nil {
+		return nil, fmt.Errorf("list repeater config orgs: %w", err)
+	}
+	return collectRows(rows, func(r pgx.Row) (RepeaterConfigOrg, error) {
+		var o RepeaterConfigOrg
+		err := r.Scan(&o.OrgID, &o.OrgSlug, &o.OrgName, &o.Profiles)
+		return o, err
+	})
+}

@@ -179,4 +179,12 @@ func TestConsoleRoundTrip(t *testing.T) {
 	if e.CommandText != "ver" || !e.AckReceived || e.ResponseText == nil || *e.ResponseText != replyText {
 		t.Fatalf("log entry = %+v (response=%v)", e, e.ResponseText)
 	}
+
+	// Connecting from the console with a successful admin login confirms the
+	// repeater — the same as running the dedicated confirm flow.
+	confirmed, err := st.GetRepeaterForUser(ctx, user.ID, rep.ID)
+	must(err, "reload repeater")
+	if !confirmed.Confirmed {
+		t.Fatal("console connect (admin login) did not confirm the repeater")
+	}
 }

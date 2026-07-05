@@ -1,6 +1,7 @@
 package store
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/jleight/meshtender/internal/geo"
@@ -274,6 +275,85 @@ func TestRegionDefFloodCommands(t *testing.T) {
 	for i := range want {
 		if got[i] != want[i] {
 			t.Fatalf("commands[%d] = %q, want %q (full %v)", i, got[i], want[i], got)
+		}
+	}
+}
+
+// TestListRepeaterConfigOrgs covers which orgs surface in the console config
+// picker: the repeater must participate (owner is a member, not excluded) and the
+// org must have config. Profile names come back per org (empty for region-only).
+func TestListRepeaterConfigOrgs(t *testing.T) {
+	t.Parallel()
+	st, ctx := orgTestStore(t)
+
+	owner, err := st.CreateUser(ctx, "rco-owner", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stranger, err := st.CreateUser(ctx, "rco-stranger", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rep, err := st.CreateRepeater(ctx, &Repeater{
+		OwnerID: owner.ID, Name: "R", PublicKeyHex: strings.Repeat("d", 64),
+		RadioFreqHz: 1, RadioBwHz: 1, RadioSF: 11, RadioCR: 5,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// A: owner is a member, has profiles → included, with profile names.
+	orgA, _ := st.CreateOrg(ctx, "Alpha", owner.ID)
+	if err := st.ReplaceOrgConfig(ctx, orgA.ID,
+		[]ProfileInput{{Name: "ESP32"}, {Name: "nRF52"}}, nil); err != nil {
+		t.Fatal(err)
+	}
+	// B: owner is a member, region-only config (no profiles) → included, empty profiles.
+	orgB, _ := st.CreateOrg(ctx, "Bravo", owner.ID)
+	if err := st.ReplaceRegions(ctx, orgB.ID,
+		[]RegionInput{{Token: "x", DisplayName: "X", Layer: 1}}, true); err != nil {
+		t.Fatal(err)
+	}
+	// C: owner is a member but the org has NO config → excluded.
+	st.CreateOrg(ctx, "Charlie", owner.ID)
+	// D: owner is a member, org has config, but the repeater is opted out → excluded.
+	orgD, _ := st.CreateOrg(ctx, "Delta", owner.ID)
+	if err := st.ReplaceOrgConfig(ctx, orgD.ID, []ProfileInput{{Name: "P"}}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SetRepeaterOrgExcluded(ctx, orgD.ID, rep.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	// E: has config but the repeater's owner is NOT a member → excluded.
+	orgE, _ := st.CreateOrg(ctx, "Echo", stranger.ID)
+	if err := st.ReplaceOrgConfig(ctx, orgE.ID, []ProfileInput{{Name: "P"}}, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := st.ListRepeaterConfigOrgs(ctx, rep.ID)
+	if err != nil {
+		t.Fatalf("ListRepeaterConfigOrgs: %v", err)
+	}
+	byName := map[string]RepeaterConfigOrg{}
+	for _, o := range got {
+		byName[o.OrgName] = o
+	}
+	if len(got) != 2 {
+		t.Fatalf("orgs = %d %v, want 2 (Alpha, Bravo)", len(got), byName)
+	}
+	if a, ok := byName["Alpha"]; !ok {
+		t.Error("Alpha missing")
+	} else if len(a.Profiles) != 2 || a.Profiles[0] != "ESP32" || a.Profiles[1] != "nRF52" {
+		t.Errorf("Alpha profiles = %v, want [ESP32 nRF52]", a.Profiles)
+	}
+	if b, ok := byName["Bravo"]; !ok {
+		t.Error("Bravo (region-only) missing")
+	} else if len(b.Profiles) != 0 {
+		t.Errorf("Bravo profiles = %v, want empty", b.Profiles)
+	}
+	for _, absent := range []string{"Charlie", "Delta", "Echo"} {
+		if _, ok := byName[absent]; ok {
+			t.Errorf("%s should not be listed", absent)
 		}
 	}
 }
