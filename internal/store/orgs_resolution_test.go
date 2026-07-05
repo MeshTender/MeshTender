@@ -148,6 +148,118 @@ func TestOrgCommandResolution(t *testing.T) {
 	check("admin/advert when re-included", can(adminM, advert), true)
 }
 
+// TestListSendableCommandIDsOrgAdmin reproduces the reported bug: an org admin
+// (not the owner, not a steward, with no per-command share) opens the Console for
+// another member's participating repeater and sees an EMPTY command sidebar, even
+// though they can run those commands manually. The sidebar is built from
+// ListSendableCommandIDs; before the fix it only covered owner/steward/share and
+// omitted the org-participation path, so it returned nothing here. It must return
+// the org ceiling for the admin's tier — and, critically, agree command-for-command
+// with the runtime gate CanSendCommand.
+func TestListSendableCommandIDsOrgAdmin(t *testing.T) {
+	t.Parallel()
+	st, ctx := orgTestStore(t)
+
+	cmdID := func(key string) int64 {
+		var id int64
+		if err := st.pool.QueryRow(ctx, `SELECT id FROM command_catalog WHERE key=$1`, key).Scan(&id); err != nil {
+			t.Fatalf("command %q: %v", key, err)
+		}
+		return id
+	}
+	setRadio, advert, poweroff, setTx := cmdID("set.radio"), cmdID("advert"), cmdID("poweroff"), cmdID("set.tx")
+	setCeiling := func(id int64, member, admin bool) {
+		if err := st.UpdateCommandFlags(ctx, id, false, false, member, admin); err != nil {
+			t.Fatalf("set ceiling %d: %v", id, err)
+		}
+	}
+	setCeiling(setRadio, false, true)
+	setCeiling(setTx, false, true)
+	setCeiling(advert, true, false)
+	setCeiling(poweroff, false, false)
+
+	mkUser := func(name string) int64 {
+		u, err := st.CreateUser(ctx, name, "")
+		if err != nil {
+			t.Fatalf("create %s: %v", name, err)
+		}
+		return u.ID
+	}
+	owner := mkUser("owner3")
+	adminM := mkUser("adminm3")
+	plainM := mkUser("plainm3")
+	outsider := mkUser("outsider3")
+
+	rep, err := st.CreateRepeater(ctx, &Repeater{
+		OwnerID: owner, Name: "R", PublicKeyHex: strings.Repeat("c", 64),
+		RadioFreqHz: 1, RadioBwHz: 1, RadioSF: 11, RadioCR: 5,
+	})
+	if err != nil {
+		t.Fatalf("create repeater: %v", err)
+	}
+	org, err := st.CreateOrg(ctx, "Region", owner) // owner is org-admin
+	if err != nil {
+		t.Fatalf("create org: %v", err)
+	}
+	if err := st.AddOrgMember(ctx, org.ID, adminM, "admin"); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.AddOrgMember(ctx, org.ID, plainM, "member"); err != nil {
+		t.Fatal(err)
+	}
+
+	sendable := func(u int64) map[int64]bool {
+		ids, err := st.ListSendableCommandIDs(ctx, u, rep.ID)
+		if err != nil {
+			t.Fatalf("ListSendableCommandIDs: %v", err)
+		}
+		set := make(map[int64]bool, len(ids))
+		for _, id := range ids {
+			set[id] = true
+		}
+		return set
+	}
+
+	// The bug: this set was empty. It must be the admin tier (⊇ member tier).
+	adminSet := sendable(adminM)
+	if len(adminSet) == 0 {
+		t.Fatal("org admin sidebar is empty — regression: org-participation path missing")
+	}
+	for _, c := range []int64{setRadio, setTx, advert} {
+		if !adminSet[c] {
+			t.Errorf("admin sendable missing command %d", c)
+		}
+	}
+	if adminSet[poweroff] {
+		t.Error("admin sendable includes poweroff (outside ceiling)")
+	}
+
+	// Plain member: member tier only. Outsider: nothing.
+	memberSet := sendable(plainM)
+	if !memberSet[advert] || memberSet[setRadio] || memberSet[poweroff] {
+		t.Errorf("member sendable = %v, want only advert", memberSet)
+	}
+	if len(sendable(outsider)) != 0 {
+		t.Error("outsider sendable is non-empty")
+	}
+
+	// Invariant: the sidebar list and the runtime gate must agree for EVERY
+	// (user, command) pair — this is what prevents the two from drifting again.
+	allCmds := []int64{setRadio, setTx, advert, poweroff}
+	for _, u := range []int64{owner, adminM, plainM, outsider} {
+		set := sendable(u)
+		for _, c := range allCmds {
+			can, err := st.CanSendCommand(ctx, u, rep.ID, c)
+			if err != nil {
+				t.Fatalf("CanSendCommand: %v", err)
+			}
+			if can != set[c] {
+				t.Errorf("disagreement user=%d cmd=%d: CanSendCommand=%v sidebar=%v", u, c, can, set[c])
+			}
+		}
+	}
+}
+
 func TestOrgRepeaterAccess(t *testing.T) {
 	t.Parallel()
 	st, ctx := orgTestStore(t)

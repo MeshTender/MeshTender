@@ -114,17 +114,15 @@ func validCommandText(s string) bool {
 	return true
 }
 
-// allowedCommands returns the catalog commands the user may run on the repeater:
-// all of them for the owner or a steward (a co-operator), else the share-granted
-// subset. Mirrors the runtime gate in store.CanSendCommand.
+// allowedCommands returns the catalog commands the user may run on the repeater.
+// It filters the catalog by store.ListSendableCommandIDs — the same authorization
+// query the runtime gate (store.CanSendCommand) uses — so the sidebar list can
+// never disagree with what the user is actually permitted to send. This covers
+// owners, stewards, share grants, AND org participation (an org admin/member with
+// access via a shared org previously got an empty sidebar despite being able to
+// run commands).
 func (s *Handlers) allowedCommands(ctx context.Context, rep *store.Repeater, userID int64, catalog []*store.Command) []*store.Command {
-	if rep.OwnerID == userID {
-		return catalog
-	}
-	if steward, err := s.Store.IsSteward(ctx, rep.ID, userID); err == nil && steward {
-		return catalog
-	}
-	ids, err := s.Store.ListShareCommandIDs(ctx, rep.ID, userID)
+	ids, err := s.Store.ListSendableCommandIDs(ctx, userID, rep.ID)
 	if err != nil {
 		return nil
 	}
