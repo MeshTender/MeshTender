@@ -67,7 +67,11 @@ func groupCatalog(catalog []*store.Command) []catalogGroup {
 }
 
 func (s *Handlers) pageAdmin(w http.ResponseWriter, r *http.Request) {
-	u, _ := s.Store.GetUserByID(r.Context(), s.Auth.CurrentUserID(r.Context()))
+	u, err := s.Store.GetUserByID(r.Context(), s.Auth.CurrentUserID(r.Context()))
+	if err != nil {
+		s.ServerError(w, r, "could not load account", err)
+		return
+	}
 	s.Render(w, r, "admin.html", map[string]any{
 		"CanCatalog": u.CapManageCatalog,
 		"CanUsers":   u.CapManageUsers,

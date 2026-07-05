@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -408,62 +409,61 @@ func (s *Store) ListOrgAdmins(ctx context.Context, orgID int64) ([]OrgMemberInfo
 	})
 }
 
-// countOrgAdmins returns the number of admins in an org.
-func (s *Store) countOrgAdmins(ctx context.Context, orgID int64) (int, error) {
-	var n int
-	err := s.pool.QueryRow(ctx,
-		`SELECT count(*) FROM org_members WHERE org_id = $1 AND role = 'admin'`, orgID).Scan(&n)
-	if err != nil {
-		return 0, fmt.Errorf("count admins: %w", err)
-	}
-	return n, nil
-}
-
 // ErrLastAdmin is returned when an action would leave an org with no admins.
 var ErrLastAdmin = errors.New("store: cannot remove the last org admin")
 
 // SetOrgMemberRole changes a member's role, refusing to demote the last admin.
+// The guard and the update run in one transaction (see guardLastAdminTx) so two
+// concurrent demotions can't both pass the check and leave the org with no admin.
 func (s *Store) SetOrgMemberRole(ctx context.Context, orgID, userID int64, role string) error {
-	if role != "admin" {
-		if err := s.guardLastAdmin(ctx, orgID, userID); err != nil {
+	return s.inTx(ctx, func(tx pgx.Tx) error {
+		if role != "admin" {
+			if err := guardLastAdminTx(ctx, tx, orgID, userID); err != nil {
+				return err
+			}
+		}
+		if _, err := tx.Exec(ctx,
+			`UPDATE org_members SET role = $3 WHERE org_id = $1 AND user_id = $2`, orgID, userID, role); err != nil {
+			return fmt.Errorf("set role: %w", err)
+		}
+		return nil
+	})
+}
+
+// RemoveOrgMember removes a member, refusing to remove the last admin. Guard and
+// delete share one transaction so the last-admin check can't be raced.
+func (s *Store) RemoveOrgMember(ctx context.Context, orgID, userID int64) error {
+	return s.inTx(ctx, func(tx pgx.Tx) error {
+		if err := guardLastAdminTx(ctx, tx, orgID, userID); err != nil {
 			return err
 		}
-	}
-	_, err := s.pool.Exec(ctx,
-		`UPDATE org_members SET role = $3 WHERE org_id = $1 AND user_id = $2`, orgID, userID, role)
-	if err != nil {
-		return fmt.Errorf("set role: %w", err)
-	}
-	return nil
+		if _, err := tx.Exec(ctx,
+			`DELETE FROM org_members WHERE org_id = $1 AND user_id = $2`, orgID, userID); err != nil {
+			return fmt.Errorf("remove member: %w", err)
+		}
+		return nil
+	})
 }
 
-// RemoveOrgMember removes a member, refusing to remove the last admin.
-func (s *Store) RemoveOrgMember(ctx context.Context, orgID, userID int64) error {
-	if err := s.guardLastAdmin(ctx, orgID, userID); err != nil {
-		return err
-	}
-	_, err := s.pool.Exec(ctx,
-		`DELETE FROM org_members WHERE org_id = $1 AND user_id = $2`, orgID, userID)
+// guardLastAdminTx returns ErrLastAdmin if demoting/removing userID would leave
+// the org with no admins. It must run inside a transaction: it takes a row lock
+// (SELECT … FOR UPDATE) on the org's admin rows, so concurrent demotions/removals
+// serialize — the second one blocks until the first commits and then re-reads the
+// now-smaller admin set, instead of both seeing the pre-change count and racing
+// the org down to zero admins.
+func guardLastAdminTx(ctx context.Context, tx pgx.Tx, orgID, userID int64) error {
+	rows, err := tx.Query(ctx,
+		`SELECT user_id FROM org_members WHERE org_id = $1 AND role = 'admin' FOR UPDATE`, orgID)
 	if err != nil {
-		return fmt.Errorf("remove member: %w", err)
+		return fmt.Errorf("lock admins: %w", err)
 	}
-	return nil
-}
-
-// guardLastAdmin returns ErrLastAdmin if userID is the org's only admin.
-func (s *Store) guardLastAdmin(ctx context.Context, orgID, userID int64) error {
-	role, ok, err := s.OrgRole(ctx, orgID, userID)
+	admins, err := collectRows(rows, scanID)
 	if err != nil {
-		return err
+		return fmt.Errorf("lock admins: %w", err)
 	}
-	if !ok || role != "admin" {
-		return nil // not an admin; removing/demoting is fine
-	}
-	n, err := s.countOrgAdmins(ctx, orgID)
-	if err != nil {
-		return err
-	}
-	if n <= 1 {
+	// Only a problem when userID is currently the org's sole admin; demoting a
+	// non-admin, or an admin with peers, is fine.
+	if slices.Contains(admins, userID) && len(admins) <= 1 {
 		return ErrLastAdmin
 	}
 	return nil
