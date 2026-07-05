@@ -8,6 +8,7 @@ import (
 	"embed"
 	"net"
 	"net/http"
+	"sync"
 
 	"github.com/go-chi/chi/v5"
 
@@ -27,13 +28,43 @@ var templatesFS embed.FS
 type Handlers struct {
 	*web.Env
 	Auth *auth.Service
+
+	// wsCtx is the base context for WebSocket handlers; cancelling it (on shutdown)
+	// signals active console/confirm sockets to close. wsWG tracks those handlers so
+	// shutdown can wait for them — http.Server.Shutdown does not close hijacked
+	// (WebSocket) connections.
+	wsCtx    context.Context
+	wsCancel context.CancelFunc
+	wsWG     sync.WaitGroup
 }
 
 // Server is the built HTTP entry point.
-type Server struct{ handler http.Handler }
+type Server struct {
+	handler http.Handler
+	app     *Handlers
+}
 
 // Handler returns the root HTTP handler.
 func (s *Server) Handler() http.Handler { return s.handler }
+
+// DrainWebSockets closes active WebSocket connections and waits for their handlers
+// to return, up to ctx's deadline. Call it after http.Server.Shutdown, which does
+// not close hijacked/WebSocket connections. Reports whether all handlers finished
+// before the deadline.
+func (s *Server) DrainWebSockets(ctx context.Context) bool {
+	s.app.wsCancel()
+	done := make(chan struct{})
+	go func() {
+		s.app.wsWG.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return true
+	case <-ctx.Done():
+		return false
+	}
+}
 
 // NewServer assembles every surface and the host dispatcher. The deployment is
 // always split-host (auth / root / app); the auth host serves sign-in + account,
@@ -63,6 +94,7 @@ func NewServer(st *store.Store, authSvc *auth.Service, idSvc *identity.Service, 
 		return nil, err
 	}
 	app := &Handlers{Env: coreEnv, Auth: authSvc}
+	app.wsCtx, app.wsCancel = context.WithCancel(context.Background())
 
 	authH, err := auth.NewWeb(deps, authSvc)
 	if err != nil {
@@ -78,7 +110,7 @@ func NewServer(st *store.Store, authSvc *auth.Service, idSvc *identity.Service, 
 	// public org pages).
 	appHandler := mkH.CustomDomain(app.appRouter())
 	handler := web.Dispatcher(cfg, authH.Routes(), mkH.Routes(), appHandler)
-	return &Server{handler: handler}, nil
+	return &Server{handler: handler, app: app}, nil
 }
 
 // sessionMW loads and validates the SSO session (two DB touches). It's applied to

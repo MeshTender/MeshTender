@@ -149,6 +149,15 @@ func run(logger *slog.Logger) error {
 		cancel()
 	}
 
+	// Shutdown doesn't close hijacked/WebSocket connections, so close the active
+	// console/confirm sockets and give their handlers a moment to finish (they do
+	// DB work) before we stop the flusher and close the pool.
+	wsCtx, wsCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	if !srv.DrainWebSockets(wsCtx) {
+		logger.Warn("shutdown: some WebSocket handlers did not finish before the deadline")
+	}
+	wsCancel()
+
 	// Now stop the flusher and wait for its final flush to complete before the
 	// deferred st.Close() closes the pool underneath it.
 	stopAnalytics()

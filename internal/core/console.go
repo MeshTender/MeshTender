@@ -190,11 +190,18 @@ func (s *Handlers) wsConsole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Track the socket so shutdown can drain it (http.Server.Shutdown doesn't close
+	// hijacked/WebSocket conns). Add before Accept so a shutdown racing the upgrade
+	// still waits for this handler.
+	s.wsWG.Add(1)
+	defer s.wsWG.Done()
+
 	ws, err := websocket.Accept(w, r, nil)
 	if err != nil {
 		return
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	// Derive from the server's WS context so shutdown cancels the session.
+	ctx, cancel := context.WithCancel(s.wsCtx)
 	defer cancel()
 	idle := time.AfterFunc(consoleIdleTimeout, cancel)
 	defer idle.Stop()

@@ -97,14 +97,20 @@ func (s *Handlers) wsConfirm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Track the socket so shutdown can drain it (http.Server.Shutdown doesn't close
+	// hijacked/WebSocket conns). Add before Accept so a shutdown racing the upgrade
+	// still waits for this handler.
+	s.wsWG.Add(1)
+	defer s.wsWG.Done()
+
 	ws, err := websocket.Accept(w, r, nil) // same-origin (request host) authorized by default
 	if err != nil {
 		return
 	}
 
-	// A connection-lifetime context, independent of the request context which
-	// is unsafe to use after Accept.
-	ctx, cancel := context.WithTimeout(context.Background(), confirmTimeout)
+	// A connection-lifetime context derived from the server's WS context (cancelled
+	// on shutdown), not the request context which is unsafe to use after Accept.
+	ctx, cancel := context.WithTimeout(s.wsCtx, confirmTimeout)
 	defer cancel()
 
 	bridge := wsbridge.New(ctx, ws)
