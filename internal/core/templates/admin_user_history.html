@@ -7,6 +7,46 @@
   </div>
 </div>
 {{end}}
+{{/* history-body is the rename table, shared by the full page and the modal. */}}
+{{define "history-body"}}
+{{if .Changes}}
+<div class="table-responsive">
+  <table class="table table-vcenter">
+    <thead>
+      <tr><th>When</th><th>Change</th><th>By</th><th>IP</th></tr>
+    </thead>
+    <tbody>
+      {{range .Changes}}
+      <tr>
+        <td class="text-nowrap">{{.ChangedAt.Format "Jan 2, 2006 15:04"}}</td>
+        <td><span class="text-secondary">@{{.OldUsername}}</span> → <span class="font-monospace">@{{.NewUsername}}</span></td>
+        <td>{{if .BySelf}}self{{else if .ByActor}}admin (@{{.ByActor}}){{else}}admin{{end}}</td>
+        <td class="font-monospace text-secondary">{{if .IP}}{{.IP}}{{else}}—{{end}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{else}}
+<p class="text-secondary mb-0">This user has never changed their username.</p>
+{{end}}
+{{end}}
+
+{{/* history-modal is the htmx fragment swapped into the shared modal's content. */}}
+{{define "history-modal"}}
+<div class="modal-header">
+  <h5 class="modal-title">Username history — {{.Account.Name}} <span class="text-secondary">@{{.Account.Username}}</span></h5>
+  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+</div>
+<div class="modal-body">
+  <p class="text-secondary">Visible to user managers only — old usernames are never shown on public or member-facing pages.</p>
+  {{template "history-body" .}}
+</div>
+<div class="modal-footer">
+  <button type="button" class="btn" data-bs-dismiss="modal">Close</button>
+</div>
+{{end}}
+
 {{define "content"}}
 <div class="card">
   <div class="card-body">
@@ -15,28 +55,7 @@
       (user #{{.Account.ID}}). This record is visible to user managers only — old usernames are never shown
       on public or member-facing pages.
     </p>
-
-    {{if .Changes}}
-    <div class="table-responsive">
-      <table class="table table-vcenter">
-        <thead>
-          <tr><th>When</th><th>Change</th><th>By</th><th>IP</th></tr>
-        </thead>
-        <tbody>
-          {{range .Changes}}
-          <tr>
-            <td class="text-nowrap">{{.ChangedAt.Format "Jan 2, 2006 15:04"}}</td>
-            <td><span class="text-secondary">@{{.OldUsername}}</span> → <span class="font-monospace">@{{.NewUsername}}</span></td>
-            <td>{{if .BySelf}}self{{else if .ByActor}}admin (@{{.ByActor}}){{else}}admin{{end}}</td>
-            <td class="font-monospace text-secondary">{{if .IP}}{{.IP}}{{else}}—{{end}}</td>
-          </tr>
-          {{end}}
-        </tbody>
-      </table>
-    </div>
-    {{else}}
-    <p class="text-secondary">This user has never changed their username.</p>
-    {{end}}
+    {{template "history-body" .}}
   </div>
 </div>
 <a class="back-link mt-3" href="/admin/users">{{template "icon-arrow-left" "me-1"}}Users</a>

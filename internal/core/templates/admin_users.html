@@ -7,40 +7,111 @@
   </div>
 </div>
 {{end}}
-{{define "content"}}
-<div class="card">
-  <div class="card-body">
-    {{if .Error}}<div class="alert alert-danger">{{.Error}}</div>{{end}}
-    <p class="text-secondary">
-      <strong>Manage users</strong> = can grant/revoke these capabilities (superadmin).
-      <strong>Manage catalog</strong> = can edit the command catalog. Neither grants access to any
-      repeater — that's still per-repeater sharing.
-    </p>
 
-    <div class="list-group list-group-flush">
-      {{range .Users}}
-      <form method="post" action="/admin/users/{{.ID}}" class="list-group-item d-flex align-items-center flex-wrap gap-3 px-0">
-        <span class="flex-fill">{{.Name}} <span class="text-secondary">@{{.Username}}</span>{{if eq .ID $.Self}} <span class="badge bg-azure-lt">you</span>{{end}}
-          <span class="d-block text-secondary small">Last login: {{if .LastLoginAt}}{{.LastLoginAt.Format "Jan 2, 2006 15:04"}}{{else}}never{{end}}</span></span>
-        <label class="form-check form-check-inline m-0">
-          <input class="form-check-input" type="checkbox" name="manage_users" {{if .CapManageUsers}}checked{{end}}>
-          <span class="form-check-label">manage users</span>
-        </label>
-        <label class="form-check form-check-inline m-0">
-          <input class="form-check-input" type="checkbox" name="manage_catalog" {{if .CapManageCatalog}}checked{{end}}>
-          <span class="form-check-label">manage catalog</span>
-        </label>
-        <a href="/admin/users/{{.ID}}/history" class="btn btn-sm btn-ghost-secondary">History</a>
-        <button type="submit" class="btn btn-sm">Save</button>
-      </form>
-      {{end}}
+{{/* user-rows renders just the list rows; shared by the full page and the htmx
+     "load more" fragment so appended pages match the first. The Actions dropdown
+     loads the Permissions/History fragments into the shared #user-modal. */}}
+{{define "user-rows"}}
+{{range .Users}}
+<div class="list-group-item d-flex align-items-center flex-wrap gap-2" data-testid="user-row">
+  <div class="flex-fill">
+    <div>
+      <span class="fw-bold">{{.Name}}</span> <span class="text-secondary">@{{.Username}}</span>
+      {{if eq .ID $.Self}}<span class="badge bg-azure-lt">you</span>{{end}}
+      {{if .CapManageUsers}}<span class="badge bg-purple-lt">manage users</span>{{end}}
+      {{if .CapManageCatalog}}<span class="badge bg-teal-lt">manage catalog</span>{{end}}
     </div>
-    {{if .NextAfter}}
-    <div class="text-center mt-3">
-      <a class="btn btn-outline-secondary" href="/admin/users?after={{.NextAfter | urlquery}}">Show more users</a>
+    <div class="text-secondary small">
+      Joined {{.CreatedAt.Format "Jan 2, 2006"}} · Last login: {{if .LastLoginAt}}{{.LastLoginAt.Format "Jan 2, 2006 15:04"}}{{else}}never{{end}}
     </div>
-    {{end}}
+  </div>
+  <div class="dropdown">
+    <button class="btn btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" data-testid="user-actions">Actions</button>
+    <div class="dropdown-menu dropdown-menu-end">
+      <button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#user-modal" data-testid="user-permissions"
+              hx-get="/admin/users/{{.ID}}/permissions" hx-target="#user-modal-content" hx-swap="innerHTML">
+        Permissions
+      </button>
+      <button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#user-modal" data-testid="user-history"
+              hx-get="/admin/users/{{.ID}}/history" hx-target="#user-modal-content" hx-swap="innerHTML">
+        History
+      </button>
+    </div>
   </div>
 </div>
+{{end}}
+{{end}}
+
+{{/* user-more is the "load more" control; it replaces itself with the next page's
+     rows + a fresh control. The cursor already carries sort, search, and filter. */}}
+{{define "user-more"}}
+<div class="list-group-item text-center" id="user-more">
+  <button class="btn btn-outline-secondary" hx-get="/admin/users?cursor={{.NextCursor}}" hx-target="#user-more" hx-swap="outerHTML">
+    Show more users
+  </button>
+</div>
+{{end}}
+
+{{/* users-frag is the htmx response: rows + next control, no page chrome. */}}
+{{define "users-frag"}}{{template "user-rows" .}}{{if .NextCursor}}{{template "user-more" .}}{{end}}{{end}}
+
+{{define "content"}}
+{{if .Error}}<div class="alert alert-danger">{{.Error}}</div>{{end}}
+<div class="row row-cards">
+  <!-- Left: the user list -->
+  <div class="col-lg-9">
+    <div class="card">
+      {{if .Users}}
+      <div class="list-group list-group-flush" id="user-list">
+        {{template "user-rows" .}}
+        {{if .NextCursor}}{{template "user-more" .}}{{end}}
+      </div>
+      {{else}}
+      <div class="card-body"><p class="text-secondary mb-0">{{if .Query}}No users match “{{.Query}}”.{{else}}No users match this filter.{{end}}</p></div>
+      {{end}}
+    </div>
+  </div>
+
+  <!-- Right: search, sort, filter -->
+  <div class="col-lg-3">
+    <div class="card">
+      <div class="card-body">
+        <form method="get" action="/admin/users">
+          <div class="mb-3">
+            <label class="form-label" for="user-q">Search</label>
+            <input type="search" id="user-q" class="form-control" name="q" value="{{.Query}}"
+                   placeholder="Username or display name" aria-label="Search users">
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="user-sort">Sort by</label>
+            <select id="user-sort" class="form-select" name="sort" aria-label="Sort users" data-autosubmit>
+              <option value="name"{{if eq .Sort "name"}} selected{{end}}>Username (A–Z)</option>
+              <option value="last_login"{{if eq .Sort "last_login"}} selected{{end}}>Last login</option>
+              <option value="newest"{{if eq .Sort "newest"}} selected{{end}}>Newest</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="user-cap">Capability</label>
+            <select id="user-cap" class="form-select" name="cap" aria-label="Filter by capability" data-autosubmit>
+              <option value=""{{if eq .Cap ""}} selected{{end}}>All users</option>
+              <option value="managers"{{if eq .Cap "managers"}} selected{{end}}>User managers</option>
+              <option value="catalog"{{if eq .Cap "catalog"}} selected{{end}}>Catalog managers</option>
+              <option value="none"{{if eq .Cap "none"}} selected{{end}}>No capabilities</option>
+            </select>
+          </div>
+          <button class="btn btn-primary w-100" type="submit">{{template "icon-search" "me-1"}}Search</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Shared modal; the Actions dropdown loads Permissions/History into it via htmx. -->
+<div class="modal modal-blur fade" id="user-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
+    <div class="modal-content" id="user-modal-content"></div>
+  </div>
+</div>
+
 <a class="back-link mt-3" href="/admin">{{template "icon-arrow-left" "me-1"}}Admin</a>
 {{end}}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -35,6 +36,7 @@ type User struct {
 	// LastLoginAt is the most recent successful sign-in, or nil if the account has
 	// never logged in since the column was added.
 	LastLoginAt *time.Time
+	CreatedAt   time.Time
 }
 
 // Name returns the display name if set, else the username.
@@ -45,12 +47,12 @@ func (u *User) Name() string {
 	return u.Username
 }
 
-const userCols = `id, username, display_name, password_hash, bio, location, callsign, cap_manage_users, cap_manage_catalog, last_login_at`
+const userCols = `id, username, display_name, password_hash, bio, location, callsign, cap_manage_users, cap_manage_catalog, last_login_at, created_at`
 
 func scanUser(row pgx.Row) (*User, error) {
 	var u User
 	if err := row.Scan(&u.ID, &u.Username, &u.DisplayName, &u.PasswordHash,
-		&u.Bio, &u.Location, &u.Callsign, &u.CapManageUsers, &u.CapManageCatalog, &u.LastLoginAt); err != nil {
+		&u.Bio, &u.Location, &u.Callsign, &u.CapManageUsers, &u.CapManageCatalog, &u.LastLoginAt, &u.CreatedAt); err != nil {
 		return nil, err
 	}
 	return &u, nil
@@ -165,16 +167,121 @@ func (s *Store) CountManageUsers(ctx context.Context) (int, error) {
 // UsersPageSize is the number of users returned per admin-page request.
 const UsersPageSize = 50
 
-// ListUsersPage returns one keyset page of users for the admin page, ordered by
-// username, starting strictly after afterUsername (empty starts at the
-// beginning). It returns the page (capped at UsersPageSize) and whether more
-// rows follow. username is UNIQUE, so it's a stable single-column cursor and
-// the seek rides the existing unique index.
-func (s *Store) ListUsersPage(ctx context.Context, afterUsername string) ([]*User, bool, error) {
+// UserSort names the orderings the admin user list can be browsed in.
+type UserSort string
+
+const (
+	UserSortName      UserSort = "name"       // username A–Z (default)
+	UserSortLastLogin UserSort = "last_login" // most recent sign-in first
+	UserSortNewest    UserSort = "newest"     // most recently created first
+)
+
+// NormalizeUserSort coerces an untrusted sort key to a known value.
+func NormalizeUserSort(s string) UserSort {
+	switch UserSort(s) {
+	case UserSortLastLogin, UserSortNewest:
+		return UserSort(s)
+	default:
+		return UserSortName
+	}
+}
+
+// UserCapFilter narrows the list to accounts with a given capability.
+type UserCapFilter string
+
+const (
+	UserCapAny      UserCapFilter = ""         // no filter
+	UserCapManagers UserCapFilter = "managers" // cap_manage_users
+	UserCapCatalog  UserCapFilter = "catalog"  // cap_manage_catalog
+	UserCapNone     UserCapFilter = "none"     // no capabilities
+)
+
+// NormalizeUserCapFilter coerces an untrusted capability filter to a known value.
+func NormalizeUserCapFilter(s string) UserCapFilter {
+	switch UserCapFilter(s) {
+	case UserCapManagers, UserCapCatalog, UserCapNone:
+		return UserCapFilter(s)
+	default:
+		return UserCapAny
+	}
+}
+
+// UserListParams is one page request for the admin user list: an optional search
+// over username/display name, a sort, a capability filter, and a keyset cursor.
+type UserListParams struct {
+	Query     string
+	Sort      UserSort
+	Cap       UserCapFilter
+	HasCursor bool
+	AfterName string    // username-sort cursor
+	AfterID   int64     // tiebreaker
+	AfterTime time.Time // last-login / newest cursor (for last-login, the coalesced value)
+}
+
+// nullLoginEpoch is the sort key for accounts that have never logged in, so the
+// last-login ordering can keyset over a non-null column (NULLs sort last under
+// DESC). It matches Postgres' 'epoch' timestamptz used in the query.
+var nullLoginEpoch = time.Unix(0, 0).UTC()
+
+// LastLoginKey returns the row's last-login sort key (its login time, or the
+// epoch sentinel when it has never logged in) for building the next cursor.
+func (u *User) LastLoginKey() time.Time {
+	if u.LastLoginAt != nil {
+		return *u.LastLoginAt
+	}
+	return nullLoginEpoch
+}
+
+// ListUsersPage returns one keyset page of the admin user list in the requested
+// order, optionally searched and capability-filtered, seeking strictly past the
+// cursor. It returns the page (capped at UsersPageSize) and whether more follow.
+func (s *Store) ListUsersPage(ctx context.Context, p UserListParams) ([]*User, bool, error) {
+	var args []any
+	add := func(v any) string { args = append(args, v); return fmt.Sprintf("$%d", len(args)) }
+
+	var where []string
+	if q := strings.TrimSpace(p.Query); q != "" {
+		ph := add("%" + escapeLikePattern(q) + "%")
+		where = append(where, fmt.Sprintf("(username ILIKE %[1]s OR coalesce(display_name, '') ILIKE %[1]s)", ph))
+	}
+	switch p.Cap {
+	case UserCapManagers:
+		where = append(where, "cap_manage_users")
+	case UserCapCatalog:
+		where = append(where, "cap_manage_catalog")
+	case UserCapNone:
+		where = append(where, "NOT cap_manage_users AND NOT cap_manage_catalog")
+	}
+
+	// login_key coalesces last_login_at so the last-login sort can keyset over a
+	// never-null expression (never-logged-in rows sort last under DESC).
+	var order string
+	switch p.Sort {
+	case UserSortLastLogin:
+		order = "coalesce(last_login_at, 'epoch') DESC, id DESC"
+		if p.HasCursor {
+			where = append(where, fmt.Sprintf("(coalesce(last_login_at, 'epoch'), id) < (%s, %s)", add(p.AfterTime), add(p.AfterID)))
+		}
+	case UserSortNewest:
+		order = "created_at DESC, id DESC"
+		if p.HasCursor {
+			where = append(where, fmt.Sprintf("(created_at, id) < (%s, %s)", add(p.AfterTime), add(p.AfterID)))
+		}
+	default: // UserSortName
+		order = "username ASC, id ASC"
+		if p.HasCursor {
+			where = append(where, fmt.Sprintf("(username, id) > (%s, %s)", add(p.AfterName), add(p.AfterID)))
+		}
+	}
+	whereClause := ""
+	if len(where) > 0 {
+		whereClause = "WHERE " + strings.Join(where, " AND ")
+	}
+
 	// Fetch one extra row to detect whether a further page exists.
-	rows, err := s.pool.Query(ctx,
-		`SELECT `+userCols+` FROM users WHERE username > $1 ORDER BY username LIMIT $2`,
-		afterUsername, UsersPageSize+1)
+	limit := add(UsersPageSize + 1)
+	query := fmt.Sprintf(`SELECT %s FROM users %s ORDER BY %s LIMIT %s`, userCols, whereClause, order, limit)
+	rows, err := s.pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, false, fmt.Errorf("list users: %w", err)
 	}

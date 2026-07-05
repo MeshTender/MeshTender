@@ -3,6 +3,8 @@ package core
 import (
 	"net/http"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -103,9 +105,57 @@ func (s *Handlers) handleUpdateCommand(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/admin/catalog?saved=1", http.StatusSeeOther)
 }
 
+// userCursor carries the sort, search, capability filter, and keyset position of
+// an admin user-list page, so "load more" stays consistent without re-sending
+// the form; the sort/q/cap params only matter on the first (cursorless) page.
+type userCursor struct {
+	Sort  string `json:"s,omitempty"`
+	Query string `json:"q,omitempty"`
+	Cap   string `json:"c,omitempty"`
+	Name  string `json:"n,omitempty"` // username-sort cursor
+	Time  string `json:"t,omitempty"` // RFC3339Nano, for last-login / newest sorts
+	ID    int64  `json:"i"`
+}
+
+func nextUserCursor(p store.UserListParams, last *store.User) userCursor {
+	c := userCursor{Sort: string(p.Sort), Query: p.Query, Cap: string(p.Cap), ID: last.ID}
+	switch p.Sort {
+	case store.UserSortLastLogin:
+		c.Time = last.LastLoginKey().Format(time.RFC3339Nano)
+	case store.UserSortNewest:
+		c.Time = last.CreatedAt.Format(time.RFC3339Nano)
+	default: // UserSortName
+		c.Name = last.Username
+	}
+	return c
+}
+
 func (s *Handlers) pageUsers(w http.ResponseWriter, r *http.Request) {
-	after := r.URL.Query().Get("after")
-	users, hasMore, err := s.Store.ListUsersPage(r.Context(), after)
+	q := r.URL.Query()
+	sortKey := store.NormalizeUserSort(q.Get("sort"))
+	capFilter := store.NormalizeUserCapFilter(q.Get("cap"))
+	query := strings.TrimSpace(q.Get("q"))
+	if len(query) > 100 {
+		query = query[:100]
+	}
+
+	var p store.UserListParams
+	if c, ok := web.DecodeCursor[userCursor](q.Get("cursor")); ok {
+		sortKey = store.NormalizeUserSort(c.Sort)
+		capFilter = store.NormalizeUserCapFilter(c.Cap)
+		query = c.Query
+		p.HasCursor = true
+		p.AfterName = c.Name
+		p.AfterID = c.ID
+		if c.Time != "" {
+			p.AfterTime, _ = time.Parse(time.RFC3339Nano, c.Time)
+		}
+	}
+	p.Sort = sortKey
+	p.Cap = capFilter
+	p.Query = query
+
+	users, hasMore, err := s.Store.ListUsersPage(r.Context(), p)
 	if err != nil {
 		http.Error(w, "could not load users", http.StatusInternalServerError)
 		return
@@ -113,12 +163,39 @@ func (s *Handlers) pageUsers(w http.ResponseWriter, r *http.Request) {
 	data := map[string]any{
 		"Users": users,
 		"Self":  s.Auth.CurrentUserID(r.Context()),
-		"Error": r.URL.Query().Get("error"),
+		"Error": q.Get("error"),
+		"Sort":  string(sortKey),
+		"Cap":   string(capFilter),
+		"Query": query,
 	}
 	if hasMore && len(users) > 0 {
-		data["NextAfter"] = users[len(users)-1].Username
+		data["NextCursor"] = web.EncodeCursor(nextUserCursor(p, users[len(users)-1]))
+	}
+	// htmx "load more": return just the rows + next control to append in place.
+	if r.Header.Get("HX-Request") != "" {
+		data["Layout"] = "users-frag"
 	}
 	s.Render(w, r, "admin_users.html", data)
+}
+
+// pageUserPermissions renders the per-user permissions modal fragment (the
+// manage-users/manage-catalog form), loaded via htmx into the shared modal.
+func (s *Handlers) pageUserPermissions(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	u, err := s.Store.GetUserByID(r.Context(), id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	s.Render(w, r, "admin_user_permissions.html", map[string]any{
+		"Account": u,
+		"Self":    s.Auth.CurrentUserID(r.Context()),
+		"Layout":  "permissions-modal",
+	})
 }
 
 func (s *Handlers) handleSetUserCaps(w http.ResponseWriter, r *http.Request) {
@@ -177,8 +254,13 @@ func (s *Handlers) pageUserHistory(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not load history", http.StatusInternalServerError)
 		return
 	}
-	s.Render(w, r, "admin_user_history.html", map[string]any{
+	data := map[string]any{
 		"Account": u,
 		"Changes": changes,
-	})
+	}
+	// Loaded into the shared modal via htmx; render just the modal body then.
+	if r.Header.Get("HX-Request") != "" {
+		data["Layout"] = "history-modal"
+	}
+	s.Render(w, r, "admin_user_history.html", data)
 }

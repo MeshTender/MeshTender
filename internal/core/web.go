@@ -190,6 +190,7 @@ func (s *Handlers) appRouter() chi.Router {
 			r.With(s.requireCap(capCatalog)).Get("/catalog", s.pageCatalog)
 			r.With(s.requireCap(capCatalog)).Post("/catalog/{id}", s.handleUpdateCommand)
 			r.With(s.requireCap(capUsers)).Get("/users", s.pageUsers)
+			r.With(s.requireCap(capUsers)).Get("/users/{id}/permissions", s.pageUserPermissions)
 			r.With(s.requireCap(capUsers)).Get("/users/{id}/history", s.pageUserHistory)
 			r.With(s.requireCap(capUsers)).Post("/users/{id}", s.handleSetUserCaps)
 		})

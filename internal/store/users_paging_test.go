@@ -22,12 +22,12 @@ func TestListUsersPage(t *testing.T) {
 	var (
 		seen     = map[int64]bool{}
 		count    int
-		after    string
+		p        = UserListParams{Sort: UserSortName}
 		prevName string
 		pages    int
 	)
 	for {
-		page, hasMore, err := st.ListUsersPage(ctx, after)
+		page, hasMore, err := st.ListUsersPage(ctx, p)
 		if err != nil {
 			t.Fatalf("page: %v", err)
 		}
@@ -49,7 +49,10 @@ func TestListUsersPage(t *testing.T) {
 		if !hasMore {
 			break
 		}
-		after = page[len(page)-1].Username
+		last := page[len(page)-1]
+		p.HasCursor = true
+		p.AfterName = last.Username
+		p.AfterID = last.ID
 	}
 
 	if count != total {
