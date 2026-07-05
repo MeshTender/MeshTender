@@ -1,10 +1,13 @@
 package core
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"testing"
+
+	"github.com/jleight/meshtender/internal/store"
 )
 
 // Black-box coverage for the auth host's non-visual POST endpoints: password
@@ -91,6 +94,33 @@ func TestWebAuthnBeginRateLimited(t *testing.T) {
 				t.Fatalf("%s: never returned 429; the rate limiter is not wired", path)
 			}
 		})
+	}
+}
+
+// TestPasskeyBeginDefersAccount: a logged-out register/begin issues a challenge
+// but does NOT persist an account — the row is only written once a credential is
+// verified at finish (which needs a real authenticator, covered by the e2e
+// suite). Regression for the pre-release audit finding + README follow-up that an
+// abandoned passkey signup left an orphan account squatting the username.
+func TestPasskeyBeginDefersAccount(t *testing.T) {
+	t.Parallel()
+	st, ctx, ts, h := splitServer(t)
+
+	resp := jsonPost(t, ts.URL+"/api/register/begin", h.auth, `{"username":"ghost","displayName":"Ghost"}`)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("register/begin = %d, want 200 (challenge issued)", resp.StatusCode)
+	}
+	if _, err := st.GetUserByUsername(ctx, "ghost"); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("begin persisted an account for an unfinished ceremony (err=%v)", err)
+	}
+
+	// A name already taken is still rejected up front.
+	authSSO(t, ts, h, "taken")
+	dup := jsonPost(t, ts.URL+"/api/register/begin", h.auth, `{"username":"taken"}`)
+	dup.Body.Close()
+	if dup.StatusCode != http.StatusConflict {
+		t.Fatalf("register/begin for taken username = %d, want 409", dup.StatusCode)
 	}
 }
 

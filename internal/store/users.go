@@ -53,11 +53,39 @@ func scanUser(row pgx.Row) (*User, error) {
 	return &u, nil
 }
 
-// CreateUser inserts a new user and returns it. displayName may be empty (then
-// stored as NULL). Returns ErrDuplicate if the username is already taken, or
-// ErrUsernameReserved if it was recently released by someone else and is still
-// within its cooldown.
+// CreateUser inserts a new user with a database-assigned id and returns it.
+// displayName may be empty (then stored as NULL). Returns ErrDuplicate if the
+// username is already taken, or ErrUsernameReserved if it was recently released
+// by someone else and is still within its cooldown.
 func (s *Store) CreateUser(ctx context.Context, username, displayName string) (*User, error) {
+	return s.createUser(ctx, 0, username, displayName)
+}
+
+// ReserveUserID consumes and returns the next users.id from the identity
+// sequence without inserting a row. The deferred passkey signup uses it to fix
+// the account's id — and therefore its WebAuthn user handle, which is the id
+// encoded as 8 bytes — at BeginRegistration, then writes the row with
+// CreateUserWithID only once a credential is verified at finish. An abandoned
+// ceremony merely leaves a gap in the sequence; no orphan account is created.
+func (s *Store) ReserveUserID(ctx context.Context) (int64, error) {
+	var id int64
+	if err := s.pool.QueryRow(ctx,
+		`SELECT nextval(pg_get_serial_sequence('users', 'id'))`).Scan(&id); err != nil {
+		return 0, fmt.Errorf("reserve user id: %w", err)
+	}
+	return id, nil
+}
+
+// CreateUserWithID inserts a new user with a caller-reserved id (from
+// ReserveUserID). See CreateUser for the error contract.
+func (s *Store) CreateUserWithID(ctx context.Context, id int64, username, displayName string) (*User, error) {
+	return s.createUser(ctx, id, username, displayName)
+}
+
+// createUser is the shared insert. id == 0 lets the identity column assign one;
+// a nonzero id is forced via OVERRIDING SYSTEM VALUE (the column is GENERATED
+// ALWAYS).
+func (s *Store) createUser(ctx context.Context, id int64, username, displayName string) (*User, error) {
 	var dn *string
 	if displayName != "" {
 		dn = &displayName
@@ -71,9 +99,13 @@ func (s *Store) CreateUser(ctx context.Context, username, displayName string) (*
 	if reserved {
 		return nil, ErrUsernameReserved
 	}
-	u, err := scanUser(s.pool.QueryRow(ctx,
-		`INSERT INTO users (username, display_name) VALUES ($1, $2) RETURNING `+userCols,
-		username, dn))
+	query := `INSERT INTO users (username, display_name) VALUES ($1, $2) RETURNING ` + userCols
+	args := []any{username, dn}
+	if id != 0 {
+		query = `INSERT INTO users (id, username, display_name) OVERRIDING SYSTEM VALUE VALUES ($1, $2, $3) RETURNING ` + userCols
+		args = []any{id, username, dn}
+	}
+	u, err := scanUser(s.pool.QueryRow(ctx, query, args...))
 	if isUniqueViolation(err) {
 		return nil, ErrDuplicate
 	}

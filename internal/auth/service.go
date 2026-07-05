@@ -18,10 +18,15 @@ import (
 const (
 	sessKeyUserID  = "user_id"  // int64: the authenticated user
 	sessKeyLoginID = "login_id" // string: the logins-row id backing this session
-	sessKeyWAUID   = "wa_uid"   // int64: user mid-ceremony
+	sessKeyWAUID   = "wa_uid"   // int64: user (or reserved id) mid-ceremony
 	sessKeyWAData  = "wa_data"  // []byte: marshaled webauthn.SessionData
 	sessKeyWAName  = "wa_name"  // string: pending passkey name for the in-flight registration
-	sessKeyNext    = "next"     // string: post-auth redirect target
+	// Deferred passkey signup: a logged-out register ceremony carries the pending
+	// account's username/display name (present only for new-account ceremonies).
+	// The account row is written at finish, once a credential is verified.
+	sessKeyWANewName = "wa_new_username" // string: pending new-account username
+	sessKeyWANewDN   = "wa_new_display"  // string: pending new-account display name
+	sessKeyNext      = "next"            // string: post-auth redirect target
 )
 
 // Service wires WebAuthn, the data store, and session management.

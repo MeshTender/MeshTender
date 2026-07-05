@@ -45,17 +45,20 @@ func (s *Service) RequireSSO(next http.Handler) http.Handler {
 
 // --- Passkey registration ---
 
-// RegisterBegin starts a passkey registration ceremony. If a user is logged
-// in, the passkey is added to that account; otherwise a new account is created
-// from the posted email.
+// RegisterBegin starts a passkey registration ceremony. If a user is logged in,
+// the passkey is added to that account. Otherwise this begins a NEW account
+// signup: the account is NOT persisted yet — we reserve its id (which becomes
+// the stable WebAuthn user handle) and stash the pending username, and only
+// write the row once a credential is verified at RegisterFinish. That keeps an
+// abandoned ceremony from leaving an orphan account that squats the username.
 func (s *Service) RegisterBegin(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	var u *store.User
-	var name string // optional label, only for adding a passkey to an existing account
+	var waUser *webauthnUser
+	var name string // passkey label — only when adding to an existing account
 	if uid := s.CurrentUserID(ctx); uid != 0 {
-		var err error
-		if u, err = s.store.GetUserByID(ctx, uid); err != nil {
+		u, err := s.store.GetUserByID(ctx, uid)
+		if err != nil {
 			httpError(w, http.StatusInternalServerError, "load user")
 			return
 		}
@@ -64,28 +67,38 @@ func (s *Service) RegisterBegin(w http.ResponseWriter, r *http.Request) {
 		}
 		_ = json.NewDecoder(r.Body).Decode(&body)
 		name = NormalizePasskeyName(body.Name)
+		// Existing credentials are loaded so the authenticator excludes them.
+		if waUser, err = s.loadWebAuthnUser(ctx, u); err != nil {
+			httpError(w, http.StatusInternalServerError, "load credentials")
+			return
+		}
 	} else {
 		username, displayName, ok := readCreds(r)
 		if !ok {
 			httpError(w, http.StatusBadRequest, "username must be 3–32 chars (letters, digits, _ . -)")
 			return
 		}
-		created, err := s.store.CreateUser(ctx, username, displayName)
-		if errors.Is(err, store.ErrDuplicate) {
+		// Fail fast on a taken name (authoritatively re-checked at finish's insert).
+		if _, err := s.store.GetUserByUsername(ctx, username); err == nil {
 			httpError(w, http.StatusConflict, "username already taken — choose another or sign in")
 			return
-		}
-		if err != nil {
-			httpError(w, http.StatusInternalServerError, "create user")
+		} else if !errors.Is(err, store.ErrNotFound) {
+			httpError(w, http.StatusInternalServerError, "check username")
 			return
 		}
-		u = created
-	}
-
-	waUser, err := s.loadWebAuthnUser(ctx, u)
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, "load credentials")
-		return
+		reservedID, err := s.store.ReserveUserID(ctx)
+		if err != nil {
+			httpError(w, http.StatusInternalServerError, "reserve account")
+			return
+		}
+		// In-memory only — no row is written until finish verifies a credential.
+		u := &store.User{ID: reservedID, Username: username}
+		if displayName != "" {
+			u.DisplayName = &displayName
+		}
+		waUser = &webauthnUser{user: u}
+		s.Sessions.Put(ctx, sessKeyWANewName, username)
+		s.Sessions.Put(ctx, sessKeyWANewDN, displayName)
 	}
 
 	// Prefer discoverable (resident-key) credentials so the holder can sign in
@@ -98,7 +111,7 @@ func (s *Service) RegisterBegin(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, "begin registration")
 		return
 	}
-	if err := s.stashCeremony(ctx, u.ID, sessionData); err != nil {
+	if err := s.stashCeremony(ctx, waUser.user.ID, sessionData); err != nil {
 		httpError(w, http.StatusInternalServerError, "save ceremony")
 		return
 	}
@@ -106,7 +119,10 @@ func (s *Service) RegisterBegin(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, options)
 }
 
-// RegisterFinish completes a passkey registration and logs the user in.
+// RegisterFinish completes a passkey registration and logs the user in. For a
+// deferred new-account ceremony it verifies the credential FIRST, then writes
+// the account row (with the reserved id) — so a failed or abandoned ceremony
+// never persists an account.
 func (s *Service) RegisterFinish(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	uid, sessionData, ok := s.popCeremony(ctx)
@@ -114,17 +130,32 @@ func (s *Service) RegisterFinish(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusBadRequest, "no registration in progress")
 		return
 	}
-	u, err := s.store.GetUserByID(ctx, uid)
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, "load user")
-		return
-	}
-	waUser, err := s.loadWebAuthnUser(ctx, u)
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, "load credentials")
-		return
+	// A pending username marks a new-account ceremony (id reserved, row not yet
+	// written); its absence means we're adding a passkey to an existing account.
+	newName := s.Sessions.PopString(ctx, sessKeyWANewName)
+	newDisplay := s.Sessions.PopString(ctx, sessKeyWANewDN)
+
+	var u *store.User
+	var waUser *webauthnUser
+	if newName != "" {
+		u = &store.User{ID: uid, Username: newName}
+		if newDisplay != "" {
+			u.DisplayName = &newDisplay
+		}
+		waUser = &webauthnUser{user: u} // in-memory; no row yet
+	} else {
+		var err error
+		if u, err = s.store.GetUserByID(ctx, uid); err != nil {
+			httpError(w, http.StatusInternalServerError, "load user")
+			return
+		}
+		if waUser, err = s.loadWebAuthnUser(ctx, u); err != nil {
+			httpError(w, http.StatusInternalServerError, "load credentials")
+			return
+		}
 	}
 
+	// Verify the credential before writing anything durable.
 	cred, err := s.wa.FinishRegistration(waUser, *sessionData, r)
 	if err != nil {
 		httpError(w, http.StatusBadRequest, "registration failed: "+err.Error())
@@ -135,8 +166,22 @@ func (s *Service) RegisterFinish(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, "marshal credential")
 		return
 	}
-	name := s.Sessions.GetString(ctx, sessKeyWAName)
-	s.Sessions.Remove(ctx, sessKeyWAName)
+
+	if newName != "" {
+		// The credential is proven — now persist the account with its reserved id.
+		created, err := s.store.CreateUserWithID(ctx, uid, newName, newDisplay)
+		if errors.Is(err, store.ErrDuplicate) || errors.Is(err, store.ErrUsernameReserved) {
+			httpError(w, http.StatusConflict, "username already taken — choose another or sign in")
+			return
+		}
+		if err != nil {
+			httpError(w, http.StatusInternalServerError, "create account")
+			return
+		}
+		u = created
+	}
+
+	name := s.Sessions.PopString(ctx, sessKeyWAName)
 	if err := s.store.AddCredential(ctx, u.ID, cred.ID, blob, name); err != nil {
 		httpError(w, http.StatusInternalServerError, "store credential")
 		return

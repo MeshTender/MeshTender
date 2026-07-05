@@ -125,10 +125,26 @@ func rootReachableHosts() hostLayout {
 	return hostLayout{app: "app." + browserHost(), auth: "auth." + browserHost(), root: browserHost()}
 }
 
-// newE2EServer stands up the app on a 0.0.0.0 listener so the browser container
-// can connect back to it, and returns both address forms. An optional hostLayout
-// selects which surface the browser can reach (defaults to the app surface).
+// newE2EServer stands up the app (plain HTTP) on a 0.0.0.0 listener so the
+// browser container can connect back to it, and returns both address forms. An
+// optional hostLayout selects which surface the browser can reach (defaults to
+// the app surface).
 func newE2EServer(t *testing.T, layout ...hostLayout) *e2eServer {
+	return buildE2EServer(t, false, layout...)
+}
+
+// newE2ETLSServer is like newE2EServer but serves HTTPS (a self-signed cert) and
+// marks cookies Secure. WebAuthn ceremonies require a secure context, which a
+// plain-HTTP non-localhost origin is not; the browser accepts the self-signed
+// cert via Security.setIgnoreCertificateErrors (see the passkey test).
+func newE2ETLSServer(t *testing.T, layout ...hostLayout) *e2eServer {
+	return buildE2EServer(t, true, layout...)
+}
+
+// buildE2EServer is the shared constructor. It listens first so the WebAuthn RP
+// origins can carry the actual (dynamic) port, then builds the surfaces. secure
+// selects HTTPS + Secure cookies.
+func buildE2EServer(t *testing.T, secure bool, layout ...hostLayout) *e2eServer {
 	t.Helper()
 	hosts := defaultHosts()
 	if len(layout) > 0 {
@@ -145,45 +161,58 @@ func newE2EServer(t *testing.T, layout ...hostLayout) *e2eServer {
 	_, _ = rand.Read(masterKey[:])
 	idSvc, _ := identity.LoadOrCreate(ctx, st, masterKey)
 
+	// Listen up front so the RP origins can include the concrete port.
+	ln, err := net.Listen("tcp", "0.0.0.0:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	port := ln.Addr().(*net.TCPAddr).Port
+
+	scheme := "http"
+	if secure {
+		scheme = "https"
+	}
+	origin := func(h string) string { return fmt.Sprintf("%s://%s:%d", scheme, h, port) }
+
 	// The server runs across three distinct hosts so the Dispatcher can tell the
 	// surfaces apart. The browser can navigate only the one named browserHost()
 	// (host.docker.internal) — the sole alias the container resolves back here; the
-	// layout decides which surface that is (app by default, auth for account tests).
-	appHost, authHost, rootHost := hosts.app, hosts.auth, hosts.root
+	// layout decides which surface that is. The RP ID is browserHost(): a WebAuthn
+	// ceremony's origin host is that name (or a subdomain of it), so it's a valid
+	// RP ID, and every surface origin is allowed.
 	authSvc, err := auth.New(st, st.Pool(), auth.Config{
-		RPID: "localhost", RPDisplayName: "test", RPOrigins: []string{"http://localhost"},
-		AppHost: appHost, AuthHost: authHost, RootHost: rootHost,
+		RPID: browserHost(), RPDisplayName: "test",
+		RPOrigins: []string{origin(hosts.app), origin(hosts.auth), origin(hosts.root)},
+		AppHost:   hosts.app, AuthHost: hosts.auth, RootHost: hosts.root,
+		Secure: secure,
 	})
 	if err != nil {
 		t.Fatalf("auth: %v", err)
 	}
 	srv, err := core.NewServer(st, authSvc, idSvc, &config.Config{
-		PrimaryHost: appHost, AuthHost: authHost, RootHost: rootHost,
+		PrimaryHost: hosts.app, AuthHost: hosts.auth, RootHost: hosts.root, Secure: secure,
 	})
 	if err != nil {
 		t.Fatalf("server: %v", err)
 	}
 
-	ln, err := net.Listen("tcp", "0.0.0.0:0")
-	if err != nil {
-		t.Fatalf("listen: %v", err)
-	}
 	ts := httptest.NewUnstartedServer(srv.Handler())
 	ts.Listener.Close() // drop the default 127.0.0.1 listener
 	ts.Listener = ln
-	ts.Start()
+	if secure {
+		ts.StartTLS()
+	} else {
+		ts.Start()
+	}
 	t.Cleanup(ts.Close)
 
-	port := ln.Addr().(*net.TCPAddr).Port
-	// ts.URL reflects the 0.0.0.0 listener; rewrite it to loopback so the
-	// host-side Go client dials a concrete address.
-	ts.URL = fmt.Sprintf("http://127.0.0.1:%d", port)
+	ts.URL = fmt.Sprintf("%s://127.0.0.1:%d", scheme, port)
 	return &e2eServer{
 		store:      st,
 		ctx:        ctx,
 		ts:         ts,
 		hostURL:    ts.URL,
-		browserURL: fmt.Sprintf("http://%s:%d", browserHost(), port),
+		browserURL: fmt.Sprintf("%s://%s:%d", scheme, browserHost(), port),
 	}
 }
 

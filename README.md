@@ -138,7 +138,4 @@ internal/web          routing, templates, static assets, confirm orchestration
 
 ## Known follow-ups
 
-- An abandoned passkey signup leaves an orphan account holding that username (can't log in, blocks
-  re-signup). Add cleanup or upsert-on-begin.
-- Passkey `navigator.credentials` create/get is only verifiable in a real browser / virtual
-  authenticator — not covered by automated tests.
+- (none currently)
