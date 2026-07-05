@@ -23,6 +23,7 @@ import (
 
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	slog.SetDefault(logger) // so package-level slog (e.g. the renderer) uses this handler
 	if err := run(logger); err != nil {
 		logger.Error("fatal", "err", err)
 		os.Exit(1)

@@ -5,10 +5,12 @@
 package web
 
 import (
+	"bytes"
 	"context"
 	"embed"
 	"html/template"
 	"io/fs"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -223,10 +225,21 @@ func (rn *Renderer) Render(w http.ResponseWriter, r *http.Request, page string, 
 	if layout == "" {
 		layout = "base"
 	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := t.ExecuteTemplate(w, layout, data); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	// Render into a buffer first: executing straight to w commits a 200 and a
+	// partial body the moment the template writes anything, so a mid-render
+	// failure would both leak the error text (template/query internals) and
+	// corrupt the page. Buffering lets us fail cleanly with a generic 500 and
+	// log the real cause server-side, keyed by request ID.
+	var buf bytes.Buffer
+	if err := t.ExecuteTemplate(&buf, layout, data); err != nil {
+		slog.Error("template render failed",
+			"page", page, "layout", layout,
+			"request_id", middleware.GetReqID(r.Context()), "err", err)
+		http.Error(w, "Something went wrong.", http.StatusInternalServerError)
+		return
 	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = buf.WriteTo(w)
 }
 
 // --- shared HTTP helpers (used across surfaces) ---
