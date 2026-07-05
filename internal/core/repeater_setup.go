@@ -54,11 +54,12 @@ func (s *Handlers) handleSetupCommands(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
-	req.Name = strings.TrimSpace(req.Name)
-	if req.Name == "" {
-		http.Error(w, "name is required", http.StatusBadRequest)
+	name, ok := cleanRepeaterName(req.Name)
+	if !ok {
+		http.Error(w, "name is required and must be 31 characters or fewer", http.StatusBadRequest)
 		return
 	}
+	req.Name = name
 
 	var cmds []string
 	cmds = append(cmds, "set name "+req.Name)
@@ -223,10 +224,10 @@ func (s *Handlers) profileSteps(ctx context.Context, orgID int64, name string) (
 func (s *Handlers) handleSetupComplete(w http.ResponseWriter, r *http.Request) {
 	uid := s.Auth.CurrentUserID(r.Context())
 
-	name := strings.TrimSpace(r.FormValue("name"))
+	name, ok := cleanRepeaterName(r.FormValue("name"))
 	pubHex := strings.ToLower(strings.TrimSpace(r.FormValue("public_key")))
-	if name == "" {
-		http.Error(w, "name is required", http.StatusBadRequest)
+	if !ok {
+		http.Error(w, "name is required and must be 31 characters or fewer", http.StatusBadRequest)
 		return
 	}
 	if _, err := meshcore.NewIdentityFromHex(pubHex); err != nil {

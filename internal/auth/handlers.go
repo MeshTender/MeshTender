@@ -364,6 +364,20 @@ func NormalizePasskeyName(s string) string {
 	return s
 }
 
+// Password length bounds. The lower bound is a basic strength floor; the upper
+// bound is bcrypt's hard limit — GenerateFromPassword rejects inputs longer than
+// 72 bytes, so we reject them at the form boundary with a clear message rather
+// than surfacing a generic hashing failure.
+const (
+	MinPasswordLen = 8
+	MaxPasswordLen = 72
+)
+
+// ValidPassword reports whether p is within the accepted length bounds.
+func ValidPassword(p string) bool {
+	return len(p) >= MinPasswordLen && len(p) <= MaxPasswordLen
+}
+
 // ValidUsername reports whether s is 3–32 chars of [a-z0-9_.-].
 func ValidUsername(s string) bool {
 	if len(s) < 3 || len(s) > 32 {

@@ -6,12 +6,68 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"testing"
 
 	meshcore "github.com/meshcore-go/meshcore-go"
 
 	"github.com/jleight/meshtender/internal/store"
 )
+
+// TestCleanRepeaterName pins the firmware-derived byte bound: MeshCore stores a
+// node name in a 32-byte buffer and NUL-terminates it, leaving 31 usable bytes.
+func TestCleanRepeaterName(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		in     string
+		want   string
+		wantOK bool
+	}{
+		{"  Repeater One  ", "Repeater One", true},
+		{"", "", false},
+		{"   ", "", false},
+		{strings.Repeat("x", 31), strings.Repeat("x", 31), true},
+		{strings.Repeat("x", 32), strings.Repeat("x", 32), false},
+		{"  " + strings.Repeat("x", 31) + "  ", strings.Repeat("x", 31), true}, // trimmed to the limit
+	}
+	for _, c := range cases {
+		got, ok := cleanRepeaterName(c.in)
+		if got != c.want || ok != c.wantOK {
+			t.Errorf("cleanRepeaterName(%q) = (%q, %v), want (%q, %v)", c.in, got, ok, c.want, c.wantOK)
+		}
+	}
+}
+
+// TestRepeaterNameLengthBound: a name over MeshCore's 31-byte limit is rejected
+// at create (it would be silently truncated on the device); exactly-at-limit
+// succeeds. Regression for the pre-release audit finding that names were
+// unbounded.
+func TestRepeaterNameLengthBound(t *testing.T) {
+	t.Parallel()
+	st, ctx, ts, h := splitServer(t)
+	_, sess := appLogin(t, ts, st, ctx, h.app, "namelen")
+
+	form := func(name, key string) url.Values {
+		return url.Values{
+			"name": {name}, "public_key": {key},
+			"radio_freq_mhz": {"869.525"}, "radio_bw_khz": {"250"}, "radio_sf": {"11"}, "radio_cr": {"5"},
+		}
+	}
+
+	overID, _ := meshcore.GenerateLocalIdentity(rand.Reader)
+	over := post(t, ts, h.app, "/repeaters", form(strings.Repeat("x", maxRepeaterNameLen+1), overID.String()), sess)
+	over.Body.Close()
+	if loc, _ := url.Parse(over.Header.Get("Location")); over.StatusCode != http.StatusSeeOther || loc.Path != "/repeaters/add" || loc.Query().Get("error") == "" {
+		t.Fatalf("over-long create = %d %q, want 303 → /repeaters/add?error", over.StatusCode, over.Header.Get("Location"))
+	}
+
+	atID, _ := meshcore.GenerateLocalIdentity(rand.Reader)
+	at := post(t, ts, h.app, "/repeaters", form(strings.Repeat("x", maxRepeaterNameLen), atID.String()), sess)
+	at.Body.Close()
+	if loc, _ := url.Parse(at.Header.Get("Location")); at.StatusCode != http.StatusSeeOther || !strings.HasSuffix(loc.Path, "/added") {
+		t.Fatalf("at-limit create = %d %q, want 303 → /repeaters/{id}/added", at.StatusCode, at.Header.Get("Location"))
+	}
+}
 
 // Black-box coverage for the repeater, sharing, invite, and admin POST endpoints.
 // All redirect (303) and do not render; each test asserts the redirect target and,

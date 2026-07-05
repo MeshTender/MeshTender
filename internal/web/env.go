@@ -239,7 +239,26 @@ func (e *Env) CommonMiddleware(r chi.Router) {
 	r.Use(CaptureRemoteAddr) // preserve the true TCP peer before we resolve
 	r.Use(e.resolveClientIP) // trusted-proxy-aware X-Forwarded-For resolution
 	r.Use(e.securityHeaders) // CSP (+ per-request script nonce) and hardening headers
+	r.Use(limitBody)         // cap request bodies before any handler reads them
 	r.Use(middleware.Recoverer)
+}
+
+// maxRequestBody caps the request body every surface will read. The app has no
+// file uploads — the largest bodies are form posts and small JSON (serial-setup
+// command lists, markdown docs) — so 1 MiB is generous while stopping a client
+// from streaming an arbitrarily large body into memory before per-field limits
+// can apply. WebSocket upgrades carry no request body, so this doesn't affect
+// the console/confirm sockets.
+const maxRequestBody = 1 << 20 // 1 MiB
+
+// limitBody caps r.Body so an oversized request fails fast — a read past the
+// limit errors and the handler surfaces its generic 400/500 — instead of
+// buffering unbounded data.
+func limitBody(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, maxRequestBody)
+		next.ServeHTTP(w, r)
+	})
 }
 
 // SharedRoutes registers endpoints every surface needs (health, static assets).

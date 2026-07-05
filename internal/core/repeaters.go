@@ -161,14 +161,30 @@ func (s *Handlers) pageRepeaterAdded(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// maxRepeaterNameLen bounds a repeater name to what MeshCore firmware can store
+// and advertise. A node's name lives in a 32-byte buffer (`node_name[32]` in
+// CommonCLI.h) and `set name` copies into it with StrHelper::strncpy(...,
+// sizeof(node_name)), whose loop runs while buf_sz > 1 and then writes the NUL
+// terminator — so 31 usable bytes. A longer name is silently truncated on the
+// device, so we reject it here rather than record a name the hardware won't
+// actually advertise. (Verified against the MeshCore firmware source.)
+const maxRepeaterNameLen = 31
+
+// cleanRepeaterName trims s and reports whether it is a usable repeater name:
+// non-empty and within the firmware's byte limit.
+func cleanRepeaterName(s string) (string, bool) {
+	s = strings.TrimSpace(s)
+	return s, s != "" && len(s) <= maxRepeaterNameLen
+}
+
 // handleAddRepeater registers a new repeater (unconfirmed) for the current user.
 func (s *Handlers) handleAddRepeater(w http.ResponseWriter, r *http.Request) {
 	uid := s.Auth.CurrentUserID(r.Context())
 
-	name := strings.TrimSpace(r.FormValue("name"))
+	name, ok := cleanRepeaterName(r.FormValue("name"))
 	pubHex := strings.ToLower(strings.TrimSpace(r.FormValue("public_key")))
-	if name == "" {
-		addErr(w, r, "Repeater name is required.")
+	if !ok {
+		addErr(w, r, "Repeater name is required and must be 31 characters or fewer.")
 		return
 	}
 	// Validate the public key is a real 32-byte MeshCore key.
@@ -245,9 +261,9 @@ func (s *Handlers) handleEditRepeater(w http.ResponseWriter, r *http.Request) {
 	editErr := func(msg string) {
 		web.RedirectErr(w, r, "/repeaters/"+repeaterParam(r)+"/edit", msg)
 	}
-	name := strings.TrimSpace(r.FormValue("name"))
-	if name == "" {
-		editErr("Repeater name is required.")
+	name, ok := cleanRepeaterName(r.FormValue("name"))
+	if !ok {
+		editErr("Repeater name is required and must be 31 characters or fewer.")
 		return
 	}
 	freq, bw, sf, cr, valid := parseRadioForm(r)
