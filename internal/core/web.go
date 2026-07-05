@@ -81,9 +81,10 @@ func NewServer(st *store.Store, authSvc *auth.Service, idSvc *identity.Service, 
 	return &Server{handler: handler}, nil
 }
 
-// baseMW applies the shared middleware plus session loading.
-func (s *Handlers) baseMW(r chi.Router) {
-	s.CommonMiddleware(r)
+// sessionMW loads and validates the SSO session (two DB touches). It's applied to
+// the route group that needs it — not to static assets or /healthz, which never
+// use a session and (for static) are hit frequently.
+func (s *Handlers) sessionMW(r chi.Router) {
 	r.Use(s.Auth.Sessions.LoadAndSave)
 	r.Use(s.Auth.ValidateSession)
 }
@@ -103,98 +104,105 @@ func (s *Handlers) redirectToAuthSignup(w http.ResponseWriter, r *http.Request) 
 // appRouter is the product surface served on the app host.
 func (s *Handlers) appRouter() chi.Router {
 	r := chi.NewRouter()
-	s.baseMW(r)
+	s.CommonMiddleware(r)
 	// The app host is the authenticated product — nothing here is meant for
 	// search. Blanket noindex, and tell crawlers not to crawl it at all.
 	r.Use(web.NoIndex)
 	r.Get("/robots.txt", web.RobotsTxt(web.RobotsDisallowAll))
+	// Static assets and health don't need a session (and static is hit often), so
+	// register them ahead of the session middleware, which does per-request DB work.
 	s.SharedRoutes(r)
 
-	// The handoff endpoint that turns an auth-host sign-in into an app session.
-	r.Get("/session/callback", s.Auth.SessionCallback)
-	// Credential UI lives on the auth host; these initiate the handoff there.
-	r.Get("/login", s.redirectToAuthLogin)
-	r.Get("/signup", s.redirectToAuthSignup)
-
-	r.Get("/", s.pageHome)
-	r.Get("/invite/{token}", s.pageInvite) // public: handles logged-out state
-
-	// Authenticated area.
+	// Everything below runs the session middleware.
 	r.Group(func(r chi.Router) {
-		r.Use(s.Auth.RequireUser)
-		r.Get("/orgs", s.pageMyOrgs)   // your organizations; discovery is on root
-		r.Get("/orgs/{id}", s.pageOrg) // member view (non-members redirect to root)
-		r.Get("/orgs/{id}/members", s.pageOrgMembers)
-		r.Get("/orgs/{id}/repeaters", s.pageOrgRepeaters)
-		r.Get("/repeaters", s.pageRepeaters)
-		r.Post("/logout", s.handleLogout)
-		r.Get("/repeaters/add", s.pageAddRepeater)
-		r.Post("/repeaters", s.handleAddRepeater)
-		r.Post("/repeaters/setup/commands", s.handleSetupCommands)
-		r.Post("/repeaters/setup/complete", s.handleSetupComplete)
-		r.Get("/repeaters/{id}", s.pageRepeater)
-		r.Get("/repeaters/{id}/added", s.pageRepeaterAdded)
-		r.Get("/repeaters/{id}/edit", s.pageEditRepeater)
-		r.Post("/repeaters/{id}/edit", s.handleEditRepeater)
-		r.Get("/repeaters/{id}/delete", s.pageDeleteRepeater)
-		r.Post("/repeaters/{id}/delete", s.handleDeleteRepeater)
-		r.Get("/repeaters/{id}/confirm", s.pageConfirm)
-		r.Get("/repeaters/{id}/ws", s.wsConfirm)
-		r.Get("/repeaters/{id}/console", s.pageConsole)
-		r.Get("/repeaters/{id}/console/ws", s.wsConsole)
-		r.Get("/repeaters/{id}/config.json", s.consoleConfigJSON)
-		r.Post("/repeaters/{id}/location", s.handleSetRepeaterLocation)
-		r.Get("/repeaters/{id}/log", s.pageCommandLog)
-		r.Get("/repeaters/{id}/docs", s.pageRepeaterDocs)
-		r.Post("/repeaters/{id}/docs", s.handleRepeaterDocs)
-		r.Get("/repeaters/{id}/maintenance", s.pageRepeaterMaintenance)
-		r.Post("/repeaters/{id}/maintenance", s.handleAddMaintenance)
-		r.Post("/repeaters/{id}/maintenance/delete", s.handleDeleteMaintenance)
-		r.Get("/repeaters/{id}/share", s.pageShare)
-		r.Post("/repeaters/{id}/share/link", s.handleCreateLink)
-		r.Post("/repeaters/{id}/share/link/delete", s.handleDeleteInvite)
-		r.Post("/repeaters/{id}/unshare", s.handleUnshare)
-		r.Get("/repeaters/{id}/share/{userID}/commands", s.pageShareCommands)
-		r.Post("/repeaters/{id}/share/{userID}/commands", s.handleSetShareCommands)
-		r.Post("/repeaters/{id}/share/{userID}/steward", s.handleSetShareSteward)
-		r.Post("/repeaters/{id}/orgs/{orgID}/participation", s.handleSetRepeaterOrg)
-		r.Post("/invite/{token}/accept", s.handleAcceptInvite)
+		s.sessionMW(r)
 
-		r.Get("/orgs/new", s.pageNewOrg)
-		r.Post("/orgs", s.handleCreateOrg)
-		r.Post("/orgs/{id}/edit", s.handleEditOrg)
-		r.Post("/orgs/{id}/links", s.handleSetOrgLinks)
-		r.Get("/orgs/{id}/join", s.pageJoinOrg)
-		r.Post("/orgs/{id}/join", s.handleJoinOrg)
-		r.Post("/orgs/{id}/leave", s.handleLeaveOrg)
-		r.Post("/orgs/{id}/members/{userID}", s.handleSetOrgMember)
-		r.Get("/orgs/{id}/my-commands", s.pageOrgCommands)
-		r.Post("/orgs/{id}/my-commands", s.handleSaveOrgCommands)
-		r.Get("/orgs/{id}/config", s.pageOrgConfig)
-		r.Get("/orgs/{id}/config/edit", s.pageConfigHub)
-		r.Get("/orgs/{id}/config/profiles/new", s.pageProfileEdit)
-		r.Post("/orgs/{id}/config/profiles", s.handleCreateProfile)
-		r.Get("/orgs/{id}/config/profiles/{pid}/edit", s.pageProfileEdit)
-		r.Post("/orgs/{id}/config/profiles/{pid}", s.handleUpdateProfile)
-		r.Post("/orgs/{id}/config/profiles/{pid}/delete", s.handleDeleteProfile)
-		r.Get("/orgs/{id}/config/regions", s.pageRegionsEdit)
-		r.Post("/orgs/{id}/config/regions", s.handleSaveRegions)
-		// Custom org domains are hidden for now — the hosting/TLS infrastructure
-		// isn't in place yet. Leave the handlers in tree but don't expose them.
-		// r.Post("/orgs/{id}/domains", s.handleAddOrgDomain)
-		// r.Post("/orgs/{id}/domains/verify", s.handleVerifyOrgDomain)
-		// r.Post("/orgs/{id}/domains/delete", s.handleDeleteOrgDomain)
+		// The handoff endpoint that turns an auth-host sign-in into an app session.
+		r.Get("/session/callback", s.Auth.SessionCallback)
+		// Credential UI lives on the auth host; these initiate the handoff there.
+		r.Get("/login", s.redirectToAuthLogin)
+		r.Get("/signup", s.redirectToAuthSignup)
 
-		r.Route("/admin", func(r chi.Router) {
-			r.With(s.requireCap(capAny)).Get("/", s.pageAdmin)
-			r.With(s.requireCap(capAny)).Get("/analytics", s.pageAnalytics)
-			r.With(s.requireCap(capAny)).Get("/proxy-test", s.pageProxyTest)
-			r.With(s.requireCap(capCatalog)).Get("/catalog", s.pageCatalog)
-			r.With(s.requireCap(capCatalog)).Post("/catalog/{id}", s.handleUpdateCommand)
-			r.With(s.requireCap(capUsers)).Get("/users", s.pageUsers)
-			r.With(s.requireCap(capUsers)).Get("/users/{id}/permissions", s.pageUserPermissions)
-			r.With(s.requireCap(capUsers)).Get("/users/{id}/history", s.pageUserHistory)
-			r.With(s.requireCap(capUsers)).Post("/users/{id}", s.handleSetUserCaps)
+		r.Get("/", s.pageHome)
+		r.Get("/invite/{token}", s.pageInvite) // public: handles logged-out state
+
+		// Authenticated area.
+		r.Group(func(r chi.Router) {
+			r.Use(s.Auth.RequireUser)
+			r.Get("/orgs", s.pageMyOrgs)   // your organizations; discovery is on root
+			r.Get("/orgs/{id}", s.pageOrg) // member view (non-members redirect to root)
+			r.Get("/orgs/{id}/members", s.pageOrgMembers)
+			r.Get("/orgs/{id}/repeaters", s.pageOrgRepeaters)
+			r.Get("/repeaters", s.pageRepeaters)
+			r.Post("/logout", s.handleLogout)
+			r.Get("/repeaters/add", s.pageAddRepeater)
+			r.Post("/repeaters", s.handleAddRepeater)
+			r.Post("/repeaters/setup/commands", s.handleSetupCommands)
+			r.Post("/repeaters/setup/complete", s.handleSetupComplete)
+			r.Get("/repeaters/{id}", s.pageRepeater)
+			r.Get("/repeaters/{id}/added", s.pageRepeaterAdded)
+			r.Get("/repeaters/{id}/edit", s.pageEditRepeater)
+			r.Post("/repeaters/{id}/edit", s.handleEditRepeater)
+			r.Get("/repeaters/{id}/delete", s.pageDeleteRepeater)
+			r.Post("/repeaters/{id}/delete", s.handleDeleteRepeater)
+			r.Get("/repeaters/{id}/confirm", s.pageConfirm)
+			r.Get("/repeaters/{id}/ws", s.wsConfirm)
+			r.Get("/repeaters/{id}/console", s.pageConsole)
+			r.Get("/repeaters/{id}/console/ws", s.wsConsole)
+			r.Get("/repeaters/{id}/config.json", s.consoleConfigJSON)
+			r.Post("/repeaters/{id}/location", s.handleSetRepeaterLocation)
+			r.Get("/repeaters/{id}/log", s.pageCommandLog)
+			r.Get("/repeaters/{id}/docs", s.pageRepeaterDocs)
+			r.Post("/repeaters/{id}/docs", s.handleRepeaterDocs)
+			r.Get("/repeaters/{id}/maintenance", s.pageRepeaterMaintenance)
+			r.Post("/repeaters/{id}/maintenance", s.handleAddMaintenance)
+			r.Post("/repeaters/{id}/maintenance/delete", s.handleDeleteMaintenance)
+			r.Get("/repeaters/{id}/share", s.pageShare)
+			r.Post("/repeaters/{id}/share/link", s.handleCreateLink)
+			r.Post("/repeaters/{id}/share/link/delete", s.handleDeleteInvite)
+			r.Post("/repeaters/{id}/unshare", s.handleUnshare)
+			r.Get("/repeaters/{id}/share/{userID}/commands", s.pageShareCommands)
+			r.Post("/repeaters/{id}/share/{userID}/commands", s.handleSetShareCommands)
+			r.Post("/repeaters/{id}/share/{userID}/steward", s.handleSetShareSteward)
+			r.Post("/repeaters/{id}/orgs/{orgID}/participation", s.handleSetRepeaterOrg)
+			r.Post("/invite/{token}/accept", s.handleAcceptInvite)
+
+			r.Get("/orgs/new", s.pageNewOrg)
+			r.Post("/orgs", s.handleCreateOrg)
+			r.Post("/orgs/{id}/edit", s.handleEditOrg)
+			r.Post("/orgs/{id}/links", s.handleSetOrgLinks)
+			r.Get("/orgs/{id}/join", s.pageJoinOrg)
+			r.Post("/orgs/{id}/join", s.handleJoinOrg)
+			r.Post("/orgs/{id}/leave", s.handleLeaveOrg)
+			r.Post("/orgs/{id}/members/{userID}", s.handleSetOrgMember)
+			r.Get("/orgs/{id}/my-commands", s.pageOrgCommands)
+			r.Post("/orgs/{id}/my-commands", s.handleSaveOrgCommands)
+			r.Get("/orgs/{id}/config", s.pageOrgConfig)
+			r.Get("/orgs/{id}/config/edit", s.pageConfigHub)
+			r.Get("/orgs/{id}/config/profiles/new", s.pageProfileEdit)
+			r.Post("/orgs/{id}/config/profiles", s.handleCreateProfile)
+			r.Get("/orgs/{id}/config/profiles/{pid}/edit", s.pageProfileEdit)
+			r.Post("/orgs/{id}/config/profiles/{pid}", s.handleUpdateProfile)
+			r.Post("/orgs/{id}/config/profiles/{pid}/delete", s.handleDeleteProfile)
+			r.Get("/orgs/{id}/config/regions", s.pageRegionsEdit)
+			r.Post("/orgs/{id}/config/regions", s.handleSaveRegions)
+			// Custom org domains are hidden for now — the hosting/TLS infrastructure
+			// isn't in place yet. Leave the handlers in tree but don't expose them.
+			// r.Post("/orgs/{id}/domains", s.handleAddOrgDomain)
+			// r.Post("/orgs/{id}/domains/verify", s.handleVerifyOrgDomain)
+			// r.Post("/orgs/{id}/domains/delete", s.handleDeleteOrgDomain)
+
+			r.Route("/admin", func(r chi.Router) {
+				r.With(s.requireCap(capAny)).Get("/", s.pageAdmin)
+				r.With(s.requireCap(capAny)).Get("/analytics", s.pageAnalytics)
+				r.With(s.requireCap(capAny)).Get("/proxy-test", s.pageProxyTest)
+				r.With(s.requireCap(capCatalog)).Get("/catalog", s.pageCatalog)
+				r.With(s.requireCap(capCatalog)).Post("/catalog/{id}", s.handleUpdateCommand)
+				r.With(s.requireCap(capUsers)).Get("/users", s.pageUsers)
+				r.With(s.requireCap(capUsers)).Get("/users/{id}/permissions", s.pageUserPermissions)
+				r.With(s.requireCap(capUsers)).Get("/users/{id}/history", s.pageUserHistory)
+				r.With(s.requireCap(capUsers)).Post("/users/{id}", s.handleSetUserCaps)
+			})
 		})
 	})
 

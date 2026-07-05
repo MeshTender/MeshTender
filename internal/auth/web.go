@@ -31,8 +31,9 @@ func NewWeb(deps web.Deps, svc *Service) (*Handlers, error) {
 	return &Handlers{Env: env, Auth: svc}, nil
 }
 
-func (s *Handlers) baseMW(r chi.Router) {
-	s.CommonMiddleware(r)
+// sessionMW loads and validates the SSO session (two DB touches). Applied to the
+// route group that needs it — not to static assets or /healthz.
+func (s *Handlers) sessionMW(r chi.Router) {
 	r.Use(s.Auth.Sessions.LoadAndSave)
 	r.Use(s.Auth.ValidateSession)
 }
@@ -40,35 +41,42 @@ func (s *Handlers) baseMW(r chi.Router) {
 // Routes is the auth host's router.
 func (s *Handlers) Routes() chi.Router {
 	r := chi.NewRouter()
-	s.baseMW(r)
+	s.CommonMiddleware(r)
 	// Sign-in/account pages are never meant for search. Blanket noindex, and tell
 	// crawlers not to crawl the auth host at all.
 	r.Use(web.NoIndex)
 	r.Get("/robots.txt", web.RobotsTxt(web.RobotsDisallowAll))
+	// Static assets and health don't need a session; register them ahead of the
+	// session middleware, which does per-request DB work.
 	s.SharedRoutes(r)
-	s.credentialRoutes(r)
-	// Logout: revokes the login row (dropping every host to anonymous on its next
-	// request) and clears this host's SSO session. POST-only — sign-out is a state
-	// change, so a forged cross-site GET can't trigger it.
-	r.Post("/logout", s.handleAuthLogout)
 
-	// Account/credential management lives here so credentials are created on the
-	// same origin used to sign in. Guarded by the SSO session.
+	// Everything below runs the session middleware.
 	r.Group(func(r chi.Router) {
-		r.Use(s.Auth.RequireSSO)
-		r.Get("/account", s.pageAccount)
-		r.Post("/account/username", s.handleChangeUsername)
-		r.Post("/account/profile", s.handleUpdateProfile)
-		r.Post("/account/profile-fields", s.handleSetProfileFields)
-		r.Post("/account/links", s.handleSetUserLinks)
-		r.Post("/account/password", s.handleChangePassword)
-		r.Post("/account/passkeys/rename", s.handleRenamePasskey)
-		r.Post("/account/passkeys/delete", s.handleDeletePasskey)
-	})
+		s.sessionMW(r)
+		s.credentialRoutes(r)
+		// Logout: revokes the login row (dropping every host to anonymous on its next
+		// request) and clears this host's SSO session. POST-only — sign-out is a state
+		// change, so a forged cross-site GET can't trigger it.
+		r.Post("/logout", s.handleAuthLogout)
 
-	// Bare visits to the auth host go to the sign-in page.
-	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		// Account/credential management lives here so credentials are created on the
+		// same origin used to sign in. Guarded by the SSO session.
+		r.Group(func(r chi.Router) {
+			r.Use(s.Auth.RequireSSO)
+			r.Get("/account", s.pageAccount)
+			r.Post("/account/username", s.handleChangeUsername)
+			r.Post("/account/profile", s.handleUpdateProfile)
+			r.Post("/account/profile-fields", s.handleSetProfileFields)
+			r.Post("/account/links", s.handleSetUserLinks)
+			r.Post("/account/password", s.handleChangePassword)
+			r.Post("/account/passkeys/rename", s.handleRenamePasskey)
+			r.Post("/account/passkeys/delete", s.handleDeletePasskey)
+		})
+
+		// Bare visits to the auth host go to the sign-in page.
+		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, "/login", http.StatusSeeOther)
+		})
 	})
 	return r
 }

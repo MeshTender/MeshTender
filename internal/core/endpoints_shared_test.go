@@ -51,6 +51,41 @@ func TestHealthzReportsDBDown(t *testing.T) {
 	}
 }
 
+// TestStaticSkipsSessionMiddleware: static assets and /healthz are mounted ahead
+// of the session middleware, so they don't pay its per-request DB cost. scs's
+// LoadAndSave adds "Vary: Cookie" to everything it handles, so its absence on
+// these responses — and presence on a session route — is the observable proof.
+func TestStaticSkipsSessionMiddleware(t *testing.T) {
+	t.Parallel()
+	_, _, ts, h := splitServer(t)
+
+	varyHasCookie := func(resp *http.Response) bool {
+		for _, v := range resp.Header.Values("Vary") {
+			for _, part := range strings.Split(v, ",") {
+				if strings.EqualFold(strings.TrimSpace(part), "Cookie") {
+					return true
+				}
+			}
+		}
+		return false
+	}
+
+	for _, path := range []string{"/static/ui.js", "/healthz"} {
+		resp := do(t, ts, h.app, path)
+		resp.Body.Close()
+		if varyHasCookie(resp) {
+			t.Errorf("%s carries Vary: Cookie — it ran the session middleware", path)
+		}
+	}
+	// A session-scoped route still runs the middleware (so the check above isn't
+	// vacuously passing).
+	resp := do(t, ts, h.app, "/")
+	resp.Body.Close()
+	if !varyHasCookie(resp) {
+		t.Error("/ is missing Vary: Cookie — session middleware not applied to app routes")
+	}
+}
+
 // #2 /static/* — serves an embedded asset.
 func TestStaticAssetEndpoint(t *testing.T) {
 	t.Parallel()

@@ -40,27 +40,34 @@ func New(deps web.Deps, svc *auth.Service) (*Handlers, error) {
 func (s *Handlers) Routes() chi.Router {
 	r := chi.NewRouter()
 	s.CommonMiddleware(r)
-	r.Use(s.Auth.Sessions.LoadAndSave)
-	r.Use(s.Auth.ValidateSession)
+	// Static assets and health don't need a session (and static is hit often), so
+	// register them ahead of the session middleware, which does per-request DB work.
 	s.SharedRoutes(r)
-	// Identity beacon: a fresh app sign-in bounces here to drop this host's
-	// minimal identity cookie, then forwards back to the app. See
-	// docs/auth-cross-host.md.
-	r.Get("/session/beacon", s.Auth.BeaconCallback)
-	// The root host is the public discovery surface, so it stays crawlable; only
-	// the single-use beacon path is disallowed. The two sensitive pages below
-	// (per-repeater NFC/QR targets, personal profiles) stay crawlable but send
-	// noindex, so they're dropped from search results rather than blocked.
-	r.Get("/robots.txt", web.RobotsTxt("User-agent: *\nDisallow: /session/\n"))
-	r.Get("/", s.pageLanding)
-	r.Get("/docs", s.pageDocs)                                 // public help / how-it-works
-	r.Get("/orgs", s.pageOrgs)                                 // public organization directory
-	r.Get("/orgs/{id}", s.pageOrgPublic)                       // public org page
-	r.Get("/orgs/{id}/repeaters", s.pageOrgRepeaters)          // public repeater list + map
-	r.Get("/orgs/{id}/repeaters.json", s.orgRepeatersJSON)     // map points (cached), fetched by both pages above
-	r.Get("/orgs/{id}/config", s.pageOrgConfig)                // public recommended config
-	r.With(web.NoIndex).Get("/r/{id}", s.pageRepeaterPublic)   // NFC/QR target — not for search
-	r.With(web.NoIndex).Get("/u/{username}", s.pageUserPublic) // personal profile — not for search
+
+	// Everything below runs the session middleware (the beacon needs it to set this
+	// host's minimal identity cookie).
+	r.Group(func(r chi.Router) {
+		r.Use(s.Auth.Sessions.LoadAndSave)
+		r.Use(s.Auth.ValidateSession)
+		// Identity beacon: a fresh app sign-in bounces here to drop this host's
+		// minimal identity cookie, then forwards back to the app. See
+		// docs/auth-cross-host.md.
+		r.Get("/session/beacon", s.Auth.BeaconCallback)
+		// The root host is the public discovery surface, so it stays crawlable; only
+		// the single-use beacon path is disallowed. The two sensitive pages below
+		// (per-repeater NFC/QR targets, personal profiles) stay crawlable but send
+		// noindex, so they're dropped from search results rather than blocked.
+		r.Get("/robots.txt", web.RobotsTxt("User-agent: *\nDisallow: /session/\n"))
+		r.Get("/", s.pageLanding)
+		r.Get("/docs", s.pageDocs)                                 // public help / how-it-works
+		r.Get("/orgs", s.pageOrgs)                                 // public organization directory
+		r.Get("/orgs/{id}", s.pageOrgPublic)                       // public org page
+		r.Get("/orgs/{id}/repeaters", s.pageOrgRepeaters)          // public repeater list + map
+		r.Get("/orgs/{id}/repeaters.json", s.orgRepeatersJSON)     // map points (cached), fetched by both pages above
+		r.Get("/orgs/{id}/config", s.pageOrgConfig)                // public recommended config
+		r.With(web.NoIndex).Get("/r/{id}", s.pageRepeaterPublic)   // NFC/QR target — not for search
+		r.With(web.NoIndex).Get("/u/{username}", s.pageUserPublic) // personal profile — not for search
+	})
 	return r
 }
 
