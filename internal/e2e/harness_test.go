@@ -26,6 +26,7 @@ package e2e
 import (
 	"context"
 	"crypto/rand"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -42,6 +43,7 @@ import (
 	cdplog "github.com/chromedp/cdproto/log"
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/cdproto/runtime"
+	"github.com/chromedp/cdproto/security"
 	"github.com/chromedp/chromedp"
 	meshcore "github.com/meshcore-go/meshcore-go"
 
@@ -93,8 +95,8 @@ type e2eServer struct {
 	store      *store.Store
 	ctx        context.Context
 	ts         *httptest.Server
-	hostURL    string // http://127.0.0.1:PORT  — reachable from this process
-	browserURL string // http://host.docker.internal:PORT — reachable from the container
+	hostURL    string // https://127.0.0.1:PORT  — reachable from this process
+	browserURL string // https://host.docker.internal:PORT — reachable from the container
 }
 
 // hostLayout names the three surfaces for a test server. The surface whose name
@@ -125,26 +127,17 @@ func rootReachableHosts() hostLayout {
 	return hostLayout{app: "app." + browserHost(), auth: "auth." + browserHost(), root: browserHost()}
 }
 
-// newE2EServer stands up the app (plain HTTP) on a 0.0.0.0 listener so the
-// browser container can connect back to it, and returns both address forms. An
-// optional hostLayout selects which surface the browser can reach (defaults to
-// the app surface).
+// newE2EServer stands up the app over HTTPS (a self-signed cert) on a 0.0.0.0
+// listener so the browser container can connect back to it, and returns both
+// address forms. An optional hostLayout selects which surface the browser can
+// reach (defaults to the app surface).
+//
+// The suite is HTTPS throughout for two reasons: WebAuthn ceremonies require a
+// secure context (a plain-HTTP non-localhost origin is not one), and serving TLS
+// exercises the same Secure/__Host- cookie path production uses. The browser
+// trusts the self-signed cert via Security.setIgnoreCertificateErrors (applied
+// for every test in startBrowser); the host-side client skips verification too.
 func newE2EServer(t *testing.T, layout ...hostLayout) *e2eServer {
-	return buildE2EServer(t, false, layout...)
-}
-
-// newE2ETLSServer is like newE2EServer but serves HTTPS (a self-signed cert) and
-// marks cookies Secure. WebAuthn ceremonies require a secure context, which a
-// plain-HTTP non-localhost origin is not; the browser accepts the self-signed
-// cert via Security.setIgnoreCertificateErrors (see the passkey test).
-func newE2ETLSServer(t *testing.T, layout ...hostLayout) *e2eServer {
-	return buildE2EServer(t, true, layout...)
-}
-
-// buildE2EServer is the shared constructor. It listens first so the WebAuthn RP
-// origins can carry the actual (dynamic) port, then builds the surfaces. secure
-// selects HTTPS + Secure cookies.
-func buildE2EServer(t *testing.T, secure bool, layout ...hostLayout) *e2eServer {
 	t.Helper()
 	hosts := defaultHosts()
 	if len(layout) > 0 {
@@ -161,18 +154,13 @@ func buildE2EServer(t *testing.T, secure bool, layout ...hostLayout) *e2eServer 
 	_, _ = rand.Read(masterKey[:])
 	idSvc, _ := identity.LoadOrCreate(ctx, st, masterKey)
 
-	// Listen up front so the RP origins can include the concrete port.
+	// Listen up front so the RP origins can include the concrete (dynamic) port.
 	ln, err := net.Listen("tcp", "0.0.0.0:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
 	port := ln.Addr().(*net.TCPAddr).Port
-
-	scheme := "http"
-	if secure {
-		scheme = "https"
-	}
-	origin := func(h string) string { return fmt.Sprintf("%s://%s:%d", scheme, h, port) }
+	origin := func(h string) string { return fmt.Sprintf("https://%s:%d", h, port) }
 
 	// The server runs across three distinct hosts so the Dispatcher can tell the
 	// surfaces apart. The browser can navigate only the one named browserHost()
@@ -184,13 +172,13 @@ func buildE2EServer(t *testing.T, secure bool, layout ...hostLayout) *e2eServer 
 		RPID: browserHost(), RPDisplayName: "test",
 		RPOrigins: []string{origin(hosts.app), origin(hosts.auth), origin(hosts.root)},
 		AppHost:   hosts.app, AuthHost: hosts.auth, RootHost: hosts.root,
-		Secure: secure,
+		Secure: true,
 	})
 	if err != nil {
 		t.Fatalf("auth: %v", err)
 	}
 	srv, err := core.NewServer(st, authSvc, idSvc, &config.Config{
-		PrimaryHost: hosts.app, AuthHost: hosts.auth, RootHost: hosts.root, Secure: secure,
+		PrimaryHost: hosts.app, AuthHost: hosts.auth, RootHost: hosts.root, Secure: true,
 	})
 	if err != nil {
 		t.Fatalf("server: %v", err)
@@ -199,20 +187,16 @@ func buildE2EServer(t *testing.T, secure bool, layout ...hostLayout) *e2eServer 
 	ts := httptest.NewUnstartedServer(srv.Handler())
 	ts.Listener.Close() // drop the default 127.0.0.1 listener
 	ts.Listener = ln
-	if secure {
-		ts.StartTLS()
-	} else {
-		ts.Start()
-	}
+	ts.StartTLS()
 	t.Cleanup(ts.Close)
 
-	ts.URL = fmt.Sprintf("%s://127.0.0.1:%d", scheme, port)
+	ts.URL = fmt.Sprintf("https://127.0.0.1:%d", port)
 	return &e2eServer{
 		store:      st,
 		ctx:        ctx,
 		ts:         ts,
 		hostURL:    ts.URL,
-		browserURL: fmt.Sprintf("%s://%s:%d", scheme, browserHost(), port),
+		browserURL: fmt.Sprintf("https://%s:%d", browserHost(), port),
 	}
 }
 
@@ -237,8 +221,13 @@ func (e *e2eServer) login(t *testing.T, username string) (*store.User, *http.Coo
 
 	jar, _ := cookiejar.New(nil)
 	req, _ := http.NewRequest(http.MethodGet, e.hostURL+"/session/callback?code="+code+"&state=s1", nil)
-	req.AddCookie(&http.Cookie{Name: "mt_state", Value: "s1"})
-	client := &http.Client{Jar: jar, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	req.AddCookie(&http.Cookie{Name: stateCookieName, Value: "s1"})
+	// The server uses a self-signed cert; skip verification for the host client.
+	client := &http.Client{
+		Jar:           jar,
+		Transport:     &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}, //nolint:gosec // G402: test client to the harness's own self-signed server
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatalf("session callback: %v", err)
@@ -247,13 +236,20 @@ func (e *e2eServer) login(t *testing.T, username string) (*store.User, *http.Coo
 
 	base, _ := url.Parse(e.hostURL)
 	for _, c := range jar.Cookies(base) {
-		if c.Name == "meshtender_session" {
+		if c.Name == sessionCookieName {
 			return u, c
 		}
 	}
 	t.Fatal("no session cookie after handoff")
 	return nil, nil
 }
+
+// Cookie names as the server emits them over HTTPS (Secure ⇒ __Host- prefix; see
+// auth.cookieName). The suite always serves TLS, so these are stable.
+const (
+	sessionCookieName = "__Host-meshtender_session"
+	stateCookieName   = "__Host-mt_state"
+)
 
 // newRepeater creates a repeater owned by ownerID with a valid MeshCore key.
 func (e *e2eServer) newRepeater(t *testing.T, ownerID int64, name string) *store.Repeater {
@@ -333,6 +329,14 @@ func startBrowser(t *testing.T) (context.Context, context.CancelFunc, *consoleWa
 	})
 
 	cancel := func() { cancelCtx(); cancelAlloc() }
+
+	// The suite serves a self-signed cert; trust it for every test (also gives
+	// WebAuthn its required secure context). This first Run also creates the
+	// target the listener above attaches to.
+	if err := chromedp.Run(ctx, security.SetIgnoreCertificateErrors(true)); err != nil {
+		cancel()
+		t.Fatalf("ignore certificate errors: %v", err)
+	}
 	return ctx, cancel, watch
 }
 
@@ -372,10 +376,14 @@ func devtoolsWebSocket(t *testing.T) string {
 // so the browser is authenticated before it navigates.
 func setSessionCookie(c *http.Cookie) chromedp.Action {
 	return chromedp.ActionFunc(func(ctx context.Context) error {
+		// __Host- prefixed cookies must be host-only (no Domain), Secure, Path=/.
+		// WithURL scopes the cookie to browserHost as host-only (cookies ignore
+		// port, so the scheme+host is enough).
 		return network.SetCookie(c.Name, c.Value).
-			WithDomain(browserHost()).
+			WithURL("https://" + browserHost()).
 			WithPath("/").
 			WithHTTPOnly(true).
+			WithSecure(true).
 			Do(ctx)
 	})
 }

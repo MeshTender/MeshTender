@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/chromedp/cdproto/security"
 	"github.com/chromedp/cdproto/webauthn"
 	"github.com/chromedp/chromedp"
 
@@ -17,13 +16,11 @@ import (
 
 // virtualAuthenticator enables the WebAuthn CDP domain and installs a virtual
 // authenticator that auto-approves user presence/verification, so
-// navigator.credentials.create/get succeed headlessly. It also tells the browser
-// to accept the harness's self-signed cert (WebAuthn needs a secure context, and
-// an HTTPS origin — even with an untrusted cert — qualifies, whereas plain HTTP
-// on a non-localhost host does not).
+// navigator.credentials.create/get succeed headlessly. (The secure context
+// WebAuthn requires comes from the HTTPS harness; startBrowser already trusts
+// its self-signed cert.)
 func virtualAuthenticator(ctx context.Context) error {
 	return chromedp.Run(ctx,
-		security.SetIgnoreCertificateErrors(true),
 		webauthn.Enable(),
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			_, err := webauthn.AddVirtualAuthenticator(&webauthn.VirtualAuthenticatorOptions{
@@ -65,7 +62,7 @@ func waitForUser(t *testing.T, e *e2eServer, username string) *store.User {
 // account get written (the deferred-creation flow). This is the browser-level
 // proof of item 3 that the Go tests can't give (they can't complete a ceremony).
 func TestPasskeySignupCeremony(t *testing.T) {
-	e := newE2ETLSServer(t, authReachableHosts())
+	e := newE2EServer(t, authReachableHosts())
 	ctx, cancel, watch := startBrowser(t)
 	defer cancel()
 
