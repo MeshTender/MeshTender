@@ -235,69 +235,59 @@ func escapeLikePattern(s string) string {
 // more rows follow.
 //
 // Keyset (seek) paging keeps every page cheap regardless of depth — the
-// (key, id) comparison rides the sort order — and caps the per-row member and
-// repeater counts at the page size. Counts are computed in an inner select so
-// the count-based orderings can both sort and seek on them.
+// (key, id) comparison rides the sort order. member_count/repeater_count are
+// denormalized columns on organizations (trigger-maintained; see migration
+// 0033), so every ordering sorts and seeks on an indexed column rather than a
+// correlated count subquery computed per org on each page load.
 func (s *Store) ListPublicOrgsPage(ctx context.Context, p OrgListParams) ([]OrgSummary, bool, error) {
 	var args []any
 	add := func(v any) string { args = append(args, v); return fmt.Sprintf("$%d", len(args)) }
 
-	// Search filter applies to the inner select (raw columns).
-	innerWhere := ""
+	var where []string
+	// Substring search over name/description/region (trigram-indexed, migration 0033).
 	if q := strings.TrimSpace(p.Query); q != "" {
-		like := "%" + escapeLikePattern(q) + "%"
-		ph := add(like)
-		innerWhere = fmt.Sprintf(
-			"WHERE (o.name ILIKE %[1]s OR o.description ILIKE %[1]s OR o.region ILIKE %[1]s)", ph)
+		ph := add("%" + escapeLikePattern(q) + "%")
+		where = append(where, fmt.Sprintf(
+			"(o.name ILIKE %[1]s OR o.description ILIKE %[1]s OR o.region ILIKE %[1]s)", ph))
 	}
 
-	// Ordering and keyset seek apply to the outer select (computed columns
-	// available). Each seek tuple mirrors its ORDER BY exactly.
-	var order, keyset string
+	// Ordering + keyset seek. Each seek tuple mirrors its ORDER BY exactly.
+	var order string
 	switch p.Sort {
 	case OrgSortName:
 		order = "name ASC, id ASC"
 		if p.HasCursor {
-			keyset = fmt.Sprintf("(name, id) > (%s, %s)", add(p.AfterName), add(p.AfterID))
+			where = append(where, fmt.Sprintf("(name, id) > (%s, %s)", add(p.AfterName), add(p.AfterID)))
 		}
 	case OrgSortRepeaters:
 		order = "repeater_count DESC, id DESC"
 		if p.HasCursor {
-			keyset = fmt.Sprintf("(repeater_count, id) < (%s, %s)", add(p.AfterCount), add(p.AfterID))
+			where = append(where, fmt.Sprintf("(repeater_count, id) < (%s, %s)", add(p.AfterCount), add(p.AfterID)))
 		}
 	case OrgSortNewest:
 		order = "created_at DESC, id DESC"
 		if p.HasCursor {
-			keyset = fmt.Sprintf("(created_at, id) < (%s, %s)", add(p.AfterTime), add(p.AfterID))
+			where = append(where, fmt.Sprintf("(created_at, id) < (%s, %s)", add(p.AfterTime), add(p.AfterID)))
 		}
 	default: // OrgSortMembers
 		order = "member_count DESC, id DESC"
 		if p.HasCursor {
-			keyset = fmt.Sprintf("(member_count, id) < (%s, %s)", add(p.AfterCount), add(p.AfterID))
+			where = append(where, fmt.Sprintf("(member_count, id) < (%s, %s)", add(p.AfterCount), add(p.AfterID)))
 		}
 	}
-	outerWhere := ""
-	if keyset != "" {
-		outerWhere = "WHERE " + keyset
+	whereClause := ""
+	if len(where) > 0 {
+		whereClause = "WHERE " + strings.Join(where, " AND ")
 	}
 
 	// Fetch one extra row to detect whether a further page exists.
 	limit := add(OrgsPageSize + 1)
 	query := fmt.Sprintf(`
-		SELECT id, slug, name, description, region, member_count, repeater_count, created_at
-		FROM (
-			SELECT o.id, o.slug, o.name, o.description, o.region, o.created_at,
-			       (SELECT count(*) FROM org_members m WHERE m.org_id = o.id) AS member_count,
-			       (SELECT count(*) FROM repeaters r
-			         JOIN org_members om ON om.org_id = o.id AND om.user_id = r.owner_id
-			         WHERE NOT EXISTS (SELECT 1 FROM org_repeater_excludes e
-			                           WHERE e.org_id = o.id AND e.repeater_id = r.id)) AS repeater_count
-			FROM organizations o
-			%s
-		) t
+		SELECT o.id, o.slug, o.name, o.description, o.region, o.member_count, o.repeater_count, o.created_at
+		FROM organizations o
 		%s
 		ORDER BY %s
-		LIMIT %s`, innerWhere, outerWhere, order, limit)
+		LIMIT %s`, whereClause, order, limit)
 
 	rows, err := s.pool.Query(ctx, query, args...)
 	if err != nil {
