@@ -69,17 +69,26 @@ function renderMeshMap(elId, pts) {
     markerZoomAnimation: false,
   });
   meshBaseLayers(map);
-  var group = L.featureGroup(
-    pts.map(function (p) {
-      return L.circleMarker([p.lat, p.lon], {
-        radius: 7,
-        color: "#4dabf7",
-        weight: 2,
-        fillColor: "#4dabf7",
-        fillOpacity: 0.6,
-      }).bindPopup(p.name);
-    })
-  ).addTo(map);
+  var markers = pts.map(function (p) {
+    return L.circleMarker([p.lat, p.lon], {
+      radius: 7,
+      color: "#4dabf7",
+      weight: 2,
+      fillColor: "#4dabf7",
+      fillOpacity: 0.6,
+    }).bindPopup(p.name);
+  });
+  // Cluster overlapping markers when the plugin is loaded (keeps large maps
+  // responsive); fall back to a plain feature group otherwise. Both expose
+  // getBounds() for the fit below. chunkedLoading keeps the UI responsive while a
+  // large set is added.
+  var group = L.markerClusterGroup
+    ? L.markerClusterGroup({ chunkedLoading: true })
+    : L.featureGroup();
+  markers.forEach(function (m) {
+    group.addLayer(m);
+  });
+  group.addTo(map);
   // Set the view exactly once, non-animated, so the map paints in its final
   // position with no fit/zoom flash on load. A lone repeater would otherwise fit
   // at max zoom, so give it a fixed neighborhood zoom for context instead.

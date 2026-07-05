@@ -83,8 +83,10 @@
       {{if .HasMap}}
       <div class="card-body p-2">
         <link rel="stylesheet" href="/static/leaflet.css">
+        <link rel="stylesheet" href="/static/leaflet.markercluster.css">
         <div id="map" style="height:260px" role="region" aria-label="Map of organization repeater locations"></div>
         <script src="/static/leaflet.js"></script>
+        <script src="/static/leaflet.markercluster.js"></script>
         <script src="/static/meshmap.js"></script>
         <script nonce="{{.Nonce}}">
           {{if .MapURL}}meshMapFromURL('map', {{.MapURL}});{{else}}meshMap('map', [
