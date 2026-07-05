@@ -47,14 +47,19 @@ func (s *Handlers) Routes() chi.Router {
 	// minimal identity cookie, then forwards back to the app. See
 	// docs/auth-cross-host.md.
 	r.Get("/session/beacon", s.Auth.BeaconCallback)
+	// The root host is the public discovery surface, so it stays crawlable; only
+	// the single-use beacon path is disallowed. The two sensitive pages below
+	// (per-repeater NFC/QR targets, personal profiles) stay crawlable but send
+	// noindex, so they're dropped from search results rather than blocked.
+	r.Get("/robots.txt", web.RobotsTxt("User-agent: *\nDisallow: /session/\n"))
 	r.Get("/", s.pageLanding)
-	r.Get("/docs", s.pageDocs)                        // public help / how-it-works
-	r.Get("/orgs", s.pageOrgs)                        // public organization directory
-	r.Get("/orgs/{id}", s.pageOrgPublic)              // public org page
-	r.Get("/orgs/{id}/repeaters", s.pageOrgRepeaters) // public repeater list + map
-	r.Get("/orgs/{id}/config", s.pageOrgConfig)       // public recommended config
-	r.Get("/r/{id}", s.pageRepeaterPublic)            // public repeater page (NFC/QR target)
-	r.Get("/u/{username}", s.pageUserPublic)          // public user profile
+	r.Get("/docs", s.pageDocs)                                 // public help / how-it-works
+	r.Get("/orgs", s.pageOrgs)                                 // public organization directory
+	r.Get("/orgs/{id}", s.pageOrgPublic)                       // public org page
+	r.Get("/orgs/{id}/repeaters", s.pageOrgRepeaters)          // public repeater list + map
+	r.Get("/orgs/{id}/config", s.pageOrgConfig)                // public recommended config
+	r.With(web.NoIndex).Get("/r/{id}", s.pageRepeaterPublic)   // NFC/QR target — not for search
+	r.With(web.NoIndex).Get("/u/{username}", s.pageUserPublic) // personal profile — not for search
 	return r
 }
 

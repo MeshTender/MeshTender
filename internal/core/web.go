@@ -104,6 +104,10 @@ func (s *Handlers) redirectToAuthSignup(w http.ResponseWriter, r *http.Request) 
 func (s *Handlers) appRouter() chi.Router {
 	r := chi.NewRouter()
 	s.baseMW(r)
+	// The app host is the authenticated product — nothing here is meant for
+	// search. Blanket noindex, and tell crawlers not to crawl it at all.
+	r.Use(web.NoIndex)
+	r.Get("/robots.txt", web.RobotsTxt(web.RobotsDisallowAll))
 	s.SharedRoutes(r)
 
 	// The handoff endpoint that turns an auth-host sign-in into an app session.

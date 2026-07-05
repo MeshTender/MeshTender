@@ -41,6 +41,10 @@ func (s *Handlers) baseMW(r chi.Router) {
 func (s *Handlers) Routes() chi.Router {
 	r := chi.NewRouter()
 	s.baseMW(r)
+	// Sign-in/account pages are never meant for search. Blanket noindex, and tell
+	// crawlers not to crawl the auth host at all.
+	r.Use(web.NoIndex)
+	r.Get("/robots.txt", web.RobotsTxt(web.RobotsDisallowAll))
 	s.SharedRoutes(r)
 	s.credentialRoutes(r)
 	// Logout: revokes the login row (dropping every host to anonymous on its next
