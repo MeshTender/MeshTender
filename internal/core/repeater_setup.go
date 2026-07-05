@@ -11,6 +11,7 @@ import (
 	meshcore "github.com/meshcore-go/meshcore-go"
 
 	"github.com/jleight/meshtender/internal/store"
+	"github.com/jleight/meshtender/internal/web"
 )
 
 // The "set up from scratch over USB serial" path of the add-repeater wizard.
@@ -260,10 +261,15 @@ func (s *Handlers) handleSetupComplete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Persist the location the user picked on the map (we just wrote it to the
-	// device, so we know it without an over-the-air confirm).
+	// device, so we know it without an over-the-air confirm). The repeater is
+	// already created, so on a store failure don't fail the request (that would
+	// strand a created-but-unreachable-via-retry repeater) — log it; the location
+	// can be recovered later via the confirm/console flow.
 	if lat, err1 := strconv.ParseFloat(r.FormValue("lat"), 64); err1 == nil {
 		if lon, err2 := strconv.ParseFloat(r.FormValue("lon"), 64); err2 == nil {
-			_ = s.Store.SetRepeaterLocation(r.Context(), rep.ID, lat, lon)
+			if err := s.Store.SetRepeaterLocation(r.Context(), rep.ID, lat, lon); err != nil {
+				web.LogError(r, "setup: store location", err, "repeater_id", rep.ID)
+			}
 		}
 	}
 

@@ -258,7 +258,13 @@ func (s *Handlers) pageShareCommands(w http.ResponseWriter, r *http.Request) {
 		s.ServerError(w, r, "could not load commands", err)
 		return
 	}
-	ids, _ := s.Store.ListShareCommandIDs(r.Context(), id, targetID)
+	// Must not swallow this error: an empty list would render every command
+	// unchecked, and saving that would wipe the target's real grants.
+	ids, err := s.Store.ListShareCommandIDs(r.Context(), id, targetID)
+	if err != nil {
+		s.ServerError(w, r, "could not load commands", err)
+		return
+	}
 	checked := make(map[int64]bool, len(ids))
 	for _, cid := range ids {
 		checked[cid] = true

@@ -188,3 +188,108 @@ func TestConsoleRoundTrip(t *testing.T) {
 		t.Fatal("console connect (admin login) did not confirm the repeater")
 	}
 }
+
+// TestConsoleAuditFailureRefusesCommand: if a command can't be recorded to the
+// audit log, the console must refuse to send it to the device rather than execute
+// an unlogged command. We drop command_log so LogCommand fails, then send a
+// command the owner is permitted to run; the console must report an error and
+// never transmit the command packet.
+func TestConsoleAuditFailureRefusesCommand(t *testing.T) {
+	t.Parallel()
+	st, ctx := coreStore(t)
+
+	var masterKey [32]byte
+	_, _ = rand.Read(masterKey[:])
+	idSvc, err := identity.LoadOrCreate(ctx, st, masterKey)
+	if err != nil {
+		t.Fatalf("identity: %v", err)
+	}
+	authSvc, err := auth.New(st, st.Pool(), testAuthConfig())
+	if err != nil {
+		t.Fatalf("auth: %v", err)
+	}
+	srv, err := NewServer(st, authSvc, idSvc, testConfig())
+	if err != nil {
+		t.Fatalf("server: %v", err)
+	}
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	jar, _ := cookiejar.New(nil)
+	user := seedSession(t, ts, st, ctx, jar, "auditor")
+	repeater, err := meshcore.GenerateLocalIdentity(rand.Reader)
+	if err != nil {
+		t.Fatalf("repeater identity: %v", err)
+	}
+	rep, err := st.CreateRepeater(ctx, &store.Repeater{
+		OwnerID: user.ID, Name: "Test", PublicKeyHex: repeater.String(),
+		RadioFreqHz: 869525000, RadioBwHz: 250000, RadioSF: 11, RadioCR: 5,
+	})
+	if err != nil {
+		t.Fatalf("create repeater: %v", err)
+	}
+
+	// Make LogCommand fail. Nothing before the command loop writes to command_log.
+	if _, err := st.Pool().Exec(ctx, `DROP TABLE command_log`); err != nil {
+		t.Fatalf("drop command_log: %v", err)
+	}
+
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/repeaters/" + rep.PublicID + "/console/ws"
+	hdr := http.Header{}
+	if cs := jar.Cookies(mustURL(t, ts.URL)); len(cs) > 0 {
+		var parts []string
+		for _, c := range cs {
+			parts = append(parts, c.Name+"="+c.Value)
+		}
+		hdr.Set("Cookie", strings.Join(parts, "; "))
+	}
+	dctx, dcancel := context.WithTimeout(ctx, 5*time.Second)
+	defer dcancel()
+	ws, _, err := websocket.Dial(dctx, wsURL, &websocket.DialOptions{HTTPHeader: hdr})
+	if err != nil {
+		t.Fatalf("ws dial: %v", err)
+	}
+	defer ws.Close(websocket.StatusNormalClosure, "")
+
+	rw, rwcancel := context.WithTimeout(ctx, 15*time.Second)
+	defer rwcancel()
+	must := func(err error, msg string) {
+		if err != nil {
+			t.Fatalf("%s: %v", msg, err)
+		}
+	}
+	must(ws.Write(rw, websocket.MessageText, []byte(`{"type":"ready"}`)), "ready")
+	must(ws.Write(rw, websocket.MessageText, []byte(`{"type":"cmd","text":"ver"}`)), "cmd")
+
+	// We never answer the login as the repeater, so after ErrNoReply the console
+	// proceeds and tries to run the queued command. LogCommand fails, so it must
+	// report an error and must NOT transmit the command (no TxtMsg packet). Login's
+	// own AnonReq packets are expected and ignored.
+	var buf []byte
+	for {
+		typ, data, err := ws.Read(rw)
+		must(err, "ws read")
+		if typ == websocket.MessageText {
+			var m struct{ State, Message string }
+			if json.Unmarshal(data, &m) == nil && m.State == "error" && strings.Contains(m.Message, "Could not record") {
+				return // refused as required
+			}
+			continue
+		}
+		buf = append(buf, data...)
+		frames, rest, _ := hardware.ExtractFrames(buf)
+		buf = rest
+		for _, f := range frames {
+			if f.Command != hardware.KISS_CMD_DATA {
+				continue
+			}
+			pkt, err := meshcore.PacketFromBytes(f.Data)
+			if err != nil {
+				continue
+			}
+			if pkt.PayloadType() == meshcore.PayloadTypeTxtMsg {
+				t.Fatal("command was transmitted to the device despite the audit-log failure")
+			}
+		}
+	}
+}

@@ -352,9 +352,14 @@ func (s *Handlers) wsConsole(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// Audit before executing: if we can't record the command, don't send it to
+		// the device — an unlogged command on a shared repeater is worse than a
+		// refused one.
 		logID, err := s.Store.LogCommand(ctx, id, uid, sessionID, cmd.ID, text)
 		if err != nil {
 			web.LogError(r, "console: log command", err, "repeater_id", id, "command_id", cmd.ID)
+			_ = bridge.Status("error", "Could not record the command — not sending it. Please try again.")
+			return
 		}
 
 		reply, err := ex.Command(ctx, text, func(attempt, max int) {

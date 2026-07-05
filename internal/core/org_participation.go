@@ -73,7 +73,13 @@ func (s *Handlers) pageOrgCommands(w http.ResponseWriter, r *http.Request) {
 		s.ServerError(w, r, "could not load commands", err)
 		return
 	}
-	optIn, _ := s.Store.OrgOptInCommandIDs(r.Context(), id, uid)
+	// Must not swallow this error: an empty list reads as "permissive" (everything
+	// checked), and saving that would clear the member's real restriction.
+	optIn, err := s.Store.OrgOptInCommandIDs(r.Context(), id, uid)
+	if err != nil {
+		s.ServerError(w, r, "could not load commands", err)
+		return
+	}
 	restricted := len(optIn) > 0
 	// Permissive (no list) shows everything checked: all ceiling commands may run.
 	checked := make(map[int64]bool, len(ceiling))
