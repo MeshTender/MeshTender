@@ -126,6 +126,10 @@ func (s *Service) login(ctx context.Context, userID int64) error {
 	if err != nil {
 		return err
 	}
+	// Stamp the sign-in time; best-effort, never blocks login. (Fires on every
+	// fresh authentication — password or passkey — not the cross-host handoff,
+	// which reuses an existing login row via loginWithID.)
+	_ = s.store.TouchLastLogin(ctx, userID)
 	return s.loginWithID(ctx, userID, loginID)
 }
 

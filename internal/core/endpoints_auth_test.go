@@ -171,6 +171,62 @@ func TestPasswordNoMaxLengthAndLegacyMigration(t *testing.T) {
 	}
 }
 
+// TestLoginStampsLastLogin: a fresh account has no last-login stamp until it
+// actually authenticates. Signing in populates last_login_at.
+func TestLoginStampsLastLogin(t *testing.T) {
+	t.Parallel()
+	st, ctx, ts, h := splitServer(t)
+
+	// Created directly (never signed in) → no stamp.
+	if _, err := st.CreateUser(ctx, "neverin", ""); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	fresh, err := st.GetUserByUsername(ctx, "neverin")
+	if err != nil {
+		t.Fatalf("get user: %v", err)
+	}
+	if fresh.LastLoginAt != nil {
+		t.Fatalf("never-logged-in account LastLoginAt = %v, want nil", fresh.LastLoginAt)
+	}
+
+	// Signing up authenticates the user, which stamps last_login_at.
+	authSSO(t, ts, h, "stamped")
+	after, err := st.GetUserByUsername(ctx, "stamped")
+	if err != nil {
+		t.Fatalf("get user: %v", err)
+	}
+	if after.LastLoginAt == nil {
+		t.Fatal("LastLoginAt is nil after signing in, want a timestamp")
+	}
+}
+
+// TestAdminUsersShowsLastLogin renders the admin users page and confirms the
+// last-login column shows — including "never" for an account that hasn't signed
+// in (exercising the nil-timestamp branch, which must not panic the template).
+func TestAdminUsersShowsLastLogin(t *testing.T) {
+	t.Parallel()
+	st, ctx, ts, h := splitServer(t)
+	admin, sess := appLogin(t, ts, st, ctx, h.app, "adminview")
+	if err := st.SetCapabilities(ctx, admin.ID, true, true); err != nil {
+		t.Fatalf("set caps: %v", err)
+	}
+	if _, err := st.CreateUser(ctx, "ghostuser", ""); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+
+	resp := do(t, ts, h.app, "/admin/users", sess)
+	body := readBody(t, resp)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET /admin/users = %d, want 200", resp.StatusCode)
+	}
+	if !strings.Contains(body, "Last login") {
+		t.Fatal("admin users page missing the Last login column")
+	}
+	if !strings.Contains(body, "never") {
+		t.Fatal("expected 'never' for the account that hasn't logged in")
+	}
+}
+
 // assertAccountOK asserts a 303 back to /account carrying a success ("ok") flash.
 func assertAccountOK(t *testing.T, resp *http.Response, label string) {
 	t.Helper()

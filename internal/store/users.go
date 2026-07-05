@@ -32,6 +32,9 @@ type User struct {
 	// Instance-level capability flags.
 	CapManageUsers   bool
 	CapManageCatalog bool
+	// LastLoginAt is the most recent successful sign-in, or nil if the account has
+	// never logged in since the column was added.
+	LastLoginAt *time.Time
 }
 
 // Name returns the display name if set, else the username.
@@ -42,15 +45,25 @@ func (u *User) Name() string {
 	return u.Username
 }
 
-const userCols = `id, username, display_name, password_hash, bio, location, callsign, cap_manage_users, cap_manage_catalog`
+const userCols = `id, username, display_name, password_hash, bio, location, callsign, cap_manage_users, cap_manage_catalog, last_login_at`
 
 func scanUser(row pgx.Row) (*User, error) {
 	var u User
 	if err := row.Scan(&u.ID, &u.Username, &u.DisplayName, &u.PasswordHash,
-		&u.Bio, &u.Location, &u.Callsign, &u.CapManageUsers, &u.CapManageCatalog); err != nil {
+		&u.Bio, &u.Location, &u.Callsign, &u.CapManageUsers, &u.CapManageCatalog, &u.LastLoginAt); err != nil {
 		return nil, err
 	}
 	return &u, nil
+}
+
+// TouchLastLogin stamps the user's most recent sign-in time. Best-effort
+// telemetry — callers should not fail a login if this errors.
+func (s *Store) TouchLastLogin(ctx context.Context, userID int64) error {
+	_, err := s.pool.Exec(ctx, `UPDATE users SET last_login_at = now() WHERE id = $1`, userID)
+	if err != nil {
+		return fmt.Errorf("touch last login: %w", err)
+	}
+	return nil
 }
 
 // CreateUser inserts a new user with a database-assigned id and returns it.
