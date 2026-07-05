@@ -54,10 +54,7 @@ func (s *Handlers) handleCreateLink(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	description := strings.TrimSpace(r.FormValue("description"))
-	if len(description) > 100 {
-		description = description[:100]
-	}
+	description := web.Clip(strings.TrimSpace(r.FormValue("description")), 100)
 	if _, err := s.Store.CreateInvite(r.Context(), id, description); err != nil {
 		shareErr(w, r, "Could not create share link.")
 		return

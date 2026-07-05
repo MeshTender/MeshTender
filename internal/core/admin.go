@@ -138,10 +138,7 @@ func (s *Handlers) pageUsers(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	sortKey := store.NormalizeUserSort(q.Get("sort"))
 	capFilter := store.NormalizeUserCapFilter(q.Get("cap"))
-	query := strings.TrimSpace(q.Get("q"))
-	if len(query) > 100 {
-		query = query[:100]
-	}
+	query := web.Clip(strings.TrimSpace(q.Get("q")), 100)
 
 	var p store.UserListParams
 	if c, ok := web.DecodeCursor[userCursor](q.Get("cursor")); ok {

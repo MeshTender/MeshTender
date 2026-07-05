@@ -400,20 +400,12 @@ func NormalizeUsername(s string) string { return strings.ToLower(strings.TrimSpa
 
 // NormalizeDisplayName trims and bounds a display name (empty means "unset").
 func NormalizeDisplayName(s string) string {
-	s = strings.TrimSpace(s)
-	if len(s) > 64 {
-		s = s[:64]
-	}
-	return s
+	return web.Clip(strings.TrimSpace(s), 64)
 }
 
 // NormalizePasskeyName trims and bounds a passkey label (empty means "unnamed").
 func NormalizePasskeyName(s string) string {
-	s = strings.TrimSpace(s)
-	if len(s) > 64 {
-		s = s[:64]
-	}
-	return s
+	return web.Clip(strings.TrimSpace(s), 64)
 }
 
 // MinPasswordLen is a basic strength floor. There is deliberately no maximum:

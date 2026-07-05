@@ -16,10 +16,7 @@ func (s *Handlers) pageOrgs(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 
 	sortKey := store.NormalizeOrgSort(q.Get("sort"))
-	query := strings.TrimSpace(q.Get("q"))
-	if len(query) > 100 {
-		query = query[:100]
-	}
+	query := web.Clip(strings.TrimSpace(q.Get("q")), 100)
 
 	var p store.OrgListParams
 	// A cursor carries the authoritative sort, search, and keyset position for

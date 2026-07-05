@@ -5,7 +5,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/jleight/meshtender/internal/web"
 )
@@ -44,8 +43,8 @@ func (s *Handlers) handleRepeaterDocs(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	docPublic := clip(r.FormValue("doc_public"), maxDocLen)
-	docInternal := clip(r.FormValue("doc_internal"), maxDocLen)
+	docPublic := web.Clip(r.FormValue("doc_public"), maxDocLen)
+	docInternal := web.Clip(r.FormValue("doc_internal"), maxDocLen)
 	if err := s.Store.UpdateRepeaterDocs(r.Context(), s.Auth.CurrentUserID(r.Context()), id, docPublic, docInternal); err != nil {
 		web.RedirectErr(w, r, docsPath(repeaterParam(r)), "Could not save documentation.")
 		return
@@ -88,7 +87,7 @@ func (s *Handlers) handleAddMaintenance(w http.ResponseWriter, r *http.Request) 
 		web.RedirectErr(w, r, maintPath(repeaterParam(r)), "A note is required.")
 		return
 	}
-	note = clip(note, maxMaintNoteLen)
+	note = web.Clip(note, maxMaintNoteLen)
 
 	// performed_at comes from a <input type=date>; default to today if absent or
 	// unparseable so a bad value never blocks logging.
@@ -102,7 +101,7 @@ func (s *Handlers) handleAddMaintenance(w http.ResponseWriter, r *http.Request) 
 	uid := s.Auth.CurrentUserID(r.Context())
 	authorName := ""
 	if u, err := s.Store.GetUserByID(r.Context(), uid); err == nil {
-		authorName = clip(u.Name(), maxMaintAuthorLen)
+		authorName = web.Clip(u.Name(), maxMaintAuthorLen)
 	}
 	if authorName == "" {
 		authorName = rep.OwnerName()
@@ -135,16 +134,3 @@ func (s *Handlers) handleDeleteMaintenance(w http.ResponseWriter, r *http.Reques
 
 func docsPath(publicID string) string  { return "/repeaters/" + publicID + "/docs" }
 func maintPath(publicID string) string { return "/repeaters/" + publicID + "/maintenance" }
-
-// clip trims a string to at most n bytes, backing off to a valid UTF-8 boundary
-// if the cut landed mid-rune. Guards stored text against oversized form input.
-func clip(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	s = s[:n]
-	for len(s) > 0 && !utf8.ValidString(s) {
-		s = s[:len(s)-1]
-	}
-	return s
-}

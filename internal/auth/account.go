@@ -239,12 +239,8 @@ func (s *Handlers) handleSetUserLinks(w http.ResponseWriter, r *http.Request) {
 		if i < len(labels) {
 			label = strings.TrimSpace(labels[i])
 		}
-		if len(val) > 300 {
-			val = val[:300]
-		}
-		if len(label) > 60 {
-			label = label[:60]
-		}
+		val = web.Clip(val, 300)
+		label = web.Clip(label, 60)
 		// A MeshCore key is an identity, not a way to reach someone, so it can't be
 		// the primary contact (mirrors excluding callsign/node info).
 		primary := i == primaryIdx && p.Kind != store.KindKey

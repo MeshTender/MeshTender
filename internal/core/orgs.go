@@ -276,12 +276,8 @@ func (s *Handlers) handleEditOrg(w http.ResponseWriter, r *http.Request) {
 		orgErr(w, r, "Slug must be 3–40 lowercase letters, numbers, and hyphens (and not reserved).")
 		return
 	}
-	if len(desc) > 2000 {
-		desc = desc[:2000]
-	}
-	if len(region) > 120 {
-		region = region[:120]
-	}
+	desc = web.Clip(desc, 2000)
+	region = web.Clip(region, 120)
 	if err := s.Store.UpdateOrg(r.Context(), id, slug, name, desc, region); errors.Is(err, store.ErrDuplicate) {
 		orgErr(w, r, "That URL slug is already taken.")
 		return
@@ -360,12 +356,8 @@ func (s *Handlers) handleSetOrgLinks(w http.ResponseWriter, r *http.Request) {
 		if i < len(labels) {
 			label = strings.TrimSpace(labels[i])
 		}
-		if len(u) > 300 {
-			u = u[:300]
-		}
-		if len(label) > 60 {
-			label = label[:60]
-		}
+		u = web.Clip(u, 300)
+		label = web.Clip(label, 60)
 		links = append(links, store.OrgLink{Platform: platform, Label: label, URL: u})
 		if len(links) >= store.MaxOrgLinks {
 			break
