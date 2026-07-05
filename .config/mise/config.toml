@@ -24,7 +24,9 @@ run = "go run ./cmd/meshtender --reset"
 [tasks.e2e]
 run = """
 docker run -d --rm --name mt-headless -p 9222:9222 \
-  --add-host=host.docker.internal:host-gateway chromedp/headless-shell:latest >/dev/null
+  --add-host=host.docker.internal:host-gateway \
+  --entrypoint bash chromedp/headless-shell:latest -c \
+  'socat TCP4-LISTEN:9222,fork TCP4:127.0.0.1:9223 & exec /headless-shell/headless-shell --no-sandbox --use-gl=angle --use-angle=swiftshader --remote-debugging-address=0.0.0.0 --remote-debugging-port=9223 "--host-resolver-rules=MAP *.host.docker.internal host.docker.internal"' >/dev/null
 trap 'docker stop mt-headless >/dev/null' EXIT
 until curl -sf http://127.0.0.1:9222/json/version >/dev/null; do sleep 0.5; done
 go test -tags browser ./internal/e2e/

@@ -88,61 +88,39 @@ func envOr(key, def string) string {
 	return def
 }
 
-// e2eServer is a running app server wired to a fresh test DB, addressable both
-// from the host (hostURL, for the seed-session Go client) and from the browser
-// container (browserURL).
+// e2eServer is a running app server wired to a fresh test DB. hostURL reaches it
+// from this process (the seed-session Go client); appURL/authURL/rootURL are the
+// three surfaces as the browser addresses them — all three resolve back here
+// because the container maps every *.browserHost() name to the reachable host
+// (see the --host-resolver-rules flag in the `e2e` mise task / CI service).
 type e2eServer struct {
-	store      *store.Store
-	ctx        context.Context
-	ts         *httptest.Server
-	hostURL    string // https://127.0.0.1:PORT  — reachable from this process
-	browserURL string // https://host.docker.internal:PORT — reachable from the container
+	store   *store.Store
+	ctx     context.Context
+	ts      *httptest.Server
+	hostURL string // https://127.0.0.1:PORT — reachable from this process
+	appURL  string // https://app.<browserHost>:PORT  — the product surface
+	authURL string // https://auth.<browserHost>:PORT — sign-in + account
+	rootURL string // https://root.<browserHost>:PORT — public discovery
 }
 
-// hostLayout names the three surfaces for a test server. The surface whose name
-// equals browserHost() is the one the browser can actually reach (that's the
-// only alias the container resolves back to this process); everything else is
-// reachable only host-side via 127.0.0.1 (the Dispatcher's default → app).
-type hostLayout struct{ app, auth, root string }
-
-// defaultHosts puts the APP surface on the browser-reachable host — the common
-// case, since most browser tests drive app pages.
-func defaultHosts() hostLayout {
-	return hostLayout{app: browserHost(), auth: "auth." + browserHost(), root: "root." + browserHost()}
-}
-
-// authReachableHosts puts the AUTH surface on the browser-reachable host so a
-// browser test can drive auth-host pages (e.g. /account). The app surface moves
-// to a name nothing navigates; login()'s /session/callback handoff still works
-// because it runs host-side over 127.0.0.1, which the Dispatcher routes to the
-// app surface by default.
-func authReachableHosts() hostLayout {
-	return hostLayout{app: "app." + browserHost(), auth: browserHost(), root: "root." + browserHost()}
-}
-
-// rootReachableHosts puts the ROOT (public marketing) surface on the
-// browser-reachable host so a browser test can drive public pages like the
-// /u/{username} profile.
-func rootReachableHosts() hostLayout {
-	return hostLayout{app: "app." + browserHost(), auth: "auth." + browserHost(), root: browserHost()}
-}
+// Surface hostnames. All three are subdomains of browserHost() so a single
+// host-resolver rule (MAP *.<browserHost> <browserHost>) makes every surface
+// reachable from the browser at once — the Dispatcher then routes by Host header.
+func appHost() string  { return "app." + browserHost() }
+func authHost() string { return "auth." + browserHost() }
+func rootHost() string { return "root." + browserHost() }
 
 // newE2EServer stands up the app over HTTPS (a self-signed cert) on a 0.0.0.0
-// listener so the browser container can connect back to it, and returns both
-// address forms. An optional hostLayout selects which surface the browser can
-// reach (defaults to the app surface).
+// listener so the browser container can connect back to it, across all three
+// surfaces at once.
 //
 // The suite is HTTPS throughout for two reasons: WebAuthn ceremonies require a
 // secure context (a plain-HTTP non-localhost origin is not one), and serving TLS
 // exercises the same Secure/__Host- cookie path production uses. The browser
 // trusts the self-signed cert via Security.setIgnoreCertificateErrors (applied
 // for every test in startBrowser); the host-side client skips verification too.
-func newE2EServer(t *testing.T, layout ...hostLayout) *e2eServer {
+func newE2EServer(t *testing.T) *e2eServer {
 	t.Helper()
-	hosts := defaultHosts()
-	if len(layout) > 0 {
-		hosts = layout[0]
-	}
 	ctx := context.Background()
 	st, err := store.New(ctx, testdb.Fresh(t, migrate))
 	if err != nil {
@@ -162,23 +140,20 @@ func newE2EServer(t *testing.T, layout ...hostLayout) *e2eServer {
 	port := ln.Addr().(*net.TCPAddr).Port
 	origin := func(h string) string { return fmt.Sprintf("https://%s:%d", h, port) }
 
-	// The server runs across three distinct hosts so the Dispatcher can tell the
-	// surfaces apart. The browser can navigate only the one named browserHost()
-	// (host.docker.internal) — the sole alias the container resolves back here; the
-	// layout decides which surface that is. The RP ID is browserHost(): a WebAuthn
-	// ceremony's origin host is that name (or a subdomain of it), so it's a valid
-	// RP ID, and every surface origin is allowed.
+	// The RP ID is browserHost(): it's a registrable-domain suffix of every
+	// surface host (app./auth./root.<browserHost>), so it's a valid RP ID for a
+	// ceremony run from any of them, and every surface origin is allowed.
 	authSvc, err := auth.New(st, st.Pool(), auth.Config{
 		RPID: browserHost(), RPDisplayName: "test",
-		RPOrigins: []string{origin(hosts.app), origin(hosts.auth), origin(hosts.root)},
-		AppHost:   hosts.app, AuthHost: hosts.auth, RootHost: hosts.root,
+		RPOrigins: []string{origin(appHost()), origin(authHost()), origin(rootHost())},
+		AppHost:   appHost(), AuthHost: authHost(), RootHost: rootHost(),
 		Secure: true,
 	})
 	if err != nil {
 		t.Fatalf("auth: %v", err)
 	}
 	srv, err := core.NewServer(st, authSvc, idSvc, &config.Config{
-		PrimaryHost: hosts.app, AuthHost: hosts.auth, RootHost: hosts.root, Secure: true,
+		PrimaryHost: appHost(), AuthHost: authHost(), RootHost: rootHost(), Secure: true,
 	})
 	if err != nil {
 		t.Fatalf("server: %v", err)
@@ -192,11 +167,13 @@ func newE2EServer(t *testing.T, layout ...hostLayout) *e2eServer {
 
 	ts.URL = fmt.Sprintf("https://127.0.0.1:%d", port)
 	return &e2eServer{
-		store:      st,
-		ctx:        ctx,
-		ts:         ts,
-		hostURL:    ts.URL,
-		browserURL: fmt.Sprintf("https://%s:%d", browserHost(), port),
+		store:   st,
+		ctx:     ctx,
+		ts:      ts,
+		hostURL: ts.URL,
+		appURL:  origin(appHost()),
+		authURL: origin(authHost()),
+		rootURL: origin(rootHost()),
 	}
 }
 
@@ -376,14 +353,19 @@ func devtoolsWebSocket(t *testing.T) string {
 // so the browser is authenticated before it navigates.
 func setSessionCookie(c *http.Cookie) chromedp.Action {
 	return chromedp.ActionFunc(func(ctx context.Context) error {
-		// __Host- prefixed cookies must be host-only (no Domain), Secure, Path=/.
-		// WithURL scopes the cookie to browserHost as host-only (cookies ignore
-		// port, so the scheme+host is enough).
-		return network.SetCookie(c.Name, c.Value).
-			WithURL("https://" + browserHost()).
-			WithPath("/").
-			WithHTTPOnly(true).
-			WithSecure(true).
-			Do(ctx)
+		// The session token is store-global; inject it host-only on each surface
+		// (a __Host- cookie can't carry a Domain, and cookies ignore port, so the
+		// scheme+host is enough) so whichever surface a test drives is authenticated.
+		for _, h := range []string{appHost(), authHost(), rootHost()} {
+			if err := network.SetCookie(c.Name, c.Value).
+				WithURL("https://" + h).
+				WithPath("/").
+				WithHTTPOnly(true).
+				WithSecure(true).
+				Do(ctx); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 }

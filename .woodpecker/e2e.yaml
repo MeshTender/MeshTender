@@ -27,6 +27,16 @@ services:
       POSTGRES_DB: meshtender_test
   headless:
     image: chromedp/headless-shell:latest
+    # Map every surface subdomain (app./auth./root.e2e) to this step's server so
+    # the browser can reach all three surfaces at once; the Dispatcher then routes
+    # by Host header. Mirrors the --host-resolver-rules in the `e2e` mise task,
+    # with the step name (E2E_BROWSER_HOST) as the map target. run.sh forwards
+    # args via unquoted $@ (splitting the flag on its space), so we replicate it
+    # here to pass the flag quoted while keeping its socat 9222->9223 forward.
+    entrypoint:
+      - bash
+      - -c
+      - 'socat TCP4-LISTEN:9222,fork TCP4:127.0.0.1:9223 & exec /headless-shell/headless-shell --no-sandbox --use-gl=angle --use-angle=swiftshader --remote-debugging-address=0.0.0.0 --remote-debugging-port=9223 "--host-resolver-rules=MAP *.e2e e2e"'
 
 steps:
   e2e:

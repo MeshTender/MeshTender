@@ -22,7 +22,7 @@ import (
 // strict CSP.
 func TestE2EUserPublicLinks(t *testing.T) {
 	// The public profile is served by the root (marketing) surface.
-	srv := newE2EServer(t, rootReachableHosts())
+	srv := newE2EServer(t)
 
 	u, err := srv.store.CreateUser(srv.ctx, "profileuser", "")
 	if err != nil {
@@ -44,7 +44,7 @@ func TestE2EUserPublicLinks(t *testing.T) {
 	bctx, cancel, watch := startBrowser(t)
 	defer cancel()
 
-	profileURL := srv.browserURL + "/u/profileuser"
+	profileURL := srv.rootURL + "/u/profileuser"
 	var listText, meshCodeText string
 	var qrShown, titlesShown bool
 	if err := chromedp.Run(bctx,

@@ -20,13 +20,13 @@ import (
 func TestE2EUserLinksClientValidation(t *testing.T) {
 	// The account page lives on the auth surface, so put that on the
 	// browser-reachable host for this test.
-	srv := newE2EServer(t, authReachableHosts())
+	srv := newE2EServer(t)
 	user, cookie := srv.login(t, "linkse2e")
 
 	bctx, cancel, watch := startBrowser(t)
 	defer cancel()
 
-	accountURL := srv.browserURL + "/account"
+	accountURL := srv.authURL + "/account"
 
 	// Phase 1: an invalid email row must block the submit client-side. We assert
 	// the inline error appears and that we never navigated (no ?ok, no server

@@ -66,7 +66,7 @@ func TestE2ERepeatersFilter(t *testing.T) {
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(srv.browserURL+"/repeaters"),
+		chromedp.Navigate(srv.appURL+"/repeaters"),
 		chromedp.WaitVisible(`#rep-search`, chromedp.ByID),
 		chromedp.Evaluate(countVisible, &initial),
 	); err != nil {

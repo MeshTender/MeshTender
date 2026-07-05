@@ -38,7 +38,7 @@ func TestE2EMaintenanceShowsCurrentAuthorName(t *testing.T) {
 	bctx, cancel, watch := startBrowser(t)
 	defer cancel()
 
-	url := srv.browserURL + "/repeaters/" + rep.PublicID + "/maintenance"
+	url := srv.appURL + "/repeaters/" + rep.PublicID + "/maintenance"
 	var authorText string
 	if err := chromedp.Run(bctx,
 		network.Enable(),

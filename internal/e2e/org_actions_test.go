@@ -30,7 +30,7 @@ func TestE2EOrgActionsMenuLimitCommands(t *testing.T) {
 	bctx, cancel, watch := startBrowser(t)
 	defer cancel()
 
-	orgURL := srv.browserURL + "/orgs/" + org.Slug
+	orgURL := srv.appURL + "/orgs/" + org.Slug
 	var landedURL string
 	if err := chromedp.Run(bctx,
 		network.Enable(),

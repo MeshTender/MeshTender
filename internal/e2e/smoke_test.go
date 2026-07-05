@@ -24,7 +24,7 @@ func TestE2ESmokeMaintenancePage(t *testing.T) {
 	bctx, cancel, watch := startBrowser(t)
 	defer cancel()
 
-	url := srv.browserURL + "/repeaters/" + rep.PublicID + "/maintenance"
+	url := srv.appURL + "/repeaters/" + rep.PublicID + "/maintenance"
 	var formHTML string
 	if err := chromedp.Run(bctx,
 		network.Enable(),

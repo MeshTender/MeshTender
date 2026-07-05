@@ -62,7 +62,7 @@ func waitForUser(t *testing.T, e *e2eServer, username string) *store.User {
 // account get written (the deferred-creation flow). This is the browser-level
 // proof of item 3 that the Go tests can't give (they can't complete a ceremony).
 func TestPasskeySignupCeremony(t *testing.T) {
-	e := newE2EServer(t, authReachableHosts())
+	e := newE2EServer(t)
 	ctx, cancel, watch := startBrowser(t)
 	defer cancel()
 
@@ -77,7 +77,7 @@ func TestPasskeySignupCeremony(t *testing.T) {
 	}
 
 	if err := chromedp.Run(ctx,
-		chromedp.Navigate(e.browserURL+"/signup"),
+		chromedp.Navigate(e.authURL+"/signup"),
 		chromedp.WaitVisible("#signup-passkey-btn", chromedp.ByID),
 		chromedp.SendKeys("#username", username, chromedp.ByID),
 		chromedp.Click("#signup-passkey-btn", chromedp.ByID),

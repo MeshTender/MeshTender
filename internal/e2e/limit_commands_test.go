@@ -29,7 +29,7 @@ func TestE2ELimitCommandsSelectAll(t *testing.T) {
 	bctx, cancel, watch := startBrowser(t)
 	defer cancel()
 
-	url := srv.browserURL + "/orgs/" + org.Slug + "/my-commands"
+	url := srv.appURL + "/orgs/" + org.Slug + "/my-commands"
 
 	// Count of checkboxes in each section, and how many are checked. Sections are
 	// [data-check-scope] cards; each has its own Select all / Select none buttons.

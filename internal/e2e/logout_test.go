@@ -25,7 +25,7 @@ func TestE2ELogout(t *testing.T) {
 	bctx, cancel, watch := startBrowser(t)
 	defer cancel()
 
-	dash := srv.browserURL + "/"
+	dash := srv.appURL + "/"
 
 	// Log out, then probe a protected page — both with redirect:'manual' so a
 	// sign-in bounce surfaces as an opaqueredirect instead of being followed.
