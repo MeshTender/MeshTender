@@ -10,6 +10,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"log/slog"
 	"net"
 	"net/http"
 	"strings"
@@ -60,7 +61,9 @@ func (rec *Recorder) Run(ctx context.Context) {
 		if len(batch) == 0 {
 			return
 		}
-		_ = rec.st.InsertAnalyticsEvents(c, batch)
+		if err := rec.st.InsertAnalyticsEvents(c, batch); err != nil {
+			slog.Error("analytics: insert events", "count", len(batch), "err", err)
+		}
 		batch = batch[:0]
 	}
 	for {
@@ -86,8 +89,12 @@ func (rec *Recorder) Run(ctx context.Context) {
 }
 
 func (rec *Recorder) rollup(ctx context.Context) {
-	_ = rec.st.RollupAnalytics(ctx)
-	_ = rec.st.PruneAnalytics(ctx, retentionDays)
+	if err := rec.st.RollupAnalytics(ctx); err != nil {
+		slog.Error("analytics: rollup", "err", err)
+	}
+	if err := rec.st.PruneAnalytics(ctx, retentionDays); err != nil {
+		slog.Error("analytics: prune", "err", err)
+	}
 }
 
 // Handler wraps a handler, recording each request that isn't filtered out. A nil

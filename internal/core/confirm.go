@@ -15,6 +15,7 @@ import (
 	"github.com/meshcore-go/meshcore-go/hardware"
 
 	"github.com/jleight/meshtender/internal/mesh"
+	"github.com/jleight/meshtender/internal/web"
 	"github.com/jleight/meshtender/internal/wsbridge"
 )
 
@@ -92,7 +93,7 @@ func (s *Handlers) wsConfirm(w http.ResponseWriter, r *http.Request) {
 	}
 	repeaterID, err := meshcore.NewIdentityFromHex(rep.PublicKeyHex)
 	if err != nil {
-		http.Error(w, "stored repeater key invalid", http.StatusInternalServerError)
+		s.ServerError(w, r, "stored repeater key invalid", err)
 		return
 	}
 
@@ -203,6 +204,7 @@ func (s *Handlers) wsConfirm(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.Store.SetRepeaterConfirmed(ctx, id, uid, lr.IsAdmin, int16(lr.Permissions)); err != nil {
+		web.LogError(r, "confirm: save confirmation", err, "repeater_id", id)
 		_ = bridge.Status("error", "could not save confirmation: "+err.Error())
 		return
 	}
@@ -255,6 +257,7 @@ func (s *Handlers) wsConfirm(w http.ResponseWriter, r *http.Request) {
 		})
 		if okLat && okLon {
 			if err := s.Store.SetRepeaterLocation(ctx, id, lat, lon); err != nil {
+				web.LogError(r, "confirm: store location", err, "repeater_id", id)
 				_ = bridge.Status("error", "could not store location: "+err.Error())
 			} else {
 				_ = bridge.Status("info", fmt.Sprintf("Stored location: %.5f, %.5f", lat, lon))

@@ -16,6 +16,7 @@ import (
 
 	"github.com/jleight/meshtender/internal/mesh"
 	"github.com/jleight/meshtender/internal/store"
+	"github.com/jleight/meshtender/internal/web"
 	"github.com/jleight/meshtender/internal/wsbridge"
 )
 
@@ -148,7 +149,7 @@ func (s *Handlers) pageConsole(w http.ResponseWriter, r *http.Request) {
 	}
 	catalog, err := s.Store.ListCommands(r.Context())
 	if err != nil {
-		http.Error(w, "could not load commands", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not load commands", err)
 		return
 	}
 	allowed := s.allowedCommands(r.Context(), rep, uid, catalog)
@@ -174,12 +175,12 @@ func (s *Handlers) wsConsole(w http.ResponseWriter, r *http.Request) {
 	}
 	repeaterID, err := meshcore.NewIdentityFromHex(rep.PublicKeyHex)
 	if err != nil {
-		http.Error(w, "stored repeater key invalid", http.StatusInternalServerError)
+		s.ServerError(w, r, "stored repeater key invalid", err)
 		return
 	}
 	catalog, err := s.Store.ListCommands(r.Context())
 	if err != nil {
-		http.Error(w, "could not load commands", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not load commands", err)
 		return
 	}
 
@@ -208,6 +209,7 @@ func (s *Handlers) wsConsole(w http.ResponseWriter, r *http.Request) {
 	// Group this connection's commands into a session (required for logging).
 	sessionID, err := s.Store.StartConsoleSession(ctx, id, uid)
 	if err != nil {
+		web.LogError(r, "console: start session", err, "repeater_id", id)
 		_ = bridge.Status("error", "could not start session")
 		return
 	}
@@ -311,6 +313,7 @@ func (s *Handlers) wsConsole(w http.ResponseWriter, r *http.Request) {
 		}
 		allowed, err := s.Store.CanSendCommand(ctx, uid, id, cmd.ID)
 		if err != nil {
+			web.LogError(r, "console: permission check", err, "repeater_id", id, "command_id", cmd.ID)
 			_ = bridge.Status("error", "permission check failed")
 			return
 		}
@@ -319,7 +322,10 @@ func (s *Handlers) wsConsole(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		logID, _ := s.Store.LogCommand(ctx, id, uid, sessionID, cmd.ID, text)
+		logID, err := s.Store.LogCommand(ctx, id, uid, sessionID, cmd.ID, text)
+		if err != nil {
+			web.LogError(r, "console: log command", err, "repeater_id", id, "command_id", cmd.ID)
+		}
 
 		reply, err := ex.Command(ctx, text, func(attempt, max int) {
 			if attempt == 1 {
@@ -331,7 +337,9 @@ func (s *Handlers) wsConsole(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case err == nil:
 			if logID != 0 {
-				_ = s.Store.MarkCommandReply(ctx, logID, reply)
+				if err := s.Store.MarkCommandReply(ctx, logID, reply); err != nil {
+					web.LogError(r, "console: mark command reply", err, "log_id", logID)
+				}
 			}
 			_ = bridge.Status("reply", reply)
 		case errors.Is(err, mesh.ErrNoReply):
