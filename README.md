@@ -62,15 +62,28 @@ repeater works either way. This is implemented as a custom `hardware.Transport`
 
 ## Running locally
 
+One process serves all three hosts (root, auth, app) over TLS. Dev can't use `*.localhost` —
+`localhost` is a public suffix, so a WebAuthn RP ID of `localhost` is rejected from a subdomain and
+passkeys won't work — so dev uses a real registrable domain whose subdomains resolve to `127.0.0.1`,
+with a locally-trusted [mkcert](https://github.com/FiloSottile/mkcert) certificate. `.env.example`
+is preconfigured for `leighthaus.dev`; point its subdomains at `127.0.0.1` (real DNS or
+`/etc/hosts`), or swap in your own dev domain by editing the host + `RP_ID`/`RP_ORIGIN` vars there.
+
 ```sh
 docker compose up -d                 # Postgres
+
+# One-time: trust a local CA and mint a cert for the dev domain + its subdomains.
+brew install mkcert && mkcert -install
+mkcert -cert-file ./certs/dev.pem -key-file ./certs/dev-key.pem "*.leighthaus.dev" leighthaus.dev
+
 cp .env.example .env                 # then set MESHTENDER_MASTER_KEY=$(openssl rand -hex 32)
 set -a; . ./.env; set +a
-go run ./cmd/meshtender               # migrates on boot, serves http://localhost:8080
+go run ./cmd/meshtender               # migrates on boot; serves HTTPS on :8080
 ```
 
-WebSerial requires a secure context: it works on `http://localhost` for dev, but a real deployment
-must serve the confirm/control pages over HTTPS.
+Then open <https://app.leighthaus.dev:8080> (dashboard) or <https://leighthaus.dev:8080> (public
+root). WebSerial requires a secure context, which the mkcert HTTPS above provides — a real deployment
+must likewise serve the confirm/control pages over HTTPS.
 
 ### Configuration (env)
 
@@ -79,7 +92,10 @@ must serve the confirm/control pages over HTTPS.
 | `MESHTENDER_DATABASE_URL` | Postgres DSN (required) |
 | `MESHTENDER_MASTER_KEY` | 64 hex chars (32 bytes); AES-GCM key encrypting the identity seed at rest (required) |
 | `MESHTENDER_ADDR` | listen address (default `:8080`) |
-| `MESHTENDER_RP_ID` / `_RP_ORIGIN` / `_RP_NAME` | WebAuthn relying-party settings |
+| `MESHTENDER_ROOT_HOST` / `_AUTH_HOST` | host topology — **required** (root = public discovery, auth = sign-in); the server refuses to start without both |
+| `MESHTENDER_PRIMARY_HOST` / `_WWW_HOST` | app host and the www→root redirector (`_WWW_HOST` defaults to `www.` + root) |
+| `MESHTENDER_TLS_CERT` / `_TLS_KEY` | cert/key for in-process HTTPS (see mkcert above); omit only behind a TLS-terminating proxy |
+| `MESHTENDER_RP_ID` / `_RP_ORIGIN` / `_RP_NAME` | WebAuthn relying-party settings (must line up with the hosts) |
 | `MESHTENDER_TRUSTED_PROXIES` | proxies whose `X-Forwarded-For`/`X-Real-IP` are trusted when resolving the client IP — comma-separated CIDRs/IPs, or `private` for the RFC1918/link-local/ULA ranges. Loopback is always trusted. Verify with the admin **Reverse proxy test** page. |
 
 > **Note:** `MESHTENDER_MASTER_KEY` is coupled to the stored identity — changing it makes the
