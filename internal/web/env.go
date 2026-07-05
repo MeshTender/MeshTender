@@ -83,6 +83,32 @@ func (e *Env) Render(w http.ResponseWriter, r *http.Request, page string, data m
 	e.Renderer.Render(w, r, page, data)
 }
 
+// ServerError logs an internal failure (keyed by request ID, so a report can be
+// traced to its cause) and writes a generic 500 with userMsg as the body. Use it
+// at every handler site that currently drops an err on the floor: the visitor
+// still sees only userMsg, but the real cause is recoverable from the logs.
+// For expected client errors (4xx) keep using http.Error directly — those aren't
+// server faults and shouldn't log at error level.
+func (e *Env) ServerError(w http.ResponseWriter, r *http.Request, userMsg string, err error) {
+	LogError(r, userMsg, err)
+	http.Error(w, userMsg, http.StatusInternalServerError)
+}
+
+// LogError emits a structured error log for a failed request, keyed by request
+// ID so it can be correlated with a user report. It writes no response — use it
+// for failures that surface to the client through another channel (a WebSocket
+// status frame, a redirect flash) or that have no response at all. Extra
+// slog key/value pairs can be appended.
+func LogError(r *http.Request, msg string, err error, args ...any) {
+	base := []any{
+		"method", r.Method,
+		"path", r.URL.Path,
+		"request_id", middleware.GetReqID(r.Context()),
+		"err", err,
+	}
+	slog.Error(msg, append(base, args...)...)
+}
+
 // Origin builds an absolute scheme://host[:port] for a sibling surface, reusing
 // the port the request arrived on (one binary serves all hosts on one port).
 func (e *Env) Origin(r *http.Request, host string) string {
@@ -215,7 +241,9 @@ func (rn *Renderer) Render(w http.ResponseWriter, r *http.Request, page string, 
 	data["Nonce"] = NonceFromContext(r.Context())
 	t, ok := rn.pages[page]
 	if !ok {
-		http.Error(w, "unknown page: "+page, http.StatusInternalServerError)
+		slog.Error("render: unknown page",
+			"page", page, "request_id", middleware.GetReqID(r.Context()))
+		http.Error(w, "Something went wrong.", http.StatusInternalServerError)
 		return
 	}
 	layout, _ := data["Layout"].(string)
