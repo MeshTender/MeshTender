@@ -369,11 +369,9 @@ func shareErr(w http.ResponseWriter, r *http.Request, msg string) {
 	web.RedirectErr(w, r, sharePath(repeaterParam(r)), msg)
 }
 
-// absoluteURL builds an absolute URL for a path using the request's scheme/host.
+// absoluteURL builds an absolute URL for a path on the current request's host.
+// The scheme comes from the trusted config (via Origin), never the spoofable
+// X-Forwarded-Proto header — the same origin logic every cross-host redirect uses.
 func (s *Handlers) absoluteURL(r *http.Request, path string) string {
-	scheme := "http"
-	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
-		scheme = "https"
-	}
-	return scheme + "://" + r.Host + path
+	return s.Origin(r, web.HostWithoutPort(r.Host)) + path
 }
