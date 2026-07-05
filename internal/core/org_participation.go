@@ -42,7 +42,7 @@ func (s *Handlers) handleSetRepeaterOrg(w http.ResponseWriter, r *http.Request) 
 	}
 	exclude := r.FormValue("action") == "exclude"
 	if err := s.Store.SetRepeaterOrgExcluded(r.Context(), orgID, rep.ID, exclude); err != nil {
-		http.Error(w, "could not update participation", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not update participation", err)
 		return
 	}
 	http.Redirect(w, r, sharePath(rep.PublicID), http.StatusSeeOther)
@@ -70,7 +70,7 @@ func (s *Handlers) pageOrgCommands(w http.ResponseWriter, r *http.Request) {
 	}
 	ceiling, err := s.orgCeilingCommands(r)
 	if err != nil {
-		http.Error(w, "could not load commands", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not load commands", err)
 		return
 	}
 	optIn, _ := s.Store.OrgOptInCommandIDs(r.Context(), id, uid)
@@ -115,7 +115,7 @@ func (s *Handlers) handleSaveOrgCommands(w http.ResponseWriter, r *http.Request)
 	// "Remove restriction" clears the list regardless of checkboxes.
 	if r.FormValue("clear") != "" {
 		if err := s.Store.SetOrgOptIn(r.Context(), id, uid, nil); err != nil {
-			http.Error(w, "could not save", http.StatusInternalServerError)
+			s.ServerError(w, r, "could not save", err)
 			return
 		}
 		http.Redirect(w, r, "/orgs/"+orgParam(r)+"/my-commands", http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
@@ -123,7 +123,7 @@ func (s *Handlers) handleSaveOrgCommands(w http.ResponseWriter, r *http.Request)
 	}
 	ceiling, err := s.orgCeilingCommands(r)
 	if err != nil {
-		http.Error(w, "could not load commands", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not load commands", err)
 		return
 	}
 	chosen := parseCommandIDs(r.Form["cmd"])
@@ -132,7 +132,7 @@ func (s *Handlers) handleSaveOrgCommands(w http.ResponseWriter, r *http.Request)
 		chosen = nil
 	}
 	if err := s.Store.SetOrgOptIn(r.Context(), id, uid, chosen); err != nil {
-		http.Error(w, "could not save", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not save", err)
 		return
 	}
 	http.Redirect(w, r, "/orgs/"+orgParam(r)+"/my-commands", http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin

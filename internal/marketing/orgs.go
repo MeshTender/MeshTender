@@ -41,7 +41,7 @@ func (s *Handlers) pageOrgs(w http.ResponseWriter, r *http.Request) {
 
 	all, hasMore, err := s.Store.ListPublicOrgsPage(r.Context(), p)
 	if err != nil {
-		http.Error(w, "could not load organizations", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not load organizations", err)
 		return
 	}
 	data := map[string]any{
@@ -65,22 +65,22 @@ func (s *Handlers) pageOrgs(w http.ResponseWriter, r *http.Request) {
 func (s *Handlers) renderOrgPublic(w http.ResponseWriter, r *http.Request, org *store.Org, isMember, isAdmin bool) {
 	admins, err := s.Store.ListOrgAdmins(r.Context(), org.ID)
 	if err != nil {
-		http.Error(w, "could not load organization", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not load organization", err)
 		return
 	}
 	memberCount, repeaterCount, err := s.Store.OrgCounts(r.Context(), org.ID)
 	if err != nil {
-		http.Error(w, "could not load organization", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not load organization", err)
 		return
 	}
 	pubReps, err := s.Store.ListPublicRepeaters(r.Context(), org.ID)
 	if err != nil {
-		http.Error(w, "could not load organization", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not load organization", err)
 		return
 	}
 	links, err := s.Store.ListOrgLinks(r.Context(), org.ID)
 	if err != nil {
-		http.Error(w, "could not load organization", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not load organization", err)
 		return
 	}
 	uid := s.Auth.CurrentUserID(r.Context())
@@ -123,7 +123,7 @@ func (s *Handlers) pageOrgConfig(w http.ResponseWriter, r *http.Request) {
 	}
 	cv, err := web.BuildConfigView(r.Context(), s.Store, id, r.URL.Query().Get("profile"), latP, lonP)
 	if err != nil {
-		http.Error(w, "could not load profile", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not load profile", err)
 		return
 	}
 	data["Config"] = cv
@@ -146,12 +146,12 @@ func (s *Handlers) pageOrgRepeaters(w http.ResponseWriter, r *http.Request) {
 	afterName, afterID := decodeRepCursor(r.URL.Query().Get("cursor"))
 	reps, hasMore, err := s.Store.ListPublicRepeatersPage(r.Context(), id, afterName, afterID)
 	if err != nil {
-		http.Error(w, "could not load repeaters", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not load repeaters", err)
 		return
 	}
 	points, err := s.Store.ListPublicRepeaterPoints(r.Context(), id)
 	if err != nil {
-		http.Error(w, "could not load repeaters", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not load repeaters", err)
 		return
 	}
 	rv := web.RepeatersView{Repeaters: reps, MapPoints: points, HasMap: len(points) > 0, Full: false}

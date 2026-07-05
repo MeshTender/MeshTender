@@ -17,7 +17,7 @@ func (s *Handlers) pageCommandLog(w http.ResponseWriter, r *http.Request) {
 	}
 	sessions, hasMore, err := s.Store.ListCommandLogSessionsPage(r.Context(), id, decodeLogCursor(r.URL.Query().Get("before")))
 	if err != nil {
-		http.Error(w, "could not load log", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not load log", err)
 		return
 	}
 	data := map[string]any{

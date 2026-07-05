@@ -123,7 +123,7 @@ func (s *Handlers) pageRepeater(w http.ResponseWriter, r *http.Request) {
 	if isOwner {
 		orgs, err := s.Store.ListRepeaterOrgs(r.Context(), id)
 		if err != nil {
-			http.Error(w, "could not load organizations", http.StatusInternalServerError)
+			s.ServerError(w, r, "could not load organizations", err)
 			return
 		}
 		data["Orgs"] = orgs
@@ -152,7 +152,7 @@ func (s *Handlers) pageRepeaterAdded(w http.ResponseWriter, r *http.Request) {
 	}
 	orgs, err := s.Store.ListOrgsForUser(r.Context(), uid)
 	if err != nil {
-		http.Error(w, "could not load organizations", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not load organizations", err)
 		return
 	}
 	s.Render(w, r, "repeater_added.html", map[string]any{

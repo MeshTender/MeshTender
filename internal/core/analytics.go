@@ -35,27 +35,27 @@ func (s *Handlers) pageAnalytics(w http.ResponseWriter, r *http.Request) {
 
 	daily, err := s.Store.AnalyticsDaily(r.Context(), days)
 	if err != nil {
-		http.Error(w, "could not load analytics", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not load analytics", err)
 		return
 	}
 	surfaces, err := s.Store.AnalyticsBySurface(r.Context(), days)
 	if err != nil {
-		http.Error(w, "could not load analytics", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not load analytics", err)
 		return
 	}
 	paths, err := s.Store.AnalyticsTopPaths(r.Context(), days, 20)
 	if err != nil {
-		http.Error(w, "could not load analytics", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not load analytics", err)
 		return
 	}
 	hosts, err := s.Store.AnalyticsTopHosts(r.Context(), days, 15)
 	if err != nil {
-		http.Error(w, "could not load analytics", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not load analytics", err)
 		return
 	}
 	visitors, err := s.Store.AnalyticsTopVisitors(r.Context(), days, 15)
 	if err != nil {
-		http.Error(w, "could not load analytics", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not load analytics", err)
 		return
 	}
 

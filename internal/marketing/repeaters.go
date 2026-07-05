@@ -23,12 +23,12 @@ func (s *Handlers) pageRepeaterPublic(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		http.Error(w, "could not load repeater", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not load repeater", err)
 		return
 	}
 	stewards, err := s.Store.ListStewards(r.Context(), rep.ID)
 	if err != nil {
-		http.Error(w, "could not load repeater", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not load repeater", err)
 		return
 	}
 	radio := fmt.Sprintf("%g MHz / %g kHz / SF%d / CR%d",
@@ -47,7 +47,7 @@ func (s *Handlers) pageRepeaterPublic(w http.ResponseWriter, r *http.Request) {
 	}
 	orgs, err := s.Store.ListRepeaterOrgs(r.Context(), rep.ID)
 	if err != nil {
-		http.Error(w, "could not load repeater", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not load repeater", err)
 		return
 	}
 	s.Render(w, r, "repeater_public.html", map[string]any{

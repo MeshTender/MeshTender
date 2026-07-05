@@ -22,19 +22,19 @@ func (s *Handlers) pageShare(w http.ResponseWriter, r *http.Request) {
 	}
 	shares, err := s.Store.ListShares(r.Context(), id)
 	if err != nil {
-		http.Error(w, "could not load shares", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not load shares", err)
 		return
 	}
 	invites, err := s.Store.ListInvites(r.Context(), id)
 	if err != nil {
-		http.Error(w, "could not load links", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not load links", err)
 		return
 	}
 	// Organizations section: every org the owner belongs to, with whether this
 	// repeater participates (the default) or has been opted out.
 	orgs, err := s.Store.ListRepeaterOrgMemberships(r.Context(), id)
 	if err != nil {
-		http.Error(w, "could not load organizations", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not load organizations", err)
 		return
 	}
 	s.Render(w, r, "share.html", map[string]any{
@@ -139,7 +139,7 @@ func (s *Handlers) pageInvite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		http.Error(w, "could not load invite", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not load invite", err)
 		return
 	}
 
@@ -153,7 +153,7 @@ func (s *Handlers) pageInvite(w http.ResponseWriter, r *http.Request) {
 	default:
 		shared, err := s.Store.IsShared(r.Context(), rep.ID, uid)
 		if err != nil {
-			http.Error(w, "could not check access", http.StatusInternalServerError)
+			s.ServerError(w, r, "could not check access", err)
 			return
 		}
 		if shared {
@@ -177,7 +177,7 @@ func (s *Handlers) handleAcceptInvite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		http.Error(w, "could not load invite", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not load invite", err)
 		return
 	}
 	// Don't consume a single-use link for the owner or someone who already has
@@ -196,12 +196,12 @@ func (s *Handlers) handleAcceptInvite(w http.ResponseWriter, r *http.Request) {
 		s.Render(w, r, "invite.html", map[string]any{"State": "invalid"})
 		return
 	} else if err != nil {
-		http.Error(w, "could not accept invite", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not accept invite", err)
 		return
 	}
 	added, err := s.Store.AddShare(r.Context(), rep.ID, uid)
 	if err != nil {
-		http.Error(w, "could not accept invite", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not accept invite", err)
 		return
 	}
 	if added {
@@ -265,7 +265,7 @@ func (s *Handlers) pageShareCommands(w http.ResponseWriter, r *http.Request) {
 	}
 	catalog, err := s.Store.ListCommands(r.Context())
 	if err != nil {
-		http.Error(w, "could not load commands", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not load commands", err)
 		return
 	}
 	ids, _ := s.Store.ListShareCommandIDs(r.Context(), id, targetID)
@@ -306,7 +306,7 @@ func (s *Handlers) handleSetShareCommands(w http.ResponseWriter, r *http.Request
 		}
 	}
 	if err := s.Store.SetShareCommands(r.Context(), id, targetID, cmdIDs); err != nil {
-		http.Error(w, "could not save commands", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not save commands", err)
 		return
 	}
 	http.Redirect(w, r, sharePath(repeaterParam(r)), http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
@@ -344,7 +344,7 @@ func (s *Handlers) loadRepeater(w http.ResponseWriter, r *http.Request,
 		return nil, 0, false
 	}
 	if err != nil {
-		http.Error(w, "could not load repeater", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not load repeater", err)
 		return nil, 0, false
 	}
 	return rep, id, true

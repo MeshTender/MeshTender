@@ -78,7 +78,7 @@ func (s *Handlers) handleSetupCommands(w http.ResponseWriter, r *http.Request) {
 		if req.Profile != "" {
 			s2, err := s.profileSteps(r.Context(), req.OrgID, req.Profile)
 			if err != nil {
-				http.Error(w, "could not load profile", http.StatusInternalServerError)
+				s.ServerError(w, r, "could not load profile", err)
 				return
 			}
 			steps = s2
@@ -95,12 +95,12 @@ func (s *Handlers) handleSetupCommands(w http.ResponseWriter, r *http.Request) {
 		}
 		regions, err := s.Store.ListRegions(r.Context(), req.OrgID)
 		if err != nil {
-			http.Error(w, "could not load regions", http.StatusInternalServerError)
+			s.ServerError(w, r, "could not load regions", err)
 			return
 		}
 		rootAllow, err := s.Store.RootAllowFlood(r.Context(), req.OrgID)
 		if err != nil {
-			http.Error(w, "could not load regions", http.StatusInternalServerError)
+			s.ServerError(w, r, "could not load regions", err)
 			return
 		}
 		cmds = append(cmds, store.RegionDefCommands(regions, rootAllow, req.Lat, req.Lon)...)
@@ -255,7 +255,7 @@ func (s *Handlers) handleSetupComplete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		http.Error(w, "could not add repeater", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not add repeater", err)
 		return
 	}
 

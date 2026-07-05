@@ -48,7 +48,7 @@ func (s *Handlers) pageOrgConfig(w http.ResponseWriter, r *http.Request) {
 	}
 	role, isMember, err := s.Store.OrgRole(r.Context(), id, uid)
 	if err != nil {
-		http.Error(w, "could not load organization", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not load organization", err)
 		return
 	}
 
@@ -64,7 +64,7 @@ func (s *Handlers) pageOrgConfig(w http.ResponseWriter, r *http.Request) {
 	}
 	cv, err := web.BuildConfigView(r.Context(), s.Store, id, r.URL.Query().Get("profile"), latP, lonP)
 	if err != nil {
-		http.Error(w, "could not load config", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not load config", err)
 		return
 	}
 	data["Config"] = cv
@@ -86,12 +86,12 @@ func (s *Handlers) pageConfigHub(w http.ResponseWriter, r *http.Request) {
 	}
 	profiles, err := s.Store.ListProfiles(r.Context(), orgID)
 	if err != nil {
-		http.Error(w, "could not load config", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not load config", err)
 		return
 	}
 	regions, err := s.Store.ListRegions(r.Context(), orgID)
 	if err != nil {
-		http.Error(w, "could not load config", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not load config", err)
 		return
 	}
 	var primary string
@@ -136,7 +136,7 @@ func (s *Handlers) pageProfileEdit(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err != nil {
-			http.Error(w, "could not load profile", http.StatusInternalServerError)
+			s.ServerError(w, r, "could not load profile", err)
 			return
 		}
 		name, stepsText = p.Name, stepsToText(p.Steps)
@@ -196,7 +196,7 @@ func (s *Handlers) saveProfile(w http.ResponseWriter, r *http.Request, orgID, pi
 	}
 	catalog, err := s.Store.ListCommands(r.Context())
 	if err != nil {
-		http.Error(w, "could not load commands", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not load commands", err)
 		return
 	}
 	name := strings.TrimSpace(r.FormValue("profile_name"))
@@ -220,7 +220,7 @@ func (s *Handlers) saveProfile(w http.ResponseWriter, r *http.Request, orgID, pi
 			http.NotFound(w, r)
 			return
 		case err != nil:
-			http.Error(w, "could not save profile", http.StatusInternalServerError)
+			s.ServerError(w, r, "could not save profile", err)
 			return
 		default:
 			http.Redirect(w, r, "/orgs/"+orgParam(r)+"/config/edit", http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
@@ -242,7 +242,7 @@ func (s *Handlers) handleDeleteProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.Store.DeleteProfile(r.Context(), orgID, pid); err != nil && !errors.Is(err, store.ErrNotFound) {
-		http.Error(w, "could not delete profile", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not delete profile", err)
 		return
 	}
 	http.Redirect(w, r, "/orgs/"+orgParam(r)+"/config/edit", http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
@@ -261,7 +261,7 @@ func (s *Handlers) pageRegionsEdit(w http.ResponseWriter, r *http.Request) {
 	}
 	regions, err := s.Store.ListRegions(r.Context(), orgID)
 	if err != nil {
-		http.Error(w, "could not load regions", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not load regions", err)
 		return
 	}
 	s.Render(w, r, "config_regions_edit.html", map[string]any{
@@ -305,7 +305,7 @@ func (s *Handlers) handleSaveRegions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.Store.ReplaceRegions(r.Context(), orgID, regions, rootAllowFlood); err != nil {
-		http.Error(w, "could not save", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not save", err)
 		return
 	}
 	http.Redirect(w, r, "/orgs/"+orgParam(r)+"/config", http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin

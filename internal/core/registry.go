@@ -62,7 +62,7 @@ func (s *Handlers) pageRepeaterMaintenance(w http.ResponseWriter, r *http.Reques
 	}
 	entries, err := s.Store.ListMaintenance(r.Context(), id)
 	if err != nil {
-		http.Error(w, "could not load maintenance history", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not load maintenance history", err)
 		return
 	}
 	isOwner := !rep.Shared

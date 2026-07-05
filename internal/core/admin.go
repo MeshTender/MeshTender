@@ -77,7 +77,7 @@ func (s *Handlers) pageAdmin(w http.ResponseWriter, r *http.Request) {
 func (s *Handlers) pageCatalog(w http.ResponseWriter, r *http.Request) {
 	catalog, err := s.Store.ListCommands(r.Context())
 	if err != nil {
-		http.Error(w, "could not load catalog", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not load catalog", err)
 		return
 	}
 	s.Render(w, r, "admin_catalog.html", map[string]any{
@@ -99,7 +99,7 @@ func (s *Handlers) handleUpdateCommand(w http.ResponseWriter, r *http.Request) {
 	on := func(name string) bool { return r.FormValue(name) != "" }
 	if err := s.Store.UpdateCommandFlags(r.Context(), id,
 		on("risky"), on("share"), on("org_member"), on("org_admin")); err != nil {
-		http.Error(w, "could not save", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not save", err)
 		return
 	}
 	http.Redirect(w, r, "/admin/catalog?saved=1", http.StatusSeeOther)
@@ -157,7 +157,7 @@ func (s *Handlers) pageUsers(w http.ResponseWriter, r *http.Request) {
 
 	users, hasMore, err := s.Store.ListUsersPage(r.Context(), p)
 	if err != nil {
-		http.Error(w, "could not load users", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not load users", err)
 		return
 	}
 	data := map[string]any{
@@ -217,7 +217,7 @@ func (s *Handlers) handleSetUserCaps(w http.ResponseWriter, r *http.Request) {
 		if target.CapManageUsers {
 			n, err := s.Store.CountManageUsers(r.Context())
 			if err != nil {
-				http.Error(w, "error", http.StatusInternalServerError)
+				s.ServerError(w, r, "could not check administrators", err)
 				return
 			}
 			if n <= 1 {
@@ -227,7 +227,7 @@ func (s *Handlers) handleSetUserCaps(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if err := s.Store.SetCapabilities(r.Context(), id, manageUsers, manageCatalog); err != nil {
-		http.Error(w, "could not save", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not save", err)
 		return
 	}
 	http.Redirect(w, r, "/admin/users", http.StatusSeeOther)
@@ -251,7 +251,7 @@ func (s *Handlers) pageUserHistory(w http.ResponseWriter, r *http.Request) {
 	}
 	changes, err := s.Store.ListUsernameChanges(r.Context(), id, usernameHistoryLimit)
 	if err != nil {
-		http.Error(w, "could not load history", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not load history", err)
 		return
 	}
 	data := map[string]any{

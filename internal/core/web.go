@@ -215,12 +215,12 @@ func (s *Handlers) pageRepeaters(w http.ResponseWriter, r *http.Request) {
 	uid := s.Auth.CurrentUserID(r.Context())
 	repeaters, err := s.Store.ListRepeatersForUser(r.Context(), uid)
 	if err != nil {
-		http.Error(w, "could not load repeaters", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not load repeaters", err)
 		return
 	}
 	shareCounts, err := s.Store.RepeaterSharingCounts(r.Context(), uid)
 	if err != nil {
-		http.Error(w, "could not load sharing", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not load sharing", err)
 		return
 	}
 	owned, shared := splitOwnedShared(repeaters)
@@ -253,24 +253,24 @@ func (s *Handlers) pageDashboard(w http.ResponseWriter, r *http.Request) {
 
 	repeaters, err := s.Store.ListRepeatersForUser(ctx, uid)
 	if err != nil {
-		http.Error(w, "could not load repeaters", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not load repeaters", err)
 		return
 	}
 	owned, shared := splitOwnedShared(repeaters)
 
 	orgs, err := s.Store.ListOrgsForUser(ctx, uid)
 	if err != nil {
-		http.Error(w, "could not load organizations", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not load organizations", err)
 		return
 	}
 	recent, err := s.Store.ListRecentCommandsForOwner(ctx, uid, 8)
 	if err != nil {
-		http.Error(w, "could not load activity", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not load activity", err)
 		return
 	}
 	user, err := s.Store.GetUserByID(ctx, uid)
 	if err != nil {
-		http.Error(w, "could not load account", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not load account", err)
 		return
 	}
 
@@ -315,13 +315,13 @@ func (s *Handlers) pageDashboard(w http.ResponseWriter, r *http.Request) {
 	// they set a primary contact link.
 	publicRole, err := s.Store.UserHasPublicRole(ctx, uid)
 	if err != nil {
-		http.Error(w, "could not load account", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not load account", err)
 		return
 	}
 	if publicRole {
 		links, err := s.Store.ListUserLinks(ctx, uid)
 		if err != nil {
-			http.Error(w, "could not load account", http.StatusInternalServerError)
+			s.ServerError(w, r, "could not load account", err)
 			return
 		}
 		steps = append(steps, onboardingStep{

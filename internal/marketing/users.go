@@ -33,12 +33,12 @@ func (s *Handlers) pageUserPublic(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		http.Error(w, "could not load profile", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not load profile", err)
 		return
 	}
 	links, err := s.Store.ListUserLinks(r.Context(), u.ID)
 	if err != nil {
-		http.Error(w, "could not load profile", http.StatusInternalServerError)
+		s.ServerError(w, r, "could not load profile", err)
 		return
 	}
 	views := make([]linkView, 0, len(links))
