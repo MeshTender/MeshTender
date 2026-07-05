@@ -14,7 +14,7 @@ func (s *Service) SignupPassword(w http.ResponseWriter, r *http.Request) {
 	displayName := NormalizeDisplayName(r.FormValue("display_name"))
 	password := r.FormValue("password")
 	if !ValidUsername(username) || !ValidPassword(password) {
-		redirectErr(w, r, "/signup", "Choose a username (3–32 chars: letters, digits, _ . -) and a password of 8–72 characters.")
+		redirectErr(w, r, "/signup", "Choose a username (3–32 chars: letters, digits, _ . -) and a password of at least 8 characters.")
 		return
 	}
 

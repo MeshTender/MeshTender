@@ -403,7 +403,7 @@ func (s *Handlers) handleChangePassword(w http.ResponseWriter, r *http.Request) 
 
 	newPassword := r.FormValue("new_password")
 	if !ValidPassword(newPassword) {
-		accountRedirect(w, r, "error", "New password must be 8–72 characters.")
+		accountRedirect(w, r, "error", "New password must be at least 8 characters.")
 		return
 	}
 	// When a password already exists, require the current one to change it.

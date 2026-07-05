@@ -5,7 +5,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
+
+	"golang.org/x/crypto/bcrypt"
 
 	"github.com/jleight/meshtender/internal/store"
 )
@@ -121,6 +124,50 @@ func TestPasskeyBeginDefersAccount(t *testing.T) {
 	dup.Body.Close()
 	if dup.StatusCode != http.StatusConflict {
 		t.Fatalf("register/begin for taken username = %d, want 409", dup.StatusCode)
+	}
+}
+
+// TestPasswordNoMaxLengthAndLegacyMigration: a password well past bcrypt's
+// 72-byte limit works end to end (pre-hashing removes the ceiling), and a stored
+// legacy raw-bcrypt hash still authenticates and is transparently upgraded to the
+// pre-hash scheme on login.
+func TestPasswordNoMaxLengthAndLegacyMigration(t *testing.T) {
+	t.Parallel()
+	st, ctx, ts, h := splitServer(t)
+
+	// A 200-char password: sign up, then sign in with it.
+	longPw := strings.Repeat("MeshTender-", 20) // 220 chars
+	up := post(t, ts, h.auth, "/signup/password", url.Values{"username": {"longpw"}, "password": {longPw}})
+	up.Body.Close()
+	if up.StatusCode != http.StatusSeeOther || cookieByName(up, "meshtender_session") == nil {
+		t.Fatalf("long-password signup = %d, want 303 + session", up.StatusCode)
+	}
+	in := post(t, ts, h.auth, "/login/password", url.Values{"username": {"longpw"}, "password": {longPw}})
+	in.Body.Close()
+	if in.StatusCode != http.StatusSeeOther || cookieByName(in, "meshtender_session") == nil {
+		t.Fatalf("long-password login = %d, want 303 + session", in.StatusCode)
+	}
+
+	// Plant a legacy (raw-bcrypt) hash and confirm login works and upgrades it.
+	legacyUser, err := st.CreateUser(ctx, "legacypw", "")
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	raw, _ := bcrypt.GenerateFromPassword([]byte("old-password"), bcrypt.DefaultCost)
+	if err := st.SetPassword(ctx, legacyUser.ID, string(raw)); err != nil {
+		t.Fatalf("set legacy hash: %v", err)
+	}
+	legacyLogin := post(t, ts, h.auth, "/login/password", url.Values{"username": {"legacypw"}, "password": {"old-password"}})
+	legacyLogin.Body.Close()
+	if legacyLogin.StatusCode != http.StatusSeeOther || cookieByName(legacyLogin, "meshtender_session") == nil {
+		t.Fatalf("legacy login = %d, want 303 + session", legacyLogin.StatusCode)
+	}
+	after, err := st.GetUserByUsername(ctx, "legacypw")
+	if err != nil {
+		t.Fatalf("reload user: %v", err)
+	}
+	if after.PasswordHash == nil || *after.PasswordHash == string(raw) {
+		t.Fatal("legacy hash was not upgraded on login")
 	}
 }
 

@@ -2,6 +2,8 @@ package auth
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"errors"
 	"net/http"
 	"time"
@@ -182,8 +184,14 @@ func (s *Service) VerifyPassword(ctx context.Context, username, password string)
 	if u.PasswordHash == nil {
 		return nil, ErrInvalidCredentials
 	}
-	if err := bcrypt.CompareHashAndPassword([]byte(*u.PasswordHash), []byte(password)); err != nil {
+	ok, legacy := comparePassword(*u.PasswordHash, password)
+	if !ok {
 		return nil, ErrInvalidCredentials
+	}
+	// Transparently migrate a legacy (raw-bcrypt) hash to the pre-hash scheme on
+	// successful login; best-effort, never blocks the sign-in.
+	if legacy {
+		_ = s.SetPassword(ctx, u.ID, password)
 	}
 	return u, nil
 }
@@ -234,16 +242,50 @@ func (s *Service) PasswordMatches(u *store.User, password string) bool {
 	if u.PasswordHash == nil {
 		return false
 	}
-	return bcrypt.CompareHashAndPassword([]byte(*u.PasswordHash), []byte(password)) == nil
+	ok, _ := comparePassword(*u.PasswordHash, password)
+	return ok
 }
 
 // SetPassword hashes and stores a password for a user.
 func (s *Service) SetPassword(ctx context.Context, userID int64, password string) error {
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	hash, err := hashPassword(password)
 	if err != nil {
 		return err
 	}
-	return s.store.SetPassword(ctx, userID, string(hash))
+	return s.store.SetPassword(ctx, userID, hash)
+}
+
+// bcrypt only considers the first 72 bytes of its input (and stops at the first
+// NUL byte), so we can't feed it a raw password without imposing a length limit.
+// Pre-hashing with SHA-256 and base64-encoding the digest collapses any-length
+// password to a fixed 44-byte, NUL-free token that always fits — so users face
+// no visible maximum. (This is the standard bcrypt-pre-hash construction.)
+func prehashPassword(password string) []byte {
+	sum := sha256.Sum256([]byte(password))
+	enc := base64.StdEncoding.EncodeToString(sum[:])
+	return []byte(enc)
+}
+
+// hashPassword produces the stored bcrypt hash for a password (pre-hash scheme).
+func hashPassword(password string) (string, error) {
+	h, err := bcrypt.GenerateFromPassword(prehashPassword(password), bcrypt.DefaultCost)
+	return string(h), err
+}
+
+// comparePassword checks password against a stored bcrypt hash, accepting both
+// the current pre-hash scheme and the legacy raw-bcrypt scheme (hashes written
+// before pre-hashing existed). legacy reports which one matched, so the caller
+// can upgrade the stored hash. Legacy hashes only ever held passwords ≤72 bytes
+// (that limit was enforced then), so the raw comparison is safe and can't be
+// confused with a pre-hash match.
+func comparePassword(hash, password string) (ok, legacy bool) {
+	if bcrypt.CompareHashAndPassword([]byte(hash), prehashPassword(password)) == nil {
+		return true, false
+	}
+	if bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) == nil {
+		return true, true
+	}
+	return false, false
 }
 
 // ErrInvalidCredentials is returned for any failed password authentication.
