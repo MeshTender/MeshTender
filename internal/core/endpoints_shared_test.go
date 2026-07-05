@@ -28,6 +28,29 @@ func TestHealthzEndpoint(t *testing.T) {
 	}
 }
 
+// TestHealthzReportsDBDown: /healthz is a readiness probe — when the database is
+// unreachable it must fail (503) rather than report healthy. (A cookieless
+// request touches no session DB rows, so the ping is what fails.)
+func TestHealthzReportsDBDown(t *testing.T) {
+	t.Parallel()
+	st, _, ts, h := splitServer(t)
+
+	// Healthy: 200.
+	resp := do(t, ts, h.app, "/healthz")
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("healthy /healthz = %d, want 200", resp.StatusCode)
+	}
+
+	// Take the database down; the readiness ping must now fail closed.
+	st.Close()
+	down := do(t, ts, h.app, "/healthz")
+	down.Body.Close()
+	if down.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("db-down /healthz = %d, want 503", down.StatusCode)
+	}
+}
+
 // #2 /static/* — serves an embedded asset.
 func TestStaticAssetEndpoint(t *testing.T) {
 	t.Parallel()

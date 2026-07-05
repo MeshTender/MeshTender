@@ -16,6 +16,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -304,11 +305,24 @@ func limitBody(next http.Handler) http.Handler {
 
 // SharedRoutes registers endpoints every surface needs (health, static assets).
 func (e *Env) SharedRoutes(r chi.Router) {
-	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte("ok"))
-	})
+	r.Get("/healthz", e.healthz)
 	staticSub, _ := fs.Sub(staticFS, "static")
 	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.FS(staticSub))))
+}
+
+// healthz is a readiness probe: it pings the database (briefly) so a broken pool
+// or unreachable DB fails the check — letting a load balancer route away or an
+// orchestrator restart the instance — rather than reporting healthy while every
+// request 500s.
+func (e *Env) healthz(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+	defer cancel()
+	if err := e.Store.Pool().Ping(ctx); err != nil {
+		LogError(r, "healthz: db ping failed", err)
+		http.Error(w, "database unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	_, _ = w.Write([]byte("ok"))
 }
 
 // HostWithoutPort strips a trailing :port from a request Host, if present.
