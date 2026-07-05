@@ -115,7 +115,7 @@ func (rec *Recorder) record(r *http.Request, status int) {
 		Ts:      time.Now(),
 		Surface: rec.surface(host),
 		Host:    host,
-		Path:    r.URL.Path,
+		Path:    redactPath(r.URL.Path),
 		Method:  r.Method,
 		Status:  status,
 		Visitor: rec.visitor(r),
@@ -124,6 +124,25 @@ func (rec *Recorder) record(r *http.Request, status int) {
 	case rec.ch <- ev:
 	default: // buffer full — drop
 	}
+}
+
+// redactPath replaces a secret path segment with a placeholder before an event
+// is recorded, so a share-link/invite token — a live secret until the invite is
+// accepted — doesn't sit in the raw events table for the retention window. The
+// invite token is the only secret carried in a URL *path*; the login-handoff
+// codes travel in the query string, which we never record. Templatizing (rather
+// than hashing) also keeps the aggregate meaningful: every invite hit rolls up
+// under one path.
+func redactPath(p string) string {
+	rest, ok := strings.CutPrefix(p, "/invite/")
+	if !ok || rest == "" {
+		return p
+	}
+	// /invite/{token} → /invite/:token; /invite/{token}/accept keeps the tail.
+	if i := strings.IndexByte(rest, '/'); i >= 0 {
+		return "/invite/:token" + rest[i:]
+	}
+	return "/invite/:token"
 }
 
 // surface classifies a request host into one of the known surfaces.

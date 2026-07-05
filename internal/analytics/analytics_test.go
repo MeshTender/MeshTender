@@ -30,6 +30,46 @@ func TestHandlerRecordsRequest(t *testing.T) {
 	}
 }
 
+// TestRedactPath: the secret invite/share token is templatized so it never
+// reaches the raw events table; non-invite paths pass through untouched.
+// Regression for the pre-release audit finding that live tokens were recorded.
+func TestRedactPath(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"/invite/abc123secret", "/invite/:token"},
+		{"/invite/abc123secret/accept", "/invite/:token/accept"},
+		{"/invite/", "/invite/"}, // no token, nothing to redact
+		{"/invite", "/invite"},
+		{"/dashboard", "/dashboard"},
+		{"/r/pub-id-not-secret", "/r/pub-id-not-secret"},
+		{"/orgs/some-slug", "/orgs/some-slug"},
+	}
+	for _, c := range cases {
+		if got := redactPath(c.in); got != c.want {
+			t.Errorf("redactPath(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
+
+// TestHandlerRedactsInviteToken confirms the redaction happens on the real
+// recording path (the enqueued event), not just in the helper.
+func TestHandlerRedactsInviteToken(t *testing.T) {
+	rec := testRecorder()
+	h := rec.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+
+	req := httptest.NewRequest(http.MethodGet, "http://app.x/invite/S3cr3tShareToken", nil)
+	req.Header.Set("User-Agent", "Mozilla/5.0")
+	h.ServeHTTP(httptest.NewRecorder(), req)
+
+	select {
+	case e := <-rec.ch:
+		if e.Path != "/invite/:token" {
+			t.Fatalf("recorded path = %q, want the token redacted to /invite/:token", e.Path)
+		}
+	default:
+		t.Fatal("expected an event to be enqueued")
+	}
+}
+
 func TestHandlerSkips(t *testing.T) {
 	rec := testRecorder()
 	h := rec.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
