@@ -12,6 +12,7 @@ import (
 	"github.com/go-webauthn/webauthn/webauthn"
 
 	"github.com/jleight/meshtender/internal/store"
+	"github.com/jleight/meshtender/internal/web"
 )
 
 // RequireUser is middleware that sends unauthenticated requests to the auth
@@ -59,7 +60,7 @@ func (s *Service) RegisterBegin(w http.ResponseWriter, r *http.Request) {
 	if uid := s.CurrentUserID(ctx); uid != 0 {
 		u, err := s.store.GetUserByID(ctx, uid)
 		if err != nil {
-			httpError(w, http.StatusInternalServerError, "load user")
+			httpError(w, r, http.StatusInternalServerError, "load user", err)
 			return
 		}
 		var body struct {
@@ -69,26 +70,26 @@ func (s *Service) RegisterBegin(w http.ResponseWriter, r *http.Request) {
 		name = NormalizePasskeyName(body.Name)
 		// Existing credentials are loaded so the authenticator excludes them.
 		if waUser, err = s.loadWebAuthnUser(ctx, u); err != nil {
-			httpError(w, http.StatusInternalServerError, "load credentials")
+			httpError(w, r, http.StatusInternalServerError, "load credentials", err)
 			return
 		}
 	} else {
 		username, displayName, ok := readCreds(r)
 		if !ok {
-			httpError(w, http.StatusBadRequest, "username must be 3–32 chars (letters, digits, _ . -)")
+			httpError(w, r, http.StatusBadRequest, "username must be 3–32 chars (letters, digits, _ . -)", nil)
 			return
 		}
 		// Fail fast on a taken name (authoritatively re-checked at finish's insert).
 		if _, err := s.store.GetUserByUsername(ctx, username); err == nil {
-			httpError(w, http.StatusConflict, "username already taken — choose another or sign in")
+			httpError(w, r, http.StatusConflict, "username already taken — choose another or sign in", nil)
 			return
 		} else if !errors.Is(err, store.ErrNotFound) {
-			httpError(w, http.StatusInternalServerError, "check username")
+			httpError(w, r, http.StatusInternalServerError, "check username", err)
 			return
 		}
 		reservedID, err := s.store.ReserveUserID(ctx)
 		if err != nil {
-			httpError(w, http.StatusInternalServerError, "reserve account")
+			httpError(w, r, http.StatusInternalServerError, "reserve account", err)
 			return
 		}
 		// In-memory only — no row is written until finish verifies a credential.
@@ -108,11 +109,11 @@ func (s *Service) RegisterBegin(w http.ResponseWriter, r *http.Request) {
 		webauthn.WithResidentKeyRequirement(protocol.ResidentKeyRequirementPreferred),
 	)
 	if err != nil {
-		httpError(w, http.StatusInternalServerError, "begin registration")
+		httpError(w, r, http.StatusInternalServerError, "begin registration", err)
 		return
 	}
 	if err := s.stashCeremony(ctx, waUser.user.ID, sessionData); err != nil {
-		httpError(w, http.StatusInternalServerError, "save ceremony")
+		httpError(w, r, http.StatusInternalServerError, "save ceremony", err)
 		return
 	}
 	s.Sessions.Put(ctx, sessKeyWAName, name)
@@ -127,7 +128,7 @@ func (s *Service) RegisterFinish(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	uid, sessionData, ok := s.popCeremony(ctx)
 	if !ok {
-		httpError(w, http.StatusBadRequest, "no registration in progress")
+		httpError(w, r, http.StatusBadRequest, "no registration in progress", nil)
 		return
 	}
 	// A pending username marks a new-account ceremony (id reserved, row not yet
@@ -146,11 +147,11 @@ func (s *Service) RegisterFinish(w http.ResponseWriter, r *http.Request) {
 	} else {
 		var err error
 		if u, err = s.store.GetUserByID(ctx, uid); err != nil {
-			httpError(w, http.StatusInternalServerError, "load user")
+			httpError(w, r, http.StatusInternalServerError, "load user", err)
 			return
 		}
 		if waUser, err = s.loadWebAuthnUser(ctx, u); err != nil {
-			httpError(w, http.StatusInternalServerError, "load credentials")
+			httpError(w, r, http.StatusInternalServerError, "load credentials", err)
 			return
 		}
 	}
@@ -158,12 +159,12 @@ func (s *Service) RegisterFinish(w http.ResponseWriter, r *http.Request) {
 	// Verify the credential before writing anything durable.
 	cred, err := s.wa.FinishRegistration(waUser, *sessionData, r)
 	if err != nil {
-		httpError(w, http.StatusBadRequest, "registration failed: "+err.Error())
+		httpError(w, r, http.StatusBadRequest, "registration failed: "+err.Error(), nil)
 		return
 	}
 	blob, err := json.Marshal(cred)
 	if err != nil {
-		httpError(w, http.StatusInternalServerError, "marshal credential")
+		httpError(w, r, http.StatusInternalServerError, "marshal credential", err)
 		return
 	}
 
@@ -171,11 +172,11 @@ func (s *Service) RegisterFinish(w http.ResponseWriter, r *http.Request) {
 		// The credential is proven — now persist the account with its reserved id.
 		created, err := s.store.CreateUserWithID(ctx, uid, newName, newDisplay)
 		if errors.Is(err, store.ErrDuplicate) || errors.Is(err, store.ErrUsernameReserved) {
-			httpError(w, http.StatusConflict, "username already taken — choose another or sign in")
+			httpError(w, r, http.StatusConflict, "username already taken — choose another or sign in", nil)
 			return
 		}
 		if err != nil {
-			httpError(w, http.StatusInternalServerError, "create account")
+			httpError(w, r, http.StatusInternalServerError, "create account", err)
 			return
 		}
 		u = created
@@ -183,11 +184,11 @@ func (s *Service) RegisterFinish(w http.ResponseWriter, r *http.Request) {
 
 	name := s.Sessions.PopString(ctx, sessKeyWAName)
 	if err := s.store.AddCredential(ctx, u.ID, cred.ID, blob, name); err != nil {
-		httpError(w, http.StatusInternalServerError, "store credential")
+		httpError(w, r, http.StatusInternalServerError, "store credential", err)
 		return
 	}
 	if err := s.login(ctx, u.ID); err != nil {
-		httpError(w, http.StatusInternalServerError, "login")
+		httpError(w, r, http.StatusInternalServerError, "login", err)
 		return
 	}
 	writeJSON(w, authResult{OK: true, Redirect: s.PostAuthRedirect(r, u.ID)})
@@ -200,35 +201,35 @@ func (s *Service) LoginBegin(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	username, _, ok := readCreds(r)
 	if !ok {
-		httpError(w, http.StatusBadRequest, "username required")
+		httpError(w, r, http.StatusBadRequest, "username required", nil)
 		return
 	}
 	u, err := s.store.GetUserByUsername(ctx, username)
 	if errors.Is(err, store.ErrNotFound) {
-		httpError(w, http.StatusUnauthorized, "no such account")
+		httpError(w, r, http.StatusUnauthorized, "no such account", nil)
 		return
 	}
 	if err != nil {
-		httpError(w, http.StatusInternalServerError, "load user")
+		httpError(w, r, http.StatusInternalServerError, "load user", err)
 		return
 	}
 	waUser, err := s.loadWebAuthnUser(ctx, u)
 	if err != nil {
-		httpError(w, http.StatusInternalServerError, "load credentials")
+		httpError(w, r, http.StatusInternalServerError, "load credentials", err)
 		return
 	}
 	if len(waUser.creds) == 0 {
-		httpError(w, http.StatusBadRequest, "no passkey registered for this account")
+		httpError(w, r, http.StatusBadRequest, "no passkey registered for this account", nil)
 		return
 	}
 
 	options, sessionData, err := s.wa.BeginLogin(waUser)
 	if err != nil {
-		httpError(w, http.StatusInternalServerError, "begin login")
+		httpError(w, r, http.StatusInternalServerError, "begin login", err)
 		return
 	}
 	if err := s.stashCeremony(ctx, u.ID, sessionData); err != nil {
-		httpError(w, http.StatusInternalServerError, "save ceremony")
+		httpError(w, r, http.StatusInternalServerError, "save ceremony", err)
 		return
 	}
 	writeJSON(w, options)
@@ -239,23 +240,23 @@ func (s *Service) LoginFinish(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	uid, sessionData, ok := s.popCeremony(ctx)
 	if !ok {
-		httpError(w, http.StatusBadRequest, "no login in progress")
+		httpError(w, r, http.StatusBadRequest, "no login in progress", nil)
 		return
 	}
 	u, err := s.store.GetUserByID(ctx, uid)
 	if err != nil {
-		httpError(w, http.StatusInternalServerError, "load user")
+		httpError(w, r, http.StatusInternalServerError, "load user", err)
 		return
 	}
 	waUser, err := s.loadWebAuthnUser(ctx, u)
 	if err != nil {
-		httpError(w, http.StatusInternalServerError, "load credentials")
+		httpError(w, r, http.StatusInternalServerError, "load credentials", err)
 		return
 	}
 
 	cred, err := s.wa.FinishLogin(waUser, *sessionData, r)
 	if err != nil {
-		httpError(w, http.StatusUnauthorized, "login failed: "+err.Error())
+		httpError(w, r, http.StatusUnauthorized, "login failed: "+err.Error(), nil)
 		return
 	}
 	// Persist the updated sign counter / clone-warning state.
@@ -263,7 +264,7 @@ func (s *Service) LoginFinish(w http.ResponseWriter, r *http.Request) {
 		_ = s.store.UpdateCredential(ctx, cred.ID, blob)
 	}
 	if err := s.login(ctx, u.ID); err != nil {
-		httpError(w, http.StatusInternalServerError, "login")
+		httpError(w, r, http.StatusInternalServerError, "login", err)
 		return
 	}
 	writeJSON(w, authResult{OK: true, Redirect: s.PostAuthRedirect(r, u.ID)})
@@ -278,12 +279,12 @@ func (s *Service) LoginDiscoverableBegin(w http.ResponseWriter, r *http.Request)
 	ctx := r.Context()
 	options, sessionData, err := s.wa.BeginDiscoverableLogin()
 	if err != nil {
-		httpError(w, http.StatusInternalServerError, "begin login")
+		httpError(w, r, http.StatusInternalServerError, "begin login", err)
 		return
 	}
 	blob, err := json.Marshal(sessionData)
 	if err != nil {
-		httpError(w, http.StatusInternalServerError, "save ceremony")
+		httpError(w, r, http.StatusInternalServerError, "save ceremony", err)
 		return
 	}
 	// No user is known yet; stash only the session data, clearing any stale uid.
@@ -298,13 +299,13 @@ func (s *Service) LoginDiscoverableFinish(w http.ResponseWriter, r *http.Request
 	ctx := r.Context()
 	blob, _ := s.Sessions.Get(ctx, sessKeyWAData).([]byte)
 	if len(blob) == 0 {
-		httpError(w, http.StatusBadRequest, "no login in progress")
+		httpError(w, r, http.StatusBadRequest, "no login in progress", nil)
 		return
 	}
 	s.Sessions.Remove(ctx, sessKeyWAData)
 	var sessionData webauthn.SessionData
 	if err := json.Unmarshal(blob, &sessionData); err != nil {
-		httpError(w, http.StatusBadRequest, "invalid ceremony")
+		httpError(w, r, http.StatusBadRequest, "invalid ceremony", nil)
 		return
 	}
 
@@ -328,14 +329,14 @@ func (s *Service) LoginDiscoverableFinish(w http.ResponseWriter, r *http.Request
 
 	cred, err := s.wa.FinishDiscoverableLogin(handler, sessionData, r)
 	if err != nil || resolved == nil {
-		httpError(w, http.StatusUnauthorized, "login failed")
+		httpError(w, r, http.StatusUnauthorized, "login failed", nil)
 		return
 	}
 	if blob, err := json.Marshal(cred); err == nil {
 		_ = s.store.UpdateCredential(ctx, cred.ID, blob)
 	}
 	if err := s.login(ctx, resolved.ID); err != nil {
-		httpError(w, http.StatusInternalServerError, "login")
+		httpError(w, r, http.StatusInternalServerError, "login", err)
 		return
 	}
 	writeJSON(w, authResult{OK: true, Redirect: s.PostAuthRedirect(r, resolved.ID)})
@@ -456,6 +457,12 @@ type authResult struct {
 	Redirect string `json:"redirect"`
 }
 
-func httpError(w http.ResponseWriter, code int, msg string) {
+// httpError writes a JSON {"error": msg} with the given status. A server fault
+// (5xx) with a non-nil err is logged (keyed by request ID) so it's diagnosable;
+// client errors (4xx) are expected and pass err=nil.
+func httpError(w http.ResponseWriter, r *http.Request, code int, msg string, err error) {
+	if err != nil && code >= http.StatusInternalServerError {
+		web.LogError(r, msg, err)
+	}
 	writeJSONStatus(w, code, map[string]string{"error": msg})
 }
