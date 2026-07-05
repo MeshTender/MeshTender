@@ -73,7 +73,11 @@ func (s *Handlers) renderOrgPublic(w http.ResponseWriter, r *http.Request, org *
 		s.ServerError(w, r, "could not load organization", err)
 		return
 	}
-	pubReps, err := s.Store.ListPublicRepeaters(r.Context(), org.ID)
+	// The map points are loaded lazily by the browser from the cached JSON
+	// endpoint (MapURL), so this anonymous page only needs to know whether a map
+	// is worth showing — a cheap existence check instead of pulling the full,
+	// unbounded point set into every render.
+	hasMap, err := s.Store.HasPublicRepeaterPoints(r.Context(), org.ID)
 	if err != nil {
 		s.ServerError(w, r, "could not load organization", err)
 		return
@@ -93,13 +97,44 @@ func (s *Handlers) renderOrgPublic(w http.ResponseWriter, r *http.Request, org *
 		"Admins":        admins,
 		"MemberCount":   memberCount,
 		"RepeaterCount": repeaterCount,
-		"Repeaters":     pubReps,
 		"Links":         links,
-		"HasMap":        len(pubReps) > 0,
+		"HasMap":        hasMap,
+		"MapURL":        orgMapURL(org.Slug),
 		"IsMember":      isMember,
 		"LoggedIn":      uid != 0,
 		"CanJoin":       uid != 0 && !isMember,
 	})
+}
+
+// orgMapURL is the cached JSON endpoint the public org pages fetch their map
+// points from. Setting MapURL in the render data switches the shared map
+// templates from inlining points to fetching them (see meshmap.js).
+func orgMapURL(slug string) string {
+	return "/orgs/" + slug + "/repeaters.json"
+}
+
+// orgRepeatersJSON serves an org's public map points as cached JSON, fetched by
+// the public org and repeaters pages. Anonymous and public by design, so it's
+// cacheable with a content ETag and a short max-age.
+func (s *Handlers) orgRepeatersJSON(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.orgID(r)
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	points, err := s.Store.ListPublicRepeaterPoints(r.Context(), id)
+	if err != nil {
+		s.ServerError(w, r, "could not load repeaters", err)
+		return
+	}
+	// Never null: an org with no located public repeaters returns [] so the client
+	// always gets a JSON array.
+	if points == nil {
+		points = []store.MapPoint{}
+	}
+	if err := web.ServeJSONCached(w, r, time.Minute, points); err != nil {
+		s.ServerError(w, r, "could not load repeaters", err)
+	}
 }
 
 // pageOrgConfig renders an org's recommended configuration read-only for anonymous
@@ -149,20 +184,24 @@ func (s *Handlers) pageOrgRepeaters(w http.ResponseWriter, r *http.Request) {
 		s.ServerError(w, r, "could not load repeaters", err)
 		return
 	}
-	points, err := s.Store.ListPublicRepeaterPoints(r.Context(), id)
+	// The map points come from the cached JSON endpoint (MapURL) client-side, so
+	// this page needs only a cheap existence check to decide whether to render the
+	// map — not the full point set inlined into the HTML.
+	hasMap, err := s.Store.HasPublicRepeaterPoints(r.Context(), id)
 	if err != nil {
 		s.ServerError(w, r, "could not load repeaters", err)
 		return
 	}
-	rv := web.RepeatersView{Repeaters: reps, MapPoints: points, HasMap: len(points) > 0, Full: false}
+	rv := web.RepeatersView{Repeaters: reps, HasMap: hasMap, Full: false}
 	if hasMore && len(reps) > 0 {
 		last := reps[len(reps)-1]
 		rv.NextCursor = encodeRepCursor(last.Name, last.RepeaterID)
 	}
 	data := map[string]any{
-		"Org":  org,
-		"Nav":  s.OrgNavFor(r.Context(), org.ID, org.Slug, "repeaters", false, false),
-		"Reps": rv,
+		"Org":    org,
+		"Nav":    s.OrgNavFor(r.Context(), org.ID, org.Slug, "repeaters", false, false),
+		"Reps":   rv,
+		"MapURL": orgMapURL(org.Slug),
 	}
 	// htmx "show more": return just the rows + next control to append in place.
 	if r.Header.Get("HX-Request") != "" {

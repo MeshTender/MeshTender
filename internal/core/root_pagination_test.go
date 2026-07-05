@@ -56,7 +56,8 @@ func TestRootOrgDirectoryLoadMore(t *testing.T) {
 }
 
 // TestOrgPublicRepeatersLoadMore verifies #10: the public Repeaters tab paginates
-// its list with htmx "show more" while the map still plots all located repeaters.
+// its list with htmx "show more" while the map still shows all located repeaters —
+// now fetched from the cached JSON endpoint rather than inlined into the HTML.
 func TestOrgPublicRepeatersLoadMore(t *testing.T) {
 	st, ctx, ts, h := splitServer(t)
 
@@ -85,8 +86,10 @@ func TestOrgPublicRepeatersLoadMore(t *testing.T) {
 	if !strings.Contains(full, "Show more repeaters") {
 		t.Fatalf("full page missing load-more control")
 	}
-	if !strings.Contains(full, "meshMap(") {
-		t.Fatalf("full page missing the map")
+	// The public map now loads its points from the cached JSON endpoint instead of
+	// inlining them, so the page wires up meshMapFromURL against that endpoint.
+	if !strings.Contains(full, `meshMapFromURL('map', "/orgs/`+org.Slug+`/repeaters.json")`) {
+		t.Fatalf("full page missing the fetched map")
 	}
 
 	cursor := between(full, "/repeaters?cursor=", `"`)

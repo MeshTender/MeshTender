@@ -134,10 +134,12 @@ func (s *Store) ListPublicRepeaters(ctx context.Context, orgID int64) ([]OrgRepe
 const OrgPublicRepeatersPageSize = 25
 
 // MapPoint is a located repeater plotted on an org's public map. The map shows
-// every located public repeater regardless of which list page is in view.
+// every located public repeater regardless of which list page is in view. The
+// JSON tags are the shape the public map endpoint serves to meshmap.js.
 type MapPoint struct {
-	Name     string
-	Lat, Lon float64
+	Name string  `json:"name"`
+	Lat  float64 `json:"lat"`
+	Lon  float64 `json:"lon"`
 }
 
 // ListPublicRepeatersPage returns one keyset page of an org's public repeaters
@@ -191,6 +193,26 @@ func (s *Store) ListPublicRepeaterPoints(ctx context.Context, orgID int64) ([]Ma
 		var p MapPoint
 		return p, r.Scan(&p.Name, &p.Lat, &p.Lon)
 	})
+}
+
+// HasPublicRepeaterPoints reports whether an org has at least one located public
+// repeater — i.e. whether its public map is worth rendering. It's the cheap
+// existence check the public pages use to decide whether to show the map
+// container (and fetch the points) without pulling the full set into the HTML.
+func (s *Store) HasPublicRepeaterPoints(ctx context.Context, orgID int64) (bool, error) {
+	var exists bool
+	err := s.pool.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM repeaters r
+			JOIN org_members om ON om.org_id = $1 AND om.user_id = r.owner_id
+			WHERE r.show_on_public_org
+			  AND r.latitude IS NOT NULL AND r.longitude IS NOT NULL
+			  AND NOT EXISTS (SELECT 1 FROM org_repeater_excludes e
+			                  WHERE e.org_id = $1 AND e.repeater_id = r.id))`, orgID).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("has public repeater points: %w", err)
+	}
+	return exists, nil
 }
 
 // ListRepeaterOrgs returns the orgs a repeater participates in (owner is a member

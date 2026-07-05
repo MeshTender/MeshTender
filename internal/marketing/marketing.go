@@ -57,6 +57,7 @@ func (s *Handlers) Routes() chi.Router {
 	r.Get("/orgs", s.pageOrgs)                                 // public organization directory
 	r.Get("/orgs/{id}", s.pageOrgPublic)                       // public org page
 	r.Get("/orgs/{id}/repeaters", s.pageOrgRepeaters)          // public repeater list + map
+	r.Get("/orgs/{id}/repeaters.json", s.orgRepeatersJSON)     // map points (cached), fetched by both pages above
 	r.Get("/orgs/{id}/config", s.pageOrgConfig)                // public recommended config
 	r.With(web.NoIndex).Get("/r/{id}", s.pageRepeaterPublic)   // NFC/QR target — not for search
 	r.With(web.NoIndex).Get("/u/{username}", s.pageUserPublic) // personal profile — not for search

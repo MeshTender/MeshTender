@@ -36,6 +36,29 @@ function meshBaseLayers(map) {
 // given id. pts is an array of {name, lat, lon}. Does nothing if pts is empty.
 function meshMap(elId, pts) {
   if (!pts || !pts.length) return;
+  renderMeshMap(elId, pts);
+}
+
+// meshMapFromURL loads the points from a same-origin JSON endpoint (an array of
+// {name, lat, lon}) and renders them. Used by the public org pages so the point
+// set is fetched (and cacheable) rather than inlined into the HTML. On a fetch
+// error or empty set the map container is left blank.
+function meshMapFromURL(elId, url) {
+  fetch(url, { headers: { Accept: "application/json" } })
+    .then(function (r) {
+      return r.ok ? r.json() : [];
+    })
+    .then(function (pts) {
+      if (Array.isArray(pts) && pts.length) renderMeshMap(elId, pts);
+    })
+    .catch(function () {
+      /* leave the map container empty if points can't be loaded */
+    });
+}
+
+// renderMeshMap draws the given points into the element; shared by meshMap (inline
+// points) and meshMapFromURL (fetched points).
+function renderMeshMap(elId, pts) {
   // Turn off every Leaflet animation so the map paints once, in its final
   // position, with no flash on load: zoomAnimation (zoom transitions),
   // fadeAnimation (tiles fading in), markerZoomAnimation (markers scaling).

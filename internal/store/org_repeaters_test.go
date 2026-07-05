@@ -79,6 +79,29 @@ func TestListPublicRepeaterPoints(t *testing.T) {
 	if points[0].Name != "shown" || points[0].Lat != 40.0 || points[0].Lon != -75.0 {
 		t.Fatalf("unexpected point %+v (want shown @ 40,-75)", points[0])
 	}
+
+	// HasPublicRepeaterPoints is the cheap existence check the pages use to decide
+	// whether to render the map; it must agree with the point set being non-empty.
+	has, err := st.HasPublicRepeaterPoints(ctx, org.ID)
+	if err != nil {
+		t.Fatalf("HasPublicRepeaterPoints: %v", err)
+	}
+	if !has {
+		t.Fatalf("HasPublicRepeaterPoints = false, want true (1 point exists)")
+	}
+
+	// An org whose only member owns no located public repeaters reports no map.
+	loner, err := st.CreateUser(ctx, "loner", "")
+	if err != nil {
+		t.Fatalf("create loner: %v", err)
+	}
+	empty, err := st.CreateOrg(ctx, "Empty", loner.ID)
+	if err != nil {
+		t.Fatalf("create empty org: %v", err)
+	}
+	if has, err := st.HasPublicRepeaterPoints(ctx, empty.ID); err != nil || has {
+		t.Fatalf("HasPublicRepeaterPoints(empty) = %v, %v; want false, nil", has, err)
+	}
 }
 
 // TestPublicRepeaterMapUsesPartialIndex proves migration 0035's partial index is

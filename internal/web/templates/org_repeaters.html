@@ -76,9 +76,9 @@
         <script src="/static/leaflet.js"></script>
         <script src="/static/meshmap.js"></script>
         <script nonce="{{.Nonce}}">
-          meshMap('map', [
+          {{if .MapURL}}meshMapFromURL('map', {{.MapURL}});{{else}}meshMap('map', [
             {{range .Reps.MapPoints}}{name: {{.Name}}, lat: {{.Lat}}, lon: {{.Lon}}},{{end}}
-          ]);
+          ]);{{end}}
         </script>
       </div>
       {{else}}
