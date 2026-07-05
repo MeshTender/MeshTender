@@ -140,11 +140,13 @@ func newE2EServer(t *testing.T) *e2eServer {
 	port := ln.Addr().(*net.TCPAddr).Port
 	origin := func(h string) string { return fmt.Sprintf("https://%s:%d", h, port) }
 
-	// The RP ID is browserHost(): it's a registrable-domain suffix of every
-	// surface host (app./auth./root.<browserHost>), so it's a valid RP ID for a
-	// ceremony run from any of them, and every surface origin is allowed.
+	// The RP ID is the auth host. WebAuthn ceremonies only run there (signup), and
+	// its own host is a valid RP ID for that origin. Using the auth host (rather
+	// than the bare browserHost parent) also guarantees the RP ID contains a dot,
+	// which WebAuthn requires — browserHost() is a single label in CI (the step
+	// name, e.g. "e2e"), which would fail go-webauthn's domain validation.
 	authSvc, err := auth.New(st, st.Pool(), auth.Config{
-		RPID: browserHost(), RPDisplayName: "test",
+		RPID: authHost(), RPDisplayName: "test",
 		RPOrigins: []string{origin(appHost()), origin(authHost()), origin(rootHost())},
 		AppHost:   appHost(), AuthHost: authHost(), RootHost: rootHost(),
 		Secure: true,
