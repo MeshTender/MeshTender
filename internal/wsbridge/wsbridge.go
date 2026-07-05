@@ -13,11 +13,26 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"sync"
 
 	"github.com/coder/websocket"
 	"github.com/meshcore-go/meshcore-go/hardware"
 )
+
+// maxKissBuffer bounds the inbound reassembly buffer. A single KISS frame carries
+// at most one MeshCore packet — MAX_TRANS_UNIT is 255 bytes over the air (firmware
+// src/MeshCore.h) and meshcore-go caps a KISS packet at KISS_MAX_PACKET_SIZE=255 —
+// so even with worst-case KISS byte-stuffing (every byte escaped ×2) plus FEND
+// framing a frame is ~520 bytes on the wire. This buffer only ever holds one
+// not-yet-FEND-terminated frame, so 4 KiB is generous headroom; if this much
+// accumulates with no frame delimiter the peer is sending garbage, so we drop it
+// instead of letting it grow without bound.
+const maxKissBuffer = 4096
+
+// ErrKissBufferOverflow is reported to the error handler when the reassembly
+// buffer is dropped for exceeding maxKissBuffer with no frame boundary.
+var ErrKissBufferOverflow = errors.New("wsbridge: inbound KISS buffer overflow; discarding")
 
 // Conn implements hardware.Transport over a WebSocket.
 type Conn struct {
@@ -101,8 +116,18 @@ func (c *Conn) Feed(data []byte) {
 	c.buf = append(c.buf, data...)
 	last := bytes.LastIndexByte(c.buf, hardware.KISS_FEND)
 	if last < 0 {
+		// No complete frame boundary yet. Cap the buffer so a peer that never sends
+		// a FEND can't grow it without bound; drop it and report the overflow.
+		var eh func(error)
+		if len(c.buf) > maxKissBuffer {
+			c.buf = nil
+			eh = c.errH
+		}
 		c.mu.Unlock()
-		return // no complete frame boundary yet
+		if eh != nil {
+			eh(ErrKissBufferOverflow)
+		}
+		return
 	}
 	processable := c.buf[:last+1]
 	c.buf = append([]byte(nil), c.buf[last+1:]...) // bytes after the last FEND

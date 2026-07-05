@@ -1,7 +1,9 @@
 package wsbridge
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/meshcore-go/meshcore-go/hardware"
@@ -40,6 +42,40 @@ func TestFeedReassemblesAcrossChunkBoundaries(t *testing.T) {
 	}
 	got := feedChunks(t, singles...)
 	assertCmds(t, got, wantCmds, "byte-by-byte")
+}
+
+// TestFeedCapsBufferWithoutFrameBoundary verifies that a peer streaming bytes
+// with no FEND delimiter can't grow the reassembly buffer without bound: past the
+// cap the buffer is dropped and the overflow is reported, and framing recovers on
+// the next valid frame.
+func TestFeedCapsBufferWithoutFrameBoundary(t *testing.T) {
+	t.Parallel()
+	c := New(context.Background(), nil)
+
+	var errs []error
+	c.SetErrorHandler(func(err error) { errs = append(errs, err) })
+	var got []*hardware.KissFrame
+	c.SetFrameHandler(func(f *hardware.KissFrame) { got = append(got, f) })
+
+	// Stream well past the cap with no FEND (0xC0) byte anywhere.
+	junk := bytes.Repeat([]byte{0x00}, maxKissBuffer+1024)
+	c.Feed(junk)
+
+	c.mu.Lock()
+	buffered := len(c.buf)
+	c.mu.Unlock()
+	if buffered > maxKissBuffer {
+		t.Fatalf("buffer = %d bytes, want it dropped to <= %d", buffered, maxKissBuffer)
+	}
+	if len(errs) != 1 || !errors.Is(errs[0], ErrKissBufferOverflow) {
+		t.Fatalf("errs = %v, want one ErrKissBufferOverflow", errs)
+	}
+
+	// Framing still works after the drop: a valid frame decodes normally.
+	c.Feed(hardware.EncodeDataFrame([]byte{0xAA, 0xBB}))
+	if len(got) != 1 || got[0].Command != hardware.KISS_CMD_DATA {
+		t.Fatalf("got %d frames after overflow, want 1 data frame", len(got))
+	}
 }
 
 func feedChunks(t *testing.T, chunks ...[]byte) []*hardware.KissFrame {
