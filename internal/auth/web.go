@@ -80,9 +80,15 @@ func (s *Handlers) credentialRoutes(r chi.Router) {
 	authLimit := web.NewRateLimiter(10, 6*time.Second)
 	r.With(authLimit.Middleware).Post("/login/password", s.Auth.LoginPassword)
 	r.With(authLimit.Middleware).Post("/signup/password", s.Auth.SignupPassword)
-	r.Post("/api/register/begin", s.Auth.RegisterBegin)
+	// The user-initiated WebAuthn "begin" ceremonies share the same per-IP
+	// credential-attempt bucket: register/begin persists an account row (unbounded
+	// spam would flood the users table and squat usernames) and login/begin is a
+	// username oracle. The finish steps require an in-progress ceremony, and
+	// discoverable/begin auto-fires on page load (passive autofill) and writes
+	// nothing, so those stay unthrottled.
+	r.With(authLimit.Middleware).Post("/api/register/begin", s.Auth.RegisterBegin)
 	r.Post("/api/register/finish", s.Auth.RegisterFinish)
-	r.Post("/api/login/begin", s.Auth.LoginBegin)
+	r.With(authLimit.Middleware).Post("/api/login/begin", s.Auth.LoginBegin)
 	r.Post("/api/login/finish", s.Auth.LoginFinish)
 	r.Post("/api/login/discoverable/begin", s.Auth.LoginDiscoverableBegin)
 	r.Post("/api/login/discoverable/finish", s.Auth.LoginDiscoverableFinish)

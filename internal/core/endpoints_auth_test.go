@@ -61,6 +61,39 @@ func TestPasswordSignupAndLogin(t *testing.T) {
 	}
 }
 
+// TestWebAuthnBeginRateLimited: the user-initiated passkey "begin" ceremonies
+// share the credential-attempt limiter. register/begin persists an account row,
+// so an unthrottled loop would flood the users table and squat usernames; this
+// is a regression guard for the pre-release audit finding that they were
+// unlimited. A malformed body 400s in the handler, but the limiter middleware
+// runs first — which is all this exercises — so after the burst we get 429.
+func TestWebAuthnBeginRateLimited(t *testing.T) {
+	t.Parallel()
+	for _, path := range []string{"/api/register/begin", "/api/login/begin"} {
+		t.Run(path, func(t *testing.T) {
+			t.Parallel()
+			_, _, ts, h := splitServer(t)
+
+			var got429, gotAllowed bool
+			for i := 0; i < 15; i++ {
+				resp := post(t, ts, h.auth, path, url.Values{})
+				resp.Body.Close()
+				if resp.StatusCode == http.StatusTooManyRequests {
+					got429 = true
+				} else {
+					gotAllowed = true
+				}
+			}
+			if !gotAllowed {
+				t.Fatalf("%s: every request throttled; burst should allow some through", path)
+			}
+			if !got429 {
+				t.Fatalf("%s: never returned 429; the rate limiter is not wired", path)
+			}
+		})
+	}
+}
+
 // assertAccountOK asserts a 303 back to /account carrying a success ("ok") flash.
 func assertAccountOK(t *testing.T, resp *http.Response, label string) {
 	t.Helper()
