@@ -241,19 +241,51 @@ func (s *Store) RepeaterByInviteToken(ctx context.Context, queryUserID int64, to
 	return r, nil
 }
 
-// ConsumeInvite atomically marks an unused invite as used by userID and returns
-// its repeater id. Returns ErrNotFound if the token is unknown/revoked or was
-// already consumed (the single-use guard, safe against concurrent accepts).
-func (s *Store) ConsumeInvite(ctx context.Context, token string, userID int64) (int64, error) {
-	var repeaterID int64
-	err := s.pool.QueryRow(ctx,
-		`UPDATE repeater_invites SET used_at = now(), used_by = $2
-		 WHERE token = $1 AND used_at IS NULL
-		 RETURNING repeater_id`, token, userID).Scan(&repeaterID)
+// AcceptInvite redeems a single-use share link for userID, doing all three steps
+// in one transaction so they are all-or-nothing: it consumes the link, grants the
+// share, and seeds the share's default command set. If any step fails the whole
+// thing rolls back, so a failure can never spend the link without granting access
+// (or grant access without spending the link).
+//
+// It returns whether a new share was created (false if the user already had one)
+// and ErrNotFound if the token is unknown, revoked, or already used — the
+// single-use guard, safe against concurrent accepts.
+func (s *Store) AcceptInvite(ctx context.Context, token string, userID int64) (added bool, err error) {
+	err = s.inTx(ctx, func(tx pgx.Tx) error {
+		var repeaterID int64
+		// Consume the link. The used_at IS NULL guard makes this the single-use
+		// gate: only one accept can flip it, so a concurrent (or repeat) accept
+		// matches no row and falls through to ErrNotFound.
+		if err := tx.QueryRow(ctx,
+			`UPDATE repeater_invites SET used_at = now(), used_by = $2
+			 WHERE token = $1 AND used_at IS NULL
+			 RETURNING repeater_id`, token, userID).Scan(&repeaterID); err != nil {
+			return notFoundOr(err, "consume invite")
+		}
+		tag, err := tx.Exec(ctx,
+			`INSERT INTO repeater_shares (repeater_id, user_id) VALUES ($1, $2)
+			 ON CONFLICT (repeater_id, user_id) DO NOTHING`, repeaterID, userID)
+		if err != nil {
+			return fmt.Errorf("add share: %w", err)
+		}
+		added = tag.RowsAffected() > 0
+		if !added {
+			return nil // already shared: nothing to seed
+		}
+		// Seed the new share with the share-default command set; the owner can
+		// adjust it afterwards.
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO share_commands (repeater_id, user_id, command_id)
+			SELECT $1, $2, id FROM command_catalog WHERE in_share_default
+			ON CONFLICT DO NOTHING`, repeaterID, userID); err != nil {
+			return fmt.Errorf("seed share commands: %w", err)
+		}
+		return nil
+	})
 	if err != nil {
-		return 0, notFoundOr(err, "consume invite")
+		return false, err
 	}
-	return repeaterID, nil
+	return added, nil
 }
 
 func randomToken() (string, error) {

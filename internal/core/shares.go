@@ -191,22 +191,15 @@ func (s *Handlers) handleAcceptInvite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Atomically consume the link (single-use guard against concurrent accepts).
-	if _, err := s.Store.ConsumeInvite(r.Context(), token, uid); errors.Is(err, store.ErrNotFound) {
+	// Consume the link, grant the share, and seed default commands atomically, so a
+	// failure can never spend the link without granting access. The used_at guard
+	// inside makes it the single-use gate against concurrent accepts.
+	if _, err := s.Store.AcceptInvite(r.Context(), token, uid); errors.Is(err, store.ErrNotFound) {
 		s.Render(w, r, "invite.html", map[string]any{"State": "invalid"})
 		return
 	} else if err != nil {
 		s.ServerError(w, r, "could not accept invite", err)
 		return
-	}
-	added, err := s.Store.AddShare(r.Context(), rep.ID, uid)
-	if err != nil {
-		s.ServerError(w, r, "could not accept invite", err)
-		return
-	}
-	if added {
-		// Seed the new share with the default command set; owner can adjust.
-		_ = s.Store.SeedShareCommands(r.Context(), rep.ID, uid)
 	}
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }

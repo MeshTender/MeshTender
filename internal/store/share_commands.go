@@ -93,16 +93,3 @@ func (s *Store) SetShareCommands(ctx context.Context, repeaterID, userID int64, 
 		return nil
 	})
 }
-
-// SeedShareCommands grants the share-default command set to a newly shared user,
-// without disturbing any existing grants.
-func (s *Store) SeedShareCommands(ctx context.Context, repeaterID, userID int64) error {
-	_, err := s.pool.Exec(ctx, `
-		INSERT INTO share_commands (repeater_id, user_id, command_id)
-		SELECT $1, $2, id FROM command_catalog WHERE in_share_default
-		ON CONFLICT DO NOTHING`, repeaterID, userID)
-	if err != nil {
-		return fmt.Errorf("seed share commands: %w", err)
-	}
-	return nil
-}
