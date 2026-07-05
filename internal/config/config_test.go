@@ -1,6 +1,7 @@
 package config
 
 import (
+	"net"
 	"strings"
 	"testing"
 )
@@ -37,6 +38,54 @@ func TestLoadSplitHost(t *testing.T) {
 	if !c.Secure {
 		t.Fatal("Secure = false for https origins")
 	}
+}
+
+// TestLoadTrustedProxiesTypoFailsFast: a malformed MESHTENDER_TRUSTED_PROXIES
+// entry must fail the load, not be silently dropped — a dropped entry leaves the
+// real proxy untrusted, so its X-Forwarded-For is ignored and every client
+// collapses to the proxy's IP (one shared rate-limit bucket).
+func TestLoadTrustedProxiesTypoFailsFast(t *testing.T) {
+	for _, bad := range []string{"10.0.0.0/33", "10.0.0.0/", "not-an-ip", "10.0.0.256", "10.0.0.0/8, bogus"} {
+		t.Run(bad, func(t *testing.T) {
+			validEnv(t)
+			t.Setenv("MESHTENDER_TRUSTED_PROXIES", bad)
+			if _, err := Load(); err == nil {
+				t.Fatalf("Load succeeded with malformed MESHTENDER_TRUSTED_PROXIES=%q, want an error", bad)
+			}
+		})
+	}
+}
+
+// TestLoadTrustedProxiesValid: well-formed entries (CIDR, bare IP, keyword) parse,
+// and loopback is always present.
+func TestLoadTrustedProxiesValid(t *testing.T) {
+	validEnv(t)
+	t.Setenv("MESHTENDER_TRUSTED_PROXIES", "10.0.0.0/8, 192.168.1.5, private, ::1")
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	// Loopback (127.0.0.0/8) is always included, plus the four supplied ranges
+	// (private expands to the private v4/v6 ranges, so just assert loopback + the
+	// explicit ones resolve).
+	mustMatch := func(ip string, want bool) {
+		t.Helper()
+		parsed := net.ParseIP(ip)
+		got := false
+		for _, n := range c.TrustedProxies {
+			if n.Contains(parsed) {
+				got = true
+				break
+			}
+		}
+		if got != want {
+			t.Errorf("trusted contains %s = %v, want %v", ip, got, want)
+		}
+	}
+	mustMatch("127.0.0.1", true)   // always-on loopback
+	mustMatch("10.1.2.3", true)    // 10.0.0.0/8
+	mustMatch("192.168.1.5", true) // bare IP → /32
+	mustMatch("8.8.8.8", false)    // not trusted
 }
 
 func TestLoadRequiresAuthAndRootHost(t *testing.T) {

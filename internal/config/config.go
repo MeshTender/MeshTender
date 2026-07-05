@@ -85,6 +85,10 @@ type RadioDefaults struct {
 // Load reads configuration from the environment, applying defaults and
 // validating required fields.
 func Load() (*Config, error) {
+	trustedProxies, err := parseTrustedProxies(os.Getenv("MESHTENDER_TRUSTED_PROXIES"))
+	if err != nil {
+		return nil, fmt.Errorf("MESHTENDER_TRUSTED_PROXIES: %w", err)
+	}
 	c := &Config{
 		Addr:           envOr("MESHTENDER_ADDR", ":8080"),
 		DatabaseURL:    os.Getenv("MESHTENDER_DATABASE_URL"),
@@ -97,7 +101,7 @@ func Load() (*Config, error) {
 		WWWHost:        os.Getenv("MESHTENDER_WWW_HOST"),
 		TLSCert:        os.Getenv("MESHTENDER_TLS_CERT"),
 		TLSKey:         os.Getenv("MESHTENDER_TLS_KEY"),
-		TrustedProxies: parseTrustedProxies(os.Getenv("MESHTENDER_TRUSTED_PROXIES")),
+		TrustedProxies: trustedProxies,
 	}
 
 	// MeshTender runs across three hosts (auth + app + root). Require the two that
@@ -147,9 +151,11 @@ var privateRanges = []string{
 
 // parseTrustedProxies parses MESHTENDER_TRUSTED_PROXIES into CIDR ranges. Loopback
 // is always included (a same-host reverse proxy). Each entry may be a CIDR, a bare
-// IP (treated as a /32 or /128), or the token "private"/"loopback". Unparseable
-// entries are skipped.
-func parseTrustedProxies(s string) []*net.IPNet {
+// IP (treated as a /32 or /128), or the token "private"/"loopback". A malformed
+// entry is a hard error: silently dropping it would leave the real proxy untrusted
+// so its X-Forwarded-For is ignored, collapsing every client to the proxy's IP
+// (spoof exposure and one shared rate-limit bucket).
+func parseTrustedProxies(s string) ([]*net.IPNet, error) {
 	nets := []*net.IPNet{mustCIDR("127.0.0.0/8"), mustCIDR("::1/128")}
 	for _, tok := range strings.Split(s, ",") {
 		tok = strings.TrimSpace(tok)
@@ -166,21 +172,25 @@ func parseTrustedProxies(s string) []*net.IPNet {
 			continue
 		}
 		if strings.Contains(tok, "/") {
-			if _, n, err := net.ParseCIDR(tok); err == nil {
-				nets = append(nets, n)
+			_, n, err := net.ParseCIDR(tok)
+			if err != nil {
+				return nil, fmt.Errorf("invalid CIDR %q: %w", tok, err)
 			}
+			nets = append(nets, n)
 			continue
 		}
-		if ip := net.ParseIP(tok); ip != nil {
-			bits := 32
-			if ip.To4() == nil {
-				bits = 128
-			}
-			mask := net.CIDRMask(bits, bits)
-			nets = append(nets, &net.IPNet{IP: ip.Mask(mask), Mask: mask})
+		ip := net.ParseIP(tok)
+		if ip == nil {
+			return nil, fmt.Errorf("invalid IP %q", tok)
 		}
+		bits := 32
+		if ip.To4() == nil {
+			bits = 128
+		}
+		mask := net.CIDRMask(bits, bits)
+		nets = append(nets, &net.IPNet{IP: ip.Mask(mask), Mask: mask})
 	}
-	return nets
+	return nets, nil
 }
 
 func mustCIDR(s string) *net.IPNet {
