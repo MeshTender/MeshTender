@@ -114,7 +114,7 @@ func (s *Store) ListShares(ctx context.Context, repeaterID int64) ([]ShareInfo, 
 		SELECT u.id, u.username, u.display_name, rs.steward
 		FROM repeater_shares rs JOIN users u ON u.id = rs.user_id
 		WHERE rs.repeater_id = $1
-		ORDER BY u.username`, repeaterID)
+		ORDER BY COALESCE(NULLIF(u.display_name, ''), u.username)`, repeaterID)
 	if err != nil {
 		return nil, fmt.Errorf("list shares: %w", err)
 	}
@@ -157,7 +157,7 @@ func (s *Store) ListStewards(ctx context.Context, repeaterID int64) ([]ShareInfo
 		SELECT u.id, u.username, u.display_name, rs.steward
 		FROM repeater_shares rs JOIN users u ON u.id = rs.user_id
 		WHERE rs.repeater_id = $1 AND rs.steward
-		ORDER BY u.username`, repeaterID)
+		ORDER BY COALESCE(NULLIF(u.display_name, ''), u.username)`, repeaterID)
 	if err != nil {
 		return nil, fmt.Errorf("list stewards: %w", err)
 	}

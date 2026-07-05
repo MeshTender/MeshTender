@@ -377,7 +377,7 @@ func (s *Store) ListOrgMembers(ctx context.Context, orgID int64) ([]OrgMemberInf
 		SELECT u.id, u.username, u.display_name, m.role
 		FROM org_members m JOIN users u ON u.id = m.user_id
 		WHERE m.org_id = $1
-		ORDER BY (m.role = 'admin') DESC, u.username`, orgID)
+		ORDER BY (m.role = 'admin') DESC, COALESCE(NULLIF(u.display_name, ''), u.username)`, orgID)
 	if err != nil {
 		return nil, fmt.Errorf("list members: %w", err)
 	}
