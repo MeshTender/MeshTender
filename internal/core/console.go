@@ -226,6 +226,9 @@ func (s *Handlers) wsConsole(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	if err := modem.Connect(ctx); err != nil {
+		// The user's own local modem — keep the detail for troubleshooting, and log
+		// it so operators see connection failures.
+		web.LogError(r, "console: modem connect", err, "repeater_id", id)
 		_ = bridge.Status("error", "modem connect: "+err.Error())
 		return
 	}
@@ -289,6 +292,7 @@ func (s *Handlers) wsConsole(w http.ResponseWriter, r *http.Request) {
 		SF:     uint8(rep.RadioSF),      //nolint:gosec // G115: radio config value is bounded (preset-constrained)
 		CR:     uint8(rep.RadioCR),      //nolint:gosec // G115: radio config value is bounded (preset-constrained)
 	}); err != nil {
+		web.LogError(r, "console: set radio", err, "repeater_id", id)
 		_ = bridge.Status("error", "set radio: "+err.Error())
 		return
 	}

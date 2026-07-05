@@ -134,6 +134,9 @@ func (s *Handlers) wsConfirm(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := modem.Connect(ctx); err != nil {
+		// The user's own local modem — the detail helps them troubleshoot, so keep it
+		// in the status frame; also log it so operators see connection failures.
+		web.LogError(r, "confirm: modem connect", err, "repeater_id", id)
 		_ = bridge.Status("error", "modem connect: "+err.Error())
 		return
 	}
@@ -180,6 +183,7 @@ func (s *Handlers) wsConfirm(w http.ResponseWriter, r *http.Request) {
 		SF:     uint8(rep.RadioSF),      //nolint:gosec // G115: radio config value is bounded (preset-constrained)
 		CR:     uint8(rep.RadioCR),      //nolint:gosec // G115: radio config value is bounded (preset-constrained)
 	}); err != nil {
+		web.LogError(r, "confirm: set radio", err, "repeater_id", id)
 		_ = bridge.Status("error", "set radio: "+err.Error())
 		return
 	}
@@ -205,7 +209,7 @@ func (s *Handlers) wsConfirm(w http.ResponseWriter, r *http.Request) {
 
 	if err := s.Store.SetRepeaterConfirmed(ctx, id, uid, lr.IsAdmin, int16(lr.Permissions)); err != nil {
 		web.LogError(r, "confirm: save confirmation", err, "repeater_id", id)
-		_ = bridge.Status("error", "could not save confirmation: "+err.Error())
+		_ = bridge.Status("error", "Could not save the confirmation — please try again.")
 		return
 	}
 	if debug {
@@ -268,7 +272,7 @@ func (s *Handlers) fetchAndStoreLocation(ctx context.Context, r *http.Request, e
 	}
 	if err := s.Store.SetRepeaterLocation(ctx, id, lat, lon); err != nil {
 		web.LogError(r, "confirm: store location", err, "repeater_id", id)
-		_ = bridge.Status("error", "could not store location: "+err.Error())
+		_ = bridge.Status("error", "Could not store the location — please try again.")
 		return 0, 0, false
 	}
 	_ = bridge.Status("info", fmt.Sprintf("Stored location: %.5f, %.5f", lat, lon))

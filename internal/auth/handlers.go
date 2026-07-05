@@ -156,10 +156,13 @@ func (s *Service) RegisterFinish(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Verify the credential before writing anything durable.
+	// Verify the credential before writing anything durable. A failure here is a
+	// client/ceremony error (400), but the underlying go-webauthn detail can leak
+	// internals, so log it server-side and return only a generic message.
 	cred, err := s.wa.FinishRegistration(waUser, *sessionData, r)
 	if err != nil {
-		httpError(w, r, http.StatusBadRequest, "registration failed: "+err.Error(), nil)
+		web.LogError(r, "webauthn: finish registration", err)
+		httpError(w, r, http.StatusBadRequest, "registration failed", nil)
 		return
 	}
 	blob, err := json.Marshal(cred)
@@ -254,9 +257,12 @@ func (s *Service) LoginFinish(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Assertion failure is a client error (401), but the go-webauthn detail can
+	// leak internals — log it server-side and return only a generic message.
 	cred, err := s.wa.FinishLogin(waUser, *sessionData, r)
 	if err != nil {
-		httpError(w, r, http.StatusUnauthorized, "login failed: "+err.Error(), nil)
+		web.LogError(r, "webauthn: finish login", err)
+		httpError(w, r, http.StatusUnauthorized, "login failed", nil)
 		return
 	}
 	// Persist the updated sign counter / clone-warning state.
