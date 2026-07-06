@@ -17,16 +17,16 @@ func (s *Handlers) repeaterOrgContext(w http.ResponseWriter, r *http.Request) (*
 	id, ok := s.repeaterID(r)
 	orgID, oerr := s.Store.OrgIDBySlug(r.Context(), chi.URLParam(r, "orgID"))
 	if !ok || oerr != nil {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return nil, 0, false
 	}
 	rep, err := s.Store.GetRepeaterOwned(r.Context(), owner, id)
 	if err != nil {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return nil, 0, false
 	}
 	if _, isMember, err := s.Store.OrgRole(r.Context(), orgID, owner); err != nil || !isMember {
-		http.NotFound(w, r) // can only manage participation in orgs you belong to
+		s.NotFound(w, r) // can only manage participation in orgs you belong to
 		return nil, 0, false
 	}
 	return rep, orgID, true
@@ -55,17 +55,17 @@ func (s *Handlers) pageOrgCommands(w http.ResponseWriter, r *http.Request) {
 	uid := s.Auth.CurrentUserID(r.Context())
 	id, ok := s.orgID(r)
 	if !ok {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return
 	}
 	org, err := s.Store.GetOrg(r.Context(), id)
 	if err != nil {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return
 	}
 	role, isMember, err := s.Store.OrgRole(r.Context(), id, uid)
 	if err != nil || !isMember {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return
 	}
 	ceiling, err := s.orgCeilingCommands(r)
@@ -107,11 +107,11 @@ func (s *Handlers) handleSaveOrgCommands(w http.ResponseWriter, r *http.Request)
 	uid := s.Auth.CurrentUserID(r.Context())
 	id, ok := s.orgID(r)
 	if !ok {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return
 	}
 	if _, isMember, err := s.Store.OrgRole(r.Context(), id, uid); err != nil || !isMember {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return
 	}
 	if err := r.ParseForm(); err != nil {

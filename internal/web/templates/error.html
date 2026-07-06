@@ -1,0 +1,17 @@
+{{/* error.html is the branded error page shared by every surface (404, 500, …).
+     It renders on whichever base layout the surface defaults to, so the chrome
+     matches the rest of that host. Data: Status (int), Title, Message. */}}
+{{define "title"}}{{.Status}} · MeshTender{{end}}
+{{define "header"}}{{end}}
+{{define "content"}}
+<div class="empty py-6">
+  <div class="empty-header">{{.Status}}</div>
+  <p class="empty-title">{{.Title}}</p>
+  <p class="empty-subtitle text-secondary">{{.Message}}</p>
+  <div class="empty-action">
+    <a href="{{if .UserName}}{{.AppURL}}{{else}}{{.RootURL}}{{end}}/" class="btn btn-primary">
+      {{template "icon-home" "me-1"}}Back to home
+    </a>
+  </div>
+</div>
+{{end}}

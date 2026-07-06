@@ -43,6 +43,9 @@ func (s *Handlers) Routes() chi.Router {
 	// Static assets and health don't need a session (and static is hit often), so
 	// register them ahead of the session middleware, which does per-request DB work.
 	s.SharedRoutes(r)
+	// Branded 404 for unrouted paths, run through the session middleware so the
+	// renderer can read the (host-only) identity for the page chrome.
+	r.NotFound(s.Auth.Sessions.LoadAndSave(s.Auth.ValidateSession(http.HandlerFunc(s.NotFound))).ServeHTTP)
 
 	// Everything below runs the session middleware (the beacon needs it to set this
 	// host's minimal identity cookie).
@@ -80,12 +83,12 @@ func (s *Handlers) pageLanding(w http.ResponseWriter, r *http.Request) {
 func (s *Handlers) pageOrgPublic(w http.ResponseWriter, r *http.Request) {
 	id, ok := s.orgID(r)
 	if !ok {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return
 	}
 	org, err := s.Store.GetOrg(r.Context(), id)
 	if err != nil {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return
 	}
 	uid := s.Auth.CurrentUserID(r.Context())

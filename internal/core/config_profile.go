@@ -38,12 +38,12 @@ func (s *Handlers) pageOrgConfig(w http.ResponseWriter, r *http.Request) {
 	uid := s.Auth.CurrentUserID(r.Context())
 	id, ok := s.orgID(r)
 	if !ok {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return
 	}
 	org, err := s.Store.GetOrg(r.Context(), id)
 	if err != nil {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return
 	}
 	role, isMember, err := s.Store.OrgRole(r.Context(), id, uid)
@@ -81,7 +81,7 @@ func (s *Handlers) pageConfigHub(w http.ResponseWriter, r *http.Request) {
 	}
 	org, err := s.Store.GetOrg(r.Context(), orgID)
 	if err != nil {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return
 	}
 	profiles, err := s.Store.ListProfiles(r.Context(), orgID)
@@ -119,7 +119,7 @@ func (s *Handlers) pageProfileEdit(w http.ResponseWriter, r *http.Request) {
 	}
 	org, err := s.Store.GetOrg(r.Context(), orgID)
 	if err != nil {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return
 	}
 	var pid int64
@@ -127,12 +127,12 @@ func (s *Handlers) pageProfileEdit(w http.ResponseWriter, r *http.Request) {
 	if raw := chi.URLParam(r, "pid"); raw != "" {
 		pid, err = strconv.ParseInt(raw, 10, 64)
 		if err != nil {
-			http.NotFound(w, r)
+			s.NotFound(w, r)
 			return
 		}
 		p, err := s.Store.GetProfile(r.Context(), orgID, pid)
 		if errors.Is(err, store.ErrNotFound) {
-			http.NotFound(w, r)
+			s.NotFound(w, r)
 			return
 		}
 		if err != nil {
@@ -175,7 +175,7 @@ func (s *Handlers) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 	}
 	pid, err := strconv.ParseInt(chi.URLParam(r, "pid"), 10, 64)
 	if err != nil {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return
 	}
 	s.saveProfile(w, r, orgID, pid)
@@ -191,7 +191,7 @@ func (s *Handlers) saveProfile(w http.ResponseWriter, r *http.Request, orgID, pi
 	}
 	org, err := s.Store.GetOrg(r.Context(), orgID)
 	if err != nil {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return
 	}
 	catalog, err := s.Store.ListCommands(r.Context())
@@ -217,7 +217,7 @@ func (s *Handlers) saveProfile(w http.ResponseWriter, r *http.Request, orgID, pi
 		case errors.Is(err, store.ErrDuplicate):
 			errs = append(errs, fmt.Sprintf("A profile named %q already exists.", name))
 		case errors.Is(err, store.ErrNotFound):
-			http.NotFound(w, r)
+			s.NotFound(w, r)
 			return
 		case err != nil:
 			s.ServerError(w, r, "could not save profile", err)
@@ -238,7 +238,7 @@ func (s *Handlers) handleDeleteProfile(w http.ResponseWriter, r *http.Request) {
 	}
 	pid, err := strconv.ParseInt(chi.URLParam(r, "pid"), 10, 64)
 	if err != nil {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return
 	}
 	if err := s.Store.DeleteProfile(r.Context(), orgID, pid); err != nil && !errors.Is(err, store.ErrNotFound) {
@@ -256,7 +256,7 @@ func (s *Handlers) pageRegionsEdit(w http.ResponseWriter, r *http.Request) {
 	}
 	org, err := s.Store.GetOrg(r.Context(), orgID)
 	if err != nil {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return
 	}
 	regions, err := s.Store.ListRegions(r.Context(), orgID)
@@ -291,7 +291,7 @@ func (s *Handlers) handleSaveRegions(w http.ResponseWriter, r *http.Request) {
 	if len(errs) > 0 {
 		org, gerr := s.Store.GetOrg(r.Context(), orgID)
 		if gerr != nil {
-			http.NotFound(w, r)
+			s.NotFound(w, r)
 			return
 		}
 		s.Render(w, r, "config_regions_edit.html", map[string]any{

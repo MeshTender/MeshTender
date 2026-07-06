@@ -116,7 +116,7 @@ func orgMapURL(slug string) string {
 func (s *Handlers) orgRepeatersJSON(w http.ResponseWriter, r *http.Request) {
 	id, ok := s.orgID(r)
 	if !ok {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return
 	}
 	points, err := s.Store.ListPublicRepeaterPoints(r.Context(), id)
@@ -139,12 +139,12 @@ func (s *Handlers) orgRepeatersJSON(w http.ResponseWriter, r *http.Request) {
 func (s *Handlers) pageOrgConfig(w http.ResponseWriter, r *http.Request) {
 	id, ok := s.orgID(r)
 	if !ok {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return
 	}
 	org, err := s.Store.GetOrg(r.Context(), id)
 	if err != nil {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return
 	}
 	data := map[string]any{"Org": org, "Nav": s.OrgNavFor(r.Context(), org.ID, org.Slug, "config", false, false), "CanEdit": false}
@@ -167,12 +167,12 @@ func (s *Handlers) pageOrgConfig(w http.ResponseWriter, r *http.Request) {
 func (s *Handlers) pageOrgRepeaters(w http.ResponseWriter, r *http.Request) {
 	id, ok := s.orgID(r)
 	if !ok {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return
 	}
 	org, err := s.Store.GetOrg(r.Context(), id)
 	if err != nil {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return
 	}
 	afterName, afterID := decodeRepCursor(r.URL.Query().Get("cursor"))

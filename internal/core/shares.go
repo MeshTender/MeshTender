@@ -92,7 +92,7 @@ func (s *Handlers) handleSetShareSteward(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if shared, err := s.Store.IsShared(r.Context(), id, targetID); err != nil || !shared {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return
 	}
 	if err := s.Store.SetShareSteward(r.Context(), id, targetID, r.FormValue("steward") == "1"); err != nil {
@@ -236,11 +236,11 @@ func (s *Handlers) pageShareCommands(w http.ResponseWriter, r *http.Request) {
 	}
 	targetID, terr := strconv.ParseInt(chi.URLParam(r, "userID"), 10, 64)
 	if terr != nil {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return
 	}
 	if shared, err := s.Store.IsShared(r.Context(), id, targetID); err != nil || !shared {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return
 	}
 	// A steward already has every command; per-command limits don't apply to them.
@@ -250,7 +250,7 @@ func (s *Handlers) pageShareCommands(w http.ResponseWriter, r *http.Request) {
 	}
 	target, err := s.Store.GetUserByID(r.Context(), targetID)
 	if err != nil {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return
 	}
 	catalog, err := s.Store.ListCommands(r.Context())
@@ -284,11 +284,11 @@ func (s *Handlers) handleSetShareCommands(w http.ResponseWriter, r *http.Request
 	}
 	targetID, terr := strconv.ParseInt(chi.URLParam(r, "userID"), 10, 64)
 	if terr != nil {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return
 	}
 	if shared, err := s.Store.IsShared(r.Context(), id, targetID); err != nil || !shared {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return
 	}
 	if err := r.ParseForm(); err != nil {
@@ -331,12 +331,12 @@ func (s *Handlers) loadRepeater(w http.ResponseWriter, r *http.Request,
 	uid := s.Auth.CurrentUserID(r.Context())
 	id, ok := s.repeaterID(r)
 	if !ok {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return nil, 0, false
 	}
 	rep, err := get(r.Context(), uid, id)
 	if errors.Is(err, store.ErrNotFound) {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return nil, 0, false
 	}
 	if err != nil {

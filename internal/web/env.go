@@ -26,14 +26,14 @@ import (
 	"github.com/jleight/meshtender/internal/store"
 )
 
-//go:embed templates/base.html templates/icons.html templates/org_tabs.html templates/repeater_tabs.html templates/org_public.html templates/org_config.html templates/org_repeaters.html
+//go:embed templates/base.html templates/icons.html templates/org_tabs.html templates/repeater_tabs.html templates/org_public.html templates/org_config.html templates/org_repeaters.html templates/error.html
 var sharedTemplatesFS embed.FS
 
 // sharedPages are full content pages (not just layout partials) that more than
 // one surface renders. They're composed onto the base layout for every surface,
 // so the root host (anonymous) and the app host (signed-in) can render the same
 // public org page without duplicating the template.
-var sharedPages = []string{"templates/org_public.html", "templates/org_config.html", "templates/org_repeaters.html"}
+var sharedPages = []string{"templates/org_public.html", "templates/org_config.html", "templates/org_repeaters.html", "templates/error.html"}
 
 //go:embed static/*
 var staticFS embed.FS
@@ -85,14 +85,30 @@ func (e *Env) Render(w http.ResponseWriter, r *http.Request, page string, data m
 }
 
 // ServerError logs an internal failure (keyed by request ID, so a report can be
-// traced to its cause) and writes a generic 500 with userMsg as the body. Use it
-// at every handler site that currently drops an err on the floor: the visitor
-// still sees only userMsg, but the real cause is recoverable from the logs.
-// For expected client errors (4xx) keep using http.Error directly — those aren't
-// server faults and shouldn't log at error level.
+// traced to its cause) and renders the branded 500 page with userMsg as the
+// message. Use it at every handler site that currently drops an err on the floor:
+// the visitor still sees only userMsg, but the real cause is recoverable from the
+// logs. For expected client errors (4xx) keep using http.Error directly — those
+// aren't server faults and shouldn't log at error level.
 func (e *Env) ServerError(w http.ResponseWriter, r *http.Request, userMsg string, err error) {
 	LogError(r, userMsg, err)
-	http.Error(w, userMsg, http.StatusInternalServerError)
+	e.ErrorPage(w, r, http.StatusInternalServerError, "Something went wrong", userMsg)
+}
+
+// NotFound renders the branded 404 page. It matches http.HandlerFunc so it works
+// both as a chi NotFound handler (unrouted paths) and at handler call sites where
+// a requested resource doesn't exist.
+func (e *Env) NotFound(w http.ResponseWriter, r *http.Request) {
+	e.ErrorPage(w, r, http.StatusNotFound, "Page not found",
+		"We couldn't find that page. It may have moved, or the link may be wrong.")
+}
+
+// ErrorPage renders the shared branded error page (error.html) with the given
+// status, on the surface's default layout so the chrome matches the host.
+func (e *Env) ErrorPage(w http.ResponseWriter, r *http.Request, status int, title, message string) {
+	e.Renderer.render(w, r, status, "error.html", map[string]any{
+		"Status": status, "Title": title, "Message": message,
+	})
 }
 
 // LogError emits a structured error log for a failed request, keyed by request
@@ -213,8 +229,13 @@ func NewRenderer(cfg *config.Config, surfaceTemplates fs.FS) (*Renderer, error) 
 func (rn *Renderer) Pages() map[string]*template.Template { return rn.pages }
 
 // Render executes a content page within its layout (default "base"; pages can
-// opt into another via the "Layout" data key).
+// opt into another via the "Layout" data key), with a 200 status.
 func (rn *Renderer) Render(w http.ResponseWriter, r *http.Request, page string, data map[string]any) {
+	rn.render(w, r, http.StatusOK, page, data)
+}
+
+// render is Render with an explicit status code (error pages pass 404/500/…).
+func (rn *Renderer) render(w http.ResponseWriter, r *http.Request, status int, page string, data map[string]any) {
 	if data == nil {
 		data = map[string]any{}
 	}
@@ -268,6 +289,7 @@ func (rn *Renderer) Render(w http.ResponseWriter, r *http.Request, page string, 
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(status)
 	_, _ = buf.WriteTo(w)
 }
 

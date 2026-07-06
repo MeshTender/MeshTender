@@ -29,7 +29,7 @@ func (s *Handlers) pageUserPublic(w http.ResponseWriter, r *http.Request) {
 	username := auth.NormalizeUsername(chi.URLParam(r, "username"))
 	u, err := s.Store.GetUserByUsername(r.Context(), username)
 	if errors.Is(err, store.ErrNotFound) {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return
 	}
 	if err != nil {

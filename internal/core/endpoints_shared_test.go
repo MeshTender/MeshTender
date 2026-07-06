@@ -86,6 +86,37 @@ func TestStaticSkipsSessionMiddleware(t *testing.T) {
 	}
 }
 
+// TestBrandedNotFound: unrouted paths and missing resources return a branded 404
+// page (not Go's plain "404 page not found"), on every host.
+func TestBrandedNotFound(t *testing.T) {
+	t.Parallel()
+	_, _, ts, h := splitServer(t)
+
+	check := func(host, path string) {
+		t.Helper()
+		resp := do(t, ts, host, path)
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusNotFound {
+			t.Fatalf("%s%s = %d, want 404", host, path, resp.StatusCode)
+		}
+		s := string(body)
+		if !strings.Contains(s, "Page not found") || !strings.Contains(s, "MeshTender") {
+			t.Fatalf("%s%s not the branded 404 page: %q", host, path, s)
+		}
+		if strings.Contains(s, "404 page not found") {
+			t.Fatalf("%s%s is Go's default 404, not branded", host, path)
+		}
+	}
+
+	// Unrouted path on each host → router NotFound handler.
+	check(h.app, "/no-such-path")
+	check(h.root, "/no-such-path")
+	check(h.auth, "/no-such-path")
+	// Missing resource on a real route → in-handler s.NotFound.
+	check(h.root, "/orgs/does-not-exist")
+}
+
 // #2 /static/* — serves an embedded asset.
 func TestStaticAssetEndpoint(t *testing.T) {
 	t.Parallel()

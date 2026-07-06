@@ -19,7 +19,7 @@ func (s *Handlers) requireCap(pick func(*store.User) bool) func(http.Handler) ht
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			u, err := s.Store.GetUserByID(r.Context(), s.Auth.CurrentUserID(r.Context()))
 			if err != nil || !pick(u) {
-				http.NotFound(w, r)
+				s.NotFound(w, r)
 				return
 			}
 			next.ServeHTTP(w, r)
@@ -93,7 +93,7 @@ func (s *Handlers) pageCatalog(w http.ResponseWriter, r *http.Request) {
 func (s *Handlers) handleUpdateCommand(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return
 	}
 	if err := r.ParseForm(); err != nil {
@@ -184,12 +184,12 @@ func (s *Handlers) pageUsers(w http.ResponseWriter, r *http.Request) {
 func (s *Handlers) pageUserPermissions(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return
 	}
 	u, err := s.Store.GetUserByID(r.Context(), id)
 	if err != nil {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return
 	}
 	s.Render(w, r, "admin_user_permissions.html", map[string]any{
@@ -202,7 +202,7 @@ func (s *Handlers) pageUserPermissions(w http.ResponseWriter, r *http.Request) {
 func (s *Handlers) handleSetUserCaps(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return
 	}
 	manageUsers := r.FormValue("manage_users") != ""
@@ -212,7 +212,7 @@ func (s *Handlers) handleSetUserCaps(w http.ResponseWriter, r *http.Request) {
 	if !manageUsers {
 		target, err := s.Store.GetUserByID(r.Context(), id)
 		if err != nil {
-			http.NotFound(w, r)
+			s.NotFound(w, r)
 			return
 		}
 		if target.CapManageUsers {
@@ -242,12 +242,12 @@ const usernameHistoryLimit = 100
 func (s *Handlers) pageUserHistory(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return
 	}
 	u, err := s.Store.GetUserByID(r.Context(), id)
 	if err != nil {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return
 	}
 	changes, err := s.Store.ListUsernameChanges(r.Context(), id, usernameHistoryLimit)

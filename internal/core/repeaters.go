@@ -255,7 +255,7 @@ func (s *Handlers) handleEditRepeater(w http.ResponseWriter, r *http.Request) {
 	uid := s.Auth.CurrentUserID(r.Context())
 	id, ok := s.repeaterID(r)
 	if !ok {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return
 	}
 	editErr := func(msg string) {

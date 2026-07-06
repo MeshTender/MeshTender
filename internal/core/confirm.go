@@ -83,7 +83,7 @@ func (s *Handlers) wsConfirm(w http.ResponseWriter, r *http.Request) {
 	uid := s.Auth.CurrentUserID(r.Context())
 	id, ok := s.repeaterID(r)
 	if !ok {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return
 	}
 	rep, err := s.Store.GetRepeaterForUser(r.Context(), uid, id)

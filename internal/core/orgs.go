@@ -71,12 +71,12 @@ func (s *Handlers) pageOrg(w http.ResponseWriter, r *http.Request) {
 	uid := s.Auth.CurrentUserID(r.Context())
 	id, ok := s.orgID(r)
 	if !ok {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return
 	}
 	org, err := s.Store.GetOrg(r.Context(), id)
 	if err != nil {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return
 	}
 	role, isMember, err := s.Store.OrgRole(r.Context(), id, uid)
@@ -194,12 +194,12 @@ func (s *Handlers) pageOrgMembers(w http.ResponseWriter, r *http.Request) {
 	uid := s.Auth.CurrentUserID(r.Context())
 	id, ok := s.orgID(r)
 	if !ok {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return
 	}
 	org, err := s.Store.GetOrg(r.Context(), id)
 	if err != nil {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return
 	}
 	role, isMember, err := s.Store.OrgRole(r.Context(), id, uid)
@@ -208,7 +208,7 @@ func (s *Handlers) pageOrgMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !isMember {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return
 	}
 	members, err := s.Store.ListOrgMembers(r.Context(), id)
@@ -233,12 +233,12 @@ func (s *Handlers) pageOrgRepeaters(w http.ResponseWriter, r *http.Request) {
 	uid := s.Auth.CurrentUserID(r.Context())
 	id, ok := s.orgID(r)
 	if !ok {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return
 	}
 	org, err := s.Store.GetOrg(r.Context(), id)
 	if err != nil {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return
 	}
 	role, isMember, err := s.Store.OrgRole(r.Context(), id, uid)
@@ -375,12 +375,12 @@ func (s *Handlers) requireOrgAdmin(w http.ResponseWriter, r *http.Request) (int6
 	uid := s.Auth.CurrentUserID(r.Context())
 	id, ok := s.orgID(r)
 	if !ok {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return 0, false
 	}
 	admin, err := s.Store.IsOrgAdmin(r.Context(), id, uid)
 	if err != nil || !admin {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return 0, false
 	}
 	return id, true
@@ -390,7 +390,7 @@ func (s *Handlers) handleLeaveOrg(w http.ResponseWriter, r *http.Request) {
 	uid := s.Auth.CurrentUserID(r.Context())
 	id, ok := s.orgID(r)
 	if !ok {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return
 	}
 	err := s.Store.RemoveOrgMember(r.Context(), id, uid)
@@ -412,12 +412,12 @@ func (s *Handlers) pageJoinOrg(w http.ResponseWriter, r *http.Request) {
 	uid := s.Auth.CurrentUserID(r.Context())
 	id, ok := s.orgID(r)
 	if !ok {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return
 	}
 	org, err := s.Store.GetOrg(r.Context(), id)
 	if err != nil {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return
 	}
 	_, isMember, err := s.Store.OrgRole(r.Context(), id, uid)
@@ -444,7 +444,7 @@ func (s *Handlers) handleJoinOrg(w http.ResponseWriter, r *http.Request) {
 	uid := s.Auth.CurrentUserID(r.Context())
 	id, ok := s.orgID(r)
 	if !ok {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return
 	}
 	if err := s.Store.AddOrgMember(r.Context(), id, uid, "member"); err != nil {
@@ -470,7 +470,7 @@ func (s *Handlers) handleSetOrgMember(w http.ResponseWriter, r *http.Request) {
 	memberErr := func(msg string) { web.RedirectErr(w, r, membersURL, msg) }
 	targetID, err := strconv.ParseInt(chi.URLParam(r, "userID"), 10, 64)
 	if err != nil {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return
 	}
 	switch r.FormValue("action") {

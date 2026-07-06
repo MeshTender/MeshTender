@@ -121,6 +121,13 @@ func (s *Handlers) sessionMW(r chi.Router) {
 	r.Use(s.Auth.ValidateSession)
 }
 
+// withSession wraps a single handler in the session middleware, for handlers
+// registered outside the session route group (e.g. the 404 handler) that still
+// render page chrome and so need the session in context.
+func (s *Handlers) withSession(h http.HandlerFunc) http.HandlerFunc {
+	return s.Auth.Sessions.LoadAndSave(s.Auth.ValidateSession(h)).ServeHTTP
+}
+
 // redirectToAuthLogin / redirectToAuthSignup are the app-host entry points that
 // initiate the auth handoff (setting the state cookie) and bounce to the auth
 // host. Cross-host "sign in"/"create account" CTAs target these, never the auth
@@ -144,6 +151,9 @@ func (s *Handlers) appRouter() chi.Router {
 	// Static assets and health don't need a session (and static is hit often), so
 	// register them ahead of the session middleware, which does per-request DB work.
 	s.SharedRoutes(r)
+	// Branded 404 for unrouted paths. Run it through the session middleware so the
+	// page chrome reflects the signed-in user (the renderer reads the session).
+	r.NotFound(s.withSession(s.NotFound))
 
 	// Everything below runs the session middleware.
 	r.Group(func(r chi.Router) {

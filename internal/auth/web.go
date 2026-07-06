@@ -38,6 +38,13 @@ func (s *Handlers) sessionMW(r chi.Router) {
 	r.Use(s.Auth.ValidateSession)
 }
 
+// withSession wraps a single handler in the session middleware, for handlers
+// registered outside the session route group (e.g. the 404 handler) that render
+// page chrome and so need the session in context.
+func (s *Handlers) withSession(h http.HandlerFunc) http.HandlerFunc {
+	return s.Auth.Sessions.LoadAndSave(s.Auth.ValidateSession(h)).ServeHTTP
+}
+
 // Routes is the auth host's router.
 func (s *Handlers) Routes() chi.Router {
 	r := chi.NewRouter()
@@ -49,6 +56,7 @@ func (s *Handlers) Routes() chi.Router {
 	// Static assets and health don't need a session; register them ahead of the
 	// session middleware, which does per-request DB work.
 	s.SharedRoutes(r)
+	r.NotFound(s.withSession(s.NotFound)) // branded 404 (chrome needs the session)
 
 	// Everything below runs the session middleware.
 	r.Group(func(r chi.Router) {

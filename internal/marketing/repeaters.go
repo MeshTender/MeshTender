@@ -19,7 +19,7 @@ import (
 func (s *Handlers) pageRepeaterPublic(w http.ResponseWriter, r *http.Request) {
 	rep, err := s.Store.GetRepeaterPublic(r.Context(), chi.URLParam(r, "id"))
 	if errors.Is(err, store.ErrNotFound) {
-		http.NotFound(w, r)
+		s.NotFound(w, r)
 		return
 	}
 	if err != nil {

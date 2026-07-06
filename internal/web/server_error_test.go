@@ -9,9 +9,24 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"testing/fstest"
 
 	"github.com/go-chi/chi/v5/middleware"
+
+	"github.com/jleight/meshtender/internal/config"
 )
+
+// testEnv builds an Env with a real renderer (shared templates only, no per-surface
+// pages, no userInfo) — enough to render the branded error page in a unit test.
+func testEnv(t *testing.T) *Env {
+	t.Helper()
+	cfg := &config.Config{PrimaryHost: "app.example", AuthHost: "auth.example", RootHost: "example"}
+	rnd, err := NewRenderer(cfg, fstest.MapFS{})
+	if err != nil {
+		t.Fatalf("renderer: %v", err)
+	}
+	return &Env{Cfg: cfg, Renderer: rnd}
+}
 
 // captureLogs redirects the default slog logger to a buffer for the duration of
 // the test and restores it afterward. LogError/ServerError use the package-level
@@ -35,14 +50,22 @@ func TestServerErrorLogsAndWrites500(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), middleware.RequestIDKey, "req-abc123"))
 	rec := httptest.NewRecorder()
 
-	e := &Env{}
+	e := testEnv(t)
 	e.ServerError(rec, req, "could not load repeaters", errors.New("dial tcp: connection refused"))
 
 	if rec.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d, want 500", rec.Code)
 	}
-	if body := rec.Body.String(); !strings.Contains(body, "could not load repeaters") {
-		t.Fatalf("body = %q, want the user message", body)
+	body := rec.Body.String()
+	if !strings.Contains(body, "could not load repeaters") {
+		t.Fatalf("body missing the user message: %q", body)
+	}
+	// It's the branded HTML page, not the internal error detail.
+	if !strings.Contains(body, "Something went wrong") {
+		t.Fatalf("body is not the branded error page: %q", body)
+	}
+	if strings.Contains(body, "connection refused") {
+		t.Fatalf("branded page leaked the internal error detail: %q", body)
 	}
 
 	log := buf.String()
