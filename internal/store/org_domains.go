@@ -50,16 +50,6 @@ func (s *Store) CreateOrgDomain(ctx context.Context, orgID int64, hostname strin
 	return &d, nil
 }
 
-// ListOrgDomains returns an org's custom domains, newest first.
-func (s *Store) ListOrgDomains(ctx context.Context, orgID int64) ([]OrgDomain, error) {
-	rows, err := s.pool.Query(ctx,
-		`SELECT `+orgDomainCols+` FROM org_domains WHERE org_id = $1 ORDER BY created_at DESC`, orgID)
-	if err != nil {
-		return nil, fmt.Errorf("list org domains: %w", err)
-	}
-	return collectRows(rows, scanOrgDomain)
-}
-
 // GetOrgDomain returns a single domain scoped to its org, or ErrNotFound.
 func (s *Store) GetOrgDomain(ctx context.Context, orgID, domainID int64) (*OrgDomain, error) {
 	d, err := scanOrgDomain(s.pool.QueryRow(ctx,

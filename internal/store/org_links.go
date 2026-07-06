@@ -116,7 +116,7 @@ func (p LinkPlatform) CanonicalHandleURL(raw string) (string, bool) {
 	}
 	// A pasted URL is accepted only on a known host; the handle is its last path
 	// segment. Anything else is treated as a bare handle.
-	if looksLikeURL(s) {
+	if LooksLikeURL(s) {
 		u, err := url.Parse(NormalizeLinkURL(s))
 		if err != nil || !hostAllowed(u.Host, p.Hosts) {
 			return "", false
@@ -157,7 +157,7 @@ func (p LinkPlatform) HandleFromURL(stored string) string {
 // canonicalMastodon accepts "@user@instance", "user@instance", or a profile URL
 // (https://instance/@user) and returns the canonical https://instance/@user.
 func canonicalMastodon(s string) (string, bool) {
-	if looksLikeURL(s) {
+	if LooksLikeURL(s) {
 		u, err := url.Parse(NormalizeLinkURL(s))
 		if err != nil || u.Host == "" {
 			return "", false
@@ -173,20 +173,6 @@ func canonicalMastodon(s string) (string, bool) {
 		return "", false
 	}
 	return "https://" + strings.ToLower(parts[1]) + "/@" + parts[0], true
-}
-
-// looksLikeURL reports whether s is a pasted URL rather than a bare handle. It
-// catches an explicit scheme, a protocol-relative "//", and the scheme-less form
-// ("github.com/octocat") — distinguished from a handle or Reddit's "u/name"
-// shorthand by the segment before the first slash looking like a host (a dot).
-func looksLikeURL(s string) bool {
-	if strings.Contains(s, "://") || strings.HasPrefix(s, "//") {
-		return true
-	}
-	if i := strings.IndexByte(s, '/'); i > 0 {
-		return strings.Contains(s[:i], ".")
-	}
-	return false
 }
 
 // hostAllowed reports whether host (case-insensitive, port stripped) is one of
@@ -365,13 +351,14 @@ func isHTTPURL(value string) bool {
 	return strings.HasPrefix(value, "http://") || strings.HasPrefix(value, "https://")
 }
 
-// LooksLikeURL reports whether raw was entered as a web URL (a scheme, or a
-// dotted host followed by a path like "discord.gg/abc") rather than a bare handle.
-// A handle may contain dots (new Discord usernames do) but never a slash, so the
-// path is the reliable discriminator.
+// LooksLikeURL reports whether raw was entered as a web URL — an explicit scheme,
+// a protocol-relative "//", or a dotted host followed by a path like
+// "discord.gg/abc" — rather than a bare handle. A handle may contain dots (new
+// Discord usernames do) but never a slash, so the path is the reliable
+// discriminator.
 func LooksLikeURL(raw string) bool {
 	raw = strings.TrimSpace(raw)
-	if strings.Contains(raw, "://") {
+	if strings.Contains(raw, "://") || strings.HasPrefix(raw, "//") {
 		return true
 	}
 	if i := strings.IndexByte(raw, '/'); i > 0 {

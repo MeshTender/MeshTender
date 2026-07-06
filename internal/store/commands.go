@@ -57,15 +57,6 @@ func (s *Store) ListCommands(ctx context.Context) ([]*Command, error) {
 	return collectRows(rows, scanCommand)
 }
 
-// GetCommand returns a single catalog command by id.
-func (s *Store) GetCommand(ctx context.Context, id int64) (*Command, error) {
-	c, err := scanCommand(s.pool.QueryRow(ctx, `SELECT `+commandCols+` FROM command_catalog WHERE id = $1`, id))
-	if err != nil {
-		return nil, notFoundOr(err, "get command")
-	}
-	return c, nil
-}
-
 // UpdateCommandFlags updates the catalog metadata an instance-admin controls.
 func (s *Store) UpdateCommandFlags(ctx context.Context, id int64, risky, share, orgMember, orgAdmin bool) error {
 	_, err := s.pool.Exec(ctx, `
@@ -76,14 +67,4 @@ func (s *Store) UpdateCommandFlags(ctx context.Context, id int64, risky, share, 
 		return fmt.Errorf("update command flags: %w", err)
 	}
 	return nil
-}
-
-// DefaultShareCommandIDs returns the catalog ids flagged as the share default
-// (used to seed a new share's allowed commands).
-func (s *Store) DefaultShareCommandIDs(ctx context.Context) ([]int64, error) {
-	rows, err := s.pool.Query(ctx, `SELECT id FROM command_catalog WHERE in_share_default`)
-	if err != nil {
-		return nil, fmt.Errorf("default share commands: %w", err)
-	}
-	return collectRows(rows, scanID)
 }

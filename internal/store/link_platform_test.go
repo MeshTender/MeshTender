@@ -147,6 +147,7 @@ func TestLooksLikeURL(t *testing.T) {
 		"discord.com/invite/abc": true,
 		"https://discord.gg/abc": true,
 		"http://example.com":     true,
+		"//discord.gg/abc":       true,  // protocol-relative URL
 		"example.com":            false, // dotted host but no path — treated as a handle
 	}
 	for in, want := range cases {
