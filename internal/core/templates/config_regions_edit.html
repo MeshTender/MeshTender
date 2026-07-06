@@ -81,31 +81,35 @@ function addBlock(kind) {
   const addBtn = document.getElementById('add-region');
   if (addBtn) addBtn.addEventListener('click', function () { addBlock('region'); });
 
-  // Keep each flood checkbox synced to its hidden input (its previous sibling).
+  // The flood and primary switches each shadow a hidden input (submitted with the
+  // form). Flood is independent per region; primary is exclusive — turning one on
+  // clears the rest.
   form.addEventListener('change', function (e) {
-    if (e.target.matches && e.target.matches('[data-flood]')) {
+    if (!e.target.matches) return;
+    if (e.target.matches('[data-flood]')) {
       e.target.previousElementSibling.value = e.target.checked ? '1' : '';
+    } else if (e.target.matches('[data-primary]')) {
+      setPrimaryRegion(e.target);
     }
   });
 
   form.addEventListener('click', function (e) {
     if (!e.target.closest) return;
-    const primaryBtn = e.target.closest('.region-primary-btn');
-    if (primaryBtn) { setPrimaryRegion(primaryBtn); return; }
     const removeBtn = e.target.closest('.region-remove-btn');
     if (removeBtn) { const b = removeBtn.closest('.region-block'); if (b) b.remove(); }
   });
 
-  // Only one region may be primary: toggle the clicked one and clear the rest.
-  function setPrimaryRegion(btn) {
-    const block = btn.closest('.region-block');
-    const makePrimary = block.querySelector('input[name="region_primary"]').value !== '1';
+  // Only one region may be primary: reflect the toggled switch onto every block's
+  // switch + hidden input, clearing the others.
+  function setPrimaryRegion(cb) {
+    const block = cb.closest('.region-block');
+    const on = cb.checked;
     rows.querySelectorAll('.region-block').forEach(function (b) {
-      const on = b === block && makePrimary;
-      b.querySelector('input[name="region_primary"]').value = on ? '1' : '';
-      const pb = b.querySelector('.region-primary-btn');
-      pb.classList.toggle('btn-primary', on);
-      pb.textContent = on ? '★ Primary' : 'Make primary';
+      const isThis = b === block && on;
+      const box = b.querySelector('[data-primary]');
+      const hidden = b.querySelector('input[name="region_primary"]');
+      if (box) box.checked = isThis;
+      if (hidden) hidden.value = isThis ? '1' : '';
     });
   }
 })();
@@ -131,15 +135,25 @@ function addBlock(kind) {
       <div class="col-auto"><label class="form-label mb-1">Level</label>
         <input class="form-control" type="number" name="region_layer" value="{{.Layer}}" style="width:5rem"></div>
     </div>
-    <div class="d-flex align-items-center flex-wrap gap-2 mt-2">
-      <button type="button" class="btn btn-sm region-edit-btn">Edit</button>
-      <input type="hidden" name="region_primary" value="{{if .Primary}}1{{end}}">
-      <button type="button" class="btn btn-sm region-primary-btn{{if .Primary}} btn-primary{{end}}">{{if .Primary}}★ Primary{{else}}Make primary{{end}}</button>
-      <label class="form-check form-check-inline m-0">
+    {{/* Settings/state: the region's own properties, shown as switches (matching
+         the root's flood switch) so each toggle reads clearly with its label,
+         distinct from the action buttons below. */}}
+    <div class="d-flex align-items-center flex-wrap gap-3 mt-2">
+      <label class="form-check form-switch m-0">
         <input type="hidden" name="region_allow_flood" value="{{if .AllowFlood}}1{{end}}">
         <input class="form-check-input" type="checkbox" {{if .AllowFlood}}checked{{end}} data-flood>
         <span class="form-check-label">Allow flood</span>
       </label>
+      <label class="form-check form-switch m-0">
+        {{/* Only one region may be primary; toggling one on clears the rest (see JS). */}}
+        <input type="hidden" name="region_primary" value="{{if .Primary}}1{{end}}">
+        <input class="form-check-input" type="checkbox" {{if .Primary}}checked{{end}} data-primary>
+        <span class="form-check-label">Primary</span>
+      </label>
+    </div>
+    {{/* Actions on the region's map area, plus Remove (danger) pushed to the end. */}}
+    <div class="d-flex align-items-center flex-wrap gap-2 mt-2 pt-2 border-top">
+      <button type="button" class="btn btn-sm region-edit-btn">Edit area</button>
       <button type="button" class="btn btn-sm btn-ghost-secondary region-clear">Clear area</button>
       <button type="button" class="btn btn-sm btn-ghost-danger ms-auto region-remove-btn">Remove</button>
     </div>

@@ -138,11 +138,11 @@
       blocks.forEach(function (x) {
         var on = x === b;
         x.el.classList.toggle("region-active", on);
-        // The Edit button is the visible selection affordance: it lights up and
-        // reads "Editing" for the active region, "Edit" otherwise.
+        // The Edit-area button is the visible selection affordance: it lights up
+        // and reads "Editing area" for the active region, "Edit area" otherwise.
         if (x.edit) {
           x.edit.classList.toggle("btn-primary", on);
-          x.edit.textContent = on ? "Editing" : "Edit";
+          x.edit.textContent = on ? "Editing area" : "Edit area";
         }
       });
       if (banner) banner.textContent = b ? regionName(b) : "—";
