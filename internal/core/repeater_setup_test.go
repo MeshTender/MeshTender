@@ -5,8 +5,11 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
+
+	"github.com/jleight/meshtender/internal/store"
 )
 
 // jsonPost issues a JSON POST with an explicit Host header and cookies.
@@ -156,6 +159,48 @@ func TestSerialSetupFlow(t *testing.T) {
 	}
 	if got.Latitude == nil || got.Longitude == nil || *got.Latitude != 15.0 || *got.Longitude != 35.0 {
 		t.Errorf("location not stored: %v, %v", got.Latitude, got.Longitude)
+	}
+}
+
+// TestBuildSetupCommands locks the from-scratch command order (header → profile
+// → region → reboot) and the two region-placement modes: appended when the
+// profile has no marker, spliced in place when it does.
+func TestBuildSetupCommands(t *testing.T) {
+	t.Parallel()
+	radio := setupRadio{FreqMHz: 910.525, BwKHz: 62.5, SF: 7, CR: 5}
+	lat, lon := 15.0, 35.0
+	region := []string{"region def zone", "region denyf *", "region allowf zone", "region save"}
+	header := []string{
+		"set name Hilltop", "set prv.key <key>",
+		"set lat 15.000000", "set lon 35.000000",
+		"set radio 910.525,62.5,7,5", "setperm srv 3",
+	}
+
+	// No marker: region commands land after all profile steps, before reboot. The
+	// comment step is not runnable and is skipped.
+	steps := []store.ConfigStep{{CommandLine: "set tx 22"}, {Comment: "note"}}
+	got := buildSetupCommands("Hilltop", "set prv.key <key>", "setperm srv 3", &lat, &lon, radio, steps, region)
+	want := append(append(append([]string{}, header...), "set tx 22"), append(append([]string{}, region...), "reboot")...)
+	if !slices.Equal(got, want) {
+		t.Fatalf("no-marker order:\n got %v\nwant %v", got, want)
+	}
+
+	// With a marker: region commands splice between the surrounding steps.
+	steps = []store.ConfigStep{{CommandLine: "set tx 22"}, {CommandLine: store.RegionMarker}, {CommandLine: "set repeat on"}}
+	got = buildSetupCommands("Hilltop", "set prv.key <key>", "setperm srv 3", &lat, &lon, radio, steps, region)
+	want = append(append([]string{}, header...), "set tx 22")
+	want = append(want, region...)
+	want = append(want, "set repeat on", "reboot")
+	if !slices.Equal(got, want) {
+		t.Fatalf("marker-splice order:\n got %v\nwant %v", got, want)
+	}
+
+	// No location + empty region (standalone): header skips lat/lon and nothing is
+	// spliced.
+	got = buildSetupCommands("Solo", "set prv.key <key>", "setperm srv 3", nil, nil, radio, nil, nil)
+	want = []string{"set name Solo", "set prv.key <key>", "set radio 910.525,62.5,7,5", "setperm srv 3", "reboot"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("standalone order:\n got %v\nwant %v", got, want)
 	}
 }
 

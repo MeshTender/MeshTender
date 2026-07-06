@@ -37,7 +37,7 @@
       <div class="mb-1">
         <label class="form-label" for="profile_steps">Base settings</label>
         <textarea class="form-control font-monospace" id="profile_steps" name="profile_steps" rows="10" spellcheck="false" placeholder="set tx 22&#10;# notes start with #">{{.StepsText}}</textarea>
-        <small class="form-hint">One command per line; lines starting with <code>#</code> are notes.</small>
+        <small class="form-hint">One command per line; lines starting with <code>#</code> are notes. Put <code>{{"{{ region }}"}}</code> on its own line to insert this org's region settings there — otherwise they run after all steps.</small>
       </div>
       <div class="btn-list mt-3">
         <button type="submit" class="btn btn-primary">{{if .ProfileID}}Save profile{{else}}Create profile{{end}}</button>

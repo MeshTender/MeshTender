@@ -32,6 +32,38 @@ type ConfigStep struct {
 // IsComment reports whether the step is a note rather than a runnable command.
 func (s ConfigStep) IsComment() bool { return s.CommandLine == "" }
 
+// RegionMarker is the placeholder a profile step can hold on its own line to
+// control where an org's region commands are spliced into the profile. Without
+// it, region commands are appended after all profile steps (the default). It is
+// never sent to a device — SplitAtRegionMarker removes it before either assembly
+// path emits commands. It is stored as a step's CommandLine (CommandID nil), so
+// it round-trips through the profile text editor like any other line.
+const RegionMarker = "{{ region }}"
+
+// IsRegionMarker reports whether the step is the region placeholder rather than a
+// runnable command or a comment.
+func (s ConfigStep) IsRegionMarker() bool { return s.CommandLine == RegionMarker }
+
+// SplitAtRegionMarker partitions a profile's steps around the region marker: the
+// steps before the first marker and the steps after it, with the marker itself
+// (and any duplicates) dropped. When no marker is present every step lands in
+// before and after is empty — so a caller that emits before, then the region
+// commands, then after, appends the region block at the end (the default).
+func SplitAtRegionMarker(steps []ConfigStep) (before, after []ConfigStep) {
+	found := false
+	for _, st := range steps {
+		switch {
+		case st.IsRegionMarker():
+			found = true
+		case found:
+			after = append(after, st)
+		default:
+			before = append(before, st)
+		}
+	}
+	return before, after
+}
+
 // Profile is a named set of base-setting steps.
 type Profile struct {
 	ID       int64

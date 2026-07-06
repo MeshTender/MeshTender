@@ -279,6 +279,42 @@ func TestRegionDefFloodCommands(t *testing.T) {
 	}
 }
 
+func TestSplitAtRegionMarker(t *testing.T) {
+	t.Parallel()
+	cmd := func(line string) ConfigStep { return ConfigStep{CommandLine: line} }
+	marker := ConfigStep{CommandLine: RegionMarker}
+	lines := func(steps []ConfigStep) []string {
+		out := []string{}
+		for _, s := range steps {
+			out = append(out, s.CommandLine)
+		}
+		return out
+	}
+
+	cases := []struct {
+		name          string
+		steps         []ConfigStep
+		before, after []string
+	}{
+		{"middle", []ConfigStep{cmd("a"), marker, cmd("b")}, []string{"a"}, []string{"b"}},
+		{"no marker (region appends at end)", []ConfigStep{cmd("a"), cmd("b")}, []string{"a", "b"}, []string{}},
+		{"marker first", []ConfigStep{marker, cmd("a")}, []string{}, []string{"a"}},
+		{"marker last", []ConfigStep{cmd("a"), marker}, []string{"a"}, []string{}},
+		{"duplicate markers dropped", []ConfigStep{cmd("a"), marker, cmd("b"), marker, cmd("c")}, []string{"a"}, []string{"b", "c"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			before, after := SplitAtRegionMarker(tc.steps)
+			if got := lines(before); !strings.EqualFold(strings.Join(got, ","), strings.Join(tc.before, ",")) {
+				t.Errorf("before = %v, want %v", got, tc.before)
+			}
+			if got := lines(after); !strings.EqualFold(strings.Join(got, ","), strings.Join(tc.after, ",")) {
+				t.Errorf("after = %v, want %v", got, tc.after)
+			}
+		})
+	}
+}
+
 // TestListRepeaterConfigOrgs covers which orgs surface in the console config
 // picker: the repeater must participate (owner is a member, not excluded) and the
 // org must have config. Profile names come back per org (empty for region-only).

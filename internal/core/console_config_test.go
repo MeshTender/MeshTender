@@ -29,6 +29,11 @@ func cmdIDByKey(t *testing.T, st *store.Store, key string) int64 {
 	return 0
 }
 
+// isRegionLine reports whether a recommended-config line came from the region
+// commands (every one starts with "region "), used by tests to tell region lines
+// apart from profile steps now that the payload carries no per-line kind.
+func isRegionLine(line string) bool { return strings.HasPrefix(line, "region ") }
+
 func getConsoleConfig(t *testing.T, ts *httptest.Server, host, path string, cookie *http.Cookie) consoleConfig {
 	t.Helper()
 	resp := do(t, ts, host, path, cookie)
@@ -101,7 +106,7 @@ func TestConsoleConfigJSON(t *testing.T) {
 	var regionLines, noteCount int
 	for _, c := range cc.Commands {
 		byLine[c.Line] = c
-		if c.Kind == "region" {
+		if isRegionLine(c.Line) {
 			regionLines++
 		}
 		if c.Line == "" && c.Comment != "" {
@@ -109,8 +114,8 @@ func TestConsoleConfigJSON(t *testing.T) {
 		}
 	}
 	// Profile command + the note both appear.
-	if cmd, ok := byLine["set tx 22"]; !ok || cmd.Kind != "profile" || !cmd.Runnable {
-		t.Fatalf("set tx 22 = %+v, want profile+runnable", cmd)
+	if cmd, ok := byLine["set tx 22"]; !ok || !cmd.Runnable {
+		t.Fatalf("set tx 22 = %+v, want present + runnable", cmd)
 	}
 	if noteCount != 1 {
 		t.Fatalf("note count = %d, want 1 (the comment step)", noteCount)
@@ -120,7 +125,7 @@ func TestConsoleConfigJSON(t *testing.T) {
 		t.Fatal("no region commands emitted for a covered location")
 	}
 	for _, c := range cc.Commands {
-		if c.Kind == "region" && !c.Runnable {
+		if isRegionLine(c.Line) && !c.Runnable {
 			t.Fatalf("region line %q not runnable for owner", c.Line)
 		}
 	}
@@ -138,7 +143,7 @@ func TestConsoleConfigJSON(t *testing.T) {
 		switch {
 		case c.Line == "set tx 22" && !c.Runnable:
 			t.Error("member should be allowed to run member-tier set tx 22")
-		case c.Kind == "region":
+		case isRegionLine(c.Line):
 			sawRegion = true
 			if c.Runnable {
 				t.Errorf("member should NOT be allowed to run admin-tier %q", c.Line)
@@ -150,6 +155,67 @@ func TestConsoleConfigJSON(t *testing.T) {
 	}
 	if !sawRegion {
 		t.Fatal("member did not receive the region commands (should be shown, just not runnable)")
+	}
+}
+
+// TestConsoleConfigRegionMarkerInline covers a profile with a {{ region }} marker:
+// the region commands are spliced at the marker (between the surrounding steps),
+// the marker itself is never emitted as a command.
+func TestConsoleConfigRegionMarkerInline(t *testing.T) {
+	t.Parallel()
+	st, ctx, ts, h := splitServer(t)
+
+	owner, ownerCookie := appLogin(t, ts, st, ctx, h.app, "cc-marker")
+	rep, err := st.CreateRepeater(ctx, &store.Repeater{
+		OwnerID: owner.ID, Name: "R", PublicKeyHex: strings.Repeat("d", 64),
+		RadioFreqHz: 1, RadioBwHz: 1, RadioSF: 11, RadioCR: 5,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	org, err := st.CreateOrg(ctx, "MarkerOrg", owner.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	profiles := []store.ProfileInput{{Name: "P", Steps: []store.ConfigStep{
+		{CommandLine: "set tx 22"},
+		{CommandLine: store.RegionMarker},
+		{CommandLine: "set tx 23"},
+	}}}
+	regions := []store.RegionInput{{
+		Token: "buf", DisplayName: "Buffalo", Layer: 0, AllowFlood: true,
+		GeofenceJSON: geo.Rectangle(40, -80, 45, -75),
+	}}
+	if err := st.ReplaceOrgConfig(ctx, org.ID, profiles, regions); err != nil {
+		t.Fatal(err)
+	}
+
+	cc := getConsoleConfig(t, ts, h.app, "/repeaters/"+rep.PublicID+"/config.json?lat=42&lon=-78", ownerCookie)
+
+	idx := func(line string) int {
+		for i, c := range cc.Commands {
+			if c.Line == line {
+				return i
+			}
+		}
+		return -1
+	}
+	pre, post := idx("set tx 22"), idx("set tx 23")
+	region := -1
+	for i, c := range cc.Commands {
+		if isRegionLine(c.Line) {
+			region = i
+			break
+		}
+	}
+	if pre < 0 || post < 0 || region < 0 {
+		t.Fatalf("missing lines: pre=%d region=%d post=%d\n%+v", pre, region, post, cc.Commands)
+	}
+	if pre >= region || region >= post {
+		t.Fatalf("region not spliced between steps: pre=%d region=%d post=%d", pre, region, post)
+	}
+	if idx(store.RegionMarker) != -1 {
+		t.Fatalf("marker leaked into commands:\n%+v", cc.Commands)
 	}
 }
 

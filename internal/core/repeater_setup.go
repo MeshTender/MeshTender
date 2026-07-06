@@ -62,20 +62,18 @@ func (s *Handlers) handleSetupCommands(w http.ResponseWriter, r *http.Request) {
 	}
 	req.Name = name
 
-	var cmds []string
-	cmds = append(cmds, "set name "+req.Name)
-
 	// Resolve the authoritative radio settings (echoed back so the client can
-	// store them on the repeater record). Radio + region come from the chosen org
-	// config; a standalone repeater (no org) uses the radio preset and gets no
-	// region hierarchy.
+	// store them on the repeater record) and gather the org's profile + region
+	// commands. Radio + region come from the chosen org config; a standalone
+	// repeater (no org) uses the request's radio and gets no region hierarchy.
 	radio := setupRadio{FreqMHz: req.FreqMHz, BwKHz: req.BwKHz, SF: req.SF, CR: req.CR}
+	var steps []store.ConfigStep
+	var regionCmds []string
 	if req.OrgID != 0 {
 		if _, isMember, err := s.Store.OrgRole(r.Context(), req.OrgID, uid); err != nil || !isMember {
 			http.Error(w, "no access to that organization", http.StatusForbidden)
 			return
 		}
-		var steps []string
 		if req.Profile != "" {
 			s2, err := s.profileSteps(r.Context(), req.OrgID, req.Profile)
 			if err != nil {
@@ -84,15 +82,13 @@ func (s *Handlers) handleSetupCommands(w http.ResponseWriter, r *http.Request) {
 			}
 			steps = s2
 		}
-		cmds = append(cmds, steps...)
 		// Prefer the radio the profile sets on the device; if it sets none, fall
-		// back to the default preset and add the command so the device still ends
-		// up tunable (and the record radio is accurate).
-		if rad, ok := parseProfileRadio(steps); ok {
+		// back to the default preset so the device still ends up tunable (and the
+		// record radio is accurate).
+		if rad, ok := parseProfileRadio(profileCommandLines(steps)); ok {
 			radio = rad
 		} else {
 			radio = defaultSetupRadio()
-			cmds = append(cmds, radioCommand(radio))
 		}
 		regions, err := s.Store.ListRegions(r.Context(), req.OrgID)
 		if err != nil {
@@ -104,27 +100,13 @@ func (s *Handlers) handleSetupCommands(w http.ResponseWriter, r *http.Request) {
 			s.ServerError(w, r, "could not load regions", err)
 			return
 		}
-		cmds = append(cmds, store.RegionDefCommands(regions, rootAllow, req.Lat, req.Lon)...)
-	} else {
-		if radio.FreqMHz <= 0 || radio.BwKHz <= 0 {
-			http.Error(w, "radio settings are required", http.StatusBadRequest)
-			return
-		}
-		cmds = append(cmds, radioCommand(radio))
+		regionCmds = store.RegionDefCommands(regions, rootAllow, req.Lat, req.Lon)
+	} else if radio.FreqMHz <= 0 || radio.BwKHz <= 0 {
+		http.Error(w, "radio settings are required", http.StatusBadRequest)
+		return
 	}
 
-	// Location: only set when the user picked a point.
-	if req.Lat != nil && req.Lon != nil {
-		cmds = append(cmds,
-			"set lat "+strconv.FormatFloat(*req.Lat, 'f', 6, 64),
-			"set lon "+strconv.FormatFloat(*req.Lon, 'f', 6, 64))
-	}
-
-	// Identity (client-spliced), then grant MeshTender admin, then reboot to
-	// apply the new identity and radio.
-	cmds = append(cmds, identityPlaceholder)
-	cmds = append(cmds, s.Identity.SetPermCommand())
-	cmds = append(cmds, "reboot")
+	cmds := buildSetupCommands(req.Name, identityPlaceholder, s.Identity.SetPermCommand(), req.Lat, req.Lon, radio, steps, regionCmds)
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(setupCommandsResponse{
@@ -197,25 +179,51 @@ func radioCommand(rad setupRadio) string {
 		strconv.Itoa(rad.SF) + "," + strconv.Itoa(rad.CR)
 }
 
-// profileSteps returns the runnable command lines of a named profile in an org
-// (comment-only steps are skipped).
-func (s *Handlers) profileSteps(ctx context.Context, orgID int64, name string) ([]string, error) {
+// buildSetupCommands assembles the ordered from-scratch USB setup command list:
+// the header (name, client-spliced identity, location, radio, admin grant), then
+// the profile's steps with the org's region commands spliced at the profile's
+// {{ region }} marker (or appended after all steps when it has none), then a
+// final reboot to apply the new identity and radio. Comment steps and the marker
+// itself are not runnable, so they never reach the device.
+func buildSetupCommands(name, identityCmd, setpermCmd string, lat, lon *float64, radio setupRadio, steps []store.ConfigStep, regionCmds []string) []string {
+	cmds := []string{"set name " + name, identityCmd}
+	if lat != nil && lon != nil {
+		cmds = append(cmds,
+			"set lat "+strconv.FormatFloat(*lat, 'f', 6, 64),
+			"set lon "+strconv.FormatFloat(*lon, 'f', 6, 64))
+	}
+	cmds = append(cmds, radioCommand(radio), setpermCmd)
+	before, after := store.SplitAtRegionMarker(steps)
+	cmds = append(cmds, profileCommandLines(before)...)
+	cmds = append(cmds, regionCmds...)
+	cmds = append(cmds, profileCommandLines(after)...)
+	return append(cmds, "reboot")
+}
+
+// profileCommandLines returns the runnable command lines of a step slice,
+// skipping comment steps and the region marker.
+func profileCommandLines(steps []store.ConfigStep) []string {
+	var out []string
+	for _, st := range steps {
+		if st.IsComment() || st.IsRegionMarker() {
+			continue
+		}
+		out = append(out, st.CommandLine)
+	}
+	return out
+}
+
+// profileSteps returns the ordered steps of a named profile in an org (nil when
+// no profile by that name exists).
+func (s *Handlers) profileSteps(ctx context.Context, orgID int64, name string) ([]store.ConfigStep, error) {
 	profiles, err := s.Store.ListProfiles(ctx, orgID)
 	if err != nil {
 		return nil, err
 	}
 	for _, p := range profiles {
-		if p.Name != name {
-			continue
+		if p.Name == name {
+			return p.Steps, nil
 		}
-		var out []string
-		for _, st := range p.Steps {
-			if st.IsComment() {
-				continue
-			}
-			out = append(out, st.CommandLine)
-		}
-		return out, nil
 	}
 	return nil, nil
 }

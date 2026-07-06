@@ -27,7 +27,6 @@ type consoleConfig struct {
 type consoleConfigCommand struct {
 	Line     string `json:"line"`              // CLI text; empty for a comment-only note
 	Comment  string `json:"comment,omitempty"` // optional note text
-	Kind     string `json:"kind"`              // "profile" | "region"
 	Runnable bool   `json:"runnable"`
 	Reason   string `json:"reason,omitempty"` // why it isn't runnable
 }
@@ -117,9 +116,12 @@ func (s *Handlers) consoleConfigJSON(w http.ResponseWriter, r *http.Request) {
 		return true, ""
 	}
 
-	// Profile base settings (verbatim; comment-only steps are notes, not commands).
-	for _, step := range cv.SelectedSteps {
-		c := consoleConfigCommand{Kind: "profile", Line: step.CommandLine, Comment: step.Comment}
+	// Profile base settings (verbatim; comment-only steps are notes, not commands),
+	// with the location-derived region commands spliced at the profile's
+	// {{ region }} marker or appended after all steps when it has none. The marker
+	// itself is dropped by SplitAtRegionMarker.
+	emitStep := func(step store.ConfigStep) {
+		c := consoleConfigCommand{Line: step.CommandLine, Comment: step.Comment}
 		if step.IsComment() {
 			c.Reason = "note"
 		} else {
@@ -127,11 +129,17 @@ func (s *Handlers) consoleConfigJSON(w http.ResponseWriter, r *http.Request) {
 		}
 		resp.Commands = append(resp.Commands, c)
 	}
-	// Region commands derived from the location.
+	before, after := store.SplitAtRegionMarker(cv.SelectedSteps)
+	for _, step := range before {
+		emitStep(step)
+	}
 	for _, line := range cv.RegionDef {
-		c := consoleConfigCommand{Kind: "region", Line: line}
+		c := consoleConfigCommand{Line: line}
 		c.Runnable, c.Reason = runnable(line)
 		resp.Commands = append(resp.Commands, c)
+	}
+	for _, step := range after {
+		emitStep(step)
 	}
 
 	resp.Location = consoleConfigLocation{

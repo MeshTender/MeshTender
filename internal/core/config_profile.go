@@ -426,6 +426,7 @@ func regionGeofence(zv configRegionView, name string, errs *[]string) ([]byte, b
 // errs and risky commands in risky. It returns view steps (with rendered fields)
 // and the store steps to persist.
 func parseConfigSteps(text string, catalog []*store.Command, label string, errs, risky *[]string) (view, persist []store.ConfigStep) {
+	markerSeen := false
 	for _, raw := range strings.Split(text, "\n") {
 		line := strings.TrimSpace(strings.TrimRight(raw, "\r"))
 		if line == "" {
@@ -434,6 +435,17 @@ func parseConfigSteps(text string, catalog []*store.Command, label string, errs,
 		if strings.HasPrefix(line, "#") {
 			comment := strings.TrimSpace(strings.TrimPrefix(line, "#"))
 			step := store.ConfigStep{Comment: comment}
+			view = append(view, step)
+			persist = append(persist, step)
+			continue
+		}
+		if isRegionMarkerLine(line) {
+			if markerSeen {
+				*errs = append(*errs, fmt.Sprintf("%s: the %s placeholder can only appear once.", label, store.RegionMarker))
+				continue
+			}
+			markerSeen = true
+			step := store.ConfigStep{CommandLine: store.RegionMarker}
 			view = append(view, step)
 			persist = append(persist, step)
 			continue
@@ -458,8 +470,23 @@ func parseConfigSteps(text string, catalog []*store.Command, label string, errs,
 	return view, persist
 }
 
+// isRegionMarkerLine reports whether a profile line is the region placeholder,
+// tolerating internal spacing and case (e.g. "{{region}}", "{{ REGION }}"). The
+// canonical stored form is store.RegionMarker.
+func isRegionMarkerLine(line string) bool {
+	inner, ok := strings.CutPrefix(line, "{{")
+	if !ok {
+		return false
+	}
+	inner, ok = strings.CutSuffix(inner, "}}")
+	if !ok {
+		return false
+	}
+	return strings.EqualFold(strings.TrimSpace(inner), "region")
+}
+
 // stepsToText renders stored steps back into editable textarea content: commands
-// as-is, comment steps prefixed with "# ".
+// (and the region marker) as-is, comment steps prefixed with "# ".
 func stepsToText(steps []store.ConfigStep) string {
 	var b strings.Builder
 	for _, s := range steps {

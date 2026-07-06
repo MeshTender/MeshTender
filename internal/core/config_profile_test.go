@@ -51,6 +51,36 @@ func TestParseConfigSteps(t *testing.T) {
 	}
 }
 
+func TestParseConfigStepsRegionMarker(t *testing.T) {
+	t.Parallel()
+	catalog := configCatalog()
+
+	// A marker (in flexible spelling) becomes one marker step that canonicalizes
+	// and round-trips; it is neither a comment nor a runnable command.
+	var errs, risky []string
+	_, persist := parseConfigSteps("set tx 22\n{{region}}\nset tx 23", catalog, "base", &errs, &risky)
+	if len(errs) != 0 {
+		t.Fatalf("errs = %v, want none", errs)
+	}
+	if len(persist) != 3 || !persist[1].IsRegionMarker() {
+		t.Fatalf("steps = %+v, want a region marker at index 1", persist)
+	}
+	if persist[1].CommandLine != store.RegionMarker {
+		t.Fatalf("marker canonical form = %q, want %q", persist[1].CommandLine, store.RegionMarker)
+	}
+	if got := stepsToText(persist); !strings.Contains(got, store.RegionMarker) {
+		t.Fatalf("round-trip lost the marker: %q", got)
+	}
+
+	// A second marker is rejected.
+	errs, risky = nil, nil
+	_, _ = parseConfigSteps("{{ region }}\n{{ REGION }}", catalog, "base", &errs, &risky)
+	if len(errs) != 1 || !strings.Contains(errs[0], "once") {
+		t.Fatalf("errs = %v, want one 'only once' error", errs)
+	}
+	_ = risky
+}
+
 func TestRegionGeofence(t *testing.T) {
 	t.Parallel()
 
