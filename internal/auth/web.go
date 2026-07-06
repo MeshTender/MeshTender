@@ -74,6 +74,7 @@ func (s *Handlers) Routes() chi.Router {
 			r.Get("/account", s.pageAccount)
 			r.Post("/account/username", s.handleChangeUsername)
 			r.Post("/account/profile", s.handleUpdateProfile)
+			r.Post("/account/timezone", s.handleSetTimezone)
 			r.Post("/account/profile-fields", s.handleSetProfileFields)
 			r.Post("/account/links", s.handleSetUserLinks)
 			r.Post("/account/password", s.handleChangePassword)

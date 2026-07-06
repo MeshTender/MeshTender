@@ -38,10 +38,11 @@ var sharedPages = []string{"templates/org_public.html", "templates/org_config.ht
 //go:embed static/*
 var staticFS embed.FS
 
-// UserInfoFunc reports the signed-in user's display name and admin flag for the
-// page chrome. ok is false when no user is signed in. Injected by the assembler
-// (which wires it from the auth service + store) so web stays auth-free.
-type UserInfoFunc func(ctx context.Context) (name string, canAdmin bool, ok bool)
+// UserInfoFunc reports the signed-in user's display name, admin flag, and
+// preferred IANA time zone (empty = auto-detect) for the page chrome and
+// timestamp localization. ok is false when no user is signed in. Injected by the
+// assembler (which wires it from the auth service + store) so web stays auth-free.
+type UserInfoFunc func(ctx context.Context) (name string, canAdmin bool, tz string, ok bool)
 
 // Deps are the shared dependencies every surface needs.
 type Deps struct {
@@ -181,6 +182,50 @@ var templateFuncs = template.FuncMap{
 	"markdown": Markdown,
 	// markdowntext flattens that same markdown to plain text for compact teasers.
 	"markdowntext": MarkdownText,
+	// ts renders an instant as a <time> element for consistent, locale-aware
+	// display. See TimeElement.
+	"ts": TimeElement,
+}
+
+// tsFallbackLayouts maps a display kind to the Go layout used for the server-side
+// fallback text (rendered in UTC, labeled, for no-JS / crawlers). ui.js rewrites
+// the element into the viewer's locale and zone at load time.
+var tsFallbackLayouts = map[string]string{
+	"date":         "Jan 2, 2006",
+	"datetime":     "Jan 2, 2006, 15:04 UTC",
+	"time":         "15:04 UTC",
+	"time-seconds": "15:04:05 UTC",
+}
+
+// TimeElement renders an instant as
+//
+//	<time datetime="2006-01-02T15:04:05Z" data-fmt="datetime">Jan 2, 2006, 15:04 UTC</time>
+//
+// The machine-readable datetime is always a full RFC3339 UTC timestamp; kind
+// (date|datetime|time|time-seconds) selects which parts ui.js shows once it
+// localizes the element. A zero time renders nothing (call sites guard nil).
+//
+// The result is template.HTML because it's server-controlled markup: the only
+// interpolated values are a formatted timestamp and a fixed, validated kind — no
+// user data — so autoescaping is unnecessary here.
+func TimeElement(t time.Time, kind string) template.HTML {
+	if t.IsZero() {
+		return ""
+	}
+	layout, ok := tsFallbackLayouts[kind]
+	if !ok {
+		kind, layout = "datetime", tsFallbackLayouts["datetime"]
+	}
+	utc := t.UTC()
+	var b strings.Builder
+	b.WriteString(`<time datetime="`)
+	b.WriteString(utc.Format(time.RFC3339))
+	b.WriteString(`" data-fmt="`)
+	b.WriteString(kind)
+	b.WriteString(`">`)
+	b.WriteString(utc.Format(layout))
+	b.WriteString(`</time>`)
+	return template.HTML(b.String()) //nolint:gosec // G203: server-controlled timestamp + fixed enum, no user data
 }
 
 func NewRenderer(cfg *config.Config, surfaceTemplates fs.FS) (*Renderer, error) {
@@ -253,10 +298,14 @@ func (rn *Renderer) render(w http.ResponseWriter, r *http.Request, status int, p
 	if HostWithoutPort(r.Host) != rn.cfg.RootHost {
 		data["LogoutURL"] = "/logout"
 	}
+	// UserTZ is the viewer's saved IANA zone (empty = auto-detect); the base
+	// layout exposes it as <html data-tz> so ui.js localizes <time> elements.
+	data["UserTZ"] = ""
 	if rn.userInfo != nil {
-		if name, canAdmin, ok := rn.userInfo(r.Context()); ok {
+		if name, canAdmin, tz, ok := rn.userInfo(r.Context()); ok {
 			data["UserName"] = name
 			data["CanAdmin"] = canAdmin
+			data["UserTZ"] = tz
 		}
 	}
 	// Per-request CSP nonce for inline <script nonce="{{.Nonce}}"> blocks.

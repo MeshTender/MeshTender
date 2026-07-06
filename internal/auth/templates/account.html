@@ -29,7 +29,7 @@
             </div>
           </div>
           {{if .NextRename}}
-          <small class="form-hint mt-2 d-block">You changed your username recently. You can change it again on {{.NextRename.Format "Jan 2, 2006"}}.</small>
+          <small class="form-hint mt-2 d-block">You changed your username recently. You can change it again on {{ts .NextRename "date"}}.</small>
           {{end}}
         </form>
   </div>
@@ -50,6 +50,32 @@
             </div>
           </div>
         </form>
+  </div>
+</div>
+
+<div class="card mt-3">
+  <div class="card-header"><h3 class="card-title">Time zone</h3></div>
+  <div class="card-body">
+    <p class="text-secondary">Dates and times across MeshTender are shown in this time zone (and in your browser's locale format). Leave it on <strong>Auto-detect</strong> to use whatever zone your browser reports.</p>
+    <form method="post" action="/account/timezone">
+      <div class="row g-3 align-items-end">
+        <div class="col-md">
+          <label class="form-label" for="acct_timezone">Time zone</label>
+          {{/* The full IANA list is filled in by timezone-picker.js from the
+               browser's own Intl database. These options are the no-JS fallback
+               and preserve the current value on round-trip. data-current carries
+               the saved zone so the script can reselect it. */}}
+          <select class="form-select" id="acct_timezone" name="timezone" data-tz-picker data-current="{{.Timezone}}">
+            <option value=""{{if not .Timezone}} selected{{end}}>Auto-detect (browser)</option>
+            {{if .Timezone}}<option value="{{.Timezone}}" selected>{{.Timezone}}</option>{{end}}
+          </select>
+          <small class="form-hint mt-1 d-block" data-tz-detected></small>
+        </div>
+        <div class="col-md-auto">
+          <button type="submit" class="btn btn-primary" data-testid="tz-save">Save time zone</button>
+        </div>
+      </div>
+    </form>
   </div>
 </div>
 
@@ -159,7 +185,7 @@
             <span class="text-secondary">{{template "icon-key" ""}}</span>
             <div class="flex-fill" style="min-width:0">
               <div class="text-truncate">{{if .Name}}{{.Name}}{{else}}<span class="text-secondary fst-italic">Unnamed passkey</span>{{end}}</div>
-              <div class="text-secondary small"><span class="font-monospace">{{.ShortID}}…</span> · Added {{.Added.Format "Jan 2, 2006"}}</div>
+              <div class="text-secondary small"><span class="font-monospace">{{.ShortID}}…</span> · Added {{ts .Added "date"}}</div>
             </div>
             <button type="button" class="btn btn-sm" data-bs-toggle="modal" data-bs-target="#rename-passkey" data-id="{{.ID}}" data-name="{{.Name}}">Rename</button>
             <form method="post" action="/account/passkeys/delete" class="m-0" data-confirm="Remove this passkey? You won't be able to sign in with it anymore.">
@@ -262,5 +288,6 @@
     document.getElementById("rename-name").value = btn.getAttribute("data-name") || "";
   });
 </script>
+<script src="/static/timezone-picker.js"></script>
 <script src="/static/webauthn.js"></script>
 {{end}}

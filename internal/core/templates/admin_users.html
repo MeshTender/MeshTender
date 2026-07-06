@@ -22,7 +22,7 @@
       {{if .CapManageCatalog}}<span class="badge bg-teal-lt">manage catalog</span>{{end}}
     </div>
     <div class="text-secondary small">
-      Joined {{.CreatedAt.Format "Jan 2, 2006"}} · Last login: {{if .LastLoginAt}}{{.LastLoginAt.Format "Jan 2, 2006 15:04"}}{{else}}never{{end}}
+      Joined {{ts .CreatedAt "date"}} · Last login: {{if .LastLoginAt}}{{ts .LastLoginAt "datetime"}}{{else}}never{{end}}
     </div>
   </div>
   <div class="dropdown">

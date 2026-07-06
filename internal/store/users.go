@@ -30,6 +30,9 @@ type User struct {
 	Bio      string
 	Location string
 	Callsign string
+	// Timezone is the user's preferred IANA zone name (e.g. "America/New_York")
+	// for date/time display, or "" when unset (the browser auto-detects).
+	Timezone string
 	// Instance-level capability flags.
 	CapManageUsers   bool
 	CapManageCatalog bool
@@ -47,12 +50,12 @@ func (u *User) Name() string {
 	return u.Username
 }
 
-const userCols = `id, username, display_name, password_hash, bio, location, callsign, cap_manage_users, cap_manage_catalog, last_login_at, created_at`
+const userCols = `id, username, display_name, password_hash, bio, location, callsign, timezone, cap_manage_users, cap_manage_catalog, last_login_at, created_at`
 
 func scanUser(row pgx.Row) (*User, error) {
 	var u User
 	if err := row.Scan(&u.ID, &u.Username, &u.DisplayName, &u.PasswordHash,
-		&u.Bio, &u.Location, &u.Callsign, &u.CapManageUsers, &u.CapManageCatalog, &u.LastLoginAt, &u.CreatedAt); err != nil {
+		&u.Bio, &u.Location, &u.Callsign, &u.Timezone, &u.CapManageUsers, &u.CapManageCatalog, &u.LastLoginAt, &u.CreatedAt); err != nil {
 		return nil, err
 	}
 	return &u, nil
@@ -338,6 +341,18 @@ func (s *Store) SetProfile(ctx context.Context, userID int64, bio, location, cal
 		userID, bio, location, callsign)
 	if err != nil {
 		return fmt.Errorf("set profile: %w", err)
+	}
+	return nil
+}
+
+// SetTimezone updates a user's preferred IANA time zone for date/time display.
+// An empty string clears it (the browser auto-detects). Validating that tz is a
+// real IANA name is the caller's responsibility.
+func (s *Store) SetTimezone(ctx context.Context, userID int64, tz string) error {
+	_, err := s.pool.Exec(ctx,
+		`UPDATE users SET timezone = $2 WHERE id = $1`, userID, tz)
+	if err != nil {
+		return fmt.Errorf("set timezone: %w", err)
 	}
 	return nil
 }

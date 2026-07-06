@@ -37,7 +37,7 @@
           {{end}}
           <div class="datagrid-item">
             <div class="datagrid-title">Added</div>
-            <div class="datagrid-content">{{.Repeater.CreatedAt.Format "Jan 2, 2006"}}</div>
+            <div class="datagrid-content">{{ts .Repeater.CreatedAt "date"}}</div>
           </div>
         </div>
 

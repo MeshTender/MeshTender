@@ -15,7 +15,10 @@
       <div class="row g-2">
         <div class="col-12 col-md-3">
           <label class="form-label" for="performed_at">Date</label>
-          <input type="date" class="form-control" id="performed_at" name="performed_at" value="{{.Today}}" max="{{.Today}}">
+          {{/* value/max are the server's UTC "today" as a no-JS fallback;
+               data-local-today lets ui.js reset them to the viewer's local date,
+               which can differ from UTC by a day. */}}
+          <input type="date" class="form-control" id="performed_at" name="performed_at" value="{{.Today}}" max="{{.Today}}" data-local-today>
         </div>
         <div class="col-12 col-md-9">
           <label class="form-label" for="note">What was done</label>
@@ -36,7 +39,7 @@
     <div class="timeline-event-icon">{{template "icon-settings" ""}}</div>
     <div class="card timeline-event-card">
       <div class="card-body">
-        <div class="text-secondary float-end">{{.PerformedAt.Format "Jan 2, 2006"}}</div>
+        <div class="text-secondary float-end">{{ts .PerformedAt "date"}}</div>
         <div style="white-space: pre-wrap">{{.Note}}</div>
         <div class="text-secondary small mt-2 d-flex align-items-center gap-2">
           <span class="maint-author" data-testid="maint-author">{{if .AuthorName}}{{.AuthorName}}{{else}}(unknown){{end}}</span>

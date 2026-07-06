@@ -75,16 +75,16 @@ func NewServer(st *store.Store, authSvc *auth.Service, idSvc *identity.Service, 
 		Store:    st,
 		Identity: idSvc,
 		Cfg:      cfg,
-		UserInfo: func(ctx context.Context) (string, bool, bool) {
+		UserInfo: func(ctx context.Context) (string, bool, string, bool) {
 			uid := authSvc.CurrentUserID(ctx)
 			if uid == 0 {
-				return "", false, false
+				return "", false, "", false
 			}
 			u, err := st.GetUserByID(ctx, uid)
 			if err != nil {
-				return "", false, false
+				return "", false, "", false
 			}
-			return u.Name(), u.CapManageUsers || u.CapManageCatalog, true
+			return u.Name(), u.CapManageUsers || u.CapManageCatalog, u.Timezone, true
 		},
 		LookupTXT: net.LookupTXT,
 	}

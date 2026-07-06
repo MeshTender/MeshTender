@@ -82,6 +82,7 @@ func (s *Handlers) renderAccount(w http.ResponseWriter, r *http.Request, uid int
 		"Bio":         u.Bio,
 		"Location":    u.Location,
 		"Callsign":    u.Callsign,
+		"Timezone":    u.Timezone, // "" when unset (browser auto-detects)
 		"Links":       links,
 		"Platforms":   store.UserLinkPlatforms(),
 		"PlatformsJS": web.LinkPlatformsJS(store.UserLinkPlatforms()),
@@ -134,6 +135,27 @@ func (s *Handlers) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	accountRedirect(w, r, "ok", "Profile updated.")
+}
+
+// handleSetTimezone saves the user's preferred IANA time zone for date/time
+// display. An empty value clears it (the browser auto-detects). The submitted
+// value is validated against the tz database before it's stored.
+func (s *Handlers) handleSetTimezone(w http.ResponseWriter, r *http.Request) {
+	uid := s.Auth.CurrentUserID(r.Context())
+	tz := strings.TrimSpace(r.FormValue("timezone"))
+	if !web.ValidTimeZone(tz) {
+		accountRedirect(w, r, "error", "That isn't a recognized time zone.")
+		return
+	}
+	if err := s.Store.SetTimezone(r.Context(), uid, tz); err != nil {
+		accountRedirect(w, r, "error", "Could not save your time zone.")
+		return
+	}
+	if tz == "" {
+		accountRedirect(w, r, "ok", "Time zone set to auto-detect.")
+		return
+	}
+	accountRedirect(w, r, "ok", "Time zone updated.")
 }
 
 // handleSetProfileFields saves the user's public profile fields (bio, location,

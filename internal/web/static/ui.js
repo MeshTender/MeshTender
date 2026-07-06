@@ -16,8 +16,95 @@
 //   [data-check-none]               every enabled checkbox within its scope. The
 //                                    scope is the closest [data-check-scope]
 //                                    ancestor, or the whole document if none.
+//
+// It also localizes timestamps: any <time data-fmt="…"> element (emitted by the
+// `ts` template func) is rewritten from its machine-readable datetime attribute
+// into the viewer's locale and time zone. See formatTimes below.
 (function () {
   "use strict";
+
+  // --- timestamp localization ---------------------------------------------
+  // The server emits <time datetime="<RFC3339 UTC>" data-fmt="date|datetime|
+  // time|time-seconds">UTC fallback</time>. We reformat each into the viewer's
+  // locale (via Intl, with an undefined locale = the browser's) and time zone:
+  // the user's saved IANA zone from <html data-tz>, or — when unset — the
+  // browser's own zone (achieved by omitting timeZone so Intl uses local).
+  var TS_OPTS = {
+    date: { dateStyle: "medium" },
+    datetime: { dateStyle: "medium", timeStyle: "short" },
+    time: { timeStyle: "short" },
+    "time-seconds": { timeStyle: "medium" },
+  };
+
+  var tsFormatters = {}; // cache Intl.DateTimeFormat per data-fmt kind
+
+  function tsFormatter(kind) {
+    if (tsFormatters[kind]) return tsFormatters[kind];
+    var base = TS_OPTS[kind] || TS_OPTS.datetime;
+    var opts = {};
+    for (var k in base) if (Object.prototype.hasOwnProperty.call(base, k)) opts[k] = base[k];
+    var tz = document.documentElement.getAttribute("data-tz");
+    if (tz) opts.timeZone = tz; // else omit → Intl uses the browser's local zone
+    var fmt;
+    try {
+      fmt = new Intl.DateTimeFormat(undefined, opts);
+    } catch (e) {
+      // A stale/invalid saved zone: fall back to the browser's local zone.
+      delete opts.timeZone;
+      fmt = new Intl.DateTimeFormat(undefined, opts);
+    }
+    tsFormatters[kind] = fmt;
+    return fmt;
+  }
+
+  // formatTimes localizes every <time data-fmt> under root (default document).
+  // Reading from the datetime attribute (never the current text) makes repeated
+  // calls idempotent, so it's safe to re-run after htmx swaps or live inserts.
+  function formatTimes(root) {
+    var scope = root && root.querySelectorAll ? root : document;
+    var els = scope.querySelectorAll("time[data-fmt][datetime]");
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i];
+      var d = new Date(el.getAttribute("datetime"));
+      if (isNaN(d.getTime())) continue; // leave the server fallback in place
+      el.textContent = tsFormatter(el.getAttribute("data-fmt")).format(d);
+    }
+  }
+
+  // Exposed so views that inject timestamped nodes outside htmx (e.g. a
+  // WebSocket log) can localize them: window.MeshtenderFormatTimes(node).
+  window.MeshtenderFormatTimes = formatTimes;
+
+  // A <input type="date" data-local-today> carries the server's UTC date as a
+  // fallback; reset it to the viewer's local date (which can differ by a day) so
+  // the default matches the day the user is actually having.
+  function localTodayInputs(root) {
+    var scope = root && root.querySelectorAll ? root : document;
+    var inputs = scope.querySelectorAll("input[type=date][data-local-today]");
+    if (!inputs.length) return;
+    var now = new Date();
+    var pad = function (n) { return (n < 10 ? "0" : "") + n; };
+    var today = now.getFullYear() + "-" + pad(now.getMonth() + 1) + "-" + pad(now.getDate());
+    for (var i = 0; i < inputs.length; i++) {
+      inputs[i].max = today;
+      inputs[i].value = today;
+    }
+  }
+
+  function onReady() {
+    formatTimes(document);
+    localTodayInputs(document);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", onReady);
+  } else {
+    onReady();
+  }
+  // htmx swaps in server HTML that may contain <time> elements.
+  document.body && document.addEventListener("htmx:afterSwap", function (e) {
+    formatTimes(e.target || document);
+  });
 
   document.addEventListener("submit", function (e) {
     var form = e.target;

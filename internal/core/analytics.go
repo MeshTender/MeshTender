@@ -69,6 +69,10 @@ func (s *Handlers) pageAnalytics(w http.ResponseWriter, r *http.Request) {
 			maxVis = d.Visitors
 		}
 	}
+	// The daily chart buckets are aggregated per UTC calendar day (see the store
+	// query), so their axis labels and the "is today" check below stay in UTC —
+	// unlike discrete instants (LastSeen), these are day buckets, not moments to
+	// localize per viewer.
 	bars := make([]analyticsBar, 0, len(daily))
 	for _, d := range daily {
 		bars = append(bars, analyticsBar{
@@ -135,7 +139,7 @@ func (s *Handlers) pageAnalytics(w http.ResponseWriter, r *http.Request) {
 			Visitor:  v.Visitor,
 			Surface:  v.Surface,
 			LastPath: v.LastPath,
-			LastSeen: v.LastSeen.Format("Jan 2 15:04"),
+			LastSeen: v.LastSeen,
 			Requests: v.Requests,
 			W:        barPct(v.Requests, maxVisReq),
 		})
@@ -160,7 +164,7 @@ type visitorRow struct {
 	Visitor  string
 	Surface  string
 	LastPath string
-	LastSeen string
+	LastSeen time.Time // rendered client-side (localized) via the `ts` template func
 	Requests int64
 	W        int
 }

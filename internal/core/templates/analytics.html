@@ -114,7 +114,7 @@
             <span class="text-secondary">{{.Requests}}</span>
           </div>
           <div class="progress" style="height:6px"><div class="progress-bar" style="width:{{.W}}%"></div></div>
-          <div class="text-secondary small text-truncate"><span class="badge bg-secondary-lt">{{.Surface}}</span> {{.LastPath}} · {{.LastSeen}}</div>
+          <div class="text-secondary small text-truncate"><span class="badge bg-secondary-lt">{{.Surface}}</span> {{.LastPath}} · {{ts .LastSeen "datetime"}}</div>
         </div>
         {{end}}
         {{else}}<div class="text-secondary">No data.</div>{{end}}

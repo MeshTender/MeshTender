@@ -18,7 +18,7 @@
     <tbody>
       {{range .Changes}}
       <tr>
-        <td class="text-nowrap">{{.ChangedAt.Format "Jan 2, 2006 15:04"}}</td>
+        <td class="text-nowrap">{{ts .ChangedAt "datetime"}}</td>
         <td><span class="text-secondary">@{{.OldUsername}}</span> → <span class="font-monospace">@{{.NewUsername}}</span></td>
         <td>{{if .BySelf}}self{{else if .ByActor}}admin (@{{.ByActor}}){{else}}admin{{end}}</td>
         <td class="font-monospace text-secondary">{{if .IP}}{{.IP}}{{else}}—{{end}}</td>
