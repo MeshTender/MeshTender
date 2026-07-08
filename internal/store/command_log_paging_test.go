@@ -36,25 +36,26 @@ func TestCommandLogSenderName(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	senderName := func() string {
+	session := func() *CommandSession {
 		page, _, err := st.ListCommandLogSessionsPage(ctx, rep.ID, nil)
 		if err != nil || len(page) != 1 {
 			t.Fatalf("page = %d sessions, %v; want 1", len(page), err)
 		}
-		return page[0].SenderName
+		return page[0]
 	}
 
-	// While the sender exists: their display name.
-	if got := senderName(); got != "Bob Builder" {
-		t.Fatalf("sender name = %q, want the live display name %q", got, "Bob Builder")
+	// While the sender exists: their display name, and a username for the profile link.
+	if g := session(); g.SenderName != "Bob Builder" || g.SenderUsername != "bobby" {
+		t.Fatalf("live sender = (%q, %q), want (%q, %q)", g.SenderName, g.SenderUsername, "Bob Builder", "bobby")
 	}
 
-	// After deletion (user_id → NULL): the username snapshot taken at session start.
+	// After deletion (user_id → NULL): the username snapshot as the name, and no
+	// username (so the name renders as plain text, not a broken profile link).
 	if _, err := st.pool.Exec(ctx, `DELETE FROM users WHERE id=$1`, sender.ID); err != nil {
 		t.Fatalf("delete sender: %v", err)
 	}
-	if got := senderName(); got != "bobby" {
-		t.Fatalf("deleted sender name = %q, want the username snapshot %q", got, "bobby")
+	if g := session(); g.SenderName != "bobby" || g.SenderUsername != "" {
+		t.Fatalf("deleted sender = (%q, %q), want (%q, %q)", g.SenderName, g.SenderUsername, "bobby", "")
 	}
 }
 

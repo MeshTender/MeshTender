@@ -61,9 +61,12 @@ type CommandSession struct {
 	// falling back to the username snapshotted at session start if they've since
 	// been deleted.
 	SenderName string
-	StartedAt  time.Time
-	EndedAt    *time.Time
-	Entries    []*CommandLogEntry // newest first, matching the newest-first session order
+	// SenderUsername is the sender's current username, for linking to their profile
+	// (/u/{username}); empty when the user has been deleted (no profile to link).
+	SenderUsername string
+	StartedAt      time.Time
+	EndedAt        *time.Time
+	Entries        []*CommandLogEntry // newest first, matching the newest-first session order
 }
 
 // CommandLogPageSize is the number of console sessions shown per log page.
@@ -98,7 +101,8 @@ func (s *Store) ListCommandLogSessionsPage(ctx context.Context, repeaterID int64
 	// behavior of the previous query).
 	headers, err := s.pool.Query(ctx, `
 		SELECT cs.id, cs.started_at, cs.ended_at,
-		       COALESCE(NULLIF(u.display_name, ''), u.username, cs.sender_username, '(deleted)')
+		       COALESCE(NULLIF(u.display_name, ''), u.username, cs.sender_username, '(deleted)'),
+		       COALESCE(u.username, '')
 		FROM console_sessions cs
 		LEFT JOIN users u ON u.id = cs.user_id
 		WHERE cs.repeater_id = $1
@@ -111,7 +115,7 @@ func (s *Store) ListCommandLogSessionsPage(ctx context.Context, repeaterID int64
 	}
 	groups, err := collectRows(headers, func(r pgx.Row) (*CommandSession, error) {
 		var g CommandSession
-		err := r.Scan(&g.ID, &g.StartedAt, &g.EndedAt, &g.SenderName)
+		err := r.Scan(&g.ID, &g.StartedAt, &g.EndedAt, &g.SenderName, &g.SenderUsername)
 		return &g, err
 	})
 	if err != nil {
@@ -165,6 +169,7 @@ type OwnerCommandLogEntry struct {
 	RepeaterPublicID string
 	RepeaterName     string
 	SenderName       string
+	SenderUsername   string // current username for a profile link; empty if deleted
 	CommandText      string
 	SentAt           time.Time
 	AckReceived      bool
@@ -177,6 +182,7 @@ func (s *Store) ListRecentCommandsForOwner(ctx context.Context, ownerID int64, l
 	rows, err := s.pool.Query(ctx, `
 		SELECT l.repeater_id, r.public_id, r.name,
 		       COALESCE(NULLIF(u.display_name, ''), u.username, l.sender_username, '(deleted)'),
+		       COALESCE(u.username, ''),
 		       l.command_text, l.sent_at, l.ack_received, l.response_text
 		FROM command_log l
 		JOIN repeaters r ON r.id = l.repeater_id
@@ -189,7 +195,7 @@ func (s *Store) ListRecentCommandsForOwner(ctx context.Context, ownerID int64, l
 	}
 	return collectRows(rows, func(r pgx.Row) (OwnerCommandLogEntry, error) {
 		var e OwnerCommandLogEntry
-		err := r.Scan(&e.RepeaterID, &e.RepeaterPublicID, &e.RepeaterName, &e.SenderName,
+		err := r.Scan(&e.RepeaterID, &e.RepeaterPublicID, &e.RepeaterName, &e.SenderName, &e.SenderUsername,
 			&e.CommandText, &e.SentAt, &e.AckReceived, &e.ResponseText)
 		return e, err
 	})

@@ -105,7 +105,7 @@
             <tr>
               <td class="text-truncate" style="max-width:10rem"><a class="text-reset" href="/repeaters/{{.RepeaterPublicID}}/log">{{.RepeaterName}}</a></td>
               <td><code>{{.CommandText}}</code></td>
-              <td class="text-secondary">{{.SenderName}}</td>
+              <td class="text-secondary">{{if .SenderUsername}}<a class="text-reset" href="{{$.RootURL}}/u/{{.SenderUsername}}">{{.SenderName}}</a>{{else}}{{.SenderName}}{{end}}</td>
               <td class="text-secondary text-nowrap">{{ts .SentAt "datetime"}}</td>
               <td>{{if .AckReceived}}<span class="badge bg-success-lt">reply</span>{{else}}<span class="badge bg-yellow-lt">no reply</span>{{end}}</td>
             </tr>

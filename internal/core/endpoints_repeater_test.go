@@ -228,6 +228,27 @@ func TestSharePageRenders(t *testing.T) {
 	}
 }
 
+// TestActivityPageLinksSender: the activity log links a session's sender name to
+// their public profile (/u/{username}).
+func TestActivityPageLinksSender(t *testing.T) {
+	t.Parallel()
+	st, ctx, ts, h := splitServer(t)
+	owner, sess := appLogin(t, ts, st, ctx, h.app, "actowner")
+	rep := newOwnedRepeater(t, st, ctx, owner.ID, "Act Rep")
+	sid, err := st.StartConsoleSession(ctx, rep.ID, owner.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.LogCommand(ctx, rep.ID, owner.ID, sid, 0, "advert"); err != nil {
+		t.Fatal(err)
+	}
+
+	body := readBody(t, do(t, ts, h.app, "/repeaters/"+rep.PublicID+"/log", sess))
+	if !strings.Contains(body, `/u/`+owner.Username+`"`) {
+		t.Fatalf("activity page didn't link the sender to their profile (/u/%s):\n%s", owner.Username, body)
+	}
+}
+
 // TestPersonAccessModal covers the per-person "manage access" modal: the GET
 // fragment renders the steward toggle + command grid, and the POST saves the
 // steward flag and command grants together.
