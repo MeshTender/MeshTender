@@ -21,13 +21,23 @@ run = "go run ./cmd/meshtender --seed"
 [tasks.reset]
 run = "go run ./cmd/meshtender --reset"
 
+# Runs the browser e2e suite against a throwaway chromedp/headless-shell container.
+# Always use this rather than hand-rolling the container — the trap guarantees the
+# container is torn down however the run ends (success, failure, or interrupt), so
+# no orphaned containers hold port 9222. Filter to specific tests with
+# `mise run e2e --run <regex>` (see `mise run e2e --help`).
 [tasks.e2e]
+usage = '''
+flag "-r --run <regex>" help="Only run browser tests matching this regex (go test -run), verbosely"
+'''
 run = """
+docker rm -f mt-headless >/dev/null 2>&1 || true
 docker run -d --rm --name mt-headless -p 9222:9222 \
   --add-host=host.docker.internal:host-gateway \
   --entrypoint bash chromedp/headless-shell:latest -c \
   'socat TCP4-LISTEN:9222,fork TCP4:127.0.0.1:9223 & exec /headless-shell/headless-shell --no-sandbox --use-gl=angle --use-angle=swiftshader --remote-debugging-address=0.0.0.0 --remote-debugging-port=9223 "--host-resolver-rules=MAP *.host.docker.internal host.docker.internal"' >/dev/null
-trap 'docker stop mt-headless >/dev/null' EXIT
-until curl -sf http://127.0.0.1:9222/json/version >/dev/null; do sleep 0.5; done
-go test -tags browser ./internal/e2e/
+trap 'docker rm -f mt-headless >/dev/null 2>&1' EXIT
+# Bounded readiness wait (~20s cap) so a container that never comes up can't hang.
+for _ in $(seq 1 40); do curl -sf http://127.0.0.1:9222/json/version >/dev/null 2>&1 && break; sleep 0.5; done
+go test -tags browser ./internal/e2e/ -timeout 180s ${usage_run:+-run "$usage_run" -v}
 """

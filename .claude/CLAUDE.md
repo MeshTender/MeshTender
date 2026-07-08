@@ -24,9 +24,17 @@ bundler, no build step for assets.
 - MeshCore binding: `github.com/meshcore-go/meshcore-go`.
 
 Run/lint/etc. via mise: `mise run dev` (serves on the configured hosts),
-`mise run lint`, `mise run seed`, `mise run reset`. Dev uses `leighthaus.dev` +
-local mkcert TLS. **The dev server owns :8080 — run your own test instance on
-:8090** and kill only your own PID.
+`mise run lint`, `mise run seed`, `mise run reset`, `mise run e2e`. Dev uses
+`leighthaus.dev` + local mkcert TLS. **The dev server owns :8080 — run your own
+test instance on :8090** and kill only your own PID.
+
+**When a mise task exists for what you're doing, run the task — don't hand-roll
+its command.** The tasks encode the correct setup (env, flags, container
+lifecycle) and clean up after themselves. This matters most for `mise run e2e`:
+never reimplement the headless-browser container by hand (it leaks orphaned
+containers holding :9222). Filter to specific tests with `mise run e2e --run
+<regex>` (see `mise run e2e --help`). Plain `go test`/`go build`/`go vet` for a
+package or `-run` are fine — those aren't tasks.
 
 **MeshCore, not Meshtastic.** Don't introduce Meshtastic concepts (e.g. a
 `node_id`). MeshCore identifies contacts by public key.
