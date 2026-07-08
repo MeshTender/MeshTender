@@ -10,25 +10,13 @@
 </div>
 <div class="modal-body">
   <form method="post" action="/repeaters/{{.Repeater.PublicID}}/orgs/{{.Org.Slug}}/limits" id="org-access-form">
-    <label class="form-check form-switch mb-3">
+    <div class="hr-text hr-text-left mt-0 mb-3">Sharing</div>
+    <label class="form-check form-switch">
       <input class="form-check-input" type="checkbox" name="include" value="1" {{if not .Excluded}}checked{{end}}>
       <span class="form-check-label"><strong>Shared with {{.Org.Name}}</strong></span>
     </label>
-    {{if .Excluded}}
-    <div class="alert alert-warning" role="alert">
-      <div class="d-flex">
-        <div class="me-2">{{template "icon-alert" ""}}</div>
-        <div>
-          <h4 class="alert-title">This repeater is opted out of {{.Org.Name}}</h4>
-          <p class="mb-0">
-            While it's opted out, <strong>no one</strong> in {{.Org.Name}} can run <strong>any</strong>
-            command below. You can still set these limits now — turn on <strong>Shared with {{.Org.Name}}</strong>
-            above and Save to opt back in.
-          </p>
-        </div>
-      </div>
-    </div>
-    {{end}}
+
+    <div class="hr-text hr-text-left mt-5 mb-3">Permissions</div>
     <p class="text-secondary">
       Restrict which of the commands <strong>{{.Org.Name}}</strong> is permitted to run actually run on
       “{{.Repeater.Name}}”.
@@ -37,6 +25,21 @@
       Commands badged <span class="badge bg-success-lt">Admins</span> are available only to organization
       admins; <span class="badge bg-azure-lt">Members</span> to everyone.
     </p>
+    {{if .Excluded}}
+    <div class="alert alert-warning" role="alert">
+      <div class="d-flex">
+        <div class="me-2">{{template "icon-alert" ""}}</div>
+        <div>
+          <h4 class="alert-title">This repeater is opted out of {{.Org.Name}}</h4>
+          <p class="mb-0">
+            While it's opted out, <strong>no one</strong> in {{.Org.Name}} can run <strong>any</strong>
+            command below. You can still set these limits now — turn on
+            <strong>Shared with {{.Org.Name}}</strong> above and Save to opt back in.
+          </p>
+        </div>
+      </div>
+    </div>
+    {{end}}
     {{template "command-grid" .}}
   </form>
 </div>

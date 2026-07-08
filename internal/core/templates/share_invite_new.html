@@ -8,11 +8,12 @@
 </div>
 <div class="modal-body">
   <form method="post" action="/repeaters/{{.Repeater.PublicID}}/share/link" id="new-invite-form">
-    <div class="mb-3">
-      <label class="form-label" for="share_description">Description <span class="text-secondary">(optional)</span></label>
-      <input type="text" class="form-control" id="share_description" name="description" placeholder="e.g. for Bob's modem" maxlength="100">
-    </div>
-    <p class="text-secondary mb-0">
+    <div class="hr-text hr-text-left mt-0 mb-3">Details</div>
+    <label class="form-label" for="share_description">Description <span class="text-secondary">(optional)</span></label>
+    <input type="text" class="form-control" id="share_description" name="description" placeholder="e.g. for Bob's modem" maxlength="100">
+
+    <div class="hr-text hr-text-left mt-5 mb-3">Permissions</div>
+    <p class="text-secondary">
       Choose which commands the recipient may send once they accept — you can change these any time
       afterwards. Risky commands can take over or brick the node; grant them only with care.
     </p>
