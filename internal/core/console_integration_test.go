@@ -189,6 +189,160 @@ func TestConsoleRoundTrip(t *testing.T) {
 	}
 }
 
+// TestConsoleGetLatUpdatesLocation: running "get lat" directly in the console
+// captures the reported coordinate into the stored location, updating only the
+// latitude (leaving longitude untouched). The test plays browser, modem, and
+// repeater as in TestConsoleRoundTrip.
+func TestConsoleGetLatUpdatesLocation(t *testing.T) {
+	t.Parallel()
+	st, ctx := coreStore(t)
+
+	var masterKey [32]byte
+	_, _ = rand.Read(masterKey[:])
+	idSvc, err := identity.LoadOrCreate(ctx, st, masterKey)
+	if err != nil {
+		t.Fatalf("identity: %v", err)
+	}
+	authSvc, err := auth.New(st, st.Pool(), testAuthConfig())
+	if err != nil {
+		t.Fatalf("auth: %v", err)
+	}
+	srv, err := NewServer(st, authSvc, idSvc, testConfig())
+	if err != nil {
+		t.Fatalf("server: %v", err)
+	}
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	jar, _ := cookiejar.New(nil)
+	user := seedSession(t, ts, st, ctx, jar, "geographer")
+	repeater, err := meshcore.GenerateLocalIdentity(rand.Reader)
+	if err != nil {
+		t.Fatalf("repeater identity: %v", err)
+	}
+	rep, err := st.CreateRepeater(ctx, &store.Repeater{
+		OwnerID: user.ID, Name: "Test", PublicKeyHex: repeater.String(),
+		RadioFreqHz: 869525000, RadioBwHz: 250000, RadioSF: 11, RadioCR: 5,
+	})
+	if err != nil {
+		t.Fatalf("create repeater: %v", err)
+	}
+
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/repeaters/" + rep.PublicID + "/console/ws"
+	hdr := http.Header{}
+	if cs := jar.Cookies(mustURL(t, ts.URL)); len(cs) > 0 {
+		var parts []string
+		for _, c := range cs {
+			parts = append(parts, c.Name+"="+c.Value)
+		}
+		hdr.Set("Cookie", strings.Join(parts, "; "))
+	}
+	dctx, dcancel := context.WithTimeout(ctx, 5*time.Second)
+	defer dcancel()
+	ws, _, err := websocket.Dial(dctx, wsURL, &websocket.DialOptions{HTTPHeader: hdr})
+	if err != nil {
+		t.Fatalf("ws dial: %v", err)
+	}
+	defer ws.Close(websocket.StatusNormalClosure, "")
+
+	rw, rwcancel := context.WithTimeout(ctx, 15*time.Second)
+	defer rwcancel()
+	must := func(err error, msg string) {
+		if err != nil {
+			t.Fatalf("%s: %v", msg, err)
+		}
+	}
+	must(ws.Write(rw, websocket.MessageText, []byte(`{"type":"ready"}`)), "ready")
+	must(ws.Write(rw, websocket.MessageText, []byte(`{"type":"cmd","text":"get lat"}`)), "cmd")
+
+	serverID := idSvc.Local().Identity
+	shared, err := repeater.SharedSecret(serverID)
+	must(err, "shared")
+	const replyText = "> 37.7749"
+
+	// Reply to login (flood) then to the "get lat" command. The server stamps the
+	// latitude after pushing the "reply" and emits a "location" status; waiting for
+	// that status guarantees the DB write has completed before we assert.
+	var buf []byte
+	loggedIn := false
+	cmdReplied := false
+	located := false
+	for !located {
+		typ, data, err := ws.Read(rw)
+		must(err, "ws read")
+		if typ == websocket.MessageText {
+			var m struct{ State, Message string }
+			if json.Unmarshal(data, &m) == nil {
+				if m.State == "error" || m.State == "denied" || m.State == "noreply" {
+					t.Fatalf("unexpected status %q: %s", m.State, m.Message)
+				}
+				if m.State == "location" {
+					located = true
+				}
+			}
+			continue
+		}
+		buf = append(buf, data...)
+		frames, rest, _ := hardware.ExtractFrames(buf)
+		buf = rest
+		for _, f := range frames {
+			if f.Command != hardware.KISS_CMD_DATA {
+				continue
+			}
+			pkt, err := meshcore.PacketFromBytes(f.Data)
+			if err != nil {
+				continue
+			}
+			switch pkt.PayloadType() {
+			case meshcore.PayloadTypeAnonReq:
+				if loggedIn {
+					continue
+				}
+				loggedIn = true
+				resp := make([]byte, 13)
+				binary.LittleEndian.PutUint32(resp[:4], 1_700_002_000)
+				resp[6] = 1 // admin
+				resp[7] = 3
+				body := append([]byte{0x00, meshcore.PayloadTypeResponse}, resp...)
+				enc, _ := meshcore.EncryptThenMAC(shared, body)
+				p := &meshcore.Path{Destination: serverID.Hash()[0], Source: repeater.Hash()[0], MAC: [2]byte{enc[0], enc[1]}, EncryptedPayload: enc[2:]}
+				payload, _ := p.ToBytes()
+				lp := &meshcore.Packet{Header: meshcore.MakeHeader(meshcore.RouteTypeFlood, meshcore.PayloadTypePath, 0), Payload: payload}
+				raw, _ := lp.ToBytes()
+				must(ws.Write(rw, websocket.MessageBinary, hardware.EncodeDataFrame(raw)), "login reply")
+			case meshcore.PayloadTypeTxtMsg:
+				if cmdReplied {
+					continue
+				}
+				tm, err := meshcore.TextMessageFromBytes(pkt.Payload)
+				must(err, "parse text message")
+				plain := tm.Decrypt(shared)
+				if plain == nil || !strings.HasPrefix(string(plain[5:]), "get lat") {
+					t.Fatalf("decoded command = %q, want get lat", string(plain[5:]))
+				}
+				cmdReplied = true
+				replyPlain := meshcore.BuildTextPlaintext(time.Unix(1_700_002_000, 0), 1<<2, []byte(replyText))
+				rtm, err := meshcore.NewTextMessage(repeater, serverID, replyPlain, shared)
+				must(err, "reply text message")
+				payload, _ := rtm.ToBytes()
+				rpkt := &meshcore.Packet{Header: meshcore.MakeHeader(meshcore.RouteTypeFlood, meshcore.PayloadTypeTxtMsg, 0), Payload: payload}
+				raw, _ := rpkt.ToBytes()
+				must(ws.Write(rw, websocket.MessageBinary, hardware.EncodeDataFrame(raw)), "send reply")
+			}
+		}
+	}
+
+	// Only the latitude should be stored; longitude stays NULL (we never read it).
+	got, err := st.GetRepeaterForUser(ctx, user.ID, rep.ID)
+	must(err, "reload repeater")
+	if got.Latitude == nil || *got.Latitude != 37.7749 {
+		t.Fatalf("stored latitude = %v, want 37.7749", got.Latitude)
+	}
+	if got.Longitude != nil {
+		t.Fatalf("stored longitude = %v, want nil (get lat must not touch longitude)", got.Longitude)
+	}
+}
+
 // TestConsoleAuditFailureRefusesCommand: if a command can't be recorded to the
 // audit log, the console must refuse to send it to the device rather than execute
 // an unlogged command. We drop command_log so LogCommand fails, then send a

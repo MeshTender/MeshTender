@@ -391,6 +391,11 @@ func (s *Handlers) wsConsole(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 			_ = bridge.Status("reply", reply)
+			// A "get lat"/"get lon" the user ran themselves carries the repeater's
+			// current coordinate — capture it so the stored location tracks what the
+			// device reports, without a separate fetch. Keyed on the resolved catalog
+			// token (not raw text) so only these two commands trigger it.
+			s.storeCoordFromReply(ctx, r, cmd, reply, id, bridge)
 		case errors.Is(err, mesh.ErrNoReply):
 			_ = bridge.Status("noreply", "No reply received after several tries — the command may still have run.")
 		default:
@@ -414,4 +419,33 @@ func (s *Handlers) wsConsole(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+}
+
+// storeCoordFromReply persists the coordinate reported by a "get lat"/"get lon"
+// command the user ran directly in the console, so the stored location tracks
+// what the device reports without a separate fetch. It matches on the resolved
+// catalog token (not the raw typed text) so only those two commands trigger it,
+// and no-ops for any other command or an unparseable reply. A single "get lat"
+// updates only the latitude — SetRepeaterLatitude/Longitude write one column so
+// reading one coordinate never clobbers the other. On success it emits a
+// "location" status so an open config panel refreshes its region commands.
+func (s *Handlers) storeCoordFromReply(ctx context.Context, r *http.Request, cmd *store.Command, reply string, id int64, bridge *wsbridge.Conn) {
+	value, ok := parseLocationFloat(reply)
+	if !ok {
+		return
+	}
+	var update func(context.Context, int64, float64) error
+	switch commandPrefix(cmd.Template) {
+	case "get lat":
+		update = s.Store.SetRepeaterLatitude
+	case "get lon":
+		update = s.Store.SetRepeaterLongitude
+	default:
+		return
+	}
+	if err := update(ctx, id, value); err != nil {
+		web.LogError(r, "console: store coordinate", err, "repeater_id", id, "command_id", cmd.ID)
+		return
+	}
+	_ = bridge.Status("location", "Location updated from the repeater.")
 }

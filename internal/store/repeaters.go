@@ -275,6 +275,29 @@ func (s *Store) SetRepeaterLocation(ctx context.Context, repeaterID int64, lat, 
 	return nil
 }
 
+// SetRepeaterLatitude stores only a repeater's latitude, leaving the longitude
+// untouched. Used when the console reads a single coordinate ("get lat"), which
+// arrives independently of the other and must not clobber it.
+func (s *Store) SetRepeaterLatitude(ctx context.Context, repeaterID int64, lat float64) error {
+	_, err := s.pool.Exec(ctx,
+		`UPDATE repeaters SET latitude = $2 WHERE id = $1`, repeaterID, lat)
+	if err != nil {
+		return fmt.Errorf("set latitude: %w", err)
+	}
+	return nil
+}
+
+// SetRepeaterLongitude stores only a repeater's longitude, leaving the latitude
+// untouched. See SetRepeaterLatitude.
+func (s *Store) SetRepeaterLongitude(ctx context.Context, repeaterID int64, lon float64) error {
+	_, err := s.pool.Exec(ctx,
+		`UPDATE repeaters SET longitude = $2 WHERE id = $1`, repeaterID, lon)
+	if err != nil {
+		return fmt.Errorf("set longitude: %w", err)
+	}
+	return nil
+}
+
 // DeleteRepeaterOwned deletes a repeater only if owned by ownerID.
 func (s *Store) DeleteRepeaterOwned(ctx context.Context, ownerID, repeaterID int64) error {
 	tag, err := s.pool.Exec(ctx, `DELETE FROM repeaters WHERE id = $1 AND owner_id = $2`, repeaterID, ownerID)
