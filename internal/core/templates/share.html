@@ -17,21 +17,16 @@
 <div class="col-lg-7">
 <div class="card">
   <div class="card-body">
-    <h3 class="card-title">People</h3>
+    <h3 class="card-title">Share links</h3>
     <p class="text-secondary">
-      Share single-use links with specific people. The recipient signs in and accepts to control this
-      repeater from their own browser-connected KISS modem.
+      Invite specific people with single-use links: the recipient signs in and accepts to control this
+      repeater from their own browser-connected KISS modem. Each link works once — mint one per person,
+      label it, and choose what they can do.
     </p>
-
-    <div class="subheader mt-3 mb-2">Share links</div>
-    <p class="text-secondary">Each link works once. Mint one per person and label it so you remember who it's for.</p>
-    <form method="post" action="/repeaters/{{.Repeater.PublicID}}/share/link">
-      <div class="mb-3">
-        <label class="form-label" for="share_description">Description <span class="text-secondary">(optional)</span></label>
-        <input type="text" class="form-control" id="share_description" name="description" placeholder="e.g. for Bob's modem" maxlength="100">
-      </div>
-      <button type="submit" class="btn btn-primary">Create single-use link</button>
-    </form>
+    <button type="button" class="btn btn-primary" data-testid="new-invite"
+            data-bs-toggle="modal" data-bs-target="#invite-modal"
+            hx-get="/repeaters/{{.Repeater.PublicID}}/share/link/new"
+            hx-target="#invite-modal-content" hx-swap="innerHTML">Create single-use link</button>
 
     {{if .Invites}}
     <div class="list-group list-group-flush mt-3">
@@ -57,8 +52,12 @@
     {{else}}
     <p class="text-secondary mt-2">No links yet.</p>
     {{end}}
+  </div>
+</div>
 
-    <div class="subheader mt-3 mb-2">People with access</div>
+<div class="card mt-3">
+  <div class="card-body">
+    <h3 class="card-title">People with access</h3>
     <p class="text-secondary">
       Mark a trusted person a <strong>steward</strong> to make them a co-operator: they can run
       <strong>every</strong> command (including risky ones), just like you, and they're listed as a
@@ -138,7 +137,13 @@
 </div>
 </div>
 
-<!-- Shared modal; each org's "Edit limits" button loads its fragment here via htmx. -->
+<!-- Shared modals; the People "Create single-use link" and each org's "Edit
+     limits" button load their fragments here via htmx. -->
+<div class="modal modal-blur fade" id="invite-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
+    <div class="modal-content" id="invite-modal-content"></div>
+  </div>
+</div>
 <div class="modal modal-blur fade" id="limits-modal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
     <div class="modal-content" id="limits-modal-content"></div>

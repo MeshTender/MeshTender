@@ -24,7 +24,14 @@ func TestAcceptInvite(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create repeater: %v", err)
 	}
-	token, err := st.CreateInvite(ctx, rep.ID, "join")
+	// The owner picks an explicit initial grant when minting the link; accept must
+	// seed exactly that set (not the site-wide share default).
+	catalog, err := st.ListCommands(ctx)
+	if err != nil || len(catalog) == 0 {
+		t.Fatalf("list commands: %v (n=%d)", err, len(catalog))
+	}
+	grant := catalog[0].ID
+	token, err := st.CreateInvite(ctx, rep.ID, "join", []int64{grant})
 	if err != nil {
 		t.Fatalf("create invite: %v", err)
 	}
@@ -51,8 +58,8 @@ func TestAcceptInvite(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListShareCommandIDs: %v", err)
 	}
-	if len(cmds) == 0 {
-		t.Fatalf("no default commands seeded for the new share")
+	if len(cmds) != 1 || cmds[0] != grant {
+		t.Fatalf("seeded commands = %v, want exactly [%d] (the chosen grant)", cmds, grant)
 	}
 	invites, err := st.ListInvites(ctx, rep.ID)
 	if err != nil || len(invites) != 1 {
@@ -98,7 +105,7 @@ func TestAcceptInviteRollsBack(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create repeater: %v", err)
 	}
-	token, err := st.CreateInvite(ctx, rep.ID, "join")
+	token, err := st.CreateInvite(ctx, rep.ID, "join", nil)
 	if err != nil {
 		t.Fatalf("create invite: %v", err)
 	}

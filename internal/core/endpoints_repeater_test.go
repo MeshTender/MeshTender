@@ -314,7 +314,7 @@ func TestAcceptInvitePost(t *testing.T) {
 		t.Fatal(err)
 	}
 	rep := newOwnedRepeater(t, st, ctx, owner.ID, "Invite Rep")
-	token, err := st.CreateInvite(ctx, rep.ID, "come join")
+	token, err := st.CreateInvite(ctx, rep.ID, "come join", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -337,6 +337,59 @@ func TestAcceptInvitePost(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("accepting the invite did not share the repeater with the invitee")
+	}
+}
+
+// TestCreateInviteWithCommands covers the "Create single-use link" modal: the GET
+// fragment renders the description + command grid, and the POST persists the chosen
+// initial grant on the invite so AcceptInvite can seed exactly it.
+func TestCreateInviteWithCommands(t *testing.T) {
+	t.Parallel()
+	st, ctx, ts, h := splitServer(t)
+	owner, sess := appLogin(t, ts, st, ctx, h.app, "invmodalowner")
+	rep := newOwnedRepeater(t, st, ctx, owner.ID, "Modal Rep")
+
+	// GET renders the modal fragment (no page chrome) with the description + boxes.
+	frag := readBody(t, do(t, ts, h.app, "/repeaters/"+rep.PublicID+"/share/link/new", sess))
+	if !strings.Contains(frag, `name="description"`) || !strings.Contains(frag, `name="cmd"`) {
+		t.Fatalf("new-invite fragment missing expected fields:\n%s", frag)
+	}
+	if strings.Contains(frag, "back-link") {
+		t.Fatal("new-invite fragment should be modal chrome, not a full page")
+	}
+
+	catalog, err := st.ListCommands(ctx)
+	if err != nil || len(catalog) == 0 {
+		t.Fatalf("list commands: %v (n=%d)", err, len(catalog))
+	}
+	grant := catalog[0].ID
+
+	share := "/repeaters/" + rep.PublicID + "/share"
+	create := post(t, ts, h.app, share+"/link",
+		url.Values{"description": {"for Bob"}, "cmd": {strconv.FormatInt(grant, 10)}}, sess)
+	create.Body.Close()
+	assertRedirect(t, create, share, "create invite with commands")
+
+	invites, err := st.ListInvites(ctx, rep.ID)
+	if err != nil || len(invites) != 1 {
+		t.Fatalf("ListInvites = %d, %v; want 1", len(invites), err)
+	}
+	// The chosen grant is recorded on the invite (seeded on accept).
+	var got []int64
+	rows, err := st.Pool().Query(ctx, `SELECT command_id FROM invite_commands WHERE invite_id = $1`, invites[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		got = append(got, id)
+	}
+	if len(got) != 1 || got[0] != grant {
+		t.Fatalf("invite_commands = %v, want [%d]", got, grant)
 	}
 }
 

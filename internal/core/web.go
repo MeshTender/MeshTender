@@ -200,6 +200,7 @@ func (s *Handlers) appRouter() chi.Router {
 			r.Post("/repeaters/{id}/maintenance", s.handleAddMaintenance)
 			r.Post("/repeaters/{id}/maintenance/delete", s.handleDeleteMaintenance)
 			r.Get("/repeaters/{id}/share", s.pageShare)
+			r.Get("/repeaters/{id}/share/link/new", s.pageNewInvite)
 			r.Post("/repeaters/{id}/share/link", s.handleCreateLink)
 			r.Post("/repeaters/{id}/share/link/delete", s.handleDeleteInvite)
 			r.Post("/repeaters/{id}/unshare", s.handleUnshare)

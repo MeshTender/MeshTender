@@ -48,14 +48,45 @@ func (s *Handlers) pageShare(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// handleCreateLink mints a new single-use share link with a description (owner only).
+// pageNewInvite renders the "create single-use link" modal fragment: a
+// description field plus the command grid (share defaults pre-checked) the owner
+// picks the initial grant from. Loaded via htmx into the share page's shared modal.
+func (s *Handlers) pageNewInvite(w http.ResponseWriter, r *http.Request) {
+	rep, _, ok := s.requireRepeaterOwned(w, r)
+	if !ok {
+		return
+	}
+	catalog, err := s.Store.ListCommands(r.Context())
+	if err != nil {
+		s.ServerError(w, r, "could not load commands", err)
+		return
+	}
+	checked := make(map[int64]bool, len(catalog))
+	for _, c := range catalog {
+		if c.InShareDefault {
+			checked[c.ID] = true
+		}
+	}
+	s.Render(w, r, "share_invite_new.html", map[string]any{
+		"Repeater": rep,
+		"Groups":   groupCommands(catalog, checked),
+		"Layout":   "invite-new-modal",
+	})
+}
+
+// handleCreateLink mints a new single-use share link with a description and the
+// initial command grant the owner chose (owner only).
 func (s *Handlers) handleCreateLink(w http.ResponseWriter, r *http.Request) {
 	id, ok := s.requireOwned(w, r)
 	if !ok {
 		return
 	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
 	description := web.Clip(strings.TrimSpace(r.FormValue("description")), 100)
-	if _, err := s.Store.CreateInvite(r.Context(), id, description); err != nil {
+	if _, err := s.Store.CreateInvite(r.Context(), id, description, parseCommandIDs(r.Form["cmd"])); err != nil {
 		shareErr(w, r, "Could not create share link.")
 		return
 	}
