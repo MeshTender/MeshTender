@@ -59,8 +59,8 @@ func TestE2EShareOrgLimitsModal(t *testing.T) {
 		setSessionCookie(cookie),
 		chromedp.Navigate(shareURL),
 		// Open the per-org limits modal; htmx loads the command grid into it.
-		chromedp.WaitVisible(`[data-testid="edit-limits"]`, chromedp.ByQuery),
-		chromedp.Click(`[data-testid="edit-limits"]`, chromedp.ByQuery),
+		chromedp.WaitVisible(`[data-testid="manage-access"]`, chromedp.ByQuery),
+		chromedp.Click(`[data-testid="manage-access"]`, chromedp.ByQuery),
 		chromedp.WaitVisible(`#limits-modal-content [data-check-scope]`, chromedp.ByQuery),
 		chromedp.Evaluate(countChecked, &initial),
 		// Default is permissive: everything checked. Uncheck only the first section.

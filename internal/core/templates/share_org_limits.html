@@ -1,13 +1,19 @@
 {{/* org-limits-modal is the htmx fragment swapped into the share page's shared
-     #limits-modal. The form posts normally (full navigation back to the share
-     page), which also closes the modal — no client JS needed. */}}
+     #limits-modal. It controls both this org's participation (the "Shared" switch)
+     and its per-repeater command limits; one Save applies both. The form posts
+     normally (full navigation back to the share page), which also closes the
+     modal — no client JS needed. */}}
 {{define "org-limits-modal"}}
 <div class="modal-header">
-  <h5 class="modal-title">Command limits — {{.Org.Name}}</h5>
+  <h5 class="modal-title">Manage access — {{.Org.Name}}</h5>
   <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
 </div>
 <form method="post" action="/repeaters/{{.Repeater.PublicID}}/orgs/{{.Org.Slug}}/limits">
   <div class="modal-body">
+    <label class="form-check form-switch mb-3">
+      <input class="form-check-input" type="checkbox" name="include" value="1" {{if not .Excluded}}checked{{end}}>
+      <span class="form-check-label"><strong>Shared with {{.Org.Name}}</strong></span>
+    </label>
     {{if .Excluded}}
     <div class="alert alert-warning" role="alert">
       <div class="d-flex">
@@ -16,8 +22,8 @@
           <h4 class="alert-title">This repeater is opted out of {{.Org.Name}}</h4>
           <p class="mb-0">
             While it's opted out, <strong>no one</strong> in {{.Org.Name}} can run <strong>any</strong>
-            command below. Set these limits now if you like — they'll take effect when you opt the repeater
-            back in with the <strong>Shared</strong> switch on the sharing page.
+            command below. You can still set these limits now — turn on <strong>Shared with {{.Org.Name}}</strong>
+            above and Save to opt back in.
           </p>
         </div>
       </div>
@@ -38,7 +44,7 @@
     <button type="submit" name="clear" value="1" class="btn btn-link link-secondary me-auto">Remove restriction (allow all)</button>
     {{end}}
     <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">Cancel</button>
-    <button type="submit" class="btn btn-primary">Save limits</button>
+    <button type="submit" class="btn btn-primary">Save</button>
   </div>
 </form>
 {{end}}

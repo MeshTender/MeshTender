@@ -1,0 +1,36 @@
+{{/* org-access-rows renders the per-org access list shared by the share page and
+     the add-repeater wizard: each org the repeater's owner belongs to, with a
+     status badge and a "Manage access" button that loads the shared #limits-modal
+     via htmx. Data: $.Repeater (needs .PublicID) and .Orgs ([]RepeaterOrgMembership
+     with .OrgName / .OrgSlug / .Excluded / .Restricted). Pair it with
+     limits-modal-shell on the same page. */}}
+{{define "org-access-rows"}}
+<div class="list-group list-group-flush">
+  {{range .Orgs}}
+  <div class="list-group-item d-flex align-items-center gap-2 flex-wrap px-0" data-testid="share-org-row">
+    <span class="fw-bold">{{.OrgName}}</span>
+    {{if .Excluded}}
+    <span class="badge bg-secondary-lt">Opted out</span>
+    {{else if .Restricted}}
+    <span class="badge bg-yellow-lt">Limited commands</span>
+    {{else}}
+    <span class="badge bg-success-lt">All commands</span>
+    {{end}}
+    <button type="button" class="btn btn-sm ms-auto" data-bs-toggle="modal" data-bs-target="#limits-modal"
+            data-testid="manage-access"
+            hx-get="/repeaters/{{$.Repeater.PublicID}}/orgs/{{.OrgSlug}}/limits"
+            hx-target="#limits-modal-content" hx-swap="innerHTML">Manage access</button>
+  </div>
+  {{end}}
+</div>
+{{end}}
+
+{{/* limits-modal-shell is the empty shared modal the "Manage access" buttons load
+     their org-limits fragment into via htmx. */}}
+{{define "limits-modal-shell"}}
+<div class="modal modal-blur fade" id="limits-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
+    <div class="modal-content" id="limits-modal-content"></div>
+  </div>
+</div>
+{{end}}

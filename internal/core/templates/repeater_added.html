@@ -46,21 +46,11 @@
     {{if .Orgs}}
     <p class="text-secondary">
       This repeater is now shared with the organizations you belong to, so their admins and members can run
-      the commands those organizations are permitted to run on it. Opt out of any of them here — you can
-      change this anytime, and limit which commands an organization may run, from the sharing page.
+      the commands those organizations are permitted to run on it. Use <strong>Manage access</strong> to opt
+      out of any of them or limit which commands it may run — you can also change this anytime from the
+      sharing page.
     </p>
-    <div class="list-group list-group-flush">
-      {{range .Orgs}}
-      <div class="list-group-item d-flex align-items-center gap-2 px-0">
-        <span class="fw-bold">{{.Org.Name}}</span>
-        {{if eq .Role "admin"}}<span class="badge bg-success-lt">admin</span>{{else}}<span class="badge bg-azure-lt">member</span>{{end}}
-        <form method="post" action="/repeaters/{{$.Repeater.PublicID}}/orgs/{{.Org.Slug}}/participation" class="m-0 ms-auto">
-          <input type="hidden" name="action" value="exclude">
-          <button type="submit" class="btn btn-sm btn-ghost-danger">Opt out</button>
-        </form>
-      </div>
-      {{end}}
-    </div>
+    {{template "org-access-rows" .}}
     {{else}}
     <p class="text-secondary">
       You're not in any organizations yet. Joining one lets its admins help keep your repeater in spec.
@@ -72,6 +62,7 @@
     </div>
   </div>
 </div>
+{{template "limits-modal-shell" .}}
 </div>
 </div>
 {{end}}

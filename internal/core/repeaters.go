@@ -145,12 +145,13 @@ func addErr(w http.ResponseWriter, r *http.Request, msg string) {
 // repeater: optionally confirm it with a modem now, and manage which organizations
 // it's shared with. People-sharing lives on the repeater's own sharing page.
 func (s *Handlers) pageRepeaterAdded(w http.ResponseWriter, r *http.Request) {
-	uid := s.Auth.CurrentUserID(r.Context())
-	rep, _, ok := s.requireRepeaterOwned(w, r)
+	rep, id, ok := s.requireRepeaterOwned(w, r)
 	if !ok {
 		return
 	}
-	orgs, err := s.Store.ListOrgsForUser(r.Context(), uid)
+	// Same per-org data (with participation/limit state) the share page uses, so
+	// the wizard's "Manage access" buttons and status badges match it exactly.
+	orgs, err := s.Store.ListRepeaterOrgMemberships(r.Context(), id)
 	if err != nil {
 		s.ServerError(w, r, "could not load organizations", err)
 		return

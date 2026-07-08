@@ -96,39 +96,12 @@
     <h3 class="card-title">Organizations</h3>
     <p class="text-secondary">
       This repeater is shared with every organization you belong to, so their admins and members can run the
-      commands those organizations are permitted to run on it. Turn an organization off to opt out, or edit
-      its command limits for <em>this</em> repeater.
+      commands those organizations are permitted to run on it. Use <strong>Manage access</strong> to opt it
+      out of an organization or limit which commands that organization may run on <em>this</em> repeater.
     </p>
 
     {{if .Orgs}}
-    <div class="list-group list-group-flush">
-      {{range .Orgs}}
-      <div class="list-group-item px-0" data-testid="share-org-row">
-        <div class="d-flex align-items-center gap-2 flex-wrap">
-          <span class="fw-bold">{{.OrgName}}</span>
-          {{if .Excluded}}
-          <span class="badge bg-secondary-lt">Opted out</span>
-          {{else if .Restricted}}
-          <span class="badge bg-yellow-lt">Limited commands</span>
-          {{else}}
-          <span class="badge bg-success-lt">All commands</span>
-          {{end}}
-          <div class="ms-auto d-flex align-items-center gap-3">
-            <button type="button" class="btn btn-sm" data-bs-toggle="modal" data-bs-target="#limits-modal"
-                    data-testid="edit-limits"
-                    hx-get="/repeaters/{{$.Repeater.PublicID}}/orgs/{{.OrgSlug}}/limits"
-                    hx-target="#limits-modal-content" hx-swap="innerHTML">Edit limits</button>
-            <form method="post" action="/repeaters/{{$.Repeater.PublicID}}/orgs/{{.OrgSlug}}/participation" class="m-0">
-              <label class="form-check form-switch m-0">
-                <input class="form-check-input" type="checkbox" name="include" value="1" {{if not .Excluded}}checked{{end}}
-                       data-autosubmit aria-label="Share this repeater with {{.OrgName}}">
-              </label>
-            </form>
-          </div>
-        </div>
-      </div>
-      {{end}}
-    </div>
+    {{template "org-access-rows" .}}
     {{else}}
     <p class="text-secondary">Join an organization to share this repeater with it.</p>
     {{end}}
@@ -137,18 +110,14 @@
 </div>
 </div>
 
-<!-- Shared modals; the People "Create single-use link" and each org's "Edit
-     limits" button load their fragments here via htmx. -->
+<!-- Shared modals; the People "Create single-use link" button and each org's
+     "Manage access" button load their fragments here via htmx. -->
 <div class="modal modal-blur fade" id="invite-modal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
     <div class="modal-content" id="invite-modal-content"></div>
   </div>
 </div>
-<div class="modal modal-blur fade" id="limits-modal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
-    <div class="modal-content" id="limits-modal-content"></div>
-  </div>
-</div>
+{{template "limits-modal-shell" .}}
 
 <a class="back-link mt-3" href="/">{{template "icon-arrow-left" "me-1"}}Back to dashboard</a>
 {{end}}

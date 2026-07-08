@@ -32,28 +32,11 @@ func (s *Handlers) repeaterOrgContext(w http.ResponseWriter, r *http.Request) (*
 	return rep, orgID, true
 }
 
-// handleSetRepeaterOrg opts a repeater into or out of an org (owner only). A
-// repeater participates in every org its owner belongs to by default; this writes
-// or clears the opt-out. Driven by the share page's per-org "Shared" switch: a
-// checked switch submits include=1 (participate), unchecked submits nothing (opt
-// out).
-func (s *Handlers) handleSetRepeaterOrg(w http.ResponseWriter, r *http.Request) {
-	rep, orgID, ok := s.repeaterOrgContext(w, r)
-	if !ok {
-		return
-	}
-	exclude := r.FormValue("include") != "1"
-	if err := s.Store.SetRepeaterOrgExcluded(r.Context(), orgID, rep.ID, exclude); err != nil {
-		s.ServerError(w, r, "could not update participation", err)
-		return
-	}
-	http.Redirect(w, r, sharePath(rep.PublicID), http.StatusSeeOther)
-}
-
-// pageRepeaterOrgLimits renders the per-org command-limits modal fragment for one
-// repeater: which of the commands the org may run are allowed to run on this box.
-// No opt-in rows = permissive (every ceiling command checked). Editable regardless
-// of participation, so an owner can pre-set limits before opting an org back in.
+// pageRepeaterOrgLimits renders the per-org "manage access" modal fragment for one
+// repeater: the Shared (participation) switch plus which of the commands the org
+// may run are allowed to run on this box. No opt-in rows = permissive (every
+// ceiling command checked). Editable regardless of participation, so an owner can
+// pre-set limits before opting an org in.
 func (s *Handlers) pageRepeaterOrgLimits(w http.ResponseWriter, r *http.Request) {
 	rep, orgID, ok := s.repeaterOrgContext(w, r)
 	if !ok {
@@ -106,9 +89,10 @@ func (s *Handlers) pageRepeaterOrgLimits(w http.ResponseWriter, r *http.Request)
 	})
 }
 
-// handleSaveRepeaterOrgLimits saves the per-(repeater, org) command opt-in list. A
-// full selection (or the "Remove restriction" button) clears it back to permissive
-// so we don't persist a redundant full allowlist.
+// handleSaveRepeaterOrgLimits applies the "manage access" modal: it sets the org's
+// participation (the Shared switch) and the per-(repeater, org) command opt-in list
+// together. A full selection (or the "Remove restriction" button) clears the list
+// back to permissive so we don't persist a redundant full allowlist.
 func (s *Handlers) handleSaveRepeaterOrgLimits(w http.ResponseWriter, r *http.Request) {
 	rep, orgID, ok := s.repeaterOrgContext(w, r)
 	if !ok {
@@ -116,6 +100,12 @@ func (s *Handlers) handleSaveRepeaterOrgLimits(w http.ResponseWriter, r *http.Re
 	}
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	// Participation: the Shared switch submits include=1 when on, nothing when off.
+	exclude := r.FormValue("include") != "1"
+	if err := s.Store.SetRepeaterOrgExcluded(r.Context(), orgID, rep.ID, exclude); err != nil {
+		s.ServerError(w, r, "could not update participation", err)
 		return
 	}
 	var chosen []int64

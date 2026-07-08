@@ -26,7 +26,7 @@ import (
 	"github.com/jleight/meshtender/internal/store"
 )
 
-//go:embed templates/base.html templates/icons.html templates/org_tabs.html templates/repeater_tabs.html templates/command_grid.html templates/org_public.html templates/org_config.html templates/org_repeaters.html templates/error.html
+//go:embed templates/base.html templates/icons.html templates/org_tabs.html templates/repeater_tabs.html templates/command_grid.html templates/org_access.html templates/org_public.html templates/org_config.html templates/org_repeaters.html templates/error.html
 var sharedTemplatesFS embed.FS
 
 // sharedPages are full content pages (not just layout partials) that more than
@@ -229,7 +229,7 @@ func TimeElement(t time.Time, kind string) template.HTML {
 }
 
 func NewRenderer(cfg *config.Config, surfaceTemplates fs.FS) (*Renderer, error) {
-	base, err := template.New("").Funcs(templateFuncs).ParseFS(sharedTemplatesFS, "templates/base.html", "templates/icons.html", "templates/org_tabs.html", "templates/repeater_tabs.html", "templates/command_grid.html")
+	base, err := template.New("").Funcs(templateFuncs).ParseFS(sharedTemplatesFS, "templates/base.html", "templates/icons.html", "templates/org_tabs.html", "templates/repeater_tabs.html", "templates/command_grid.html", "templates/org_access.html")
 	if err != nil {
 		return nil, err
 	}

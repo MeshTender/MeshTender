@@ -193,39 +193,8 @@ func TestRepeaterSharePosts(t *testing.T) {
 	un.Body.Close()
 	assertRedirect(t, un, share, "unshare")
 
-	// #87 participation: the per-org "Shared" switch. Unchecked submits no
-	// "include" field (opt out); checked submits include=1 (participate).
-	org, err := st.CreateOrg(ctx, "Participation Org", owner.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	excluded := func() bool {
-		orgs, err := st.ListRepeaterOrgMemberships(ctx, rep.ID)
-		if err != nil {
-			t.Fatalf("list memberships: %v", err)
-		}
-		for _, o := range orgs {
-			if o.OrgID == org.ID {
-				return o.Excluded
-			}
-		}
-		t.Fatalf("org %d not in memberships", org.ID)
-		return false
-	}
-	// The {orgID} route param is the org slug, not the numeric id.
-	partURL := "/repeaters/" + pid + "/orgs/" + org.Slug + "/participation"
-	out := post(t, ts, h.app, partURL, url.Values{}, sess) // switch off → opt out
-	out.Body.Close()
-	assertRedirect(t, out, share, "org opt out")
-	if !excluded() {
-		t.Fatal("switch off did not opt the repeater out")
-	}
-	in := post(t, ts, h.app, partURL, url.Values{"include": {"1"}}, sess) // switch on
-	in.Body.Close()
-	assertRedirect(t, in, share, "org opt in")
-	if excluded() {
-		t.Fatal("switch on did not re-include the repeater")
-	}
+	// Org participation is exercised via the "manage access" limits save in
+	// TestRepeaterOrgLimitsPosts (there is no standalone participation endpoint).
 }
 
 // TestRepeaterOrgLimitsPosts covers the per-(repeater, org) command-limits modal:
@@ -258,10 +227,10 @@ func TestRepeaterOrgLimitsPosts(t *testing.T) {
 		t.Fatalf("need >=2 ceiling commands, got %d", len(ceiling))
 	}
 
-	// GET renders the modal fragment (no page chrome), with the org name and cmd boxes.
+	// GET renders the modal fragment (no page chrome): the Shared switch + cmd boxes.
 	frag := readBody(t, do(t, ts, h.app, base, sess))
-	if !strings.Contains(frag, "Command limits") || !strings.Contains(frag, `name="cmd"`) {
-		t.Fatalf("limits fragment missing expected content:\n%s", frag)
+	if !strings.Contains(frag, "Manage access") || !strings.Contains(frag, `name="cmd"`) || !strings.Contains(frag, `name="include"`) {
+		t.Fatalf("manage-access fragment missing expected content:\n%s", frag)
 	}
 	if strings.Contains(frag, "back-link") {
 		t.Fatal("limits fragment should be modal chrome, not a full page")
@@ -290,17 +259,27 @@ func TestRepeaterOrgLimitsPosts(t *testing.T) {
 		}
 		return ids
 	}
+	excluded := func() bool {
+		ex, err := st.IsRepeaterOrgExcluded(ctx, org.ID, rep.ID)
+		if err != nil {
+			t.Fatalf("excluded: %v", err)
+		}
+		return ex
+	}
 
-	// Restrict to exactly the first ceiling command.
-	save := post(t, ts, h.app, base, url.Values{"cmd": {strconv.FormatInt(ceiling[0], 10)}}, sess)
+	// Save restricts to exactly the first ceiling command, with the Shared switch on.
+	save := post(t, ts, h.app, base, url.Values{"include": {"1"}, "cmd": {strconv.FormatInt(ceiling[0], 10)}}, sess)
 	save.Body.Close()
 	assertRedirect(t, save, "/repeaters/"+rep.PublicID+"/share", "save limits")
 	if got := optIn(); len(got) != 1 || got[0] != ceiling[0] {
 		t.Fatalf("opt-in = %v, want [%d]", got, ceiling[0])
 	}
+	if excluded() {
+		t.Fatal("saving with the Shared switch on opted the repeater out")
+	}
 
 	// Selecting the full ceiling collapses back to permissive (no rows stored).
-	full := url.Values{}
+	full := url.Values{"include": {"1"}}
 	for _, id := range ceiling {
 		full.Add("cmd", strconv.FormatInt(id, 10))
 	}
@@ -311,13 +290,53 @@ func TestRepeaterOrgLimitsPosts(t *testing.T) {
 		t.Fatalf("full selection should store nothing (permissive), got %v", got)
 	}
 
-	// Restrict again, then "Remove restriction" clears it.
-	post(t, ts, h.app, base, url.Values{"cmd": {strconv.FormatInt(ceiling[0], 10)}}, sess).Body.Close()
-	clr := post(t, ts, h.app, base, url.Values{"clear": {"1"}}, sess)
+	// Restrict again, then "Remove restriction" clears it (switch still on).
+	post(t, ts, h.app, base, url.Values{"include": {"1"}, "cmd": {strconv.FormatInt(ceiling[0], 10)}}, sess).Body.Close()
+	clr := post(t, ts, h.app, base, url.Values{"include": {"1"}, "clear": {"1"}}, sess)
 	clr.Body.Close()
 	assertRedirect(t, clr, "/repeaters/"+rep.PublicID+"/share", "clear limits")
 	if got := optIn(); len(got) != 0 {
 		t.Fatalf("clear should remove all rows, got %v", got)
+	}
+
+	// The Shared switch drives participation: saving with it off opts out; on opts in.
+	off := post(t, ts, h.app, base, url.Values{}, sess) // switch off (no include field)
+	off.Body.Close()
+	assertRedirect(t, off, "/repeaters/"+rep.PublicID+"/share", "save opted out")
+	if !excluded() {
+		t.Fatal("saving with the Shared switch off did not opt the repeater out")
+	}
+	on := post(t, ts, h.app, base, url.Values{"include": {"1"}}, sess)
+	on.Body.Close()
+	assertRedirect(t, on, "/repeaters/"+rep.PublicID+"/share", "save opted in")
+	if excluded() {
+		t.Fatal("saving with the Shared switch on did not re-include the repeater")
+	}
+}
+
+// TestRepeaterAddedPageOrgAccess: the add-repeater wizard's final step lists the
+// owner's orgs with the shared "Manage access" control (same as the share page),
+// not the removed one-click /participation opt-out.
+func TestRepeaterAddedPageOrgAccess(t *testing.T) {
+	t.Parallel()
+	st, ctx, ts, h := splitServer(t)
+	owner, sess := appLogin(t, ts, st, ctx, h.app, "addedowner")
+	org, err := st.CreateOrg(ctx, "Added Org", owner.ID) // owner is a member
+	if err != nil {
+		t.Fatal(err)
+	}
+	rep := newOwnedRepeater(t, st, ctx, owner.ID, "Added Rep")
+
+	body := readBody(t, do(t, ts, h.app, "/repeaters/"+rep.PublicID+"/added", sess))
+	if !strings.Contains(body, org.Name) {
+		t.Fatalf("added page missing the owner's org %q:\n%s", org.Name, body)
+	}
+	if !strings.Contains(body, `data-testid="manage-access"`) || !strings.Contains(body, `id="limits-modal"`) {
+		t.Fatal("added page missing the Manage access control / modal")
+	}
+	// The old dead route must be gone.
+	if strings.Contains(body, "/participation") {
+		t.Fatal("added page still references the removed /participation endpoint")
 	}
 }
 
