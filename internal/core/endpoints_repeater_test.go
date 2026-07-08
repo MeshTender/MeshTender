@@ -232,6 +232,11 @@ func TestRepeaterOrgLimitsPosts(t *testing.T) {
 	if !strings.Contains(frag, "Manage access") || !strings.Contains(frag, `name="cmd"`) || !strings.Contains(frag, `name="include"`) {
 		t.Fatalf("manage-access fragment missing expected content:\n%s", frag)
 	}
+	// Footer buttons live outside the form (referencing it via form=) so the modal
+	// body can scroll with header/footer pinned; guard that structure.
+	if !strings.Contains(frag, `form="org-access-form"`) {
+		t.Fatal("manage-access footer button should reference the form via form= (scrollable body)")
+	}
 	if strings.Contains(frag, "back-link") {
 		t.Fatal("limits fragment should be modal chrome, not a full page")
 	}
@@ -388,6 +393,10 @@ func TestCreateInviteWithCommands(t *testing.T) {
 	frag := readBody(t, do(t, ts, h.app, "/repeaters/"+rep.PublicID+"/share/link/new", sess))
 	if !strings.Contains(frag, `name="description"`) || !strings.Contains(frag, `name="cmd"`) {
 		t.Fatalf("new-invite fragment missing expected fields:\n%s", frag)
+	}
+	// Footer button references the form via form= so the modal body scrolls.
+	if !strings.Contains(frag, `form="new-invite-form"`) {
+		t.Fatal("new-invite footer button should reference the form via form= (scrollable body)")
 	}
 	if strings.Contains(frag, "back-link") {
 		t.Fatal("new-invite fragment should be modal chrome, not a full page")

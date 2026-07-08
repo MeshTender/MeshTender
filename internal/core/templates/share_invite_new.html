@@ -6,8 +6,8 @@
   <h5 class="modal-title">Create single-use link</h5>
   <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
 </div>
-<form method="post" action="/repeaters/{{.Repeater.PublicID}}/share/link">
-  <div class="modal-body">
+<div class="modal-body">
+  <form method="post" action="/repeaters/{{.Repeater.PublicID}}/share/link" id="new-invite-form">
     <div class="mb-3">
       <label class="form-label" for="share_description">Description <span class="text-secondary">(optional)</span></label>
       <input type="text" class="form-control" id="share_description" name="description" placeholder="e.g. for Bob's modem" maxlength="100">
@@ -17,10 +17,10 @@
       afterwards. Risky commands can take over or brick the node; grant them only with care.
     </p>
     {{template "command-grid" .}}
-  </div>
-  <div class="modal-footer">
-    <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">Cancel</button>
-    <button type="submit" class="btn btn-primary">Create link</button>
-  </div>
-</form>
+  </form>
+</div>
+<div class="modal-footer">
+  <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">Cancel</button>
+  <button type="submit" form="new-invite-form" class="btn btn-primary">Create link</button>
+</div>
 {{end}}
