@@ -60,7 +60,7 @@ type CommandSession struct {
 	SenderName string // who held the session
 	StartedAt  time.Time
 	EndedAt    *time.Time
-	Entries    []*CommandLogEntry // chronological (oldest first)
+	Entries    []*CommandLogEntry // newest first, matching the newest-first session order
 }
 
 // CommandLogPageSize is the number of console sessions shown per log page.
@@ -77,7 +77,7 @@ type CommandLogCursor struct {
 // ListCommandLogSessionsPage returns one keyset page of a repeater's command log
 // grouped into console sessions, newest session first. before is the cursor from
 // the previous page, or nil for the first page. It returns the sessions (each
-// with its entries chronological) and whether older sessions remain.
+// with its entries newest first) and whether older sessions remain.
 //
 // Sessions are the pagination unit (the page renders one card per session), so
 // a session is never split across pages — and the per-page work is bounded by
@@ -129,13 +129,14 @@ func (s *Store) ListCommandLogSessionsPage(ctx context.Context, repeaterID int64
 		byID[g.ID] = g
 		ids = append(ids, g.ID)
 	}
-	// Load all entries for the page's sessions at once, oldest first so each
-	// session's slice ends up chronological.
+	// Load all entries for the page's sessions at once, newest first so each
+	// session's slice matches the newest-first session order (consistent direction
+	// throughout the log).
 	rows, err := s.pool.Query(ctx, `
 		SELECT l.id, l.session_id, l.command_text, l.sent_at, l.ack_received, l.response_text
 		FROM command_log l
 		WHERE l.session_id = ANY($1)
-		ORDER BY l.sent_at ASC, l.id ASC`, ids)
+		ORDER BY l.sent_at DESC, l.id DESC`, ids)
 	if err != nil {
 		return nil, false, fmt.Errorf("list command entries: %w", err)
 	}

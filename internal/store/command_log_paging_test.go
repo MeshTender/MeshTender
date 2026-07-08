@@ -67,6 +67,14 @@ func TestListCommandLogSessionsPage(t *testing.T) {
 			if len(g.Entries) == 0 {
 				t.Fatalf("session %d has no entries (should have been filtered)", g.ID)
 			}
+			// Entries are newest first, matching the session order — so the direction
+			// is consistent throughout the log. (Ids increase with send time.)
+			for k := 1; k < len(g.Entries); k++ {
+				if g.Entries[k-1].ID <= g.Entries[k].ID {
+					t.Fatalf("session %d entries not newest-first: id %d then %d",
+						g.ID, g.Entries[k-1].ID, g.Entries[k].ID)
+				}
+			}
 			// Strictly descending by (started_at, id).
 			if prev != nil {
 				if g.StartedAt.After(prev.StartedAt) ||
