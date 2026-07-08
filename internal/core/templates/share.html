@@ -16,17 +16,21 @@
 <div class="row row-cards mt-1">
 <div class="col-lg-7">
 <div class="card">
-  <div class="card-body">
+  <div class="card-header">
     <h3 class="card-title">Share links</h3>
-    <p class="text-secondary">
+    <div class="card-actions">
+      <button type="button" class="btn btn-primary" data-testid="new-invite"
+              data-bs-toggle="modal" data-bs-target="#invite-modal"
+              hx-get="/repeaters/{{.Repeater.PublicID}}/share/link/new"
+              hx-target="#invite-modal-content" hx-swap="innerHTML">{{template "icon-plus" "me-1"}}Create link</button>
+    </div>
+  </div>
+  <div class="card-body">
+    <p class="text-secondary mb-0">
       Invite specific people with single-use links: the recipient signs in and accepts to control this
-      repeater from their own browser-connected KISS modem. Each link works once — mint one per person,
-      label it, and choose what they can do.
+      repeater from their own browser-connected KISS modem. Each link works once and disappears when it's
+      used — mint one per person, label it, and choose what they can do.
     </p>
-    <button type="button" class="btn btn-primary" data-testid="new-invite"
-            data-bs-toggle="modal" data-bs-target="#invite-modal"
-            hx-get="/repeaters/{{.Repeater.PublicID}}/share/link/new"
-            hx-target="#invite-modal-content" hx-swap="innerHTML">Create single-use link</button>
 
     {{if .Invites}}
     <div class="list-group list-group-flush mt-3">
@@ -34,23 +38,21 @@
       <div class="list-group-item px-0">
         <div class="d-flex align-items-center gap-2 mb-1">
           <span class="fw-bold">{{if .Description}}{{.Description}}{{else}}(no label){{end}}</span>
-          {{if .UsedAt}}<span class="badge bg-success-lt">Used by {{.UsedByName}}</span>{{else}}<span class="badge bg-yellow-lt">Unused</span>{{end}}
+          <span class="badge bg-yellow-lt">Unused</span>
         </div>
-        {{if not .UsedAt}}
         <div class="input-group mb-2">
           <code class="form-control font-monospace" id="link-{{.ID}}">{{$.BaseURL}}/invite/{{.Token}}</code>
           <button type="button" class="btn" data-copy-target="#link-{{.ID}}">{{template "icon-copy" ""}}Copy</button>
         </div>
-        {{end}}
         <form method="post" action="/repeaters/{{$.Repeater.PublicID}}/share/link/delete" class="m-0">
           <input type="hidden" name="invite_id" value="{{.ID}}">
-          <button type="submit" class="btn btn-sm btn-ghost-danger">{{if .UsedAt}}Remove from list{{else}}Revoke link{{end}}</button>
+          <button type="submit" class="btn btn-sm btn-ghost-danger">Revoke link</button>
         </form>
       </div>
       {{end}}
     </div>
     {{else}}
-    <p class="text-secondary mt-2">No links yet.</p>
+    <p class="text-secondary mt-3 mb-0">No pending links.</p>
     {{end}}
   </div>
 </div>

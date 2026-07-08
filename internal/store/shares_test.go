@@ -61,15 +61,10 @@ func TestAcceptInvite(t *testing.T) {
 	if len(cmds) != 1 || cmds[0] != grant {
 		t.Fatalf("seeded commands = %v, want exactly [%d] (the chosen grant)", cmds, grant)
 	}
+	// The redeemed link is deleted, not retained — nothing left to show.
 	invites, err := st.ListInvites(ctx, rep.ID)
-	if err != nil || len(invites) != 1 {
-		t.Fatalf("ListInvites = %d invites, %v; want 1", len(invites), err)
-	}
-	if invites[0].UsedAt == nil {
-		t.Fatalf("invite not marked consumed after accept")
-	}
-	if invites[0].UsedByName == nil || *invites[0].UsedByName != "invitee" {
-		t.Fatalf("invite UsedByName = %v, want invitee", invites[0].UsedByName)
+	if err != nil || len(invites) != 0 {
+		t.Fatalf("ListInvites = %d invites, %v; want 0 (redeemed link deleted)", len(invites), err)
 	}
 
 	// Single-use: a second accept (by anyone) must fail and grant nothing.
@@ -86,10 +81,10 @@ func TestAcceptInvite(t *testing.T) {
 }
 
 // TestAcceptInviteRollsBack is the atomicity regression: if any step of the
-// redemption fails, the whole thing must roll back — the link stays unspent so it
+// redemption fails, the whole thing must roll back — the link stays undeleted so it
 // can still be redeemed, rather than being consumed with no access granted (the
 // reported bug). We trigger a failure by redeeming for a non-existent user, which
-// violates the used_by/user_id foreign keys inside the transaction.
+// violates the repeater_shares.user_id foreign key inside the transaction.
 func TestAcceptInviteRollsBack(t *testing.T) {
 	t.Parallel()
 	st, ctx := orgTestStore(t)
@@ -115,13 +110,10 @@ func TestAcceptInviteRollsBack(t *testing.T) {
 		t.Fatalf("AcceptInvite for non-existent user succeeded, want error")
 	}
 
-	// The link must NOT have been consumed by the failed attempt.
+	// The link must NOT have been deleted by the failed attempt — still redeemable.
 	invites, err := st.ListInvites(ctx, rep.ID)
 	if err != nil || len(invites) != 1 {
-		t.Fatalf("ListInvites = %d, %v; want 1", len(invites), err)
-	}
-	if invites[0].UsedAt != nil {
-		t.Fatalf("link was consumed despite the accept failing (non-atomic)")
+		t.Fatalf("ListInvites = %d, %v; want 1 (link survives a failed accept)", len(invites), err)
 	}
 
 	// And a real user can still redeem it afterwards.

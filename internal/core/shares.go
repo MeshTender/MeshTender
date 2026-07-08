@@ -197,9 +197,9 @@ func (s *Handlers) handleAcceptInvite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Consume the link, grant the share, and seed default commands atomically, so a
-	// failure can never spend the link without granting access. The used_at guard
-	// inside makes it the single-use gate against concurrent accepts.
+	// Grant the share, seed its commands, and delete the link atomically, so a
+	// failure can never delete the link without granting access. A row lock inside
+	// makes it the single-use gate against concurrent accepts.
 	if _, err := s.Store.AcceptInvite(r.Context(), token, uid); errors.Is(err, store.ErrNotFound) {
 		s.Render(w, r, "invite.html", map[string]any{"State": "invalid"})
 		return

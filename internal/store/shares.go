@@ -170,15 +170,13 @@ func (s *Store) ListStewards(ctx context.Context, repeaterID int64) ([]ShareInfo
 
 // --- share links (single-use invites) ---
 
-// Invite is a single-use share link. Used invites retain who consumed them and
-// when, as an audit trail.
+// Invite is a pending single-use share link. Redeemed links are deleted (see
+// AcceptInvite), so every Invite is unused.
 type Invite struct {
 	ID          int64
 	Token       string
 	Description string
 	CreatedAt   time.Time
-	UsedAt      *time.Time
-	UsedByName  *string // display name or username of the consumer, if used
 }
 
 // CreateInvite mints a new single-use share link for a repeater, returning its
@@ -213,21 +211,19 @@ func (s *Store) CreateInvite(ctx context.Context, repeaterID int64, description 
 	return token, nil
 }
 
-// ListInvites returns all invites for a repeater (pending and used), newest first.
+// ListInvites returns a repeater's pending (unredeemed) share links, newest first.
 func (s *Store) ListInvites(ctx context.Context, repeaterID int64) ([]Invite, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT i.id, i.token, i.description, i.created_at, i.used_at,
-		       COALESCE(NULLIF(u.display_name, ''), u.username)
-		FROM repeater_invites i
-		LEFT JOIN users u ON u.id = i.used_by
-		WHERE i.repeater_id = $1
-		ORDER BY i.created_at DESC`, repeaterID)
+		SELECT id, token, description, created_at
+		FROM repeater_invites
+		WHERE repeater_id = $1
+		ORDER BY created_at DESC`, repeaterID)
 	if err != nil {
 		return nil, fmt.Errorf("list invites: %w", err)
 	}
 	return collectRows(rows, func(r pgx.Row) (Invite, error) {
 		var inv Invite
-		err := r.Scan(&inv.ID, &inv.Token, &inv.Description, &inv.CreatedAt, &inv.UsedAt, &inv.UsedByName)
+		err := r.Scan(&inv.ID, &inv.Token, &inv.Description, &inv.CreatedAt)
 		return inv, err
 	})
 }
@@ -243,12 +239,12 @@ func (s *Store) DeleteInvite(ctx context.Context, repeaterID, inviteID int64) er
 	return nil
 }
 
-// RepeaterByInviteToken resolves a *valid* (unused) share-link token to its
-// repeater, or ErrNotFound if the token is unknown, revoked, or already used.
-// queryUserID is used only to populate the Shared flag and owner display.
+// RepeaterByInviteToken resolves a valid share-link token to its repeater, or
+// ErrNotFound if the token is unknown, revoked, or already redeemed (redemption
+// deletes the link). queryUserID only populates the Shared flag and owner display.
 func (s *Store) RepeaterByInviteToken(ctx context.Context, queryUserID int64, token string) (*Repeater, error) {
 	row := s.pool.QueryRow(ctx, repeaterSelect+`
-		WHERE r.id = (SELECT repeater_id FROM repeater_invites WHERE token = $2 AND used_at IS NULL)`,
+		WHERE r.id = (SELECT repeater_id FROM repeater_invites WHERE token = $2)`,
 		queryUserID, token)
 	r, err := scanRepeater(row)
 	if err != nil {
@@ -257,25 +253,23 @@ func (s *Store) RepeaterByInviteToken(ctx context.Context, queryUserID int64, to
 	return r, nil
 }
 
-// AcceptInvite redeems a single-use share link for userID, doing all three steps
-// in one transaction so they are all-or-nothing: it consumes the link, grants the
-// share, and seeds the command set the owner chose for this link (invite_commands).
-// If any step fails the whole thing rolls back, so a failure can never spend the
-// link without granting access (or grant access without spending the link).
+// AcceptInvite redeems a single-use share link for userID in one transaction so
+// the steps are all-or-nothing: it grants the share, seeds the command set the
+// owner chose for this link (invite_commands), and deletes the link — a redeemed
+// link doesn't stick around. If any step fails the whole thing rolls back, so a
+// failure can never delete the link without granting access (or grant access
+// without deleting the link, leaving it redeemable again).
 //
 // It returns whether a new share was created (false if the user already had one)
-// and ErrNotFound if the token is unknown, revoked, or already used — the
-// single-use guard, safe against concurrent accepts.
+// and ErrNotFound if the token is unknown, revoked, or already redeemed. The row
+// lock is the single-use gate: concurrent accepts serialize on it, and the winner
+// deletes the row, so losers find nothing.
 func (s *Store) AcceptInvite(ctx context.Context, token string, userID int64) (added bool, err error) {
 	err = s.inTx(ctx, func(tx pgx.Tx) error {
 		var inviteID, repeaterID int64
-		// Consume the link. The used_at IS NULL guard makes this the single-use
-		// gate: only one accept can flip it, so a concurrent (or repeat) accept
-		// matches no row and falls through to ErrNotFound.
 		if err := tx.QueryRow(ctx,
-			`UPDATE repeater_invites SET used_at = now(), used_by = $2
-			 WHERE token = $1 AND used_at IS NULL
-			 RETURNING id, repeater_id`, token, userID).Scan(&inviteID, &repeaterID); err != nil {
+			`SELECT id, repeater_id FROM repeater_invites WHERE token = $1 FOR UPDATE`,
+			token).Scan(&inviteID, &repeaterID); err != nil {
 			return notFoundOr(err, "consume invite")
 		}
 		tag, err := tx.Exec(ctx,
@@ -285,16 +279,19 @@ func (s *Store) AcceptInvite(ctx context.Context, token string, userID int64) (a
 			return fmt.Errorf("add share: %w", err)
 		}
 		added = tag.RowsAffected() > 0
-		if !added {
-			return nil // already shared: nothing to seed
+		if added {
+			// Seed the new share with the command set the owner chose for this link,
+			// before the delete below cascades invite_commands away.
+			if _, err := tx.Exec(ctx, `
+				INSERT INTO share_commands (repeater_id, user_id, command_id)
+				SELECT $1, $2, command_id FROM invite_commands WHERE invite_id = $3
+				ON CONFLICT DO NOTHING`, repeaterID, userID, inviteID); err != nil {
+				return fmt.Errorf("seed share commands: %w", err)
+			}
 		}
-		// Seed the new share with exactly the command set the owner chose for this
-		// link; the owner can adjust it afterwards.
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO share_commands (repeater_id, user_id, command_id)
-			SELECT $1, $2, command_id FROM invite_commands WHERE invite_id = $3
-			ON CONFLICT DO NOTHING`, repeaterID, userID, inviteID); err != nil {
-			return fmt.Errorf("seed share commands: %w", err)
+		// Consume the single-use link by deleting it (cascades its invite_commands).
+		if _, err := tx.Exec(ctx, `DELETE FROM repeater_invites WHERE id = $1`, inviteID); err != nil {
+			return fmt.Errorf("consume invite: %w", err)
 		}
 		return nil
 	})
