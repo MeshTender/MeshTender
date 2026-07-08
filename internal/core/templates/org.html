@@ -54,9 +54,17 @@
 <div class="row row-cards mt-1">
   <!-- Left column: details -->
   <div class="col-lg-8">
-    {{if not .IsAdmin}}
     <div class="card">
-      <div class="card-header"><h3 class="card-title">About</h3></div>
+      <div class="card-header">
+        <h3 class="card-title">About</h3>
+        {{if .IsAdmin}}
+        <div class="card-actions">
+          <button type="button" class="btn btn-sm" data-testid="edit-profile"
+                  data-bs-toggle="modal" data-bs-target="#org-profile-modal"
+                  hx-get="/orgs/{{.Org.Slug}}/edit" hx-target="#org-profile-modal-content" hx-swap="innerHTML">{{template "icon-pencil" "me-1"}}Edit</button>
+        </div>
+        {{end}}
+      </div>
       <div class="card-body">
         {{if .Org.Description}}
         <div class="markdown">{{markdown .Org.Description}}</div>
@@ -65,9 +73,20 @@
         {{end}}
       </div>
     </div>
-    {{if .Links}}
+
+    {{if or .Links .IsAdmin}}
     <div class="card mt-3">
-      <div class="card-header"><h3 class="card-title">Links</h3></div>
+      <div class="card-header">
+        <h3 class="card-title">Links</h3>
+        {{if .IsAdmin}}
+        <div class="card-actions">
+          <button type="button" class="btn btn-sm" data-testid="edit-links"
+                  data-bs-toggle="modal" data-bs-target="#org-links-modal"
+                  hx-get="/orgs/{{.Org.Slug}}/links" hx-target="#org-links-modal-content" hx-swap="innerHTML">{{template "icon-pencil" "me-1"}}Edit</button>
+        </div>
+        {{end}}
+      </div>
+      {{if .Links}}
       <div class="list-group list-group-flush">
         {{range .Links}}
         {{if .Href}}
@@ -84,96 +103,13 @@
         {{end}}
         {{end}}
       </div>
+      {{else}}
+      <div class="card-body"><p class="text-secondary mb-0">No links yet.</p></div>
+      {{end}}
     </div>
-    {{end}}
     {{end}}
 
     {{if .IsAdmin}}
-    <div class="card">
-      <div class="card-header"><h3 class="card-title">Organization profile <span class="text-secondary">(public)</span></h3></div>
-      <div class="card-body">
-        <form method="post" action="/orgs/{{.Org.Slug}}/edit">
-          <div class="mb-3">
-            <label class="form-label" for="org_name">Name</label>
-            <input type="text" class="form-control" id="org_name" name="name" value="{{.Org.Name}}" maxlength="80" required>
-          </div>
-          <div class="mb-3">
-            <label class="form-label" for="org_slug">URL slug</label>
-            <div class="input-group">
-              <span class="input-group-text">/orgs/</span>
-              <input type="text" class="form-control font-monospace" id="org_slug" name="slug" value="{{.Org.Slug}}"
-                     pattern="[a-z0-9]+(-[a-z0-9]+)*" minlength="3" maxlength="40" required>
-            </div>
-            <small class="form-hint">Lowercase letters, numbers, and hyphens. Changing this changes the organization's URL.</small>
-          </div>
-          <div class="mb-3">
-            <label class="form-label" for="org_region">Region <span class="text-secondary">(optional)</span></label>
-            <input type="text" class="form-control" id="org_region" name="region" value="{{.Org.Region}}" maxlength="120" placeholder="e.g. Buffalo, NY">
-          </div>
-          <div class="mb-3">
-            <label class="form-label" for="org_description">Description</label>
-            <textarea class="form-control" id="org_description" name="description" rows="3" maxlength="2000" placeholder="What this organization is about, where it operates, etc.">{{.Org.Description}}</textarea>
-            <small class="form-hint">Markdown supported — headings, lists, links, and emphasis.</small>
-          </div>
-          <button type="submit" class="btn btn-primary">Save profile</button>
-        </form>
-      </div>
-    </div>
-
-    <div class="card mt-3">
-      <div class="card-header"><h3 class="card-title">Links <span class="text-secondary">(public)</span></h3></div>
-      <div class="card-body">
-        <p class="text-secondary">Social media and other sites for your organization. These appear on your public page.</p>
-        <form method="post" action="/orgs/{{.Org.Slug}}/links" data-link-editor>
-          <div data-link-rows>
-            {{range .Links}}
-            <div class="link-row row g-2 mb-2 align-items-center">
-              <div class="col-12 col-sm-3">
-                <select class="form-select link-platform" name="link_platform" aria-label="Link type">
-                  {{$sel := .Platform}}
-                  {{range $.Platforms}}<option value="{{.Key}}"{{if eq .Key $sel}} selected{{end}}>{{.Name}}</option>{{end}}
-                </select>
-              </div>
-              <div class="col-12 col-sm-3 link-label-col">
-                <input class="form-control link-label" name="link_label" value="{{.Label}}" maxlength="60" placeholder="Label (optional)" aria-label="Link label">
-              </div>
-              <div class="col">
-                <input class="form-control link-value" type="text" name="link_url" value="{{.URL}}" maxlength="300" aria-label="Link value">
-              </div>
-              <div class="col-auto">
-                <button type="button" class="btn btn-ghost-danger btn-icon remove-link" aria-label="Remove link">{{template "icon-trash" ""}}</button>
-              </div>
-            </div>
-            {{end}}
-          </div>
-          <div class="btn-list mt-2">
-            <button type="button" class="btn" data-link-add>{{template "icon-plus" "me-1"}}Add link</button>
-            <button type="submit" class="btn btn-primary">Save links</button>
-          </div>
-          <template data-link-tpl>
-            <div class="link-row row g-2 mb-2 align-items-center">
-              <div class="col-12 col-sm-3">
-                <select class="form-select link-platform" name="link_platform" aria-label="Link type">
-                  {{range .Platforms}}<option value="{{.Key}}">{{.Name}}</option>{{end}}
-                </select>
-              </div>
-              <div class="col-12 col-sm-3 link-label-col">
-                <input class="form-control link-label" name="link_label" maxlength="60" placeholder="Label (optional)" aria-label="Link label">
-              </div>
-              <div class="col">
-                <input class="form-control link-value" type="text" name="link_url" maxlength="300" aria-label="Link value">
-              </div>
-              <div class="col-auto">
-                <button type="button" class="btn btn-ghost-danger btn-icon remove-link" aria-label="Remove link">{{template "icon-trash" ""}}</button>
-              </div>
-            </div>
-          </template>
-        </form>
-        <script nonce="{{.Nonce}}">window.MESHTENDER_LINK_PLATFORMS = {{.PlatformsJS}};</script>
-        <script src="/static/link-editor.js"></script>
-      </div>
-    </div>
-
     {{/* Custom domains — hidden for now; the hosting/TLS infrastructure isn't in
          place yet. Re-enable this card (plus the domains data in pageOrg and the
          /domains routes in web.go) once it is.
@@ -249,6 +185,24 @@
     {{end}}
   </div>
 </div>
+
+{{if .IsAdmin}}
+<!-- Admin edit modals; the About/Links card-header buttons load their fragments here via htmx. -->
+<div class="modal modal-blur fade" id="org-profile-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content" id="org-profile-modal-content"></div>
+  </div>
+</div>
+<div class="modal modal-blur fade" id="org-links-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content" id="org-links-modal-content"></div>
+  </div>
+</div>
+<!-- Per-platform link config for the links editor loaded into the modal above;
+     link-editor.js re-initializes on htmx:afterSwap. -->
+<script nonce="{{.Nonce}}">window.MESHTENDER_LINK_PLATFORMS = {{.PlatformsJS}};</script>
+<script src="/static/link-editor.js"></script>
+{{end}}
 
 <a class="back-link mt-3" href="/orgs">{{template "icon-arrow-left" "me-1"}}All organizations</a>
 {{end}}

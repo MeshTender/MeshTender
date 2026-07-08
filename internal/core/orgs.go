@@ -128,7 +128,6 @@ func (s *Handlers) pageOrg(w http.ResponseWriter, r *http.Request) {
 		"Members":       members,
 		"Repeaters":     repeaters,
 		"Links":         links,
-		"Platforms":     store.LinkPlatforms(),
 		"PlatformsJS":   web.LinkPlatformsJS(store.LinkPlatforms()),
 		"HasMap":        mapped > 0,
 		"MemberCount":   len(members),
@@ -265,6 +264,67 @@ func (s *Handlers) pageOrgRepeaters(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleEditOrg updates an org's slug, name, description, and region (admin only).
+// pageEditOrg renders the org profile edit modal fragment (admin only), loaded via
+// htmx into the org Home page.
+func (s *Handlers) pageEditOrg(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.requireOrgAdmin(w, r)
+	if !ok {
+		return
+	}
+	org, err := s.Store.GetOrg(r.Context(), id)
+	if err != nil {
+		s.NotFound(w, r)
+		return
+	}
+	s.renderProfileModal(w, r, org.Slug, org.Name, org.Slug, org.Region, org.Description, "")
+}
+
+// pageEditLinks renders the org links edit modal fragment (admin only), loaded via
+// htmx into the org Home page.
+func (s *Handlers) pageEditLinks(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.requireOrgAdmin(w, r)
+	if !ok {
+		return
+	}
+	links, err := s.Store.ListOrgLinks(r.Context(), id)
+	if err != nil {
+		s.ServerError(w, r, "could not load links", err)
+		return
+	}
+	s.renderLinksModal(w, r, orgParam(r), links, "")
+}
+
+// renderProfileModal renders the profile edit modal fragment with the given field
+// values and optional error — reused by the GET (prefilled from the org) and the
+// POST error re-render (repopulated from the submission, so no work is lost).
+func (s *Handlers) renderProfileModal(w http.ResponseWriter, r *http.Request, orgSlug, name, slug, region, desc, errMsg string) {
+	s.Render(w, r, "org_edit_profile.html", map[string]any{
+		"OrgSlug": orgSlug, "Name": name, "Slug": slug, "Region": region,
+		"Description": desc, "Error": errMsg, "Layout": "org-profile-modal",
+	})
+}
+
+// renderLinksModal renders the links edit modal fragment with the given rows and
+// optional error — reused by the GET and the POST error re-render.
+func (s *Handlers) renderLinksModal(w http.ResponseWriter, r *http.Request, orgSlug string, links []store.OrgLink, errMsg string) {
+	s.Render(w, r, "org_edit_links.html", map[string]any{
+		"OrgSlug": orgSlug, "Links": links, "Platforms": store.LinkPlatforms(),
+		"Error": errMsg, "Layout": "org-links-modal",
+	})
+}
+
+// hxRedirect navigates the browser to url: for an htmx request (a modal form) via
+// the HX-Redirect header so it does a full navigation that closes the modal;
+// otherwise a plain 303 (no-JS / non-htmx fallback).
+func (s *Handlers) hxRedirect(w http.ResponseWriter, r *http.Request, url string) {
+	if r.Header.Get("HX-Request") != "" {
+		w.Header().Set("HX-Redirect", url)
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	http.Redirect(w, r, url, http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
+}
+
 func (s *Handlers) handleEditOrg(w http.ResponseWriter, r *http.Request) {
 	id, ok := s.requireOrgAdmin(w, r)
 	if !ok {
@@ -274,25 +334,34 @@ func (s *Handlers) handleEditOrg(w http.ResponseWriter, r *http.Request) {
 	slug := strings.ToLower(strings.TrimSpace(r.FormValue("slug")))
 	desc := strings.TrimSpace(r.FormValue("description"))
 	region := strings.TrimSpace(r.FormValue("region"))
+	// fail keeps the modal open with the entered values on an htmx submit; a non-htmx
+	// (no-JS) submit falls back to the full-page error redirect.
+	fail := func(msg string) {
+		if r.Header.Get("HX-Request") != "" {
+			s.renderProfileModal(w, r, orgParam(r), name, slug, region, desc, msg)
+			return
+		}
+		orgErr(w, r, msg)
+	}
 	if name == "" || len(name) > 80 {
-		orgErr(w, r, "Enter an organization name.")
+		fail("Enter an organization name.")
 		return
 	}
 	if !store.ValidOrgSlug(slug) {
-		orgErr(w, r, "Slug must be 3–40 lowercase letters, numbers, and hyphens (and not reserved).")
+		fail("Slug must be 3–40 lowercase letters, numbers, and hyphens (and not reserved).")
 		return
 	}
 	desc = web.Clip(desc, 2000)
 	region = web.Clip(region, 120)
 	if err := s.Store.UpdateOrg(r.Context(), id, slug, name, desc, region); errors.Is(err, store.ErrDuplicate) {
-		orgErr(w, r, "That URL slug is already taken.")
+		fail("That URL slug is already taken.")
 		return
 	} else if err != nil {
-		orgErr(w, r, "Could not save changes.")
+		fail("Could not save changes.")
 		return
 	}
-	// The slug may have changed; redirect to the new canonical URL.
-	http.Redirect(w, r, "/orgs/"+slug, http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
+	// The slug may have changed; navigate to the new canonical URL (closing the modal).
+	s.hxRedirect(w, r, "/orgs/"+slug)
 }
 
 // handleSetOrgLinks replaces an org's whole set of social/site links from the
@@ -312,6 +381,27 @@ func (s *Handlers) handleSetOrgLinks(w http.ResponseWriter, r *http.Request) {
 	platforms := r.Form["link_platform"]
 	labels := r.Form["link_label"]
 	urls := r.Form["link_url"]
+	// entered mirrors the submitted rows verbatim so a validation error can
+	// re-render the editor with the user's work intact (see fail).
+	var entered []store.OrgLink
+	for i, u := range urls {
+		p := ""
+		if i < len(platforms) {
+			p = platforms[i]
+		}
+		l := ""
+		if i < len(labels) {
+			l = labels[i]
+		}
+		entered = append(entered, store.OrgLink{Platform: p, Label: strings.TrimSpace(l), URL: strings.TrimSpace(u)})
+	}
+	fail := func(msg string) {
+		if r.Header.Get("HX-Request") != "" {
+			s.renderLinksModal(w, r, orgParam(r), entered, msg)
+			return
+		}
+		orgErr(w, r, msg)
+	}
 	var links []store.OrgLink
 	for i, raw := range urls {
 		u := strings.TrimSpace(raw)
@@ -324,7 +414,7 @@ func (s *Handlers) handleSetOrgLinks(w http.ResponseWriter, r *http.Request) {
 		}
 		p, ok := store.OrgLinkPlatform(platform)
 		if !ok {
-			orgErr(w, r, "Choose a type for each link.")
+			fail("Choose a type for each link.")
 			return
 		}
 		// Validate/canonicalise per kind, leaving `u` as the value to persist.
@@ -333,13 +423,13 @@ func (s *Handlers) handleSetOrgLinks(w http.ResponseWriter, r *http.Request) {
 			if store.LooksLikeURL(u) {
 				u = store.NormalizeLinkURL(u)
 				if !store.ValidLinkURL(u) {
-					orgErr(w, r, "Enter a valid username or invite link.")
+					fail("Enter a valid username or invite link.")
 					return
 				}
 			} else {
 				v := strings.TrimPrefix(u, "@")
 				if v == "" || len(v) > 64 || strings.ContainsAny(v, " \t\n\r") {
-					orgErr(w, r, "Enter a valid username (no spaces) or an invite link.")
+					fail("Enter a valid username (no spaces) or an invite link.")
 					return
 				}
 				u = v
@@ -347,14 +437,14 @@ func (s *Handlers) handleSetOrgLinks(w http.ResponseWriter, r *http.Request) {
 		case store.KindHandle:
 			canon, ok := p.CanonicalHandleURL(u)
 			if !ok {
-				orgErr(w, r, "Enter a valid "+p.Name+" username or profile URL.")
+				fail("Enter a valid " + p.Name + " username or profile URL.")
 				return
 			}
 			u = canon
 		default: // KindURL — accept a bare domain by assuming https:// before validating.
 			u = store.NormalizeLinkURL(u)
 			if !store.ValidLinkURL(u) {
-				orgErr(w, r, "Each link must be a valid http:// or https:// URL.")
+				fail("Each link must be a valid http:// or https:// URL.")
 				return
 			}
 		}
@@ -370,10 +460,10 @@ func (s *Handlers) handleSetOrgLinks(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if err := s.Store.ReplaceOrgLinks(r.Context(), id, links); err != nil {
-		orgErr(w, r, "Could not save links.")
+		fail("Could not save links.")
 		return
 	}
-	http.Redirect(w, r, "/orgs/"+orgParam(r), http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
+	s.hxRedirect(w, r, "/orgs/"+orgParam(r))
 }
 
 // requireOrgAdmin resolves {id} and verifies the current user is an org admin.

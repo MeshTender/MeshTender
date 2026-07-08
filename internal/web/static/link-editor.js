@@ -168,5 +168,20 @@
     }
   }
 
-  document.querySelectorAll('[data-link-editor]').forEach(initEditor);
+  // initAll wires up every [data-link-editor] under root exactly once. Guarded so
+  // re-running (on htmx swaps) never double-binds an already-initialized editor.
+  function initAll(root) {
+    var scope = root && root.querySelectorAll ? root : document;
+    scope.querySelectorAll('[data-link-editor]').forEach(function (el) {
+      if (el.dataset.linkEditorReady) return;
+      el.dataset.linkEditorReady = '1';
+      initEditor(el);
+    });
+  }
+
+  initAll(document);
+  // The org page loads the editor into a modal via htmx; init the swapped-in form.
+  document.body && document.addEventListener('htmx:afterSwap', function (e) {
+    initAll(e.target || document);
+  });
 })();
