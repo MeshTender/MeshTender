@@ -22,11 +22,13 @@ import (
 	"github.com/jleight/meshtender/internal/store"
 )
 
-// TestConfirmRoundTrip drives the full confirm path in-process, standing in for
-// the browser (WebSocket), the KISS modem (KISS framing), and the repeater
-// (MeshCore crypto). It is gated on MESHTENDER_TEST_DATABASE_URL so a plain
+// TestConsoleLoginConfirms drives the console's login/confirm-on-connect path
+// in-process, standing in for the browser (WebSocket), the KISS modem (KISS
+// framing), and the repeater (MeshCore crypto). It verifies the login packet
+// actually decrypts under the repeater↔server secret and that reaching the
+// repeater marks it confirmed. Gated on MESHTENDER_TEST_DATABASE_URL so a plain
 // `go test` never truncates a real database.
-func TestConfirmRoundTrip(t *testing.T) {
+func TestConsoleLoginConfirms(t *testing.T) {
 	t.Parallel()
 	st, ctx := coreStore(t)
 
@@ -66,8 +68,8 @@ func TestConfirmRoundTrip(t *testing.T) {
 		t.Fatalf("create repeater: %v", err)
 	}
 
-	// --- dial the confirm WebSocket with the auth cookie ---
-	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/repeaters/" + rep.PublicID + "/ws"
+	// --- dial the console WebSocket with the auth cookie ---
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/repeaters/" + rep.PublicID + "/console/ws"
 	hdr := http.Header{}
 	if cs := jar.Cookies(mustURL(t, ts.URL)); len(cs) > 0 {
 		var parts []string

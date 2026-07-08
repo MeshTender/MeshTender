@@ -1,5 +1,5 @@
 // Drives the "set up a brand-new repeater over USB" step of the add-repeater
-// wizard. Unlike serial.js (which bridges a KISS modem's raw bytes to the server
+// wizard. Unlike console.js (which bridges a KISS modem's raw bytes to the server
 // over a WebSocket), this talks the repeater's own plain-text serial CLI
 // DIRECTLY: it writes "command\n" and reads the text the device echoes back.
 //

@@ -197,8 +197,6 @@ func (s *Handlers) appRouter() chi.Router {
 			r.Post("/repeaters/{id}/edit", s.handleEditRepeater)
 			r.Get("/repeaters/{id}/delete", s.pageDeleteRepeater)
 			r.Post("/repeaters/{id}/delete", s.handleDeleteRepeater)
-			r.Get("/repeaters/{id}/confirm", s.pageConfirm)
-			r.Get("/repeaters/{id}/ws", s.wsConfirm)
 			r.Get("/repeaters/{id}/console", s.pageConsole)
 			r.Get("/repeaters/{id}/console/ws", s.wsConsole)
 			r.Get("/repeaters/{id}/config.json", s.consoleConfigJSON)

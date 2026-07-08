@@ -1,6 +1,6 @@
 // Interactive repeater console. Bridges a WebSerial-connected KISS modem to the
 // server over a WebSocket (binary = raw KISS bytes), and exchanges JSON control
-// messages for commands and status. Mirrors serial.js's bridge, plus a CLI.
+// messages for commands and status: a KISS-modem bridge plus a CLI.
 //
 // It also exposes a small API (window.MeshConsole) and document events so the
 // separate "apply org configuration" script (console-config.js) can send commands

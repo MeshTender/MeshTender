@@ -21,9 +21,10 @@ import (
 	"github.com/jleight/meshtender/internal/store"
 )
 
-// TestConfirmLoginRetry drops the first login (simulating a lost packet) and
-// verifies the confirm flow retries with a fresh timestamp and succeeds.
-func TestConfirmLoginRetry(t *testing.T) {
+// TestConsoleLoginRetry drops the first login (simulating a lost packet) and
+// verifies the console's login retries with a fresh timestamp and succeeds
+// (confirming the repeater).
+func TestConsoleLoginRetry(t *testing.T) {
 	t.Parallel()
 	st, ctx := coreStore(t)
 
@@ -47,7 +48,7 @@ func TestConfirmLoginRetry(t *testing.T) {
 		t.Fatalf("create repeater: %v", err)
 	}
 
-	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/repeaters/" + rep.PublicID + "/ws"
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/repeaters/" + rep.PublicID + "/console/ws"
 	hdr := http.Header{}
 	if cs := jar.Cookies(mustURL(t, ts.URL)); len(cs) > 0 {
 		var parts []string
