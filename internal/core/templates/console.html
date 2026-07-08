@@ -14,17 +14,25 @@
 </div>
 
 {{/* Confirm/location prompts. Connecting the modem sends a signed login that
-confirms access (server-side); these banners reflect the state at page load and
-are hidden live by console.js once a confirmed/location status arrives. */}}
+confirms access (server-side). These reflect the state at page load; console.js
+then updates them live — hiding the confirm prompt and revealing the location
+prompt once a "confirmed" status arrives, and hiding the location prompt once a
+"location" status arrives. The location prompt is always rendered when no
+location is stored (hidden until the repeater is confirmed with admin) so the
+swap needs no new markup. The flex row is nested so the [hidden] attribute wins
+(Bootstrap's .d-flex is display:flex !important and would otherwise show it). */}}
 {{if not .Repeater.Confirmed}}
 <div class="alert alert-warning" role="alert" data-testid="confirm-banner">
   This repeater hasn't been confirmed yet. Connect your modem below — MeshTender will send a signed login
   to verify it has access. Confirming happens automatically as soon as the repeater replies.
 </div>
-{{else if and .Repeater.IsAdmin (not .Repeater.Latitude)}}
-<div class="alert alert-info d-flex align-items-center" role="alert" data-testid="location-banner">
-  <div class="flex-fill">This repeater is confirmed, but its location isn't known yet.</div>
-  <button type="button" class="btn btn-sm btn-primary ms-3" data-fetch-location data-testid="fetch-location">{{template "icon-map-pin" "me-1"}}Fetch location</button>
+{{end}}
+{{if not .Repeater.Latitude}}
+<div class="alert alert-info" role="alert" data-testid="location-banner"{{if not (and .Repeater.Confirmed .Repeater.IsAdmin)}} hidden{{end}}>
+  <div class="d-flex align-items-center justify-content-between">
+    <div class="me-3">This repeater's location isn't known yet.</div>
+    <button type="button" class="btn btn-sm btn-primary flex-shrink-0" data-fetch-location data-testid="fetch-location">{{template "icon-map-pin" "me-1"}}Fetch location</button>
+  </div>
 </div>
 {{end}}
 

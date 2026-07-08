@@ -181,8 +181,13 @@
   document.addEventListener("mesh:status", (ev) => {
     const state = ev.detail && ev.detail.state;
     if (state === "confirmed") {
-      const b = document.querySelector('[data-testid="confirm-banner"]');
-      if (b) b.hidden = true;
+      // Admin login just confirmed the repeater: drop the "not confirmed" prompt
+      // and reveal the location prompt (rendered hidden when no location is
+      // stored). If a location is already known the prompt isn't in the DOM.
+      const confirmBanner = document.querySelector('[data-testid="confirm-banner"]');
+      if (confirmBanner) confirmBanner.hidden = true;
+      const locationBanner = document.querySelector('[data-testid="location-banner"]');
+      if (locationBanner) locationBanner.hidden = false;
     }
     if (state === "location") {
       const b = document.querySelector('[data-testid="location-banner"]');

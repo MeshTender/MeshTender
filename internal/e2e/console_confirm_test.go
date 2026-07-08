@@ -32,8 +32,9 @@ func TestE2EConsoleConfirmBanner(t *testing.T) {
 	bctx, cancel, watch := startBrowser(t)
 	defer cancel()
 
-	// --- unconfirmed: confirm-banner present, location-banner absent ---
-	var confirmBanner, locBannerA bool
+	// --- unconfirmed: confirm-banner visible; location-banner present but hidden
+	// (it's revealed live by console.js once the repeater confirms with admin) ---
+	var confirmBanner, locBannerHidden bool
 	if err := chromedp.Run(bctx,
 		network.Enable(),
 		cdplog.Enable(),
@@ -41,15 +42,17 @@ func TestE2EConsoleConfirmBanner(t *testing.T) {
 		chromedp.Navigate(srv.appURL+"/repeaters/"+unconfirmed.PublicID+"/console"),
 		chromedp.WaitVisible(`[data-testid="allowed-commands"]`, chromedp.ByQuery),
 		chromedp.Evaluate(`!!document.querySelector('[data-testid="confirm-banner"]')`, &confirmBanner),
-		chromedp.Evaluate(`!!document.querySelector('[data-testid="location-banner"]')`, &locBannerA),
+		// Computed display must be none — guards the Bootstrap gotcha where .d-flex
+		// (display:flex !important) would override the [hidden] attribute.
+		chromedp.Evaluate(`(function () { var b = document.querySelector('[data-testid="location-banner"]'); return !!b && getComputedStyle(b).display === 'none'; })()`, &locBannerHidden),
 	); err != nil {
 		t.Fatalf("browser run (unconfirmed): %v", err)
 	}
 	if !confirmBanner {
 		t.Error("unconfirmed repeater console is missing the confirm banner")
 	}
-	if locBannerA {
-		t.Error("unconfirmed repeater console should not show the location banner")
+	if !locBannerHidden {
+		t.Error("unconfirmed repeater console should render the location banner hidden (revealed after confirm)")
 	}
 
 	// --- confirmed, no location: location-banner + fetch button, no confirm banner ---
