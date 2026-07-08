@@ -13,6 +13,29 @@
   Allowed commands list; the server enforces what you're allowed to send.
 </div>
 
+{{/* Confirm/location prompts. Connecting the modem sends a signed login that
+confirms access (server-side); these banners reflect the state at page load and
+are hidden live by console.js once a confirmed/location status arrives. */}}
+{{if not .Repeater.Confirmed}}
+<div class="alert alert-warning" role="alert" data-testid="confirm-banner">
+  This repeater hasn't been confirmed yet. Connect your modem below — MeshTender will send a signed login
+  to verify it has access. Confirming happens automatically as soon as the repeater replies.
+</div>
+{{else if and .Repeater.IsAdmin (not .Repeater.Latitude)}}
+<div class="alert alert-info d-flex align-items-center" role="alert" data-testid="location-banner">
+  <div class="flex-fill">This repeater is confirmed, but its location isn't known yet.</div>
+  <button type="button" class="btn btn-sm btn-primary ms-3" data-fetch-location data-testid="fetch-location">{{template "icon-map-pin" "me-1"}}Fetch location</button>
+</div>
+{{end}}
+
+{{if and .Repeater.Confirmed .Repeater.AccessKnown (not .Repeater.IsAdmin)}}
+<div class="alert alert-warning" role="alert" data-testid="guest-banner">
+  MeshTender only has <strong>guest</strong> access here. Guest is available to anyone with a blank password,
+  so there's no point operating at this level — re-run <code>setperm &lt;your key&gt; 3</code> on the repeater
+  to grant admin, then reconnect.
+</div>
+{{end}}
+
 <div class="row row-cards">
   <div class="col-12 col-lg-8">
     <div class="card">
@@ -94,7 +117,14 @@
   </div>
 </div>
 
-<a class="back-link mt-3" href="/">{{template "icon-arrow-left" "me-1"}}Back to dashboard</a>
+<div class="mt-3 d-flex align-items-center">
+  <a class="back-link" href="/">{{template "icon-arrow-left" "me-1"}}Back to dashboard</a>
+  {{if .Debug}}
+  <a class="text-secondary ms-2" href="/repeaters/{{.Repeater.PublicID}}/console">Disable debug</a>
+  {{else}}
+  <a class="text-secondary ms-2" href="/repeaters/{{.Repeater.PublicID}}/console?debug=1">Debug: show raw frames</a>
+  {{end}}
+</div>
 
 {{if .ShowConfig}}
 <link rel="stylesheet" href="/static/leaflet.css">
@@ -104,7 +134,7 @@
 {{end}}
 
 <script nonce="{{.Nonce}}">
-  window.MESHTENDER_WS = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/repeaters/{{.Repeater.PublicID}}/console/ws";
+  window.MESHTENDER_WS = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/repeaters/{{.Repeater.PublicID}}/console/ws{{if .Debug}}?debug=1{{end}}";
 </script>
 <script src="/static/console.js"></script>
 {{end}}

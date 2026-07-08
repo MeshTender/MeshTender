@@ -61,6 +61,7 @@
     const unsupportedEl = document.getElementById("unsupported");
     if (unsupportedEl) unsupportedEl.hidden = false;
     if (connectBtn) connectBtn.disabled = true;
+    document.querySelectorAll("[data-fetch-location]").forEach((b) => { b.disabled = true; });
     return; // MeshConsole stays defined but never becomes ready (no modem here)
   }
 
@@ -160,4 +161,32 @@
 
   connectBtn.addEventListener("click", connect);
   api.connect = connect; // let the config modal (console-config.js) connect too
+
+  // "Fetch location" banner button: query the repeater's coordinates. If the
+  // modem isn't connected yet, connect first and fetch once the session is ready.
+  let pendingGetLocation = false;
+  document.querySelectorAll("[data-fetch-location]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (api.ready) { api.getLocation(); return; }
+      pendingGetLocation = true;
+      connect();
+    });
+  });
+  document.addEventListener("mesh:ready", () => {
+    if (pendingGetLocation) { pendingGetLocation = false; api.getLocation(); }
+  });
+
+  // Reflect confirm/location progress live: once the server reports the repeater
+  // confirmed or its location stored, the matching page-load banner is stale.
+  document.addEventListener("mesh:status", (ev) => {
+    const state = ev.detail && ev.detail.state;
+    if (state === "confirmed") {
+      const b = document.querySelector('[data-testid="confirm-banner"]');
+      if (b) b.hidden = true;
+    }
+    if (state === "location") {
+      const b = document.querySelector('[data-testid="location-banner"]');
+      if (b) b.hidden = true;
+    }
+  });
 })();
