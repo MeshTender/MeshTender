@@ -8,7 +8,7 @@
 <div class="list-group list-group-flush">
   {{range .Orgs}}
   <div class="list-group-item d-flex align-items-center gap-2 flex-wrap px-0" data-testid="share-org-row">
-    <span class="fw-bold">{{.OrgName}}</span>
+    <a class="fw-bold text-reset" href="/orgs/{{.OrgSlug}}">{{.OrgName}}</a>
     {{if .Excluded}}
     <span class="badge bg-secondary-lt">Opted out</span>
     {{else if .Restricted}}

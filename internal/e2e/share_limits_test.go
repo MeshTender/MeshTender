@@ -18,7 +18,8 @@ import (
 // CSP) and htmx loads the command-grid fragment into it. It then exercises the
 // per-section Select none control — which comes from the delegated ui.js handler,
 // proving it works on htmx-injected content (a modal fragment can't run inline
-// script under the CSP). Also asserts the page runs clean under the CSP.
+// script under the CSP). It also asserts the org name links to the org page, and
+// that the page runs clean under the CSP.
 func TestE2EShareOrgLimitsModal(t *testing.T) {
 	srv := newE2EServer(t)
 	user, cookie := srv.login(t, "e2elimit")
@@ -52,6 +53,14 @@ func TestE2EShareOrgLimitsModal(t *testing.T) {
 		});
 	})()`
 
+	// The org name is a link to the org page: "<href>|<text>".
+	const orgNameLink = `(function () {
+		var row = document.querySelector('[data-testid="share-org-row"]');
+		var a = row && row.querySelector('a[href^="/orgs/"]');
+		return a ? a.getAttribute('href') + '|' + a.textContent.trim() : "";
+	})()`
+
+	var orgLink string
 	var initial, afterNone [][]int
 	if err := chromedp.Run(bctx,
 		network.Enable(),
@@ -60,6 +69,7 @@ func TestE2EShareOrgLimitsModal(t *testing.T) {
 		chromedp.Navigate(shareURL),
 		// Open the per-org limits modal; htmx loads the command grid into it.
 		chromedp.WaitVisible(`[data-testid="manage-access"]`, chromedp.ByQuery),
+		chromedp.Evaluate(orgNameLink, &orgLink),
 		chromedp.Click(`[data-testid="manage-access"]`, chromedp.ByQuery),
 		chromedp.WaitVisible(`#limits-modal-content [data-check-scope]`, chromedp.ByQuery),
 		chromedp.Evaluate(countChecked, &initial),
@@ -72,6 +82,9 @@ func TestE2EShareOrgLimitsModal(t *testing.T) {
 		t.Fatalf("browser run against %s: %v", shareURL, err)
 	}
 
+	if !strings.HasPrefix(orgLink, "/orgs/") || !strings.HasSuffix(orgLink, "|Limits Org") {
+		t.Errorf("org name should link to the org page (/orgs/<slug> with the org name), got %q", orgLink)
+	}
 	if len(initial) < 2 {
 		t.Fatalf("expected >=2 command sections in the modal, got %d", len(initial))
 	}
