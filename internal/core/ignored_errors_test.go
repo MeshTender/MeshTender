@@ -13,10 +13,10 @@ import (
 // call fails. A swallowed error would render 200 with an empty form; the fix
 // returns 500.
 
-// TestShareCommandsPageReadErrorFailsClosed: if loading a share's granted command
-// ids fails, the grants page must 500 rather than render every box unchecked
+// TestPersonAccessReadErrorFailsClosed: if loading a share's granted command ids
+// fails, the manage-access modal must 500 rather than render every box unchecked
 // (which a subsequent Save would persist, wiping the target's real grants).
-func TestShareCommandsPageReadErrorFailsClosed(t *testing.T) {
+func TestPersonAccessReadErrorFailsClosed(t *testing.T) {
 	t.Parallel()
 	st, ctx, ts, h := splitServer(t)
 	owner, sess := appLogin(t, ts, st, ctx, h.app, "grantowner")
@@ -35,7 +35,7 @@ func TestShareCommandsPageReadErrorFailsClosed(t *testing.T) {
 		t.Fatalf("drop share_commands: %v", err)
 	}
 
-	path := "/repeaters/" + rep.PublicID + "/share/" + strconv.FormatInt(target.ID, 10) + "/commands"
+	path := "/repeaters/" + rep.PublicID + "/share/" + strconv.FormatInt(target.ID, 10) + "/access"
 	resp := do(t, ts, h.app, path, sess)
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusInternalServerError {

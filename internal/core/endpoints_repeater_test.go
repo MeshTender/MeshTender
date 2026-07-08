@@ -181,13 +181,13 @@ func TestRepeaterSharePosts(t *testing.T) {
 	}
 	tid := strconv.FormatInt(target.ID, 10)
 
-	cmds := post(t, ts, h.app, share+"/"+tid+"/commands", url.Values{}, sess) // empty = no commands
-	cmds.Body.Close()
-	assertRedirect(t, cmds, share, "set share commands")
-
-	stew := post(t, ts, h.app, share+"/"+tid+"/steward", url.Values{"steward": {"1"}}, sess)
-	stew.Body.Close()
-	assertRedirect(t, stew, share, "set steward")
+	// "Manage access" save: steward + command grants in one POST.
+	acc := post(t, ts, h.app, share+"/"+tid+"/access", url.Values{"steward": {"1"}}, sess)
+	acc.Body.Close()
+	assertRedirect(t, acc, share, "save person access")
+	if steward, _ := st.IsSteward(ctx, rep.ID, target.ID); !steward {
+		t.Fatal("save person access with steward=1 did not make them a steward")
+	}
 
 	un := post(t, ts, h.app, "/repeaters/"+pid+"/unshare", url.Values{"user_id": {tid}}, sess)
 	un.Body.Close()
@@ -195,6 +195,88 @@ func TestRepeaterSharePosts(t *testing.T) {
 
 	// Org participation is exercised via the "manage access" limits save in
 	// TestRepeaterOrgLimitsPosts (there is no standalone participation endpoint).
+}
+
+// TestSharePageRenders is a full-page render check for the share page (the e2e
+// entry point): it must 200 with both the org and person "Manage access" buttons.
+func TestSharePageRenders(t *testing.T) {
+	t.Parallel()
+	st, ctx, ts, h := splitServer(t)
+	owner, sess := appLogin(t, ts, st, ctx, h.app, "sharepageowner")
+	rep := newOwnedRepeater(t, st, ctx, owner.ID, "SP Rep")
+	if _, err := st.CreateOrg(ctx, "SP Org", owner.ID); err != nil { // owner is a member → org row renders
+		t.Fatal(err)
+	}
+	sharee, err := st.CreateUser(ctx, "spsharee", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.AddShare(ctx, rep.ID, sharee.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	resp := do(t, ts, h.app, "/repeaters/"+rep.PublicID+"/share", sess)
+	body := readBody(t, resp)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("share page status = %d, want 200:\n%s", resp.StatusCode, body)
+	}
+	if !strings.Contains(body, `data-testid="manage-access"`) {
+		t.Fatal("share page missing the org Manage access button")
+	}
+	if !strings.Contains(body, `data-testid="manage-person"`) {
+		t.Fatal("share page missing the person Manage access button")
+	}
+}
+
+// TestPersonAccessModal covers the per-person "manage access" modal: the GET
+// fragment renders the steward toggle + command grid, and the POST saves the
+// steward flag and command grants together.
+func TestPersonAccessModal(t *testing.T) {
+	t.Parallel()
+	st, ctx, ts, h := splitServer(t)
+	owner, sess := appLogin(t, ts, st, ctx, h.app, "paccessowner")
+	rep := newOwnedRepeater(t, st, ctx, owner.ID, "PA Rep")
+	target, err := st.CreateUser(ctx, "paccessee", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.AddShare(ctx, rep.ID, target.ID); err != nil {
+		t.Fatal(err)
+	}
+	base := "/repeaters/" + rep.PublicID + "/share/" + strconv.FormatInt(target.ID, 10) + "/access"
+
+	// GET renders the modal fragment (no page chrome): steward switch + cmd boxes.
+	frag := readBody(t, do(t, ts, h.app, base, sess))
+	if !strings.Contains(frag, "Manage access") || !strings.Contains(frag, `name="steward"`) || !strings.Contains(frag, `name="cmd"`) {
+		t.Fatalf("person-access fragment missing expected content:\n%s", frag)
+	}
+	if strings.Contains(frag, "back-link") {
+		t.Fatal("person-access fragment should be modal chrome, not a full page")
+	}
+	// Footer Save/Revoke reference their separate forms via form= (scrollable body).
+	if !strings.Contains(frag, `form="person-access-form"`) || !strings.Contains(frag, `form="person-revoke-form"`) {
+		t.Fatal("person-access footer buttons should reference their forms via form=")
+	}
+
+	// Save: not a steward, grant exactly one command.
+	catalog, err := st.ListCommands(ctx)
+	if err != nil || len(catalog) == 0 {
+		t.Fatalf("list commands: %v (n=%d)", err, len(catalog))
+	}
+	grant := catalog[0].ID
+	save := post(t, ts, h.app, base, url.Values{"cmd": {strconv.FormatInt(grant, 10)}}, sess)
+	save.Body.Close()
+	assertRedirect(t, save, "/repeaters/"+rep.PublicID+"/share", "save person access")
+	if steward, _ := st.IsSteward(ctx, rep.ID, target.ID); steward {
+		t.Fatal("saving without the steward flag left them a steward")
+	}
+	ids, err := st.ListShareCommandIDs(ctx, rep.ID, target.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ids) != 1 || ids[0] != grant {
+		t.Fatalf("granted commands = %v, want [%d]", ids, grant)
+	}
 }
 
 // TestRepeaterOrgLimitsPosts covers the per-(repeater, org) command-limits modal:

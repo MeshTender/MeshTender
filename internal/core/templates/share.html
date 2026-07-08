@@ -67,19 +67,14 @@
     {{if .Shares}}
     <div class="list-group list-group-flush">
       {{range .Shares}}
-      <div class="list-group-item d-flex align-items-center flex-wrap gap-2 px-0">
+      <div class="list-group-item d-flex align-items-center gap-2 flex-wrap px-0" data-testid="share-person-row">
         <span class="fw-bold">{{.Name}}</span>
         <span class="text-secondary">@{{.Username}}</span>
         {{if .Steward}}<span class="badge bg-azure-lt" title="Co-operator: can run every command, including risky ones">Steward · full access</span>{{end}}
-        <form method="post" action="/repeaters/{{$.Repeater.PublicID}}/share/{{.UserID}}/steward" class="m-0 ms-auto">
-          <input type="hidden" name="steward" value="{{if .Steward}}0{{else}}1{{end}}">
-          <button type="submit" class="btn btn-sm"{{if not .Steward}} data-confirm="Make this person a steward? They will be able to run every command on this repeater, including risky ones."{{end}}>{{if .Steward}}Remove as steward{{else}}Make steward{{end}}</button>
-        </form>
-        {{if not .Steward}}<a class="btn btn-sm" href="/repeaters/{{$.Repeater.PublicID}}/share/{{.UserID}}/commands">Edit commands</a>{{end}}
-        <form method="post" action="/repeaters/{{$.Repeater.PublicID}}/unshare" class="m-0">
-          <input type="hidden" name="user_id" value="{{.UserID}}">
-          <button type="submit" class="btn btn-sm btn-ghost-danger">Revoke</button>
-        </form>
+        <button type="button" class="btn btn-sm ms-auto" data-bs-toggle="modal" data-bs-target="#person-modal"
+                data-testid="manage-person"
+                hx-get="/repeaters/{{$.Repeater.PublicID}}/share/{{.UserID}}/access"
+                hx-target="#person-modal-content" hx-swap="innerHTML">Manage access</button>
       </div>
       {{end}}
     </div>
@@ -115,6 +110,11 @@
 <div class="modal modal-blur fade" id="invite-modal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg" role="document">
     <div class="modal-content" id="invite-modal-content"></div>
+  </div>
+</div>
+<div class="modal modal-blur fade" id="person-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content" id="person-modal-content"></div>
   </div>
 </div>
 {{template "limits-modal-shell" .}}

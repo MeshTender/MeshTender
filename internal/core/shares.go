@@ -111,28 +111,6 @@ func (s *Handlers) handleDeleteInvite(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, sharePath(repeaterParam(r)), http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
 }
 
-// handleSetShareSteward flags or unflags a shared user as a steward (owner only).
-func (s *Handlers) handleSetShareSteward(w http.ResponseWriter, r *http.Request) {
-	id, ok := s.requireOwned(w, r)
-	if !ok {
-		return
-	}
-	targetID, err := strconv.ParseInt(chi.URLParam(r, "userID"), 10, 64)
-	if err != nil {
-		shareErr(w, r, "Invalid user.")
-		return
-	}
-	if shared, err := s.Store.IsShared(r.Context(), id, targetID); err != nil || !shared {
-		s.NotFound(w, r)
-		return
-	}
-	if err := s.Store.SetShareSteward(r.Context(), id, targetID, r.FormValue("steward") == "1"); err != nil {
-		shareErr(w, r, "Could not update steward.")
-		return
-	}
-	http.Redirect(w, r, sharePath(repeaterParam(r)), http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
-}
-
 // handleUnshare revokes a user's access (owner only).
 func (s *Handlers) handleUnshare(w http.ResponseWriter, r *http.Request) {
 	id, ok := s.requireOwned(w, r)
@@ -259,8 +237,10 @@ func groupCommands(catalog []*store.Command, checked map[int64]bool) []commandGr
 	})
 }
 
-// pageShareCommands lets a repeater owner choose which commands a shared user may run.
-func (s *Handlers) pageShareCommands(w http.ResponseWriter, r *http.Request) {
+// pagePersonAccess renders the "manage access" modal fragment for one shared
+// person: a steward toggle plus the per-command grid the owner grants from.
+// Loaded via htmx into the share page's shared #person-modal.
+func (s *Handlers) pagePersonAccess(w http.ResponseWriter, r *http.Request) {
 	rep, id, ok := s.requireRepeaterOwned(w, r)
 	if !ok {
 		return
@@ -274,14 +254,14 @@ func (s *Handlers) pageShareCommands(w http.ResponseWriter, r *http.Request) {
 		s.NotFound(w, r)
 		return
 	}
-	// A steward already has every command; per-command limits don't apply to them.
-	if steward, err := s.Store.IsSteward(r.Context(), id, targetID); err == nil && steward {
-		http.Redirect(w, r, sharePath(repeaterParam(r)), http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
-		return
-	}
 	target, err := s.Store.GetUserByID(r.Context(), targetID)
 	if err != nil {
 		s.NotFound(w, r)
+		return
+	}
+	steward, err := s.Store.IsSteward(r.Context(), id, targetID)
+	if err != nil {
+		s.ServerError(w, r, "could not load access", err)
 		return
 	}
 	catalog, err := s.Store.ListCommands(r.Context())
@@ -300,15 +280,20 @@ func (s *Handlers) pageShareCommands(w http.ResponseWriter, r *http.Request) {
 	for _, cid := range ids {
 		checked[cid] = true
 	}
-	s.Render(w, r, "share_commands.html", map[string]any{
+	s.Render(w, r, "person_access.html", map[string]any{
 		"Repeater": rep,
 		"Target":   target,
+		"Steward":  steward,
 		"Groups":   groupCommands(catalog, checked),
+		"Layout":   "person-access-modal",
 	})
 }
 
-// handleSetShareCommands saves the chosen command set for a shared user.
-func (s *Handlers) handleSetShareCommands(w http.ResponseWriter, r *http.Request) {
+// handleSavePersonAccess applies the person "manage access" modal: it sets the
+// steward flag (the toggle) and the per-command grants together. A steward runs
+// every command regardless, but we still persist the grant selection so it applies
+// if steward is later turned off.
+func (s *Handlers) handleSavePersonAccess(w http.ResponseWriter, r *http.Request) {
 	id, ok := s.requireOwned(w, r)
 	if !ok {
 		return
@@ -326,8 +311,11 @@ func (s *Handlers) handleSetShareCommands(w http.ResponseWriter, r *http.Request
 		http.Error(w, "bad form", http.StatusBadRequest)
 		return
 	}
-	cmdIDs := parseCommandIDs(r.Form["cmd"])
-	if err := s.Store.SetShareCommands(r.Context(), id, targetID, cmdIDs); err != nil {
+	if err := s.Store.SetShareSteward(r.Context(), id, targetID, r.FormValue("steward") == "1"); err != nil {
+		s.ServerError(w, r, "could not update steward", err)
+		return
+	}
+	if err := s.Store.SetShareCommands(r.Context(), id, targetID, parseCommandIDs(r.Form["cmd"])); err != nil {
 		s.ServerError(w, r, "could not save commands", err)
 		return
 	}
