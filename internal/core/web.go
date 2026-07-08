@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -46,6 +47,15 @@ type Server struct {
 
 // Handler returns the root HTTP handler.
 func (s *Server) Handler() http.Handler { return s.handler }
+
+// WSDrainTimeout is the recommended deadline for DrainWebSockets on shutdown. It
+// must comfortably exceed a single handler's consoleEndTimeout (the deferred
+// EndConsoleSession stamp) plus the time a handler needs to unwind after its
+// context is cancelled — otherwise the drain gives up mid-stamp and leaves the
+// session's ended_at NULL, so it shows "in progress" forever. It must also fit
+// inside the deployment's process stop grace (Kubernetes default 30s), alongside
+// the preceding HTTP drain. TestDrainTimeoutExceedsStamp enforces the lower bound.
+const WSDrainTimeout = 15 * time.Second
 
 // DrainWebSockets closes active WebSocket connections and waits for their handlers
 // to return, up to ctx's deadline. Call it after http.Server.Shutdown, which does

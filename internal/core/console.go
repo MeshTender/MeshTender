@@ -22,6 +22,13 @@ import (
 
 const (
 	consoleIdleTimeout = 5 * time.Minute
+	// consoleEndTimeout bounds the deferred EndConsoleSession stamp that runs when
+	// a console handler returns (including on shutdown drain). It uses a fresh
+	// background context — the session context is already cancelled by then — so
+	// the stamp still lands. WSDrainTimeout MUST exceed this (plus unwind slack) or
+	// the drain gives up before the stamp completes and the session is orphaned as
+	// "in progress" forever (see TestDrainWebSockets).
+	consoleEndTimeout = 5 * time.Second
 	// maxCommandLen bounds a single CLI command; MeshCore commands are short and
 	// a LoRa frame is tiny, so anything longer is malformed/abusive.
 	maxCommandLen = 200
@@ -227,7 +234,7 @@ func (s *Handlers) wsConsole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer func() {
-		endCtx, c := context.WithTimeout(context.Background(), 5*time.Second)
+		endCtx, c := context.WithTimeout(context.Background(), consoleEndTimeout)
 		defer c()
 		_ = s.Store.EndConsoleSession(endCtx, sessionID)
 	}()

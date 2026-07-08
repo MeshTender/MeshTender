@@ -108,4 +108,28 @@ func TestDrainWebSockets(t *testing.T) {
 		}
 		break // socket closed
 	}
+
+	// The handler's deferred EndConsoleSession must have stamped ended_at during the
+	// drain. If it hasn't, the session shows "in progress" forever — the exact bug
+	// the drain budget (WSDrainTimeout > consoleEndTimeout) exists to prevent.
+	var open int
+	if err := st.Pool().QueryRow(ctx,
+		`SELECT count(*) FROM console_sessions WHERE repeater_id = $1 AND ended_at IS NULL`,
+		rep.ID).Scan(&open); err != nil {
+		t.Fatalf("query sessions: %v", err)
+	}
+	if open != 0 {
+		t.Fatalf("drain left %d console session(s) unstamped (ended_at IS NULL) — would show 'in progress' forever", open)
+	}
+}
+
+// TestDrainTimeoutExceedsStamp guards the invariant the drain budget depends on:
+// the shutdown drain deadline must comfortably exceed a single handler's
+// EndConsoleSession stamp timeout, or the drain gives up mid-stamp and orphans the
+// session as "in progress".
+func TestDrainTimeoutExceedsStamp(t *testing.T) {
+	t.Parallel()
+	if WSDrainTimeout <= consoleEndTimeout {
+		t.Fatalf("WSDrainTimeout (%s) must exceed consoleEndTimeout (%s) so the drain can complete the ended_at stamp", WSDrainTimeout, consoleEndTimeout)
+	}
 }
