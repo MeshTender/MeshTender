@@ -9,7 +9,7 @@ when:
 
 steps:
   govulncheck:
-    image: golang:1.26.4
+    image: golang:1.26.5
     environment:
       # go.mod may target a newer Go than the image bundles; fetch on demand.
       GOTOOLCHAIN: auto

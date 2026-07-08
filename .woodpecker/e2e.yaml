@@ -40,7 +40,7 @@ services:
 
 steps:
   e2e:
-    image: golang:1.26.4
+    image: golang:1.26.5
     environment:
       MESHTENDER_TEST_DATABASE_URL: postgres://meshtender:meshtender@postgres:5432/meshtender_test?sslmode=disable
       # This step -> the browser's DevTools endpoint (service by name).

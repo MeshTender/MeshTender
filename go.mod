@@ -1,6 +1,6 @@
 module github.com/jleight/meshtender
 
-go 1.26.4
+go 1.26.5
 
 require (
 	github.com/alexedwards/scs/pgxstore v0.0.0-20251002162104-209de6e426de
