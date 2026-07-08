@@ -149,6 +149,54 @@ func TestRepeaterCrudPosts(t *testing.T) {
 	assertRedirect(t, delRep, "/", "delete repeater")
 }
 
+// TestAddRepeaterExposePublicPage: the add form's "Publish a public page"
+// checkbox is honored at creation (not only on the edit page). Present → the
+// repeater publishes a public page; absent → it does not.
+func TestAddRepeaterExposePublicPage(t *testing.T) {
+	t.Parallel()
+	st, ctx, ts, h := splitServer(t)
+	_, sess := appLogin(t, ts, st, ctx, h.app, "exposer")
+
+	exposed := func(t *testing.T, values url.Values) bool {
+		t.Helper()
+		resp := post(t, ts, h.app, "/repeaters", values, sess)
+		resp.Body.Close()
+		loc, _ := url.Parse(resp.Header.Get("Location"))
+		parts := strings.Split(loc.Path, "/")
+		if resp.StatusCode != http.StatusSeeOther || len(parts) < 3 {
+			t.Fatalf("create repeater = %d %q, want 303 → /repeaters/{id}/added", resp.StatusCode, resp.Header.Get("Location"))
+		}
+		var got bool
+		if err := st.Pool().QueryRow(ctx,
+			`SELECT expose_public_page FROM repeaters WHERE public_id = $1`, parts[2]).Scan(&got); err != nil {
+			t.Fatalf("read expose_public_page: %v", err)
+		}
+		return got
+	}
+
+	radio := func(v url.Values) url.Values {
+		v.Set("radio_freq_mhz", "869.525")
+		v.Set("radio_bw_khz", "250")
+		v.Set("radio_sf", "11")
+		v.Set("radio_cr", "5")
+		return v
+	}
+
+	onID, _ := meshcore.GenerateLocalIdentity(rand.Reader)
+	if !exposed(t, radio(url.Values{
+		"name": {"Public Rep"}, "public_key": {onID.String()}, "expose_public_page": {"1"},
+	})) {
+		t.Error("expose_public_page=1 at add time did not publish a public page")
+	}
+
+	offID, _ := meshcore.GenerateLocalIdentity(rand.Reader)
+	if exposed(t, radio(url.Values{
+		"name": {"Private Rep"}, "public_key": {offID.String()},
+	})) {
+		t.Error("repeater added without the checkbox should not publish a public page")
+	}
+}
+
 // #81 create link, #82 delete link, #85 share commands, #86 steward, #83 unshare,
 // #87 org participation.
 func TestRepeaterSharePosts(t *testing.T) {

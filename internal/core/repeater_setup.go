@@ -250,14 +250,15 @@ func (s *Handlers) handleSetupComplete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rep, err := s.Store.CreateRepeater(r.Context(), &store.Repeater{
-		OwnerID:         uid,
-		Name:            name,
-		PublicKeyHex:    pubHex,
-		RadioFreqHz:     freq,
-		RadioBwHz:       bw,
-		RadioSF:         int16(sf),
-		RadioCR:         int16(cr),
-		ShowOnPublicOrg: r.FormValue("show_on_public_org") != "",
+		OwnerID:          uid,
+		Name:             name,
+		PublicKeyHex:     pubHex,
+		RadioFreqHz:      freq,
+		RadioBwHz:        bw,
+		RadioSF:          int16(sf),
+		RadioCR:          int16(cr),
+		ShowOnPublicOrg:  r.FormValue("show_on_public_org") != "",
+		ExposePublicPage: r.FormValue("expose_public_page") != "",
 	})
 	if errors.Is(err, store.ErrDuplicate) {
 		http.Error(w, "you already added a repeater with that public key", http.StatusConflict)

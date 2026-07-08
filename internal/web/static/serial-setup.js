@@ -320,7 +320,11 @@
       form.set("lat", loc.lat.toFixed(6));
       form.set("lon", loc.lon.toFixed(6));
     }
-    if ($("show_on_public_org").checked) form.set("show_on_public_org", "1");
+    // Optional visibility toggles — guarded so a trimmed-down template can omit them.
+    var showOrg = $("show_on_public_org");
+    if (showOrg && showOrg.checked) form.set("show_on_public_org", "1");
+    var exposePage = $("expose_public_page");
+    if (exposePage && exposePage.checked) form.set("expose_public_page", "1");
     var resp = await fetch("/repeaters/setup/complete", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },

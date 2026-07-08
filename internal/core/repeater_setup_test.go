@@ -131,7 +131,7 @@ func TestSerialSetupFlow(t *testing.T) {
 	complete := url.Values{
 		"name": {"Hilltop"}, "public_key": {pub},
 		"radio_freq_mhz": {"910.525"}, "radio_bw_khz": {"62.5"}, "radio_sf": {"7"}, "radio_cr": {"5"},
-		"lat": {"15.0"}, "lon": {"35.0"},
+		"lat": {"15.0"}, "lon": {"35.0"}, "expose_public_page": {"1"},
 	}
 	cResp := post(t, ts, h.app, "/repeaters/setup/complete", complete, sess)
 	if cResp.StatusCode != http.StatusOK {
@@ -159,6 +159,9 @@ func TestSerialSetupFlow(t *testing.T) {
 	}
 	if got.Latitude == nil || got.Longitude == nil || *got.Latitude != 15.0 || *got.Longitude != 35.0 {
 		t.Errorf("location not stored: %v, %v", got.Latitude, got.Longitude)
+	}
+	if !got.ExposePublicPage {
+		t.Error("expose_public_page from the setup form was not persisted")
 	}
 }
 
