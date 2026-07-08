@@ -295,12 +295,7 @@ func (s *Handlers) handleSetShareCommands(w http.ResponseWriter, r *http.Request
 		http.Error(w, "bad form", http.StatusBadRequest)
 		return
 	}
-	var cmdIDs []int64
-	for _, v := range r.Form["cmd"] {
-		if cid, err := strconv.ParseInt(v, 10, 64); err == nil {
-			cmdIDs = append(cmdIDs, cid)
-		}
-	}
+	cmdIDs := parseCommandIDs(r.Form["cmd"])
 	if err := s.Store.SetShareCommands(r.Context(), id, targetID, cmdIDs); err != nil {
 		s.ServerError(w, r, "could not save commands", err)
 		return

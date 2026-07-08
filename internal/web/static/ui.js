@@ -16,6 +16,9 @@
 //   [data-check-none]               every enabled checkbox within its scope. The
 //                                    scope is the closest [data-check-scope]
 //                                    ancestor, or the whole document if none.
+//   [data-risky] (checkbox)       — confirm before enabling; unchecks on cancel.
+//                                    Delegated so it works in htmx-swapped content
+//                                    (a modal fragment can't run inline script).
 //
 // It also localizes timestamps: any <time data-fmt="…"> element (emitted by the
 // `ts` template func) is rewritten from its machine-readable datetime attribute
@@ -166,6 +169,14 @@
   document.addEventListener("change", function (e) {
     var el = e.target;
     if (!el || !el.matches) return;
+
+    // Confirm before enabling a risky command; revert the check if declined.
+    if (el.matches("input[type=checkbox][data-risky]") && el.checked) {
+      if (!window.confirm("This command can take over, lock out, or brick the node. Enable it here?")) {
+        el.checked = false;
+      }
+      return;
+    }
 
     if (el.matches("[data-autosubmit]") && el.form) {
       el.form.submit();

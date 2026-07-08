@@ -1,0 +1,29 @@
+{{/* org-limits-modal is the htmx fragment swapped into the share page's shared
+     #limits-modal. The form posts normally (full navigation back to the share
+     page), which also closes the modal — no client JS needed. */}}
+{{define "org-limits-modal"}}
+<div class="modal-header">
+  <h5 class="modal-title">Command limits — {{.Org.Name}}</h5>
+  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+</div>
+<form method="post" action="/repeaters/{{.Repeater.PublicID}}/orgs/{{.Org.Slug}}/limits">
+  <div class="modal-body">
+    <p class="text-secondary">
+      Restrict which of the commands <strong>{{.Org.Name}}</strong> is permitted to run actually run on
+      “{{.Repeater.Name}}”.
+      {{if .Restricted}}Only the checked commands are allowed.{{else}}No restriction is set — every command
+      the organization is permitted to run can run. Uncheck commands to restrict them.{{end}}
+      Commands badged <span class="badge bg-success-lt">Admins</span> are available only to organization
+      admins; <span class="badge bg-azure-lt">Members</span> to everyone.
+    </p>
+    {{template "command-grid" .}}
+  </div>
+  <div class="modal-footer">
+    {{if .Restricted}}
+    <button type="submit" name="clear" value="1" class="btn btn-link link-secondary me-auto">Remove restriction (allow all)</button>
+    {{end}}
+    <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">Cancel</button>
+    <button type="submit" class="btn btn-primary">Save limits</button>
+  </div>
+</form>
+{{end}}

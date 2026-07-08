@@ -42,3 +42,29 @@ func TestShareCommandsPageReadErrorFailsClosed(t *testing.T) {
 		t.Fatalf("status = %d, want 500 (a swallowed error would render 200 with an empty, data-wiping form)", resp.StatusCode)
 	}
 }
+
+// TestRepeaterOrgLimitsReadErrorFailsClosed: if loading a repeater's per-org opt-in
+// list fails, the limits modal must 500 rather than render as "permissive" (all
+// checked), which a Save would persist as clearing the real restriction.
+func TestRepeaterOrgLimitsReadErrorFailsClosed(t *testing.T) {
+	t.Parallel()
+	st, ctx, ts, h := splitServer(t)
+	owner, sess := appLogin(t, ts, st, ctx, h.app, "limitowner")
+	rep := newOwnedRepeater(t, st, ctx, owner.ID, "Rep")
+	org, err := st.CreateOrg(ctx, "Org", owner.ID) // creator is an admin member
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Make RepeaterOrgOptInCommandIDs fail; the handler's earlier queries (org,
+	// membership, catalog ceiling) use other tables.
+	if _, err := st.Pool().Exec(ctx, `DROP TABLE org_repeater_command_optin`); err != nil {
+		t.Fatalf("drop org_repeater_command_optin: %v", err)
+	}
+
+	resp := do(t, ts, h.app, "/repeaters/"+rep.PublicID+"/orgs/"+org.Slug+"/limits", sess)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500 (a swallowed error would render 200 as permissive, wiping the restriction on save)", resp.StatusCode)
+	}
+}

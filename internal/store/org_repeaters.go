@@ -19,13 +19,17 @@ type RepeaterOrg struct {
 }
 
 // RepeaterOrgMembership is an org the repeater's owner belongs to, with whether
-// the owner has opted this repeater out of it — drives the per-org include/exclude
-// toggles on the owner's repeater/share pages.
+// the owner has opted this repeater out of it and whether a per-repeater command
+// restriction is in effect for it — drives the per-org toggles and the
+// "limited commands" indicator on the owner's share page.
 type RepeaterOrgMembership struct {
 	OrgID    int64
 	OrgSlug  string
 	OrgName  string
 	Excluded bool
+	// Restricted is true when this repeater has a per-org command opt-in list for
+	// this org (>=1 row); false means permissive (the org's full ceiling applies).
+	Restricted bool
 }
 
 // SetRepeaterOrgExcluded opts a repeater out of (excluded=true) or back into
@@ -243,7 +247,9 @@ func (s *Store) ListRepeaterOrgMemberships(ctx context.Context, repeaterID int64
 	rows, err := s.pool.Query(ctx, `
 		SELECT o.id, o.slug, o.name,
 		       EXISTS (SELECT 1 FROM org_repeater_excludes e
-		               WHERE e.org_id = o.id AND e.repeater_id = r.id)
+		               WHERE e.org_id = o.id AND e.repeater_id = r.id),
+		       EXISTS (SELECT 1 FROM org_repeater_command_optin oc
+		               WHERE oc.org_id = o.id AND oc.repeater_id = r.id)
 		FROM repeaters r
 		JOIN org_members om ON om.user_id = r.owner_id
 		JOIN organizations o ON o.id = om.org_id
@@ -254,7 +260,7 @@ func (s *Store) ListRepeaterOrgMemberships(ctx context.Context, repeaterID int64
 	}
 	return collectRows(rows, func(r pgx.Row) (RepeaterOrgMembership, error) {
 		var m RepeaterOrgMembership
-		err := r.Scan(&m.OrgID, &m.OrgSlug, &m.OrgName, &m.Excluded)
+		err := r.Scan(&m.OrgID, &m.OrgSlug, &m.OrgName, &m.Excluded, &m.Restricted)
 		return m, err
 	})
 }

@@ -193,16 +193,116 @@ func TestRepeaterSharePosts(t *testing.T) {
 	un.Body.Close()
 	assertRedirect(t, un, share, "unshare")
 
-	// #87 participation: exclude this repeater from an org the owner belongs to.
+	// #87 participation: the per-org "Shared" switch. Unchecked submits no
+	// "include" field (opt out); checked submits include=1 (participate).
 	org, err := st.CreateOrg(ctx, "Participation Org", owner.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
+	excluded := func() bool {
+		orgs, err := st.ListRepeaterOrgMemberships(ctx, rep.ID)
+		if err != nil {
+			t.Fatalf("list memberships: %v", err)
+		}
+		for _, o := range orgs {
+			if o.OrgID == org.ID {
+				return o.Excluded
+			}
+		}
+		t.Fatalf("org %d not in memberships", org.ID)
+		return false
+	}
 	// The {orgID} route param is the org slug, not the numeric id.
-	part := post(t, ts, h.app, "/repeaters/"+pid+"/orgs/"+org.Slug+"/participation",
-		url.Values{"action": {"exclude"}}, sess)
-	part.Body.Close()
-	assertRedirect(t, part, share, "org participation")
+	partURL := "/repeaters/" + pid + "/orgs/" + org.Slug + "/participation"
+	out := post(t, ts, h.app, partURL, url.Values{}, sess) // switch off → opt out
+	out.Body.Close()
+	assertRedirect(t, out, share, "org opt out")
+	if !excluded() {
+		t.Fatal("switch off did not opt the repeater out")
+	}
+	in := post(t, ts, h.app, partURL, url.Values{"include": {"1"}}, sess) // switch on
+	in.Body.Close()
+	assertRedirect(t, in, share, "org opt in")
+	if excluded() {
+		t.Fatal("switch on did not re-include the repeater")
+	}
+}
+
+// TestRepeaterOrgLimitsPosts covers the per-(repeater, org) command-limits modal:
+// the GET fragment renders the editor, and the POST restricts / collapses back to
+// permissive. This is the share-page home for limits after they moved off the
+// org-wide page and became per repeater.
+func TestRepeaterOrgLimitsPosts(t *testing.T) {
+	t.Parallel()
+	st, ctx, ts, h := splitServer(t)
+	owner, sess := appLogin(t, ts, st, ctx, h.app, "limitowner")
+	rep := newOwnedRepeater(t, st, ctx, owner.ID, "Limited Rep")
+	org, err := st.CreateOrg(ctx, "Limits Org", owner.ID) // owner is an admin member
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := "/repeaters/" + rep.PublicID + "/orgs/" + org.Slug + "/limits"
+
+	// The ceiling: commands an org may ever run. Restrict to the first one.
+	catalog, err := st.ListCommands(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ceiling []int64
+	for _, c := range catalog {
+		if c.OrgMemberAllowed || c.OrgAdminAllowed {
+			ceiling = append(ceiling, c.ID)
+		}
+	}
+	if len(ceiling) < 2 {
+		t.Fatalf("need >=2 ceiling commands, got %d", len(ceiling))
+	}
+
+	// GET renders the modal fragment (no page chrome), with the org name and cmd boxes.
+	frag := readBody(t, do(t, ts, h.app, base, sess))
+	if !strings.Contains(frag, "Command limits") || !strings.Contains(frag, `name="cmd"`) {
+		t.Fatalf("limits fragment missing expected content:\n%s", frag)
+	}
+	if strings.Contains(frag, "back-link") {
+		t.Fatal("limits fragment should be modal chrome, not a full page")
+	}
+
+	optIn := func() []int64 {
+		ids, err := st.RepeaterOrgOptInCommandIDs(ctx, org.ID, rep.ID)
+		if err != nil {
+			t.Fatalf("opt-in ids: %v", err)
+		}
+		return ids
+	}
+
+	// Restrict to exactly the first ceiling command.
+	save := post(t, ts, h.app, base, url.Values{"cmd": {strconv.FormatInt(ceiling[0], 10)}}, sess)
+	save.Body.Close()
+	assertRedirect(t, save, "/repeaters/"+rep.PublicID+"/share", "save limits")
+	if got := optIn(); len(got) != 1 || got[0] != ceiling[0] {
+		t.Fatalf("opt-in = %v, want [%d]", got, ceiling[0])
+	}
+
+	// Selecting the full ceiling collapses back to permissive (no rows stored).
+	full := url.Values{}
+	for _, id := range ceiling {
+		full.Add("cmd", strconv.FormatInt(id, 10))
+	}
+	fullResp := post(t, ts, h.app, base, full, sess)
+	fullResp.Body.Close()
+	assertRedirect(t, fullResp, "/repeaters/"+rep.PublicID+"/share", "save full ceiling")
+	if got := optIn(); len(got) != 0 {
+		t.Fatalf("full selection should store nothing (permissive), got %v", got)
+	}
+
+	// Restrict again, then "Remove restriction" clears it.
+	post(t, ts, h.app, base, url.Values{"cmd": {strconv.FormatInt(ceiling[0], 10)}}, sess).Body.Close()
+	clr := post(t, ts, h.app, base, url.Values{"clear": {"1"}}, sess)
+	clr.Body.Close()
+	assertRedirect(t, clr, "/repeaters/"+rep.PublicID+"/share", "clear limits")
+	if got := optIn(); len(got) != 0 {
+		t.Fatalf("clear should remove all rows, got %v", got)
+	}
 }
 
 // #88 POST /invite/{token}/accept — a second user redeems a share link.
