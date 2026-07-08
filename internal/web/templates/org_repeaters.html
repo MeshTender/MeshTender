@@ -1,12 +1,5 @@
 {{define "title"}}Repeaters · {{.Org.Name}} · MeshTender{{end}}
-{{define "header"}}
-<div class="row g-2 align-items-center">
-  <div class="col">
-    <div class="page-pretitle">{{.Org.Name}}</div>
-    <h2 class="page-title">Repeaters</h2>
-  </div>
-</div>
-{{end}}
+{{define "header"}}{{template "org-header" .}}{{end}}
 {{/* rep-rows renders the repeater list items; shared by the full page and the
      htmx "show more" fragment so appended pages match the first. */}}
 {{define "rep-rows"}}

@@ -1,24 +1,5 @@
 {{define "title"}}{{.Org.Name}} · MeshTender{{end}}
-{{define "header"}}
-<div class="row g-2 align-items-center">
-  <div class="col">
-    <div class="page-pretitle">Organization · you're {{if .IsAdmin}}an admin{{else}}a member{{end}}</div>
-    <h2 class="page-title">{{.Org.Name}}</h2>
-  </div>
-  <div class="col-auto ms-auto d-print-none">
-    <div class="dropdown">
-      <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">Actions</button>
-      <div class="dropdown-menu dropdown-menu-end">
-        <a class="dropdown-item" href="/orgs/{{.Org.Slug}}?view=public">{{template "icon-world" "dropdown-item-icon"}}View public page</a>
-        <div class="dropdown-divider"></div>
-        <form method="post" action="/orgs/{{.Org.Slug}}/leave" class="m-0" data-confirm="Leave this organization?">
-          <button type="submit" class="dropdown-item text-danger">{{template "icon-logout" "dropdown-item-icon"}}Leave organization</button>
-        </form>
-      </div>
-    </div>
-  </div>
-</div>
-{{end}}
+{{define "header"}}{{template "org-header" .}}{{end}}
 {{define "content"}}
 {{template "org-tabs" .Nav}}
 {{if .Error}}<div class="alert alert-danger">{{.Error}}</div>{{end}}

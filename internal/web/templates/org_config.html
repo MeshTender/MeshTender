@@ -1,17 +1,5 @@
 {{define "title"}}Configuration · {{.Org.Name}} · MeshTender{{end}}
-{{define "header"}}
-<div class="row g-2 align-items-center">
-  <div class="col">
-    <div class="page-pretitle">{{.Org.Name}}</div>
-    <h2 class="page-title">Recommended Configuration</h2>
-  </div>
-  {{if .CanEdit}}
-  <div class="col-auto ms-auto d-print-none">
-    <a class="btn" href="/orgs/{{.Org.Slug}}/config/edit">{{template "icon-pencil" "me-1"}}Edit</a>
-  </div>
-  {{end}}
-</div>
-{{end}}
+{{define "header"}}{{template "org-header" .}}{{end}}
 {{define "content"}}
 {{template "org-tabs" .Nav}}
 

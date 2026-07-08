@@ -129,3 +129,24 @@ func TestOrgJoinLeavePosts(t *testing.T) {
 		t.Fatal("leave did not remove membership")
 	}
 }
+
+// TestOrgTabsHeaderConsistent: the shared org-header renders the Actions menu on
+// EVERY member tab (not just Home) — the fix for the menu vanishing when you switch
+// tabs. Admins also get "Edit configuration" in it.
+func TestOrgTabsHeaderConsistent(t *testing.T) {
+	t.Parallel()
+	st, ctx, ts, h := splitServer(t)
+	owner, sess := appLogin(t, ts, st, ctx, h.app, "tabsadmin") // creator = admin member
+	org, err := st.CreateOrg(ctx, "Tabs Org", owner.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tab := range []string{"", "/members", "/repeaters", "/config"} {
+		body := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+tab, sess))
+		for _, want := range []string{">Actions<", "Leave organization", "View public page", "Edit configuration"} {
+			if !strings.Contains(body, want) {
+				t.Errorf("tab %q missing %q from the shared Actions header", tab, want)
+			}
+		}
+	}
+}

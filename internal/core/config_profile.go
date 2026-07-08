@@ -53,8 +53,12 @@ func (s *Handlers) pageOrgConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := map[string]any{
-		"Org":     org,
-		"Nav":     s.OrgNavFor(r.Context(), id, org.Slug, "config", isMember, role == "admin"),
+		"Org": org,
+		"Nav": s.OrgNavFor(r.Context(), web.OrgNavArgs{
+			OrgID: id, Name: org.Name, Slug: org.Slug, Active: "config",
+			IsMember: isMember, IsAdmin: role == "admin", Manage: isMember,
+			CanGoToOrg: isMember, CanJoin: uid != 0 && !isMember,
+		}),
 		"CanEdit": role == "admin",
 	}
 	var latP, lonP *float64
@@ -103,7 +107,7 @@ func (s *Handlers) pageConfigHub(w http.ResponseWriter, r *http.Request) {
 	}
 	s.Render(w, r, "config_edit.html", map[string]any{
 		"Org":           org,
-		"Nav":           s.OrgNavFor(r.Context(), orgID, org.Slug, "config", true, true),
+		"Nav":           s.OrgNavFor(r.Context(), web.OrgNavArgs{OrgID: orgID, Name: org.Name, Slug: org.Slug, Active: "config", IsMember: true, IsAdmin: true, Manage: true}),
 		"Profiles":      profiles,
 		"RegionCount":   len(regions),
 		"PrimaryRegion": primary,
@@ -149,7 +153,7 @@ func (s *Handlers) pageProfileEdit(w http.ResponseWriter, r *http.Request) {
 func (s *Handlers) renderProfileEdit(w http.ResponseWriter, r *http.Request, org *store.Org, pid int64, name, stepsText string, errs, risky []string) {
 	s.Render(w, r, "config_profile_edit.html", map[string]any{
 		"Org":       org,
-		"Nav":       s.OrgNavFor(r.Context(), org.ID, org.Slug, "config", true, true),
+		"Nav":       s.OrgNavFor(r.Context(), web.OrgNavArgs{OrgID: org.ID, Name: org.Name, Slug: org.Slug, Active: "config", IsMember: true, IsAdmin: true, Manage: true}),
 		"ProfileID": pid,
 		"Name":      name,
 		"StepsText": stepsText,
@@ -266,7 +270,7 @@ func (s *Handlers) pageRegionsEdit(w http.ResponseWriter, r *http.Request) {
 	}
 	s.Render(w, r, "config_regions_edit.html", map[string]any{
 		"Org":            org,
-		"Nav":            s.OrgNavFor(r.Context(), orgID, org.Slug, "config", true, true),
+		"Nav":            s.OrgNavFor(r.Context(), web.OrgNavArgs{OrgID: orgID, Name: org.Name, Slug: org.Slug, Active: "config", IsMember: true, IsAdmin: true, Manage: true}),
 		"EmptyRegion":    configRegionView{AllowFlood: true},
 		"Regions":        regionViews(regions),
 		"RootAllowFlood": org.RootAllowFlood,
@@ -296,7 +300,7 @@ func (s *Handlers) handleSaveRegions(w http.ResponseWriter, r *http.Request) {
 		}
 		s.Render(w, r, "config_regions_edit.html", map[string]any{
 			"Org":            org,
-			"Nav":            s.OrgNavFor(r.Context(), orgID, org.Slug, "config", true, true),
+			"Nav":            s.OrgNavFor(r.Context(), web.OrgNavArgs{OrgID: orgID, Name: org.Name, Slug: org.Slug, Active: "config", IsMember: true, IsAdmin: true, Manage: true}),
 			"EmptyRegion":    configRegionView{AllowFlood: true},
 			"Errors":         errs,
 			"Regions":        regionVs,

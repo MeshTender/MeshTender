@@ -4,6 +4,40 @@ Active ("home" | "repeaters" | "members" | "config") and IsMember
 missing map renders empty links (harmless for the empty-data compose test). Links
 are same-host relative so they work on both the app host (signed-in) and the root
 host (anonymous). */}}
+{{/* org-header is the shared chrome for every org tab, so the Actions menu (member
+     views) and the "Go to organization" CTA (public views) stay consistent across
+     tabs — the parallel to repeater-header. Pass the full page data (it reads
+     .Nav.* plus the renderer-injected .AppURL). .Nav.Manage picks Actions vs CTA. */}}
+{{define "org-header"}}
+<div class="row g-2 align-items-center">
+  <div class="col">
+    <div class="page-pretitle">Organization{{if and (not .Nav.Manage) .Nav.CanGoToOrg}} · public preview{{end}}</div>
+    <h2 class="page-title">{{.Nav.Name}}</h2>
+  </div>
+  <div class="col-auto ms-auto d-print-none">
+    {{if .Nav.Manage}}
+    <div class="dropdown">
+      <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" data-testid="org-actions">Actions</button>
+      <div class="dropdown-menu dropdown-menu-end">
+        {{if .Nav.IsAdmin}}<a class="dropdown-item" href="/orgs/{{.Nav.Slug}}/config/edit">{{template "icon-settings" "dropdown-item-icon"}}Edit configuration</a>{{end}}
+        <a class="dropdown-item" href="/orgs/{{.Nav.Slug}}?view=public">{{template "icon-world" "dropdown-item-icon"}}View public page</a>
+        <div class="dropdown-divider"></div>
+        <form method="post" action="/orgs/{{.Nav.Slug}}/leave" class="m-0" data-confirm="Leave this organization?">
+          <button type="submit" class="dropdown-item text-danger">{{template "icon-logout" "dropdown-item-icon"}}Leave organization</button>
+        </form>
+      </div>
+    </div>
+    {{else if .Nav.CanGoToOrg}}
+    <a class="btn btn-primary" href="{{.AppURL}}/orgs/{{.Nav.Slug}}">{{template "icon-arrow-right" "me-1"}}Go to organization</a>
+    {{else if .Nav.CanJoin}}
+    <a class="btn btn-primary" href="{{.AppURL}}/orgs/{{.Nav.Slug}}/join">{{template "icon-users" "me-1"}}Join organization</a>
+    {{else}}
+    <a class="btn btn-primary" href="{{.AppURL}}/orgs/{{.Nav.Slug}}/join">Sign in to join</a>
+    {{end}}
+  </div>
+</div>
+{{end}}
+
 {{define "org-tabs"}}
 <ul class="nav nav-tabs mb-3" role="tablist">
   <li class="nav-item"><a class="nav-link{{if eq .Active "home"}} active{{end}}" href="/orgs/{{.Slug}}">{{template "icon-world" "me-1"}}Home</a></li>

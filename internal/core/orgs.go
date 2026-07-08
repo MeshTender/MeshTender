@@ -123,7 +123,7 @@ func (s *Handlers) pageOrg(w http.ResponseWriter, r *http.Request) {
 	isAdmin := role == "admin"
 	data := map[string]any{
 		"Org":           org,
-		"Nav":           s.OrgNavFor(r.Context(), org.ID, org.Slug, "home", true, isAdmin),
+		"Nav":           s.OrgNavFor(r.Context(), web.OrgNavArgs{OrgID: org.ID, Name: org.Name, Slug: org.Slug, Active: "home", IsMember: true, IsAdmin: isAdmin, Manage: true}),
 		"Role":          role,
 		"IsAdmin":       isAdmin,
 		"Members":       members,
@@ -174,7 +174,11 @@ func (s *Handlers) renderOrgPublic(w http.ResponseWriter, r *http.Request, org *
 		// The public view never exposes the Members tab — membership isn't public,
 		// only the admin list is — so build the nav as a non-member regardless of who
 		// is viewing (a member previews the public page via ?view=public).
-		"Nav":           s.OrgNavFor(r.Context(), org.ID, org.Slug, "home", false, isAdmin),
+		"Nav": s.OrgNavFor(r.Context(), web.OrgNavArgs{
+			OrgID: org.ID, Name: org.Name, Slug: org.Slug, Active: "home",
+			IsMember: false, IsAdmin: isAdmin, Manage: false,
+			CanGoToOrg: isMember, CanJoin: uid != 0 && !isMember,
+		}),
 		"Admins":        admins,
 		"MemberCount":   memberCount,
 		"RepeaterCount": repeaterCount,
@@ -218,7 +222,7 @@ func (s *Handlers) pageOrgMembers(w http.ResponseWriter, r *http.Request) {
 	}
 	s.Render(w, r, "org_members.html", map[string]any{
 		"Org":     org,
-		"Nav":     s.OrgNavFor(r.Context(), org.ID, org.Slug, "members", true, role == "admin"),
+		"Nav":     s.OrgNavFor(r.Context(), web.OrgNavArgs{OrgID: org.ID, Name: org.Name, Slug: org.Slug, Active: "members", IsMember: true, IsAdmin: role == "admin", Manage: true}),
 		"IsAdmin": role == "admin",
 		"Members": members,
 		"Self":    uid,
@@ -252,8 +256,12 @@ func (s *Handlers) pageOrgRepeaters(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Render(w, r, "org_repeaters.html", map[string]any{
-		"Org":  org,
-		"Nav":  s.OrgNavFor(r.Context(), org.ID, org.Slug, "repeaters", isMember, role == "admin"),
+		"Org": org,
+		"Nav": s.OrgNavFor(r.Context(), web.OrgNavArgs{
+			OrgID: org.ID, Name: org.Name, Slug: org.Slug, Active: "repeaters",
+			IsMember: isMember, IsAdmin: role == "admin", Manage: isMember,
+			CanGoToOrg: isMember, CanJoin: uid != 0 && !isMember,
+		}),
 		"Reps": rv,
 	})
 }

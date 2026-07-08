@@ -1,12 +1,5 @@
 {{define "title"}}Members · {{.Org.Name}} · MeshTender{{end}}
-{{define "header"}}
-<div class="row g-2 align-items-center">
-  <div class="col">
-    <div class="page-pretitle">{{.Org.Name}}</div>
-    <h2 class="page-title">Members</h2>
-  </div>
-</div>
-{{end}}
+{{define "header"}}{{template "org-header" .}}{{end}}
 {{define "content"}}
 {{template "org-tabs" .Nav}}
 {{if .Error}}<div class="alert alert-danger">{{.Error}}</div>{{end}}

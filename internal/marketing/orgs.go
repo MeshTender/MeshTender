@@ -57,6 +57,16 @@ func (s *Handlers) pageOrgs(w http.ResponseWriter, r *http.Request) {
 	s.Render(w, r, "orgs.html", data)
 }
 
+// publicCTA computes the public org page's call-to-action state for the current
+// viewer so it's consistent across all public tabs: a member gets "Go to
+// organization", a signed-in non-member gets "Join organization", and anyone else
+// "Sign in to join". The root host detects membership via the shared identity beacon.
+func (s *Handlers) publicCTA(r *http.Request, orgID int64) (canGoToOrg, canJoin bool) {
+	uid := s.Auth.CurrentUserID(r.Context())
+	_, isMember, _ := s.Store.OrgRole(r.Context(), orgID, uid)
+	return isMember, uid != 0 && !isMember
+}
+
 // renderOrgPublic renders the public-facing org page (name, description, admins,
 // counts, and a map of repeaters opted into public display).
 func (s *Handlers) renderOrgPublic(w http.ResponseWriter, r *http.Request, org *store.Org, isMember, isAdmin bool) {
@@ -90,7 +100,11 @@ func (s *Handlers) renderOrgPublic(w http.ResponseWriter, r *http.Request, org *
 		// The public view never exposes the Members tab — membership isn't public,
 		// only the admin list is — so build the nav as a non-member regardless of who
 		// is viewing (the tab also 404s on the root host, which has no members route).
-		"Nav":           s.OrgNavFor(r.Context(), org.ID, org.Slug, "home", false, isAdmin),
+		"Nav": s.OrgNavFor(r.Context(), web.OrgNavArgs{
+			OrgID: org.ID, Name: org.Name, Slug: org.Slug, Active: "home",
+			IsMember: false, IsAdmin: isAdmin, Manage: false,
+			CanGoToOrg: isMember, CanJoin: uid != 0 && !isMember,
+		}),
 		"Admins":        admins,
 		"MemberCount":   memberCount,
 		"RepeaterCount": repeaterCount,
@@ -147,7 +161,11 @@ func (s *Handlers) pageOrgConfig(w http.ResponseWriter, r *http.Request) {
 		s.NotFound(w, r)
 		return
 	}
-	data := map[string]any{"Org": org, "Nav": s.OrgNavFor(r.Context(), org.ID, org.Slug, "config", false, false), "CanEdit": false}
+	canGoToOrg, canJoin := s.publicCTA(r, id)
+	data := map[string]any{"Org": org, "Nav": s.OrgNavFor(r.Context(), web.OrgNavArgs{
+		OrgID: org.ID, Name: org.Name, Slug: org.Slug, Active: "config", Manage: false,
+		CanGoToOrg: canGoToOrg, CanJoin: canJoin,
+	}), "CanEdit": false}
 	var latP, lonP *float64
 	if lat, lon, ok := web.PreviewLatLon(r); ok {
 		latP, lonP = &lat, &lon
@@ -194,9 +212,13 @@ func (s *Handlers) pageOrgRepeaters(w http.ResponseWriter, r *http.Request) {
 		last := reps[len(reps)-1]
 		rv.NextCursor = encodeRepCursor(last.Name, last.RepeaterID)
 	}
+	canGoToOrg, canJoin := s.publicCTA(r, id)
 	data := map[string]any{
-		"Org":    org,
-		"Nav":    s.OrgNavFor(r.Context(), org.ID, org.Slug, "repeaters", false, false),
+		"Org": org,
+		"Nav": s.OrgNavFor(r.Context(), web.OrgNavArgs{
+			OrgID: org.ID, Name: org.Name, Slug: org.Slug, Active: "repeaters", Manage: false,
+			CanGoToOrg: canGoToOrg, CanJoin: canJoin,
+		}),
 		"Reps":   rv,
 		"MapURL": orgMapURL(org.Slug),
 	}

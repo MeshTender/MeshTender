@@ -123,21 +123,39 @@ func BuildConfigView(ctx context.Context, st *store.Store, orgID int64, selected
 	return cv, nil
 }
 
-// OrgNav is the data the shared org-tabs sub-nav partial expects: the org slug,
-// which tab is active ("home" | "repeaters" | "members" | "config"), whether the
-// viewer is a member (the Members tab, which exposes personal info, only shows for
-// members), and whether to show the Configuration tab (hidden when the org has no
-// config, unless the viewer can edit it).
-func OrgNav(slug, active string, isMember, showConfig bool) map[string]any {
-	return map[string]any{"Slug": slug, "Active": active, "IsMember": isMember, "ShowConfig": showConfig}
+// OrgNavArgs is the input to OrgNavFor and the data the shared org-header +
+// org-tabs partials expect.
+type OrgNavArgs struct {
+	OrgID  int64
+	Name   string
+	Slug   string
+	Active string // "home" | "members" | "repeaters" | "config"
+	// IsMember gates the Members tab (personal info), so it's false on public views
+	// even when a member is previewing. IsAdmin gates the "Edit configuration"
+	// action.
+	IsMember bool
+	IsAdmin  bool
+	// Manage selects the header's right-side controls: true renders the member
+	// Actions dropdown, false renders the public "Go to organization / Join" CTA.
+	Manage bool
+	// CanGoToOrg / CanJoin drive that CTA (used only when !Manage): a member
+	// previewing the public page gets "Go to organization", a signed-in non-member
+	// gets "Join organization", and anyone else gets "Sign in to join".
+	CanGoToOrg bool
+	CanJoin    bool
 }
 
-// OrgNavFor builds OrgNav, querying whether the org has any config so the
-// Configuration tab hides when empty — for everyone except admins, who always
-// see it so they can create the first profile/region.
-func (e *Env) OrgNavFor(ctx context.Context, orgID int64, slug, active string, isMember, isAdmin bool) map[string]any {
-	hasConfig, _ := e.Store.OrgHasConfig(ctx, orgID)
-	return OrgNav(slug, active, isMember, hasConfig || isAdmin)
+// OrgNavFor builds the org nav map, querying whether the org has any config so the
+// Configuration tab hides when empty — for everyone except admins, who always see
+// it so they can create the first profile/region.
+func (e *Env) OrgNavFor(ctx context.Context, a OrgNavArgs) map[string]any {
+	hasConfig, _ := e.Store.OrgHasConfig(ctx, a.OrgID)
+	return map[string]any{
+		"Name": a.Name, "Slug": a.Slug, "Active": a.Active,
+		"IsMember": a.IsMember, "IsAdmin": a.IsAdmin,
+		"ShowConfig": hasConfig || a.IsAdmin,
+		"Manage":     a.Manage, "CanGoToOrg": a.CanGoToOrg, "CanJoin": a.CanJoin,
+	}
 }
 
 // RepeatersView is an org's repeaters for the Repeaters page. Full is true for the

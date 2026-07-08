@@ -32,6 +32,13 @@ func TestRootOrgPageIdentityAwareCTA(t *testing.T) {
 	if strings.Contains(anon, "Go to organization") {
 		t.Fatalf("anonymous root org page should not show the app jump")
 	}
+	// The CTA must be consistent across every public tab, not just Home.
+	for _, tab := range []string{"/repeaters", "/config"} {
+		page := readBody(t, do(t, ts, h.root, "/orgs/"+org.Slug+tab))
+		if !strings.Contains(page, "Sign in to join") || strings.Contains(page, "Go to organization") {
+			t.Fatalf("anonymous root %s tab CTA inconsistent with Home", tab)
+		}
+	}
 
 	// Drop a root identity cookie for the member via the beacon (as a fresh
 	// sign-in on the app host would).
@@ -51,6 +58,13 @@ func TestRootOrgPageIdentityAwareCTA(t *testing.T) {
 	}
 	if strings.Contains(member, "Sign in to join") {
 		t.Fatalf("member root org page should not show the sign-in CTA")
+	}
+	// Same consistency for the member: "Go to organization" on every public tab.
+	for _, tab := range []string{"/repeaters", "/config"} {
+		page := readBody(t, do(t, ts, h.root, "/orgs/"+org.Slug+tab, rootSess))
+		if !strings.Contains(page, "Go to organization") || strings.Contains(page, "Sign in to join") {
+			t.Fatalf("member root %s tab CTA inconsistent with Home", tab)
+		}
 	}
 }
 

@@ -1,21 +1,5 @@
 {{define "title"}}{{.Org.Name}} · MeshTender{{end}}
-{{define "header"}}
-<div class="row g-2 align-items-center">
-  <div class="col">
-    <div class="page-pretitle">Organization{{if .IsMember}} · public preview{{end}}</div>
-    <h2 class="page-title">{{.Org.Name}}</h2>
-  </div>
-  <div class="col-auto ms-auto d-print-none">
-    {{if .IsMember}}
-    <a class="btn btn-primary" href="{{.AppURL}}/orgs/{{.Org.Slug}}">{{template "icon-arrow-right" "me-1"}}Go to organization</a>
-    {{else if .CanJoin}}
-    <a class="btn btn-primary" href="{{.AppURL}}/orgs/{{.Org.Slug}}/join">{{template "icon-users" "me-1"}}Join organization</a>
-    {{else}}
-    <a class="btn btn-primary" href="{{.AppURL}}/orgs/{{.Org.Slug}}/join">Sign in to join</a>
-    {{end}}
-  </div>
-</div>
-{{end}}
+{{define "header"}}{{template "org-header" .}}{{end}}
 {{define "content"}}
 {{template "org-tabs" .Nav}}
 <!-- Summary stats -->
