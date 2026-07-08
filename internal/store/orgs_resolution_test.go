@@ -123,15 +123,15 @@ func TestOrgCommandResolution(t *testing.T) {
 	// Outsider: nothing.
 	check("outsider/advert", can(outsider, advert), false)
 
-	// Owner opts the org into only {advert}: the admin loses the admin-tier
-	// commands not in the list, but keeps advert.
-	if err := st.SetOrgOptIn(ctx, org.ID, owner, []int64{advert}); err != nil {
+	// Owner restricts this repeater in the org to only {advert}: the admin loses
+	// the admin-tier commands not in the list, but keeps advert.
+	if err := st.SetRepeaterOrgOptIn(ctx, org.ID, rep.ID, []int64{advert}); err != nil {
 		t.Fatal(err)
 	}
 	check("admin/set.radio with opt-in", can(adminM, setRadio), false)
 	check("admin/advert with opt-in", can(adminM, advert), true)
 	// Clearing the opt-in restores the full ceiling.
-	if err := st.SetOrgOptIn(ctx, org.ID, owner, nil); err != nil {
+	if err := st.SetRepeaterOrgOptIn(ctx, org.ID, rep.ID, nil); err != nil {
 		t.Fatal(err)
 	}
 	check("admin/set.radio after clear", can(adminM, setRadio), true)
@@ -286,5 +286,88 @@ func TestOrgRepeaterAccess(t *testing.T) {
 	// Outsider cannot.
 	if _, err := st.GetRepeaterForUser(ctx, outsider.ID, rep.ID); !errors.Is(err, ErrNotFound) {
 		t.Errorf("outsider GetRepeaterForUser = %v, want ErrNotFound", err)
+	}
+}
+
+// TestRepeaterOrgOptInPerRepeaterDiverges is the reason the opt-in was reshaped
+// from per-(owner, org) to per-(repeater, org): an owner with two repeaters in the
+// same org must be able to lock one down (e.g. a tower repeater under strict
+// control, allowing only advert) while the other stays permissive. Under the old
+// per-owner model this was impossible — one list governed all their repeaters.
+func TestRepeaterOrgOptInPerRepeaterDiverges(t *testing.T) {
+	t.Parallel()
+	st, ctx := orgTestStore(t)
+
+	cmdID := func(key string) int64 {
+		var id int64
+		if err := st.pool.QueryRow(ctx, `SELECT id FROM command_catalog WHERE key=$1`, key).Scan(&id); err != nil {
+			t.Fatalf("command %q: %v", key, err)
+		}
+		return id
+	}
+	setRadio, advert := cmdID("set.radio"), cmdID("advert")
+	setCeiling := func(id int64, member, admin bool) {
+		if err := st.UpdateCommandFlags(ctx, id, false, false, member, admin); err != nil {
+			t.Fatalf("set ceiling %d: %v", id, err)
+		}
+	}
+	setCeiling(setRadio, false, true)
+	setCeiling(advert, true, false)
+
+	owner, err := st.CreateUser(ctx, "diverge-owner", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	adminM, err := st.CreateUser(ctx, "diverge-admin", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	mkRep := func(pkByte string) *Repeater {
+		rep, err := st.CreateRepeater(ctx, &Repeater{
+			OwnerID: owner.ID, Name: "R", PublicKeyHex: strings.Repeat(pkByte, 64),
+			RadioFreqHz: 1, RadioBwHz: 1, RadioSF: 11, RadioCR: 5,
+		})
+		if err != nil {
+			t.Fatalf("create repeater: %v", err)
+		}
+		return rep
+	}
+	tower := mkRep("d") // locked down
+	spare := mkRep("e") // permissive
+
+	org, err := st.CreateOrg(ctx, "Region", owner.ID) // owner is org-admin
+	if err != nil {
+		t.Fatalf("create org: %v", err)
+	}
+	if err := st.AddOrgMember(ctx, org.ID, adminM.ID, "admin"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Restrict only the tower to {advert}; leave the spare untouched (permissive).
+	if err := st.SetRepeaterOrgOptIn(ctx, org.ID, tower.ID, []int64{advert}); err != nil {
+		t.Fatal(err)
+	}
+
+	can := func(repID, c int64) bool {
+		ok, err := st.CanSendCommand(ctx, adminM.ID, repID, c)
+		if err != nil {
+			t.Fatalf("CanSendCommand: %v", err)
+		}
+		return ok
+	}
+	// Tower: advert only, set.radio denied by the restriction.
+	if !can(tower.ID, advert) {
+		t.Error("tower/advert = false, want true")
+	}
+	if can(tower.ID, setRadio) {
+		t.Error("tower/set.radio = true, want false (restricted to advert)")
+	}
+	// Spare: full admin-tier ceiling, unaffected by the tower's restriction.
+	if !can(spare.ID, setRadio) {
+		t.Error("spare/set.radio = false, want true (permissive) — restriction leaked across repeaters")
+	}
+	if !can(spare.ID, advert) {
+		t.Error("spare/advert = false, want true")
 	}
 }

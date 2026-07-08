@@ -9,10 +9,10 @@ import (
 )
 
 // Black-box coverage for the org-management POST endpoints (create/edit/links/
-// members/my-commands and join/leave). Each asserts the 303 redirect target and a
-// cheap store side-effect; none render anything.
+// members and join/leave). Each asserts the 303 redirect target and a cheap store
+// side-effect; none render anything.
 
-// #43 create, #44 edit, #104 links, #48 member role, #50 my-commands.
+// #43 create, #44 edit, #104 links, #48 member role.
 func TestOrgManagementPosts(t *testing.T) {
 	t.Parallel()
 	st, ctx, ts, h := splitServer(t)
@@ -64,13 +64,6 @@ func TestOrgManagementPosts(t *testing.T) {
 	}
 	if admin, _ := st.IsOrgAdmin(ctx, orgID, other.ID); !admin {
 		t.Fatal("promote did not make the member an admin")
-	}
-
-	// #50 my-commands — "clear" removes any restriction, redirecting to the editor.
-	cmds := post(t, ts, h.app, "/orgs/"+slug+"/my-commands", url.Values{"clear": {"1"}}, sess)
-	cmds.Body.Close()
-	if loc, _ := url.Parse(cmds.Header.Get("Location")); cmds.StatusCode != http.StatusSeeOther || loc.Path != "/orgs/"+slug+"/my-commands" {
-		t.Fatalf("save my-commands = %d %q, want 303 → my-commands", cmds.StatusCode, cmds.Header.Get("Location"))
 	}
 }
 

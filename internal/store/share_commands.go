@@ -21,8 +21,8 @@ import (
 //   - the repeater participates in an org they and the owner both belong to (the
 //     owner is a member and hasn't excluded the repeater), the command is within
 //     the site ceiling for their tier (member → org_member_allowed; admin →
-//     org_member_allowed OR org_admin_allowed), AND the owner either set no opt-in
-//     list for that org (permissive) or listed this command.
+//     org_member_allowed OR org_admin_allowed), AND that repeater has no opt-in
+//     list for that org (permissive) or the list includes this command.
 func (s *Store) ListSendableCommandIDs(ctx context.Context, userID, repeaterID int64) ([]int64, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT c.id
@@ -41,10 +41,10 @@ func (s *Store) ListSendableCommandIDs(ctx context.Context, userID, repeaterID i
 		                        WHERE e.org_id = ownm.org_id AND e.repeater_id = r.id)
 		        AND (c.org_member_allowed OR (usrm.role = 'admin' AND c.org_admin_allowed))
 		        AND (
-		              NOT EXISTS (SELECT 1 FROM org_command_optin o
-		                          WHERE o.org_id = ownm.org_id AND o.owner_id = r.owner_id)
-		           OR EXISTS (SELECT 1 FROM org_command_optin o
-		                      WHERE o.org_id = ownm.org_id AND o.owner_id = r.owner_id AND o.command_id = c.id)
+		              NOT EXISTS (SELECT 1 FROM org_repeater_command_optin o
+		                          WHERE o.org_id = ownm.org_id AND o.repeater_id = r.id)
+		           OR EXISTS (SELECT 1 FROM org_repeater_command_optin o
+		                      WHERE o.org_id = ownm.org_id AND o.repeater_id = r.id AND o.command_id = c.id)
 		            )
 		 )`,
 		userID, repeaterID)

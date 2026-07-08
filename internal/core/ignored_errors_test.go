@@ -42,28 +42,3 @@ func TestShareCommandsPageReadErrorFailsClosed(t *testing.T) {
 		t.Fatalf("status = %d, want 500 (a swallowed error would render 200 with an empty, data-wiping form)", resp.StatusCode)
 	}
 }
-
-// TestOrgCommandsPageReadErrorFailsClosed: if loading a member's per-org opt-in
-// list fails, the page must 500 rather than render as "permissive" (all checked),
-// which a Save would persist as clearing the member's real restriction.
-func TestOrgCommandsPageReadErrorFailsClosed(t *testing.T) {
-	t.Parallel()
-	st, ctx, ts, h := splitServer(t)
-	member, sess := appLogin(t, ts, st, ctx, h.app, "orgmember")
-	org, err := st.CreateOrg(ctx, "Org", member.ID) // creator is an admin member
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Make OrgOptInCommandIDs (SELECT … FROM org_command_optin) fail; the handler's
-	// earlier queries (org, role, catalog ceiling) use other tables.
-	if _, err := st.Pool().Exec(ctx, `DROP TABLE org_command_optin`); err != nil {
-		t.Fatalf("drop org_command_optin: %v", err)
-	}
-
-	resp := do(t, ts, h.app, "/orgs/"+org.Slug+"/my-commands", sess)
-	resp.Body.Close()
-	if resp.StatusCode != http.StatusInternalServerError {
-		t.Fatalf("status = %d, want 500 (a swallowed error would render 200 as permissive, wiping the restriction on save)", resp.StatusCode)
-	}
-}

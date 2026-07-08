@@ -217,8 +217,6 @@ func (s *Handlers) appRouter() chi.Router {
 			r.Post("/orgs/{id}/join", s.handleJoinOrg)
 			r.Post("/orgs/{id}/leave", s.handleLeaveOrg)
 			r.Post("/orgs/{id}/members/{userID}", s.handleSetOrgMember)
-			r.Get("/orgs/{id}/my-commands", s.pageOrgCommands)
-			r.Post("/orgs/{id}/my-commands", s.handleSaveOrgCommands)
 			r.Get("/orgs/{id}/config", s.pageOrgConfig)
 			r.Get("/orgs/{id}/config/edit", s.pageConfigHub)
 			r.Get("/orgs/{id}/config/profiles/new", s.pageProfileEdit)

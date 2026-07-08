@@ -10,7 +10,6 @@
       <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">Actions</button>
       <div class="dropdown-menu dropdown-menu-end">
         <a class="dropdown-item" href="/orgs/{{.Org.Slug}}?view=public">{{template "icon-world" "dropdown-item-icon"}}View public page</a>
-        <a class="dropdown-item" href="/orgs/{{.Org.Slug}}/my-commands">{{template "icon-list" "dropdown-item-icon"}}Limit commands</a>
         <div class="dropdown-divider"></div>
         <form method="post" action="/orgs/{{.Org.Slug}}/leave" class="m-0" data-confirm="Leave this organization?">
           <button type="submit" class="dropdown-item text-danger">{{template "icon-logout" "dropdown-item-icon"}}Leave organization</button>
