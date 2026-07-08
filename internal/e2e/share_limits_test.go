@@ -64,7 +64,9 @@ func TestE2EShareOrgLimitsModal(t *testing.T) {
 		chromedp.WaitVisible(`#limits-modal-content [data-check-scope]`, chromedp.ByQuery),
 		chromedp.Evaluate(countChecked, &initial),
 		// Default is permissive: everything checked. Uncheck only the first section.
-		chromedp.Click(`#limits-modal-content [data-check-scope]:first-of-type [data-check-none]`, chromedp.ByQuery),
+		// ByQuery = querySelector, so this is the first scope's Select-none button
+		// (document order), regardless of sibling element types before the cards.
+		chromedp.Click(`#limits-modal-content [data-check-scope] [data-check-none]`, chromedp.ByQuery),
 		chromedp.Evaluate(countChecked, &afterNone),
 	); err != nil {
 		t.Fatalf("browser run against %s: %v", shareURL, err)
