@@ -64,9 +64,10 @@ func (s *Handlers) handleCreateOrg(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/orgs/"+org.Slug, http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
 }
 
-// pageOrg shows an org's home. Members get the full management view; everyone
-// else (anonymous or non-member) gets the public view. Members can preview the
-// public view with ?view=public.
+// pageOrg shows an org's home. Members get the full management view; a signed-in
+// non-member gets the public view (so the Join button works on the app host).
+// Members reach the public page via the "View public page" action, which links to
+// the root (public) host.
 func (s *Handlers) pageOrg(w http.ResponseWriter, r *http.Request) {
 	uid := s.Auth.CurrentUserID(r.Context())
 	id, ok := s.orgID(r)
@@ -84,12 +85,10 @@ func (s *Handlers) pageOrg(w http.ResponseWriter, r *http.Request) {
 		s.ServerError(w, r, "could not load organization", err)
 		return
 	}
-	if !isMember || r.URL.Query().Get("view") == "public" {
-		// Render the public org view here on the app host (not the root host),
-		// where the user's session lives: a non-member gets a working "Join"
-		// button (its POST hits the app host), and a member previewing with
-		// ?view=public gets the "Back to member view" link. The root host serves
-		// the same page to anonymous/external visitors.
+	if !isMember {
+		// Render the public org view here on the app host (not the root host), where
+		// the user's session lives, so a non-member's "Join" button POSTs to the app
+		// host. The root host serves the same page to anonymous/external visitors.
 		s.renderOrgPublic(w, r, org, isMember, role == "admin")
 		return
 	}
@@ -144,9 +143,9 @@ func (s *Handlers) pageOrg(w http.ResponseWriter, r *http.Request) {
 }
 
 // renderOrgPublic renders the shared public org page on the app host for a
-// signed-in user: a non-member sees a Join button, and a member (previewing via
-// ?view=public) sees a "Back to member view" link. The data shape matches the
-// marketing surface's anonymous rendering of the same template.
+// signed-in non-member, so the Join button's POST hits the app host (where the
+// session lives). The data shape matches the marketing surface's anonymous
+// rendering of the same template.
 func (s *Handlers) renderOrgPublic(w http.ResponseWriter, r *http.Request, org *store.Org, isMember, isAdmin bool) {
 	admins, err := s.Store.ListOrgAdmins(r.Context(), org.ID)
 	if err != nil {
@@ -172,8 +171,7 @@ func (s *Handlers) renderOrgPublic(w http.ResponseWriter, r *http.Request, org *
 	s.Render(w, r, "org_public.html", map[string]any{
 		"Org": org,
 		// The public view never exposes the Members tab — membership isn't public,
-		// only the admin list is — so build the nav as a non-member regardless of who
-		// is viewing (a member previews the public page via ?view=public).
+		// only the admin list is — so build the nav as a non-member.
 		"Nav": s.OrgNavFor(r.Context(), web.OrgNavArgs{
 			OrgID: org.ID, Name: org.Name, Slug: org.Slug, Active: "home",
 			IsMember: false, IsAdmin: isAdmin, Manage: false,

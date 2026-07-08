@@ -75,7 +75,7 @@ func TestSafeLocalPath(t *testing.T) {
 		{"/", true},
 		{"/dashboard", true},
 		{"/repeaters/abc/console", true},
-		{"/orgs/foo?view=public", true},
+		{"/orgs/foo?sort=name", true},
 		{"/a/b/c", true},
 
 		// Rejected: not rooted.
