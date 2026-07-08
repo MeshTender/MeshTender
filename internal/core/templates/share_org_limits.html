@@ -8,6 +8,21 @@
 </div>
 <form method="post" action="/repeaters/{{.Repeater.PublicID}}/orgs/{{.Org.Slug}}/limits">
   <div class="modal-body">
+    {{if .Excluded}}
+    <div class="alert alert-warning" role="alert">
+      <div class="d-flex">
+        <div class="me-2">{{template "icon-alert" ""}}</div>
+        <div>
+          <h4 class="alert-title">This repeater is opted out of {{.Org.Name}}</h4>
+          <p class="mb-0">
+            While it's opted out, <strong>no one</strong> in {{.Org.Name}} can run <strong>any</strong>
+            command below. Set these limits now if you like — they'll take effect when you opt the repeater
+            back in with the <strong>Shared</strong> switch on the sharing page.
+          </p>
+        </div>
+      </div>
+    </div>
+    {{end}}
     <p class="text-secondary">
       Restrict which of the commands <strong>{{.Org.Name}}</strong> is permitted to run actually run on
       “{{.Repeater.Name}}”.

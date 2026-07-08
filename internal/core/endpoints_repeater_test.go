@@ -266,6 +266,22 @@ func TestRepeaterOrgLimitsPosts(t *testing.T) {
 	if strings.Contains(frag, "back-link") {
 		t.Fatal("limits fragment should be modal chrome, not a full page")
 	}
+	// Participating by default: no opted-out warning.
+	if strings.Contains(frag, "opted out of") {
+		t.Fatal("limits fragment shows the opted-out notice while participating")
+	}
+
+	// Opted out: the modal warns that no command applies until re-included, but
+	// still lets the owner pre-configure limits.
+	if err := st.SetRepeaterOrgExcluded(ctx, org.ID, rep.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	if out := readBody(t, do(t, ts, h.app, base, sess)); !strings.Contains(out, "opted out of") || !strings.Contains(out, `name="cmd"`) {
+		t.Fatalf("opted-out limits fragment missing notice or command boxes:\n%s", out)
+	}
+	if err := st.SetRepeaterOrgExcluded(ctx, org.ID, rep.ID, false); err != nil {
+		t.Fatal(err)
+	}
 
 	optIn := func() []int64 {
 		ids, err := st.RepeaterOrgOptInCommandIDs(ctx, org.ID, rep.ID)

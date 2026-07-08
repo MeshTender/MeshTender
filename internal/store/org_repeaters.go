@@ -50,6 +50,19 @@ func (s *Store) SetRepeaterOrgExcluded(ctx context.Context, orgID, repeaterID in
 	return nil
 }
 
+// IsRepeaterOrgExcluded reports whether the repeater is opted out of the org
+// (an org_repeater_excludes row exists). Absence = participating.
+func (s *Store) IsRepeaterOrgExcluded(ctx context.Context, orgID, repeaterID int64) (bool, error) {
+	var excluded bool
+	err := s.pool.QueryRow(ctx,
+		`SELECT EXISTS(SELECT 1 FROM org_repeater_excludes WHERE org_id = $1 AND repeater_id = $2)`,
+		orgID, repeaterID).Scan(&excluded)
+	if err != nil {
+		return false, fmt.Errorf("is repeater org excluded: %w", err)
+	}
+	return excluded, nil
+}
+
 // OrgRepeaterInfo is a participating repeater shown on the org page.
 type OrgRepeaterInfo struct {
 	RepeaterID       int64

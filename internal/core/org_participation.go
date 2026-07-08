@@ -87,11 +87,20 @@ func (s *Handlers) pageRepeaterOrgLimits(w http.ResponseWriter, r *http.Request)
 			checked[c.ID] = true
 		}
 	}
+	// Whether the repeater is currently opted out of this org: the limits still
+	// save, but no one in the org can run anything until it's opted back in — the
+	// modal says so.
+	excluded, err := s.Store.IsRepeaterOrgExcluded(r.Context(), orgID, rep.ID)
+	if err != nil {
+		s.ServerError(w, r, "could not load participation", err)
+		return
+	}
 	s.Render(w, r, "share_org_limits.html", map[string]any{
 		"Repeater":   rep,
 		"Org":        org,
 		"Groups":     groupCommands(ceiling, checked),
 		"Restricted": restricted,
+		"Excluded":   excluded,
 		"ShowAccess": true,
 		"Layout":     "org-limits-modal",
 	})
