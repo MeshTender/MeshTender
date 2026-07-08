@@ -8,7 +8,8 @@ import (
 // StartConsoleSession records the start of a console session and returns its id.
 func (s *Store) StartConsoleSession(ctx context.Context, repeaterID, userID int64) (int64, error) {
 	var id int64
-	// Snapshot the username so the log stays a point-in-time record after renames.
+	// Snapshot the username as a fallback so the log still identifies the sender if
+	// they're later deleted; while they exist the log shows their live display name.
 	err := s.pool.QueryRow(ctx,
 		`INSERT INTO console_sessions (repeater_id, user_id, sender_username)
 		 VALUES ($1, $2, (SELECT username FROM users WHERE id = $2)) RETURNING id`,

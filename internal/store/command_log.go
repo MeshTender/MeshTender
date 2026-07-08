@@ -56,8 +56,11 @@ func (s *Store) MarkCommandReply(ctx context.Context, logID int64, response stri
 // CommandSession groups command-log entries by the console session they were
 // sent in.
 type CommandSession struct {
-	ID         int64
-	SenderName string // who held the session
+	ID int64
+	// SenderName is who held the session: their current display name (or username),
+	// falling back to the username snapshotted at session start if they've since
+	// been deleted.
+	SenderName string
 	StartedAt  time.Time
 	EndedAt    *time.Time
 	Entries    []*CommandLogEntry // newest first, matching the newest-first session order
@@ -95,8 +98,9 @@ func (s *Store) ListCommandLogSessionsPage(ctx context.Context, repeaterID int64
 	// behavior of the previous query).
 	headers, err := s.pool.Query(ctx, `
 		SELECT cs.id, cs.started_at, cs.ended_at,
-		       COALESCE(cs.sender_username, '(deleted)')
+		       COALESCE(NULLIF(u.display_name, ''), u.username, cs.sender_username, '(deleted)')
 		FROM console_sessions cs
+		LEFT JOIN users u ON u.id = cs.user_id
 		WHERE cs.repeater_id = $1
 		  AND ($2 OR (cs.started_at, cs.id) < ($3, $4))
 		  AND EXISTS (SELECT 1 FROM command_log l WHERE l.session_id = cs.id)
@@ -172,10 +176,11 @@ type OwnerCommandLogEntry struct {
 func (s *Store) ListRecentCommandsForOwner(ctx context.Context, ownerID int64, limit int) ([]OwnerCommandLogEntry, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT l.repeater_id, r.public_id, r.name,
-		       COALESCE(l.sender_username, '(deleted)'),
+		       COALESCE(NULLIF(u.display_name, ''), u.username, l.sender_username, '(deleted)'),
 		       l.command_text, l.sent_at, l.ack_received, l.response_text
 		FROM command_log l
 		JOIN repeaters r ON r.id = l.repeater_id
+		LEFT JOIN users u ON u.id = l.user_id
 		WHERE r.owner_id = $1
 		ORDER BY l.sent_at DESC
 		LIMIT $2`, ownerID, limit)

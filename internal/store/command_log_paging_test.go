@@ -6,6 +6,58 @@ import (
 	"testing"
 )
 
+// TestCommandLogSenderName: the log shows the sender's live display name while
+// they exist, and falls back to the username snapshot once they're deleted.
+func TestCommandLogSenderName(t *testing.T) {
+	t.Parallel()
+	st, ctx := orgTestStore(t)
+
+	owner, err := st.CreateUser(ctx, "logowner2", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rep, err := st.CreateRepeater(ctx, &Repeater{
+		OwnerID: owner.ID, Name: "R", PublicKeyHex: strings.Repeat("d", 64),
+		RadioFreqHz: 1, RadioBwHz: 1, RadioSF: 11, RadioCR: 5,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A separate sender (not the owner, so deleting them doesn't cascade the repeater).
+	sender, err := st.CreateUser(ctx, "bobby", "Bob Builder")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sid, err := st.StartConsoleSession(ctx, rep.ID, sender.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.LogCommand(ctx, rep.ID, sender.ID, sid, 0, "advert"); err != nil {
+		t.Fatal(err)
+	}
+
+	senderName := func() string {
+		page, _, err := st.ListCommandLogSessionsPage(ctx, rep.ID, nil)
+		if err != nil || len(page) != 1 {
+			t.Fatalf("page = %d sessions, %v; want 1", len(page), err)
+		}
+		return page[0].SenderName
+	}
+
+	// While the sender exists: their display name.
+	if got := senderName(); got != "Bob Builder" {
+		t.Fatalf("sender name = %q, want the live display name %q", got, "Bob Builder")
+	}
+
+	// After deletion (user_id → NULL): the username snapshot taken at session start.
+	if _, err := st.pool.Exec(ctx, `DELETE FROM users WHERE id=$1`, sender.ID); err != nil {
+		t.Fatalf("delete sender: %v", err)
+	}
+	if got := senderName(); got != "bobby" {
+		t.Fatalf("deleted sender name = %q, want the username snapshot %q", got, "bobby")
+	}
+}
+
 // TestListCommandLogSessionsPage walks the keyset-paginated session log and
 // checks every session with commands appears once, newest-first, across pages —
 // and that a session with no commands is omitted.
