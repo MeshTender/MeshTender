@@ -77,6 +77,26 @@
       </div>
     </div>
 
+    {{if ne .Method "serial"}}
+    {{/* Add-existing only: USB setup sets the location explicitly, so there's no
+    fetch to disclose there. */}}
+    <div class="alert alert-info" role="alert">
+      <div class="d-flex">
+        <div>{{template "icon-map-pin" "alert-icon"}}</div>
+        <div>
+          <h4 class="alert-title">MeshTender will read the repeater's location</h4>
+          <p class="text-secondary mb-0">
+            When you confirm this repeater — or use “Fetch location” later — MeshTender reads its coordinates by
+            running <code>get lat</code> / <code>get lon</code> through your modem, <strong>on its own behalf</strong>
+            (not as a command you or anyone you share with runs). It uses them to place the repeater on the map and to
+            tailor its <code>region</code> configuration. You stay in control: you can keep it off the public map, and
+            you decide which commands other people may run on it.
+          </p>
+        </div>
+      </div>
+    </div>
+    {{end}}
+
     <div class="mb-3">
       <div class="form-label">MeshTender server public key</div>
       <code class="pubkey">{{.ServerPubKey}}</code>
