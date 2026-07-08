@@ -2,7 +2,7 @@
 // own IANA database (Intl.supportedValuesOf), grouped by region, so we don't
 // maintain a zone list server-side. Enhances any <select data-tz-picker>:
 //   data-current="America/New_York"  — the saved zone ("" = auto-detect)
-//   [data-tz-detected] sibling       — a hint element for the detected zone
+//   [data-tz-detected] in the form   — a hint element for the detected zone
 // Falls back to the server-rendered options if Intl.supportedValuesOf is absent.
 (function () {
   "use strict";
@@ -67,8 +67,10 @@
       sel.insertBefore(kept, sel.firstChild.nextSibling);
     }
 
-    // Hint: when on auto-detect, show which zone the browser reports.
-    var hint = sel.parentNode && sel.parentNode.querySelector("[data-tz-detected]");
+    // Hint: when on auto-detect, show which zone the browser reports. Scoped to the
+    // enclosing form so it works wherever the hint sits in the layout.
+    var scope = sel.closest("form") || sel.parentNode;
+    var hint = scope && scope.querySelector("[data-tz-detected]");
     if (hint && detected) {
       hint.textContent = current ? "" : "Detected: " + detected;
     }

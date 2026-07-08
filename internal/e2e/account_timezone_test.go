@@ -3,6 +3,7 @@
 package e2e
 
 import (
+	"strings"
 	"testing"
 
 	cdplog "github.com/chromedp/cdproto/log"
@@ -29,6 +30,7 @@ func TestE2EAccountTimezonePicker(t *testing.T) {
 
 	url := srv.authURL + "/account"
 	var optgroupCount int
+	var detectedHint string
 	if err := chromedp.Run(bctx,
 		network.Enable(),
 		cdplog.Enable(),
@@ -39,6 +41,9 @@ func TestE2EAccountTimezonePicker(t *testing.T) {
 		// WaitVisible — options inside a closed <select> have no layout box.
 		chromedp.WaitReady(`#acct_timezone optgroup`, chromedp.ByQuery),
 		chromedp.Evaluate(`document.querySelectorAll('#acct_timezone optgroup').length`, &optgroupCount),
+		// On auto-detect, buildPicker fills the detected-zone hint (which lives below
+		// the select/button row — the script finds it within the form).
+		chromedp.Text(`[data-tz-detected]`, &detectedHint, chromedp.ByQuery),
 		// Choose a specific zone and save.
 		chromedp.SetValue(`#acct_timezone`, "America/New_York", chromedp.ByQuery),
 		chromedp.Click(`[data-testid="tz-save"]`, chromedp.ByQuery),
@@ -50,6 +55,9 @@ func TestE2EAccountTimezonePicker(t *testing.T) {
 
 	if optgroupCount < 5 {
 		t.Fatalf("timezone picker had %d optgroups, expected the browser's full IANA list", optgroupCount)
+	}
+	if !strings.Contains(detectedHint, "Detected:") {
+		t.Fatalf("detected-zone hint = %q, want it to show the browser's detected zone", detectedHint)
 	}
 
 	got, err := srv.store.GetUserByID(srv.ctx, user.ID)

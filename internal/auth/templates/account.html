@@ -69,12 +69,14 @@
             <option value=""{{if not .Timezone}} selected{{end}}>Auto-detect (browser)</option>
             {{if .Timezone}}<option value="{{.Timezone}}" selected>{{.Timezone}}</option>{{end}}
           </select>
-          <small class="form-hint mt-1 d-block" data-tz-detected></small>
         </div>
         <div class="col-md-auto">
           <button type="submit" class="btn btn-primary" data-testid="tz-save">Save time zone</button>
         </div>
       </div>
+      {{/* Detected-zone hint sits below the row so it doesn't unbalance the
+           select/button alignment (align-items-end). */}}
+      <small class="form-hint mt-2 d-block" data-tz-detected></small>
     </form>
   </div>
 </div>
