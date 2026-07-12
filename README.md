@@ -60,6 +60,32 @@ repeater works either way. This is implemented as a custom `hardware.Transport`
 - Server-rendered `html/template` + htmx; hand-written JS only for the WebSerial page
 - `coder/websocket`
 
+### Vendored front-end assets
+
+The strict CSP forbids external scripts/styles (`*-src 'self'`), so all third-party
+front-end libraries are **self-hosted** in `internal/web/static/` (embedded into the
+binary) rather than loaded from a CDN. They're served content-hash fingerprinted, with
+a one-year `immutable` Cache-Control, and pre-compressed (gzip + brotli) by the asset
+manifest in `internal/web/assets.go`.
+
+Current pinned versions:
+
+| Library | Version | Files |
+|---|---|---|
+| [htmx](https://htmx.org) | 2.0.10 | `htmx.min.js` |
+| [Leaflet](https://leafletjs.com) | 1.9.4 | `leaflet.js`, `leaflet.css` |
+| [Leaflet-Geoman](https://geoman.io) | 2.20.0 | `leaflet-geoman.js`, `leaflet-geoman.css` |
+| [Leaflet.markercluster](https://github.com/Leaflet/Leaflet.markercluster) | 1.5.3 | `leaflet.markercluster.js`, `leaflet.markercluster.css` |
+| [Tabler](https://tabler.io) | 1.4.0 | `tabler.min.js`, `tabler.min.css` |
+
+**Updating a vendored library:** fetch the minified build from jsdelivr (mirrors npm
+exactly), e.g. `https://cdn.jsdelivr.net/npm/htmx.org@<version>/dist/htmx.min.js`, and
+overwrite the file in `internal/web/static/` (keep the existing filename). **Strip any
+trailing `sourceMappingURL` comment** (`//# sourceMappingURL=…` / `/*# … */`) — we don't
+self-host the `.map` files, so the comment only produces a 404 when devtools are open.
+Then update the version above and validate in a browser (`mise run e2e`, which fails on
+any CSP violation).
+
 ## Running locally
 
 One process serves all three hosts (root, auth, app) over TLS. Dev can't use `*.localhost` —

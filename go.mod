@@ -7,21 +7,21 @@ require (
 	github.com/alexedwards/scs/v2 v2.9.0
 	github.com/andybalholm/brotli v1.2.2
 	github.com/brianvoe/gofakeit/v7 v7.15.0
-	github.com/chromedp/cdproto v0.0.0-20260321001828-e3e3800016bc
+	github.com/chromedp/cdproto v0.0.0-20260704091341-6ca7914c3938
 	github.com/chromedp/chromedp v0.15.1
 	github.com/coder/websocket v1.8.15
-	github.com/go-chi/chi/v5 v5.3.0
+	github.com/go-chi/chi/v5 v5.3.1
 	github.com/go-webauthn/webauthn v0.17.4
 	github.com/jackc/pgx/v5 v5.10.0
-	github.com/meshcore-go/meshcore-go v1.0.8
+	github.com/meshcore-go/meshcore-go v1.0.9
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/peterstace/simplefeatures v0.59.0
-	github.com/pressly/goose/v3 v3.27.1
+	github.com/pressly/goose/v3 v3.27.2
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.43.0
 	github.com/yuin/goldmark v1.8.2
-	golang.org/x/crypto v0.53.0
-	golang.org/x/net v0.55.0
+	golang.org/x/crypto v0.54.0
+	golang.org/x/net v0.57.0
 )
 
 require (
@@ -67,8 +67,8 @@ require (
 	github.com/mfridman/interpolate v0.0.2 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
 	github.com/moby/go-archive v0.2.0 // indirect
-	github.com/moby/moby/api v1.54.2 // indirect
-	github.com/moby/moby/client v0.4.1 // indirect
+	github.com/moby/moby/api v1.55.0 // indirect
+	github.com/moby/moby/client v0.5.0 // indirect
 	github.com/moby/patternmatcher v0.6.1 // indirect
 	github.com/moby/sys/sequential v0.6.0 // indirect
 	github.com/moby/sys/user v0.4.0 // indirect
@@ -95,8 +95,8 @@ require (
 	go.opentelemetry.io/otel/metric v1.43.0 // indirect
 	go.opentelemetry.io/otel/trace v1.43.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/sync v0.21.0 // indirect
-	golang.org/x/sys v0.46.0 // indirect
-	golang.org/x/text v0.38.0 // indirect
+	golang.org/x/sync v0.22.0 // indirect
+	golang.org/x/sys v0.47.0 // indirect
+	golang.org/x/text v0.40.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
