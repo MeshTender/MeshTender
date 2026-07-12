@@ -5,6 +5,7 @@ go 1.26.5
 require (
 	github.com/alexedwards/scs/pgxstore v0.0.0-20251002162104-209de6e426de
 	github.com/alexedwards/scs/v2 v2.9.0
+	github.com/andybalholm/brotli v1.2.2
 	github.com/brianvoe/gofakeit/v7 v7.15.0
 	github.com/chromedp/cdproto v0.0.0-20260321001828-e3e3800016bc
 	github.com/chromedp/chromedp v0.15.1

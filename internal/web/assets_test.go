@@ -1,12 +1,15 @@
 package web
 
 import (
+	"compress/gzip"
+	"io"
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
 	"testing"
 
+	"github.com/andybalholm/brotli"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -62,6 +65,119 @@ func TestStaticFingerprintedImmutable(t *testing.T) {
 	}
 	if rec.Body.String() != string(want) {
 		t.Fatal("fingerprinted asset body does not match embedded file")
+	}
+}
+
+func TestStaticServesBrotli(t *testing.T) {
+	t.Parallel()
+	srv := staticRouter()
+
+	want, err := fs.ReadFile(staticFS, "static/tabler.min.css")
+	if err != nil {
+		t.Fatalf("read embedded asset: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, assets.URL("/static/tabler.min.css"), nil)
+	req.Header.Set("Accept-Encoding", "gzip, deflate, br")
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d, want 200", rec.Code)
+	}
+	if enc := rec.Header().Get("Content-Encoding"); enc != "br" {
+		t.Fatalf("Content-Encoding = %q, want br (preferred over gzip)", enc)
+	}
+	if v := rec.Header().Get("Vary"); v != "Accept-Encoding" {
+		t.Fatalf("Vary = %q, want Accept-Encoding", v)
+	}
+	if rec.Body.Len() >= len(want) {
+		t.Fatalf("brotli body %d not smaller than raw %d", rec.Body.Len(), len(want))
+	}
+	got, err := io.ReadAll(brotli.NewReader(rec.Body))
+	if err != nil {
+		t.Fatalf("brotli decode: %v", err)
+	}
+	if string(got) != string(want) {
+		t.Fatal("decoded brotli body does not match embedded file")
+	}
+}
+
+func TestStaticServesGzipWhenBrotliUnwanted(t *testing.T) {
+	t.Parallel()
+	srv := staticRouter()
+
+	want, err := fs.ReadFile(staticFS, "static/ui.js")
+	if err != nil {
+		t.Fatalf("read embedded asset: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, assets.URL("/static/ui.js"), nil)
+	req.Header.Set("Accept-Encoding", "gzip") // no br
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+
+	if enc := rec.Header().Get("Content-Encoding"); enc != "gzip" {
+		t.Fatalf("Content-Encoding = %q, want gzip", enc)
+	}
+	zr, err := gzip.NewReader(rec.Body)
+	if err != nil {
+		t.Fatalf("gzip reader: %v", err)
+	}
+	got, err := io.ReadAll(zr)
+	if err != nil {
+		t.Fatalf("gzip decode: %v", err)
+	}
+	if string(got) != string(want) {
+		t.Fatal("decoded gzip body does not match embedded file")
+	}
+}
+
+func TestStaticIdentityStillVaries(t *testing.T) {
+	t.Parallel()
+	srv := staticRouter()
+
+	want, err := fs.ReadFile(staticFS, "static/ui.js")
+	if err != nil {
+		t.Fatalf("read embedded asset: %v", err)
+	}
+
+	// No Accept-Encoding: serve raw, but still advertise that the resource varies
+	// so shared caches don't hand a compressed copy to a client that can't decode.
+	req := httptest.NewRequest(http.MethodGet, assets.URL("/static/ui.js"), nil)
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+
+	if enc := rec.Header().Get("Content-Encoding"); enc != "" {
+		t.Fatalf("Content-Encoding = %q, want none", enc)
+	}
+	if v := rec.Header().Get("Vary"); v != "Accept-Encoding" {
+		t.Fatalf("Vary = %q, want Accept-Encoding", v)
+	}
+	if rec.Body.String() != string(want) {
+		t.Fatal("identity body does not match embedded file")
+	}
+}
+
+func TestAcceptsEncoding(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		header, coding string
+		want           bool
+	}{
+		{"gzip, deflate, br", "br", true},
+		{"gzip, deflate, br", "gzip", true},
+		{"gzip", "br", false},
+		{"", "gzip", false},
+		{"br;q=0", "br", false},      // explicit refusal
+		{"gzip;q=0.5", "gzip", true}, // low but nonzero
+		{"identity", "gzip", false},
+		{"GZIP", "gzip", true}, // case-insensitive token
+	}
+	for _, c := range cases {
+		if got := acceptsEncoding(c.header, c.coding); got != c.want {
+			t.Errorf("acceptsEncoding(%q, %q) = %v, want %v", c.header, c.coding, got, c.want)
+		}
 	}
 }
 
