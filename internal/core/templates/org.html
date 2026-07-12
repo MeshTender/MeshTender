@@ -171,10 +171,10 @@
     <div class="card">
       <div class="card-header"><h3 class="card-title">Repeaters</h3></div>
       <div class="card-body p-2">
-        <link rel="stylesheet" href="/static/leaflet.css">
+        <link rel="stylesheet" href="{{ asset "/static/leaflet.css" }}">
         <div id="map" style="height:260px" role="region" aria-label="Map of organization repeater locations"></div>
-        <script src="/static/leaflet.js"></script>
-        <script src="/static/meshmap.js"></script>
+        <script src="{{ asset "/static/leaflet.js" }}"></script>
+        <script src="{{ asset "/static/meshmap.js" }}"></script>
         <script nonce="{{.Nonce}}">
           meshMap('map', [
             {{range .Repeaters}}{{if .HasLocation}}{name: {{.Name}}, lat: {{.Lat}}, lon: {{.Lon}}},{{end}}{{end}}
@@ -201,7 +201,7 @@
 <!-- Per-platform link config for the links editor loaded into the modal above;
      link-editor.js re-initializes on htmx:afterSwap. -->
 <script nonce="{{.Nonce}}">window.MESHTENDER_LINK_PLATFORMS = {{.PlatformsJS}};</script>
-<script src="/static/link-editor.js"></script>
+<script src="{{ asset "/static/link-editor.js" }}"></script>
 {{end}}
 
 <a class="back-link mt-3" href="/orgs">{{template "icon-arrow-left" "me-1"}}All organizations</a>

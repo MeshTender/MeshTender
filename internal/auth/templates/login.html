@@ -35,6 +35,6 @@
   </div>
 </div>
 <div class="text-center text-secondary mt-3">Don't have an account yet? <a href="/signup{{if .Next}}?next={{.Next}}{{end}}" tabindex="-1">Create one</a></div>
-<script src="/static/webauthn.js"></script>
+<script src="{{ asset "/static/webauthn.js" }}"></script>
 <script nonce="{{.Nonce}}">document.addEventListener("DOMContentLoaded", initSigninPasskey);</script>
 {{end}}

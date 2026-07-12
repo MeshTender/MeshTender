@@ -169,7 +169,7 @@
       </template>
     </form>
     <script nonce="{{.Nonce}}">window.MESHTENDER_LINK_PLATFORMS = {{.PlatformsJS}};</script>
-    <script src="/static/link-editor.js"></script>
+    <script src="{{ asset "/static/link-editor.js" }}"></script>
   </div>
 </div>
 
@@ -290,6 +290,6 @@
     document.getElementById("rename-name").value = btn.getAttribute("data-name") || "";
   });
 </script>
-<script src="/static/timezone-picker.js"></script>
-<script src="/static/webauthn.js"></script>
+<script src="{{ asset "/static/timezone-picker.js" }}"></script>
+<script src="{{ asset "/static/webauthn.js" }}"></script>
 {{end}}

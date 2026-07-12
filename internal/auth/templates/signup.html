@@ -40,5 +40,5 @@
   </div>
 </div>
 <div class="text-center text-secondary mt-3">Already have an account? <a href="/login{{if .Next}}?next={{.Next}}{{end}}" tabindex="-1">Sign in</a></div>
-<script src="/static/webauthn.js"></script>
+<script src="{{ asset "/static/webauthn.js" }}"></script>
 {{end}}

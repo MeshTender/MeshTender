@@ -104,6 +104,37 @@ func TestTemplatesHaveNoInlineJS(t *testing.T) {
 	}
 }
 
+// TestTemplatesUseAssetHelper enforces that every static reference goes through
+// the {{ asset }} helper (href="{{ asset "/static/x" }}"), never a bare
+// href="/static/x". The helper rewrites the URL to a content-hashed,
+// immutably-cached path; a bare reference silently loses that caching.
+func TestTemplatesUseAssetHelper(t *testing.T) {
+	t.Parallel()
+	root := moduleRoot(t)
+	bare := regexp.MustCompile(`(?i)(href|src)="/static/`)
+
+	err := filepath.WalkDir(filepath.Join(root, "internal"), func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".html") {
+			return nil
+		}
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		rel, _ := filepath.Rel(root, path)
+		if loc := bare.FindIndex(b); loc != nil {
+			t.Errorf("%s: bare static reference — use {{ asset \"/static/...\" }}: %q", rel, snippet(b, loc[0]))
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk templates: %v", err)
+	}
+}
+
 func snippet(b []byte, at int) string {
 	end := at + 40
 	if end > len(b) {

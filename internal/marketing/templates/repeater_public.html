@@ -64,10 +64,10 @@
     <div class="card mt-3">
       <div class="card-header"><h3 class="card-title">Location</h3></div>
       <div class="card-body p-2">
-        <link rel="stylesheet" href="/static/leaflet.css">
+        <link rel="stylesheet" href="{{ asset "/static/leaflet.css" }}">
         <div id="map" style="height:240px" role="region" aria-label="Map of this repeater's location"></div>
-        <script src="/static/leaflet.js"></script>
-        <script src="/static/meshmap.js"></script>
+        <script src="{{ asset "/static/leaflet.js" }}"></script>
+        <script src="{{ asset "/static/meshmap.js" }}"></script>
         <script nonce="{{.Nonce}}">
           meshMap('map', [{name: {{.Repeater.Name}}, lat: {{.Repeater.Latitude}}, lon: {{.Repeater.Longitude}}}]);
         </script>

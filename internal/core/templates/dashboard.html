@@ -126,10 +126,10 @@
       <div class="card-header"><h3 class="card-title">Repeater map</h3></div>
       {{if .Mapped}}
       <div class="card-body p-2">
-        <link rel="stylesheet" href="/static/leaflet.css">
+        <link rel="stylesheet" href="{{ asset "/static/leaflet.css" }}">
         <div id="map" style="height:260px" role="region" aria-label="Map of your repeater locations"></div>
-        <script src="/static/leaflet.js"></script>
-        <script src="/static/meshmap.js"></script>
+        <script src="{{ asset "/static/leaflet.js" }}"></script>
+        <script src="{{ asset "/static/meshmap.js" }}"></script>
         <script nonce="{{.Nonce}}">
           meshMap('map', [
             {{range .Mapped}}{name: {{.Name}}, lat: {{.Latitude}}, lon: {{.Longitude}}},{{end}}

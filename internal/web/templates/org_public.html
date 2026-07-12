@@ -66,12 +66,12 @@
       <div class="card-header"><h3 class="card-title">Repeaters</h3></div>
       {{if .HasMap}}
       <div class="card-body p-2">
-        <link rel="stylesheet" href="/static/leaflet.css">
-        <link rel="stylesheet" href="/static/leaflet.markercluster.css">
+        <link rel="stylesheet" href="{{ asset "/static/leaflet.css" }}">
+        <link rel="stylesheet" href="{{ asset "/static/leaflet.markercluster.css" }}">
         <div id="map" style="height:260px" role="region" aria-label="Map of organization repeater locations"></div>
-        <script src="/static/leaflet.js"></script>
-        <script src="/static/leaflet.markercluster.js"></script>
-        <script src="/static/meshmap.js"></script>
+        <script src="{{ asset "/static/leaflet.js" }}"></script>
+        <script src="{{ asset "/static/leaflet.markercluster.js" }}"></script>
+        <script src="{{ asset "/static/meshmap.js" }}"></script>
         <script nonce="{{.Nonce}}">
           {{if .MapURL}}meshMapFromURL('map', {{.MapURL}});{{else}}meshMap('map', [
             {{range .Repeaters}}{{if .HasLocation}}{name: {{.Name}}, lat: {{.Lat}}, lon: {{.Lon}}},{{end}}{{end}}

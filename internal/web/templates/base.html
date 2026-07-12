@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="{{ asset "/static/favicon.svg" }}" type="image/svg+xml">
   <title>{{block "title" .}}MeshTender{{end}}</title>
-  <link rel="stylesheet" href="/static/tabler.min.css">
-  <link rel="stylesheet" href="/static/app.css">
-  <script src="/static/tabler.min.js" defer></script>
-  <script src="/static/htmx.min.js" defer></script>
-  <script src="/static/ui.js" defer></script>
-  <script src="/static/listfilter.js" defer></script>
+  <link rel="stylesheet" href="{{ asset "/static/tabler.min.css" }}">
+  <link rel="stylesheet" href="{{ asset "/static/app.css" }}">
+  <script src="{{ asset "/static/tabler.min.js" }}" defer></script>
+  <script src="{{ asset "/static/htmx.min.js" }}" defer></script>
+  <script src="{{ asset "/static/ui.js" }}" defer></script>
+  <script src="{{ asset "/static/listfilter.js" }}" defer></script>
 </head>
 <body>
   <a href="#main-content" class="visually-hidden-focusable btn btn-primary position-absolute top-0 start-0 m-2" style="z-index:1080">Skip to main content</a>
@@ -164,14 +164,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="{{ asset "/static/favicon.svg" }}" type="image/svg+xml">
   <title>{{template "title" .}}</title>
-  <link rel="stylesheet" href="/static/tabler.min.css">
-  <link rel="stylesheet" href="/static/app.css">
-  <script src="/static/tabler.min.js" defer></script>
-  <script src="/static/htmx.min.js" defer></script>
-  <script src="/static/ui.js" defer></script>
-  <script src="/static/listfilter.js" defer></script>
+  <link rel="stylesheet" href="{{ asset "/static/tabler.min.css" }}">
+  <link rel="stylesheet" href="{{ asset "/static/app.css" }}">
+  <script src="{{ asset "/static/tabler.min.js" }}" defer></script>
+  <script src="{{ asset "/static/htmx.min.js" }}" defer></script>
+  <script src="{{ asset "/static/ui.js" }}" defer></script>
+  <script src="{{ asset "/static/listfilter.js" }}" defer></script>
 </head>
 <body>
   <a href="#main-content" class="visually-hidden-focusable btn btn-primary position-absolute top-0 start-0 m-2" style="z-index:1080">Skip to main content</a>
@@ -210,12 +210,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="{{ asset "/static/favicon.svg" }}" type="image/svg+xml">
   <title>{{template "title" .}}</title>
-  <link rel="stylesheet" href="/static/tabler.min.css">
-  <link rel="stylesheet" href="/static/app.css">
-  <script src="/static/tabler.min.js" defer></script>
-  <script src="/static/ui.js" defer></script>
+  <link rel="stylesheet" href="{{ asset "/static/tabler.min.css" }}">
+  <link rel="stylesheet" href="{{ asset "/static/app.css" }}">
+  <script src="{{ asset "/static/tabler.min.js" }}" defer></script>
+  <script src="{{ asset "/static/ui.js" }}" defer></script>
 </head>
 <body class="d-flex flex-column">
   <div class="page page-center">
@@ -239,12 +239,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="{{ asset "/static/favicon.svg" }}" type="image/svg+xml">
   <title>{{template "title" .}}</title>
-  <link rel="stylesheet" href="/static/tabler.min.css">
-  <link rel="stylesheet" href="/static/app.css">
-  <script src="/static/tabler.min.js" defer></script>
-  <script src="/static/ui.js" defer></script>
+  <link rel="stylesheet" href="{{ asset "/static/tabler.min.css" }}">
+  <link rel="stylesheet" href="{{ asset "/static/app.css" }}">
+  <script src="{{ asset "/static/tabler.min.js" }}" defer></script>
+  <script src="{{ asset "/static/ui.js" }}" defer></script>
 </head>
 <body>
   {{template "rootnav" .}}
