@@ -185,6 +185,9 @@ var templateFuncs = template.FuncMap{
 	// ts renders an instant as a <time> element for consistent, locale-aware
 	// display. See TimeElement.
 	"ts": TimeElement,
+	// asset maps a logical static path ("/static/ui.js") to its content-hashed,
+	// immutably-cacheable URL. Use it for every /static/ reference in templates.
+	"asset": assets.URL,
 }
 
 // tsFallbackLayouts maps a display kind to the Go layout used for the server-side
@@ -377,8 +380,7 @@ func limitBody(next http.Handler) http.Handler {
 // SharedRoutes registers endpoints every surface needs (health, static assets).
 func (e *Env) SharedRoutes(r chi.Router) {
 	r.Get("/healthz", e.healthz)
-	staticSub, _ := fs.Sub(staticFS, "static")
-	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.FS(staticSub))))
+	r.Handle("/static/*", http.StripPrefix("/static/", http.HandlerFunc(assets.serveHTTP)))
 }
 
 // healthz is a readiness probe: it pings the database (briefly) so a broken pool
