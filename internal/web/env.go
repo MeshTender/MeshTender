@@ -356,8 +356,45 @@ func (e *Env) CommonMiddleware(r chi.Router) {
 	r.Use(e.resolveClientIP) // trusted-proxy-aware X-Forwarded-For resolution
 	r.Use(e.securityHeaders) // CSP (+ per-request script nonce) and hardening headers
 	r.Use(limitBody)         // cap request bodies before any handler reads them
+	r.Use(compressHTML)      // gzip the server-rendered pages
 	r.Use(middleware.Recoverer)
 }
+
+// compressibleTypes is deliberately just text/html — the server-rendered pages,
+// which is where the entire win is (a page is 15–30 KB of markup that shrinks
+// ~80%). Everything else is left alone on purpose:
+//
+//   - Static CSS/JS/SVG are already pre-compressed once at startup with brotli and
+//     gzip at their best levels (see assets.go), and served with their own
+//     Content-Encoding — which chi's compressor detects and skips. Listing those
+//     types here would only add a redundant on-the-fly path for the rare identity
+//     fallback.
+//   - application/json is skipped because ServeJSONCached computes a *strong* ETag
+//     over the uncompressed bytes; a strong validator is supposed to be unique per
+//     representation, and encodings are separate representations. The one JSON
+//     endpoint is a small list of map points, so there's little to gain. If it ever
+//     grows, compress it at the handler and weaken the ETag there.
+//
+// Note on BREACH: compressing a response that mixes a secret with
+// attacker-influenced text can leak the secret through response sizes. No secret is
+// rendered into an HTML body today — the auth handoff code travels in a redirect's
+// Location header, not the page. If a CSRF token is ever embedded in forms (audit
+// S1), revisit this: the usual mitigation is per-response length masking.
+var compressibleTypes = []string{"text/html"}
+
+// compressHTML gzips server-rendered HTML. Placed after the header middleware so
+// those headers are set before the body is written, and outside Recoverer so a
+// recovered panic's plain-text 500 passes through uncompressed. Responses that
+// already carry a Content-Encoding (the pre-compressed static assets) are skipped
+// by the compressor, and it adds Vary: Accept-Encoding so the cacheable public
+// pages can't be served a gzip body to a client that didn't ask for one.
+//
+// Level 5 rather than best: on a 30 KB page the last few levels buy a couple of
+// percent for meaningfully more CPU per request. Brotli isn't offered here — chi
+// ships gzip/deflate, and on-the-fly brotli at a competitive quality costs more
+// than it returns for bodies this size. The static assets, compressed once at
+// startup, do get brotli.
+var compressHTML = middleware.Compress(5, compressibleTypes...)
 
 // maxRequestBody caps the request body every surface will read. The app has no
 // file uploads — the largest bodies are form posts and small JSON (serial-setup

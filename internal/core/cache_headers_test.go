@@ -10,25 +10,33 @@ import (
 	"testing"
 )
 
+// hasToken reports whether a comma-separated, possibly multi-field-line header
+// value contains a token. Several headers here legitimately arrive as more than
+// one field-line — scs Adds `Cache-Control: no-cache="Set-Cookie"` and
+// `Vary: Cookie`, and chi's compressor Adds `Vary: Accept-Encoding` — and RFC 9110
+// says repeated field-lines combine into one comma-separated list. Header.Get
+// returns only the FIRST line, so asserting with it silently misses the rest.
+// Always pass Header.Values(name) here.
+func hasToken(values []string, token string) bool {
+	for _, v := range values {
+		for _, part := range strings.Split(v, ",") {
+			if strings.EqualFold(strings.TrimSpace(part), token) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // assertNoStore checks every Cache-Control field-line on the response, not just
-// the first. scs Adds its own `no-cache="Set-Cookie"` line whenever it writes a
-// session cookie, so an authenticated response legitimately carries two — RFC 9111
-// combines them into one comma-separated list, and no-store is the strictest
-// directive, so it governs. Header.Get would only ever see the first value, which
-// would let a contradicting directive slip through unnoticed.
+// the first — see hasToken. An authenticated response carries both our no-store
+// and scs's no-cache="Set-Cookie"; no-store is the strictest directive, so it
+// governs.
 func assertNoStore(t *testing.T, resp *http.Response, what string) {
 	t.Helper()
 	values := resp.Header.Values("Cache-Control")
 	joined := strings.Join(values, ", ")
-	var hasNoStore bool
-	for _, v := range values {
-		for _, directive := range strings.Split(v, ",") {
-			if strings.EqualFold(strings.TrimSpace(directive), "no-store") {
-				hasNoStore = true
-			}
-		}
-	}
-	if !hasNoStore {
+	if !hasToken(values, "no-store") {
 		t.Errorf("%s Cache-Control = %q, want it to include no-store", what, joined)
 		return
 	}
