@@ -59,6 +59,28 @@ func (e *Env) securityHeaders(next http.Handler) http.Handler {
 	})
 }
 
+// NoStore marks a response as never-cacheable. Without it a response carrying no
+// Cache-Control and no Expires is *heuristically* cacheable, so the browser's
+// back button re-renders a signed-in page after sign-out — on a shared machine
+// that hands the next person the previous user's dashboard, repeater list and
+// command log. scs's Vary: Cookie stops a shared cache cross-serving one user's
+// page to another, so this closes the local/history exposure that Vary can't.
+//
+// Applied to the session-bearing route groups (see each surface's sessionMW), not
+// blanket per host: static assets and /healthz are registered ahead of the session
+// middleware and must keep their own immutable caching. Anything outside those
+// groups has no session, so it can't render user data in the first place.
+//
+// Note this also opts those pages out of the back/forward cache — bfcache is
+// disabled by no-store specifically (no-cache would not do it) — so back
+// navigation is a real request rather than an instant restore. That's the point.
+func NoStore(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+		next.ServeHTTP(w, r)
+	})
+}
+
 // NonceFromContext returns the per-request CSP script nonce, or "" if unset.
 func NonceFromContext(ctx context.Context) string {
 	if v, ok := ctx.Value(nonceCtxKey{}).(string); ok {

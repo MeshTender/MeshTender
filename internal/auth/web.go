@@ -32,17 +32,22 @@ func NewWeb(deps web.Deps, svc *Service) (*Handlers, error) {
 }
 
 // sessionMW loads and validates the SSO session (two DB touches). Applied to the
-// route group that needs it — not to static assets or /healthz.
+// route group that needs it — not to static assets or /healthz. It also marks the
+// group no-store: a route that can read the session can render user data (and this
+// host serves the credential pages), which must never land in a shared or history
+// cache (see web.NoStore).
 func (s *Handlers) sessionMW(r chi.Router) {
 	r.Use(s.Auth.Sessions.LoadAndSave)
 	r.Use(s.Auth.ValidateSession)
+	r.Use(web.NoStore)
 }
 
 // withSession wraps a single handler in the session middleware, for handlers
 // registered outside the session route group (e.g. the 404 handler) that render
-// page chrome and so need the session in context.
+// page chrome and so need the session in context. It mirrors sessionMW, no-store
+// included.
 func (s *Handlers) withSession(h http.HandlerFunc) http.HandlerFunc {
-	return s.Auth.Sessions.LoadAndSave(s.Auth.ValidateSession(h)).ServeHTTP
+	return s.Auth.Sessions.LoadAndSave(s.Auth.ValidateSession(web.NoStore(h))).ServeHTTP
 }
 
 // Routes is the auth host's router.

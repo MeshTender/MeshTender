@@ -125,17 +125,21 @@ func NewServer(st *store.Store, authSvc *auth.Service, idSvc *identity.Service, 
 
 // sessionMW loads and validates the SSO session (two DB touches). It's applied to
 // the route group that needs it — not to static assets or /healthz, which never
-// use a session and (for static) are hit frequently.
+// use a session and (for static) are hit frequently. It also marks the group
+// no-store: a route that can read the session can render user data, which must
+// never land in a shared or history cache (see web.NoStore).
 func (s *Handlers) sessionMW(r chi.Router) {
 	r.Use(s.Auth.Sessions.LoadAndSave)
 	r.Use(s.Auth.ValidateSession)
+	r.Use(web.NoStore)
 }
 
 // withSession wraps a single handler in the session middleware, for handlers
 // registered outside the session route group (e.g. the 404 handler) that still
-// render page chrome and so need the session in context.
+// render page chrome and so need the session in context. It mirrors sessionMW,
+// no-store included.
 func (s *Handlers) withSession(h http.HandlerFunc) http.HandlerFunc {
-	return s.Auth.Sessions.LoadAndSave(s.Auth.ValidateSession(h)).ServeHTTP
+	return s.Auth.Sessions.LoadAndSave(s.Auth.ValidateSession(web.NoStore(h))).ServeHTTP
 }
 
 // redirectToAuthLogin / redirectToAuthSignup are the app-host entry points that
