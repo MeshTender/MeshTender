@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"errors"
@@ -177,15 +178,24 @@ func (s *Service) ValidateSession(next http.Handler) http.Handler {
 }
 
 // VerifyPassword checks a username/password pair, returning the user on success.
+//
+// When there's nothing to compare against — no such user, or an account with no
+// password (passkey-only) — it still spends the same bcrypt work a real check
+// would (see spendPasswordWork) before failing. Returning early instead would make
+// the response time an oracle: a real comparison costs ~100ms, an indexed miss
+// ~1ms, so an attacker could sort usernames into "exists with a password",
+// "exists, passkey-only", and "doesn't exist" by timing alone.
 func (s *Service) VerifyPassword(ctx context.Context, username, password string) (*store.User, error) {
 	u, err := s.store.GetUserByUsername(ctx, username)
 	if errors.Is(err, store.ErrNotFound) {
+		spendPasswordWork(password)
 		return nil, ErrInvalidCredentials
 	}
 	if err != nil {
 		return nil, err
 	}
 	if u.PasswordHash == nil {
+		spendPasswordWork(password)
 		return nil, ErrInvalidCredentials
 	}
 	ok, legacy := comparePassword(*u.PasswordHash, password)
@@ -274,6 +284,40 @@ func prehashPassword(password string) []byte {
 func hashPassword(password string) (string, error) {
 	h, err := bcrypt.GenerateFromPassword(prehashPassword(password), bcrypt.DefaultCost)
 	return string(h), err
+}
+
+// dummyPasswordHash is a real bcrypt hash of 32 random bytes, used to burn the
+// same work as a genuine verification when there is no stored hash to check. It's
+// built at init (not lazily) so the very first login can't be the odd one out, and
+// via hashPassword so it is structurally identical to a stored hash — same scheme,
+// and automatically the same cost as bcrypt.DefaultCost rather than a hardcoded
+// literal that would silently diverge if that constant changed. Nothing a caller
+// can submit will match it (the input is 256 bits of randomness that never leaves
+// this process).
+var dummyPasswordHash = mustDummyPasswordHash()
+
+func mustDummyPasswordHash() string {
+	var b [32]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		// Same treatment as the CSP nonce: a predictable value here would defeat the
+		// purpose, and there's no safe fallback.
+		panic("dummy password hash: " + err.Error())
+	}
+	h, err := hashPassword(base64.StdEncoding.EncodeToString(b[:]))
+	if err != nil {
+		panic("dummy password hash: " + err.Error())
+	}
+	return h
+}
+
+// spendPasswordWork performs the bcrypt work of a failed verification and discards
+// the result. It goes through comparePassword — rather than calling bcrypt once
+// directly — because comparePassword tries BOTH schemes (pre-hash, then legacy
+// raw) and so costs two bcrypt operations on a mismatch. A single direct
+// comparison would cost one, leaving a clean 2x timing split between "user exists"
+// and "user doesn't", which is the very signal this exists to remove.
+func spendPasswordWork(password string) {
+	_, _ = comparePassword(dummyPasswordHash, password)
 }
 
 // comparePassword checks password against a stored bcrypt hash, accepting both
