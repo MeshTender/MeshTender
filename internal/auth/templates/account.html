@@ -231,7 +231,7 @@
               <label class="form-label" for="cur_pw">Current password</label>
               <div class="input-group input-group-flat">
                 <input type="password" class="form-control" id="cur_pw" name="current_password" autocomplete="current-password" required>
-                <span class="input-group-text"><a href="#" class="link-secondary" role="button" aria-pressed="false" title="Show password" data-pwtoggle="cur_pw" aria-label="Show password">{{template "icon-eye" ""}}</a></span>
+                <span class="input-group-text"><button type="button" class="link-secondary border-0 bg-transparent p-0" aria-pressed="false" title="Show password" data-pwtoggle="cur_pw" aria-label="Show password">{{template "icon-eye" ""}}</button></span>
               </div>
             </div>
             {{end}}
@@ -239,7 +239,7 @@
               <label class="form-label" for="new_pw">{{if .HasPassword}}New password{{else}}Password{{end}} <span class="form-label-description">min {{.MinPasswordLen}} characters</span></label>
               <div class="input-group input-group-flat">
                 <input type="password" class="form-control" id="new_pw" name="new_password" autocomplete="new-password" minlength="{{.MinPasswordLen}}" required>
-                <span class="input-group-text"><a href="#" class="link-secondary" role="button" aria-pressed="false" title="Show password" data-pwtoggle="new_pw" aria-label="Show password">{{template "icon-eye" ""}}</a></span>
+                <span class="input-group-text"><button type="button" class="link-secondary border-0 bg-transparent p-0" aria-pressed="false" title="Show password" data-pwtoggle="new_pw" aria-label="Show password">{{template "icon-eye" ""}}</button></span>
               </div>
             </div>
           </div>

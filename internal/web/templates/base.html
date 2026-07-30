@@ -26,10 +26,15 @@
         <div class="navbar-nav flex-row order-md-last align-items-center gap-2">
           {{if .UserName}}
           <div class="nav-item dropdown">
-            <a href="#" class="nav-link d-flex lh-1 p-0 px-2" data-bs-toggle="dropdown" aria-label="Open user menu">
+            {{/* A real <button>, not an anchor: it opens a menu rather than going
+                 anywhere. As an <a href="#"> it was announced as a link, appended #
+                 to the URL when used, and ignored the Space key (links only respond
+                 to Enter). .nav-link already zeroes background/border, so it needs no
+                 reset classes. */}}
+            <button type="button" class="nav-link d-flex lh-1 p-0 px-2" data-bs-toggle="dropdown" aria-label="Open user menu">
               <span class="avatar avatar-sm">{{template "icon-user" ""}}</span>
               <div class="d-none d-xl-block ps-2"><div>{{.UserName}}</div></div>
-            </a>
+            </button>
             <div class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
               <a class="dropdown-item" href="{{.AuthURL}}/account">{{template "icon-settings" "dropdown-item-icon"}}Account settings</a>
               {{if .LogoutURL}}

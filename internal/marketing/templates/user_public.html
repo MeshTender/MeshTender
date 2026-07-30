@@ -39,11 +39,11 @@
         {{range $i, $l := .Links}}
         {{if $l.IsMeshCore}}
         <div class="list-group-item">
-          <a class="d-flex align-items-center gap-2 text-reset" data-bs-toggle="collapse" href="#mesh-{{$i}}" role="button" aria-expanded="false" aria-controls="mesh-{{$i}}">
+          <button type="button" class="d-flex align-items-center gap-2 text-reset border-0 bg-transparent p-0 w-100" data-bs-toggle="collapse" data-bs-target="#mesh-{{$i}}" aria-expanded="false" aria-controls="mesh-{{$i}}">
             <span class="text-secondary d-flex" title="{{$l.PlatformName}}">{{template "link-icon" $l.Platform}}</span>
             <span class="flex-fill text-truncate">{{$l.Display}}</span>
             <span class="text-secondary d-flex">{{template "icon-qrcode" ""}}</span>
-          </a>
+          </button>
           <div class="collapse" id="mesh-{{$i}}">
             {{if $l.QR}}<div class="text-center mt-3"><img class="rounded border" src="{{$l.QR}}" width="200" height="200" alt="MeshCore contact QR for {{$l.Display}}"></div>{{end}}
             <code class="pk d-block mt-2">{{$l.URL}}</code>

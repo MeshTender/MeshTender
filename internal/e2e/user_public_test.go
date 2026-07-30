@@ -57,7 +57,9 @@ func TestE2EUserPublicLinks(t *testing.T) {
 		chromedp.Evaluate(`['GitHub','Signal','Discord','Email','MeshCore'].every(function(n){return !!document.querySelector('.list-group [title="'+n+'"]');})`, &titlesShown),
 		// Expand the MeshCore row (Bootstrap collapse under the CSP) and read the key.
 		// Target the row's own toggle — the navbar also uses data-bs-toggle=collapse.
-		chromedp.Click(`.list-group a[href^="#mesh-"]`, chromedp.ByQuery),
+		// It's a <button data-bs-target>, not an <a href="#...">: it opens a disclosure
+		// rather than navigating, so it needs button semantics (audit A4).
+		chromedp.Click(`.list-group button[data-bs-target^="#mesh-"]`, chromedp.ByQuery),
 		chromedp.WaitVisible(`.collapse.show .pk`, chromedp.ByQuery),
 		chromedp.Text(`.collapse.show .pk`, &meshCodeText, chromedp.ByQuery),
 		chromedp.WaitVisible(`.collapse.show img`, chromedp.ByQuery),
