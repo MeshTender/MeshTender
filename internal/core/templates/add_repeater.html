@@ -176,14 +176,16 @@
     </div>
     <div id="key-prefix" class="mb-2" hidden>
       <div class="input-group">
-        <input type="text" class="form-control font-monospace" id="prefix" placeholder="e.g. beef" pattern="[0-9a-fA-F]*">
+        <input type="text" class="form-control font-monospace" id="prefix" placeholder="e.g. beef" pattern="[0-9a-fA-F]*"
+               aria-label="Desired public key prefix (hex)">
         <button type="button" class="btn" id="grind">Generate</button>
         <button type="button" class="btn btn-link" id="grind-stop" hidden>Stop</button>
       </div>
       <small class="form-hint">Hex only (0-9, a-f). Each extra character takes ~16× longer to find — long prefixes may take a very long time.</small>
     </div>
     <div id="key-paste" class="mb-2" hidden>
-      <textarea class="form-control font-monospace" id="privkey" rows="2" placeholder="128 hex chars (64-byte key) or 64 hex chars (32-byte seed)"></textarea>
+      <textarea class="form-control font-monospace" id="privkey" rows="2" placeholder="128 hex chars (64-byte key) or 64 hex chars (32-byte seed)"
+                aria-label="Existing private key or seed (hex)"></textarea>
     </div>
 
     <div class="mb-3">

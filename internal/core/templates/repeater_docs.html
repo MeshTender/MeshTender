@@ -16,7 +16,8 @@
         Shown on the public page when one is published.
         <strong>Do not put gate codes, lock combinations, or other site-access secrets here</strong> — use the internal section below for those.
       </p>
-      <textarea class="form-control font-monospace" name="doc_public" rows="10" maxlength="20000" placeholder="Hardware, antenna, power/solar, firmware, how to service…">{{.Repeater.DocPublic}}</textarea>
+      <textarea class="form-control font-monospace" name="doc_public" rows="10" maxlength="20000" placeholder="Hardware, antenna, power/solar, firmware, how to service…"
+                aria-label="Public documentation (Markdown)">{{.Repeater.DocPublic}}</textarea>
     </div>
   </div>
 
@@ -29,7 +30,8 @@
         Sensitive site-access details — gate codes, lock combinations, landlord/contact info, climbing notes.
         Only the owner, stewards, and people you've shared with can read this. <strong>Never shown on the public page.</strong>
       </p>
-      <textarea class="form-control font-monospace" name="doc_internal" rows="8" maxlength="20000" placeholder="Gate code, lock combo, who to call for site access…">{{.Repeater.DocInternal}}</textarea>
+      <textarea class="form-control font-monospace" name="doc_internal" rows="8" maxlength="20000" placeholder="Gate code, lock combo, who to call for site access…"
+                aria-label="Internal notes (Markdown, not public)">{{.Repeater.DocInternal}}</textarea>
     </div>
   </div>
 

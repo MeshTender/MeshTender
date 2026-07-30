@@ -25,7 +25,8 @@
         <p>Run this on your repeater — through the <strong>repeater console in the MeshCore companion app</strong>, directly over USB serial, or let MeshTender run it for you during USB setup:</p>
         {{if .SetPermCommand}}
         <div class="input-group mb-2">
-          <input type="text" class="form-control font-monospace" id="setperm-cmd" value="{{.SetPermCommand}}" readonly>
+          <input type="text" class="form-control font-monospace" id="setperm-cmd" value="{{.SetPermCommand}}"
+                 aria-label="setperm command with MeshTender's public key" readonly>
           <button type="button" class="btn" data-copy-target="#setperm-cmd">Copy</button>
         </div>
         <p class="text-secondary small mb-0">The long value is <strong>MeshTender's</strong> public key — not your repeater's. If you see a guest-access warning after confirming a repeater, this is the fix: run the command above, then confirm again.</p>

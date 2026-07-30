@@ -1,6 +1,7 @@
 package web
 
 import (
+	"bytes"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -189,6 +190,94 @@ func TestTemplatesHeadingConventions(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("walk templates: %v", err)
+	}
+}
+
+// controlRe matches a form control's opening tag.
+var controlRe = regexp.MustCompile(`(?is)<(input|select|textarea)\b([^>]*)>`)
+
+// namedRe matches the attributes that give a control an accessible name directly.
+var namedRe = regexp.MustCompile(`(?i)aria-label\s*=|aria-labelledby\s*=|\btitle\s*=`)
+
+// skipTypes are input types with no user-visible value to name.
+var skipTypes = map[string]bool{
+	"hidden": true, "submit": true, "button": true, "image": true, "reset": true,
+}
+
+// TestTemplatesFormControlsAreLabeled enforces that every form control has an
+// accessible name. Without one, a screen reader announces "edit text, blank" and the
+// user has to guess from surrounding prose — assuming they find it at all.
+//
+// A control counts as named by any of:
+//   - aria-label / aria-labelledby / title on the control
+//   - a <label for="..."> anywhere in the template set (labels sometimes live in a
+//     different file from their control, e.g. shared partials)
+//   - being wrapped in its own <label> (Bootstrap's form-check pattern) — this is why
+//     a naive for=/id scan is useless here: it reports 22 false positives on this
+//     codebase.
+//
+// Note a placeholder is NOT a label: it vanishes on input and is not reliably
+// announced. Neither is a nearby heading, nor a <label> that lacks for= and doesn't
+// wrap its control — that last one looks correct in the markup and is the trap this
+// test exists to catch (audit A3 found three of them in the region editor).
+func TestTemplatesFormControlsAreLabeled(t *testing.T) {
+	t.Parallel()
+	root := moduleRoot(t)
+
+	// Pass 1: every for= target across all templates.
+	labelFor := map[string]bool{}
+	forRe := regexp.MustCompile(`(?is)<label[^>]*\bfor="([^"]+)"`)
+	var files []string
+	err := filepath.WalkDir(filepath.Join(root, "internal"), func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".html") {
+			return nil
+		}
+		files = append(files, path)
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		for _, m := range forRe.FindAllSubmatch(b, -1) {
+			labelFor[string(m[1])] = true
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk templates: %v", err)
+	}
+
+	idRe := regexp.MustCompile(`(?i)\bid="([^"]+)"`)
+	typeRe := regexp.MustCompile(`(?i)type="([^"]+)"`)
+	for _, path := range files {
+		b, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
+		}
+		rel, _ := filepath.Rel(root, path)
+		for _, loc := range controlRe.FindAllSubmatchIndex(b, -1) {
+			tag := string(b[loc[2]:loc[3]])
+			attrs := b[loc[4]:loc[5]]
+			if tm := typeRe.FindSubmatch(attrs); tag == "input" && tm != nil &&
+				skipTypes[strings.ToLower(string(tm[1]))] {
+				continue
+			}
+			if namedRe.Match(attrs) {
+				continue
+			}
+			if im := idRe.FindSubmatch(attrs); im != nil && labelFor[string(im[1])] {
+				continue
+			}
+			// Wrapped by its own <label>? Count unclosed <label> tags before it.
+			before := b[:loc[0]]
+			if bytes.Count(before, []byte("<label")) > bytes.Count(before, []byte("</label>")) {
+				continue
+			}
+			t.Errorf("%s: <%s> has no accessible name (add aria-label, or a <label for=> / "+
+				"wrapping <label>): %q", rel, tag, snippet(b, loc[0]))
+		}
 	}
 }
 
