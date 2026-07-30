@@ -47,7 +47,34 @@ func (e *Env) securityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		nonce := newNonce()
 		h := w.Header()
-		h.Set("Content-Security-Policy", cspDirectives+"; script-src 'self' 'nonce-"+nonce+"'")
+		policy := cspDirectives + "; script-src 'self' 'nonce-" + nonce + "'"
+		if e.csp != nil {
+			// report-uri ONLY, deliberately — not the modern report-to /
+			// Reporting-Endpoints pair, despite report-uri being deprecated.
+			//
+			// The trap is that these two don't compose: a browser that supports
+			// report-to IGNORES report-uri when both are present. So advertising both
+			// doesn't broaden coverage, it hands Chrome (the majority browser) over to
+			// the report-to path exclusively. If that path doesn't deliver, Chrome
+			// reports nothing at all — and an empty report table is indistinguishable
+			// from a clean one, the worst failure mode a monitoring feature can have.
+			//
+			// TestCSPViolationIsReportedByARealBrowser measures which actually works.
+			// With report-uri alone, Chrome delivers a genuine violation within a
+			// second. With report-to advertised, it delivered nothing at all in the
+			// same environment — explained by the self-signed certificate the e2e
+			// suite serves (Security.setIgnoreCertificateErrors is scoped to the
+			// inspected target and doesn't cover the network service's out-of-band
+			// report uploads), which is a test artifact rather than a production one.
+			//
+			// That's the point: report-uri is verified end to end in the browser
+			// engine we serve, and report-to is not verifiable here. Adding it would
+			// trade a working path for an unverified one. Revisit once it can be
+			// tested against a trusted certificate; parseCSPReports already handles
+			// the Reporting-API wire format, so enabling it is a header change.
+			policy += "; report-uri " + CSPReportPath
+		}
+		h.Set("Content-Security-Policy", policy)
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("Referrer-Policy", "strict-origin-when-cross-origin")
 		h.Set("X-Frame-Options", "DENY") // old-browser fallback for frame-ancestors 'none'
@@ -108,8 +135,20 @@ func unsafeMethod(method string) bool {
 // alternative — a synchronizer token in every form — would put a secret in an HTML
 // body, and HTML is compressed (see compressHTML), which is the BREACH
 // precondition. Keeping the check in headers sidesteps that entirely.
+//
+// The violation-report endpoint is exempt. Reports are POSTs the browser generates
+// itself, out-of-band from the document that triggered them, and the Sec-Fetch-Site
+// value on that delivery is not something the CSP or Reporting API specifications
+// pin down — so a report could arrive labelled "cross-site" and be silently
+// discarded, leaving reporting looking merely quiet. Exempting it costs nothing:
+// the endpoint takes no session, performs no authenticated action, and its only
+// effect is incrementing a counter on an aggregate row (see CSPCollector).
 func blockCrossSiteWrites(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == CSPReportPath {
+			next.ServeHTTP(w, r)
+			return
+		}
 		if unsafeMethod(r.Method) && strings.EqualFold(r.Header.Get("Sec-Fetch-Site"), "cross-site") {
 			slog.Warn("blocked cross-site write",
 				"method", r.Method,

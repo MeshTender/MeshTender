@@ -46,10 +46,15 @@ type UserInfoFunc func(ctx context.Context) (name string, canAdmin bool, tz stri
 
 // Deps are the shared dependencies every surface needs.
 type Deps struct {
-	Store     *store.Store
-	Identity  *identity.Service
-	Cfg       *config.Config
-	UserInfo  UserInfoFunc
+	Store    *store.Store
+	Identity *identity.Service
+	Cfg      *config.Config
+	UserInfo UserInfoFunc
+	// CSP collects browser violation reports. One collector is shared by all three
+	// surfaces (violations happen on every host, and they aggregate into one table),
+	// so it's built once by the assembler and passed in here. Nil disables the
+	// endpoint and the reporting directives entirely.
+	CSP       *CSPCollector
 	LookupTXT func(name string) ([]string, error)
 }
 
@@ -63,6 +68,9 @@ type Env struct {
 	// LookupTXT resolves DNS TXT records; injectable so domain verification is
 	// testable. Defaults to net.LookupTXT.
 	LookupTXT func(name string) ([]string, error)
+	// csp is the shared violation-report collector, or nil when reporting is off.
+	// Unexported: surfaces only need it to exist, not to reach into it.
+	csp *CSPCollector
 }
 
 // NewEnv builds a surface environment from shared Deps plus that surface's own
@@ -77,7 +85,7 @@ func NewEnv(d Deps, surfaceTemplates fs.FS) (*Env, error) {
 	if lookup == nil {
 		lookup = net.LookupTXT
 	}
-	return &Env{Store: d.Store, Identity: d.Identity, Cfg: d.Cfg, Renderer: r, LookupTXT: lookup}, nil
+	return &Env{Store: d.Store, Identity: d.Identity, Cfg: d.Cfg, Renderer: r, LookupTXT: lookup, csp: d.CSP}, nil
 }
 
 // Render delegates to the shared renderer (convenience for handlers via Env).
@@ -428,10 +436,20 @@ func limitBody(next http.Handler) http.Handler {
 	})
 }
 
-// SharedRoutes registers endpoints every surface needs (health, static assets).
+// SharedRoutes registers endpoints every surface needs (health, static assets, CSP
+// violation reports).
+//
+// The report endpoint belongs here specifically because every surface registers
+// these: a violation on the auth host must be reportable to the auth host, so the
+// delivery stays same-origin. It's also registered ahead of the session middleware
+// by every caller, which matters — a browser posting reports must not mint a session
+// row per report.
 func (e *Env) SharedRoutes(r chi.Router) {
 	r.Get("/healthz", e.healthz)
 	r.Handle("/static/*", http.StripPrefix("/static/", http.HandlerFunc(assets.serveHTTP)))
+	if e.csp != nil {
+		r.Post(CSPReportPath, e.csp.handleReport)
+	}
 }
 
 // healthz is a readiness probe: it pings the database (briefly) so a broken pool

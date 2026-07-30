@@ -19,6 +19,7 @@ import (
 	"github.com/jleight/meshtender/internal/identity"
 	"github.com/jleight/meshtender/internal/seed"
 	"github.com/jleight/meshtender/internal/store"
+	"github.com/jleight/meshtender/internal/web"
 )
 
 func main() {
@@ -118,12 +119,25 @@ func run(logger *slog.Logger) error {
 		defer close(analyticsDone)
 		rec.Run(bgCtx)
 	}()
+	// CSP violation reports are written by their own background flusher, for the same
+	// reason as analytics: the report endpoint is public, so a report storm must not
+	// add request latency.
+	cspDone := make(chan struct{})
+	go func() {
+		defer close(cspDone)
+		srv.CollectCSPReports(bgCtx)
+	}()
 	janitorDone := make(chan struct{})
 	go func() {
 		defer close(janitorDone)
 		runJanitor(bgCtx, janitorInterval, logger,
 			janitorSweep{"auth codes", st.PruneAuthCodes},
 			janitorSweep{"share links", st.PruneInvites},
+			// A violation that stops recurring eventually ages out, so a fixed
+			// problem leaves the admin page on its own.
+			janitorSweep{"csp reports", func(ctx context.Context) (int64, error) {
+				return st.PruneCSPReports(ctx, web.CSPRetention)
+			}},
 		)
 	}()
 
@@ -181,6 +195,7 @@ func run(logger *slog.Logger) error {
 	// especially — before the deferred st.Close() closes the pool underneath them.
 	stopBackground()
 	<-analyticsDone
+	<-cspDone
 	<-janitorDone
 	return srvErr
 }

@@ -1,0 +1,153 @@
+{{define "title"}}CSP reports · MeshTender{{end}}
+{{define "header"}}
+<div class="row g-2 align-items-center">
+  <div class="col">
+    <div class="page-pretitle">Administration</div>
+    <h1 class="page-title fs-1">Content Security Policy Reports</h1>
+  </div>
+  <div class="col-auto ms-auto d-print-none">
+    <div class="btn-group" role="group" aria-label="Filter by source">
+      <a class="btn{{if eq .Source "page"}} btn-primary{{end}}" href="/admin/csp?source=page">Page</a>
+      <a class="btn{{if eq .Source "extension"}} btn-primary{{end}}" href="/admin/csp?source=extension">Extensions</a>
+      <a class="btn{{if .ShowAll}} btn-primary{{end}}" href="/admin/csp?source=all">All</a>
+    </div>
+  </div>
+</div>
+{{end}}
+{{define "content"}}
+{{if .Flash}}<div class="alert alert-success" role="alert">{{.Flash}}</div>{{end}}
+
+<div class="row row-cards">
+  <div class="col-sm-4">
+    <div class="card card-sm"><div class="card-body">
+      <div class="h1 mb-0" data-testid="csp-page-count">{{.Stats.PageDistinct}}</div>
+      <div class="text-secondary">Page violations</div>
+    </div></div>
+  </div>
+  <div class="col-sm-4">
+    <div class="card card-sm"><div class="card-body">
+      <div class="h1 mb-0">{{.Stats.ExtensionDistinct}}</div>
+      <div class="text-secondary">Extension violations</div>
+    </div></div>
+  </div>
+  <div class="col-sm-4">
+    <div class="card card-sm"><div class="card-body">
+      <div class="h1 mb-0">{{.Stats.Hits}}</div>
+      <div class="text-secondary">Total reports received</div>
+    </div></div>
+  </div>
+</div>
+
+{{if .Stats.AtCapacity}}
+<div class="alert alert-warning mt-3" role="alert" data-testid="csp-at-capacity">
+  <h3 class="alert-title">Report storage is full</h3>
+  All {{.Capacity}} slots for distinct violations are in use, so <strong>new kinds of violation are no
+  longer being recorded</strong> — only repeats of what's already listed. Clear the reports you've
+  triaged to make room.
+</div>
+{{end}}
+
+<div class="card mt-3">
+  <div class="card-header">
+    <h2 class="card-title">
+      {{if .ShowAll}}All violations{{else if eq .Source "extension"}}Extension violations{{else}}Page violations{{end}}
+    </h2>
+    {{if .CanClear}}
+    <div class="card-actions">
+      <form method="post" action="/admin/csp/clear" class="m-0"
+            data-confirm="Clear these violation reports? They'll reappear if the violations happen again.">
+        {{if not .ShowAll}}<input type="hidden" name="source" value="{{.Source}}">{{end}}
+        <button type="submit" class="btn btn-sm">Clear</button>
+      </form>
+    </div>
+    {{end}}
+  </div>
+
+  {{/* The extension note sits in its own card-body only when a table follows it —
+       consecutive card-bodies get a divider, so folding it into the empty state
+       instead avoids a rule across an otherwise empty card. No pb-0 here: Tabler
+       zeroes the bottom margin of a card-body's last child, so trimming the padding
+       too leaves the note butted against the table header. */}}
+  {{if .Reports}}
+  {{if eq .Source "extension"}}
+  <div class="card-body">{{template "csp-extension-note"}}</div>
+  {{end}}
+  <div class="table-responsive">
+    <table class="table card-table table-vcenter">
+      <thead>
+        <tr>
+          <th scope="col">Directive</th>
+          <th scope="col">Blocked</th>
+          <th scope="col">Page</th>
+          <th scope="col" class="text-end">Reports</th>
+          <th scope="col">Last seen</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Reports}}
+        <tr data-testid="csp-row">
+          <td>
+            <span class="badge bg-secondary-lt">{{.Directive}}</span>
+            {{if eq .Disposition "report"}}
+            <span class="badge bg-blue-lt" title="A report-only policy would have blocked this; nothing was actually blocked.">report-only</span>
+            {{end}}
+            {{if and $.ShowAll (eq .Source "extension")}}
+            <span class="badge bg-purple-lt">extension</span>
+            {{end}}
+          </td>
+          <td class="text-break"><code>{{.BlockedURI}}</code></td>
+          <td class="text-break">
+            <span class="text-secondary">{{.Host}}</span>{{.DocumentPath}}{{if .LineNumber}}<span class="text-secondary">:{{.LineNumber}}</span>{{end}}
+            {{/* Name the injector when the report identified one — it's the evidence
+                 for the “extension” label, and browsers report only the scheme (no
+                 extension ID), so there's nothing identifying to leak here. */}}
+            {{if and .SourceFile (ne .Source "page")}}
+            <div class="text-secondary small">injected by <code>{{.SourceFile}}</code></div>
+            {{end}}
+            {{if .Sample}}<div class="text-secondary small font-monospace text-break">{{.Sample}}</div>{{end}}
+          </td>
+          <td class="text-end">{{.Hits}}</td>
+          <td class="text-nowrap">
+            {{ts .LastSeen "datetime"}}
+            <div class="text-secondary small">first {{ts .FirstSeen "date"}}</div>
+          </td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+  {{else}}
+  <div class="card-body">
+    {{if eq .Source "extension"}}{{template "csp-extension-note"}}{{end}}
+    <p class="text-secondary mb-0">
+      {{if eq .Source "page"}}
+      No violations reported. That's the result you want: it means nothing on the site is being blocked
+      by the Content Security Policy.
+      {{else}}
+      Nothing recorded.
+      {{end}}
+    </p>
+  </div>
+  {{end}}
+
+  <div class="card-footer text-secondary small">
+    Browsers report violations to this server directly; nothing is sent to a third party. A violation
+    that stops recurring is removed after {{.Retention}} days, and at most {{.Capacity}} distinct
+    violations are stored at once.
+    {{if ge (len .Reports) .Limit}}Showing the {{.Limit}} most recent.{{end}}
+  </div>
+</div>
+<a class="back-link mt-3" href="/admin">{{template "icon-arrow-left" "me-1"}}Back to admin</a>
+{{end}}
+
+{{/* csp-extension-note is defined once and rendered in two places (above the table,
+     or inside the empty state), so the wording can't drift between them. */}}
+{{define "csp-extension-note"}}
+<p class="text-secondary small">
+  Violations caused by browser extensions injecting into a visitor's page. Nothing here is a bug in
+  MeshTender and none of it is fixable from our side — it's kept only so an extension can be
+  recognised as the cause rather than mistaken for an app problem. Note that an extension injecting
+  an <em>inline</em> script is indistinguishable from a genuine inline-script violation, so those
+  are listed under “Page”.
+</p>
+{{end}}

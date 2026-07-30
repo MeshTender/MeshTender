@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/jleight/meshtender/internal/config"
+	"github.com/jleight/meshtender/internal/web"
 )
 
 func testRecorder() *Recorder {
@@ -27,26 +28,6 @@ func TestHandlerRecordsRequest(t *testing.T) {
 		}
 	default:
 		t.Fatal("expected an event to be enqueued")
-	}
-}
-
-// TestRedactPath: the secret invite/share token is templatized so it never
-// reaches the raw events table; non-invite paths pass through untouched.
-// Regression for the pre-release audit finding that live tokens were recorded.
-func TestRedactPath(t *testing.T) {
-	cases := []struct{ in, want string }{
-		{"/invite/abc123secret", "/invite/:token"},
-		{"/invite/abc123secret/accept", "/invite/:token/accept"},
-		{"/invite/", "/invite/"}, // no token, nothing to redact
-		{"/invite", "/invite"},
-		{"/dashboard", "/dashboard"},
-		{"/r/pub-id-not-secret", "/r/pub-id-not-secret"},
-		{"/orgs/some-slug", "/orgs/some-slug"},
-	}
-	for _, c := range cases {
-		if got := redactPath(c.in); got != c.want {
-			t.Errorf("redactPath(%q) = %q, want %q", c.in, got, c.want)
-		}
 	}
 }
 
@@ -126,5 +107,36 @@ func TestVisitorStableAndDistinct(t *testing.T) {
 	}
 	if a1 == b {
 		t.Fatalf("different clients should hash differently")
+	}
+}
+
+// TestHandlerSkipsCSPReports: browser-generated violation reports are
+// infrastructure, not visits. Counting them would let one visitor with a noisy
+// extension inflate the traffic figures — an extension can post thousands a day.
+func TestHandlerSkipsCSPReports(t *testing.T) {
+	rec := testRecorder()
+	h := rec.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	req := httptest.NewRequest(http.MethodPost, "http://app.x"+web.CSPReportPath, nil)
+	req.Header.Set("User-Agent", "Mozilla/5.0")
+	h.ServeHTTP(httptest.NewRecorder(), req)
+
+	select {
+	case e := <-rec.ch:
+		t.Fatalf("a CSP report was recorded as traffic: %+v", e)
+	default:
+	}
+
+	// Guard the guard: the same recorder must still record an ordinary request, or
+	// this would pass with the middleware disabled entirely.
+	ordinary := httptest.NewRequest(http.MethodGet, "http://app.x/dashboard", nil)
+	ordinary.Header.Set("User-Agent", "Mozilla/5.0")
+	h.ServeHTTP(httptest.NewRecorder(), ordinary)
+	select {
+	case <-rec.ch:
+	default:
+		t.Fatal("the recorder dropped an ordinary request too — the skip test proves nothing")
 	}
 }

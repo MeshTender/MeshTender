@@ -96,6 +96,7 @@ func envOr(key, def string) string {
 type e2eServer struct {
 	store   *store.Store
 	ctx     context.Context
+	srv     *core.Server
 	ts      *httptest.Server
 	hostURL string // https://127.0.0.1:PORT — reachable from this process
 	appURL  string // https://app.<browserHost>:PORT  — the product surface
@@ -180,6 +181,7 @@ func newE2EServer(t *testing.T) *e2eServer {
 	return &e2eServer{
 		store:   st,
 		ctx:     ctx,
+		srv:     srv,
 		ts:      ts,
 		hostURL: ts.URL,
 		appURL:  origin(appHost()),

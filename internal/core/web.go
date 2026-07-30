@@ -43,10 +43,16 @@ type Handlers struct {
 type Server struct {
 	handler http.Handler
 	app     *Handlers
+	csp     *web.CSPCollector
 }
 
 // Handler returns the root HTTP handler.
 func (s *Server) Handler() http.Handler { return s.handler }
+
+// CollectCSPReports runs the violation-report writer until ctx is cancelled. Start
+// it in a goroutine alongside the other background workers, and let it finish before
+// the store's pool closes — it does a final flush of anything still queued.
+func (s *Server) CollectCSPReports(ctx context.Context) { s.csp.Run(ctx) }
 
 // WSDrainTimeout is the recommended deadline for DrainWebSockets on shutdown. It
 // must comfortably exceed a single handler's consoleEndTimeout (the deferred
@@ -81,10 +87,15 @@ func (s *Server) DrainWebSockets(ctx context.Context) bool {
 // the root host serves marketing + public org discovery, and the app host (plus
 // custom org domains and any unrecognized host) serves the product.
 func NewServer(st *store.Store, authSvc *auth.Service, idSvc *identity.Service, cfg *config.Config) (*Server, error) {
+	// One collector for all three surfaces: violations happen on every host but
+	// aggregate into a single table, and a shared collector also means one shared
+	// per-IP rate limit rather than three that each allow a full burst.
+	csp := web.NewCSPCollector(st, cfg)
 	deps := web.Deps{
 		Store:    st,
 		Identity: idSvc,
 		Cfg:      cfg,
+		CSP:      csp,
 		UserInfo: func(ctx context.Context) (string, bool, string, bool) {
 			uid := authSvc.CurrentUserID(ctx)
 			if uid == 0 {
@@ -120,7 +131,7 @@ func NewServer(st *store.Store, authSvc *auth.Service, idSvc *identity.Service, 
 	// public org pages).
 	appHandler := mkH.CustomDomain(app.appRouter())
 	handler := web.Dispatcher(cfg, authH.Routes(), mkH.Routes(), appHandler)
-	return &Server{handler: handler, app: app}, nil
+	return &Server{handler: handler, app: app, csp: csp}, nil
 }
 
 // sessionMW loads and validates the SSO session (two DB touches). It's applied to
@@ -251,6 +262,12 @@ func (s *Handlers) appRouter() chi.Router {
 				r.With(s.requireCap(capAny)).Get("/", s.pageAdmin)
 				r.With(s.requireCap(capAny)).Get("/analytics", s.pageAnalytics)
 				r.With(s.requireCap(capAny)).Get("/proxy-test", s.pageProxyTest)
+				// CSP violation reports. Viewing is capAny, matching traffic analytics
+				// — it's diagnostic data about our own pages. Clearing deletes records,
+				// so it takes capUsers, the higher bar; the page hides the button
+				// accordingly rather than offering one that 403s.
+				r.With(s.requireCap(capAny)).Get("/csp", s.pageCSPReports)
+				r.With(s.requireCap(capUsers)).Post("/csp/clear", s.handleClearCSPReports)
 				r.With(s.requireCap(capCatalog)).Get("/catalog", s.pageCatalog)
 				r.With(s.requireCap(capCatalog)).Post("/catalog/{id}", s.handleUpdateCommand)
 				r.With(s.requireCap(capUsers)).Get("/users", s.pageUsers)

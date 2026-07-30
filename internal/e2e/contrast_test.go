@@ -197,6 +197,23 @@ func TestContrastMeetsWCAGAA(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create org: %v", err)
 	}
+	// Seed one violation per classification and disposition so the CSP page renders a
+	// populated table rather than its empty state — the badges on those rows
+	// (bg-secondary-lt, bg-blue-lt, bg-purple-lt) are exactly the ones this test
+	// caught failing, so an empty table would measure none of them.
+	cspSeed := store.CSPReport{
+		Disposition: "enforce", Directive: "script-src-elem", BlockedURI: "inline",
+		DocumentPath: "/repeaters", Host: appHost(), Source: store.CSPReportSourcePage,
+		Hits: 3, LastSeen: time.Now(), Sample: "window.injected = 1",
+	}
+	reportOnly := cspSeed
+	reportOnly.Disposition = "report"
+	extension := cspSeed
+	extension.BlockedURI = "chrome-extension://contrastcheck"
+	extension.Source = store.CSPReportSourceExtension
+	if err := srv.store.RecordCSPReports(srv.ctx, []store.CSPReport{cspSeed, reportOnly, extension}); err != nil {
+		t.Fatalf("seed csp reports: %v", err)
+	}
 
 	// Two passes, and the split is load-bearing. Visiting /login while a session cookie
 	// is present triggers the cross-host handoff, which rotates the session token — so a
@@ -223,6 +240,7 @@ func TestContrastMeetsWCAGAA(t *testing.T) {
 		{"admin catalog", srv.appURL + "/admin/catalog"},
 		{"admin users", srv.appURL + "/admin/users"},
 		{"admin identity", srv.appURL + "/admin/identity"},
+		{"admin csp", srv.appURL + "/admin/csp?source=all"},
 	}
 
 	bctx, cancel, _ := startBrowser(t)
