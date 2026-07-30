@@ -1,7 +1,7 @@
 {{define "title"}}Repeater added · MeshTender{{end}}
 {{define "header"}}
 <div class="row g-2 align-items-center">
-  <div class="col"><h2 class="page-title">“{{.Repeater.Name}}” added</h2></div>
+  <div class="col"><h1 class="page-title fs-1">“{{.Repeater.Name}}” added</h1></div>
 </div>
 {{end}}
 {{define "content"}}
@@ -25,7 +25,7 @@
 
 <div class="card mt-3">
   <div class="card-body">
-    <h3 class="card-title">Confirm it works <span class="text-secondary">(optional)</span></h3>
+    <h2 class="card-title">Confirm it works <span class="text-secondary">(optional)</span></h2>
     <p class="text-secondary">
       Connect a MeshCore KISS modem and have MeshTender login to verify it has admin access. Confirming
       now marks it <span class="badge bg-azure-lt">Self-confirmed</span>. Later, if another member reaches it
@@ -42,7 +42,7 @@
 
 <div class="card mt-3">
   <div class="card-body">
-    <h3 class="card-title">Organizations <span class="text-secondary">(optional)</span></h3>
+    <h2 class="card-title">Organizations <span class="text-secondary">(optional)</span></h2>
     {{if .Orgs}}
     <p class="text-secondary">
       This repeater is now shared with the organizations you belong to, so their admins and members can run

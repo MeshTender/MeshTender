@@ -3,7 +3,7 @@
 <div class="row g-2 align-items-center">
   <div class="col">
     <div class="page-pretitle">{{.Org.Name}} · Configuration</div>
-    <h2 class="page-title">{{if .ProfileID}}Edit profile{{else}}Add profile{{end}}</h2>
+    <h1 class="page-title fs-1">{{if .ProfileID}}Edit profile{{else}}Add profile{{end}}</h1>
   </div>
   <div class="col-auto ms-auto d-print-none">
     <a class="btn" href="/orgs/{{.Org.Slug}}/config/edit">Back to configuration</a>

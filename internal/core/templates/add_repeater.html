@@ -1,7 +1,7 @@
 {{define "title"}}Add a repeater · MeshTender{{end}}
 {{define "header"}}
 <div class="row g-2 align-items-center">
-  <div class="col"><h2 class="page-title">Add a repeater</h2></div>
+  <div class="col"><h1 class="page-title fs-1">Add a repeater</h1></div>
 </div>
 {{end}}
 {{define "content"}}
@@ -27,7 +27,7 @@
   <div class="col-md-6">
     <div class="card card-link h-100">
       <div class="card-body d-flex flex-column">
-        <h3 class="card-title">{{template "icon-antenna" "me-1"}}Add a repeater that's already on the network</h3>
+        <h2 class="card-title">{{template "icon-antenna" "me-1"}}Add a repeater that's already on the network</h2>
         <p class="text-secondary">Register a repeater that's already configured and on the mesh, then control it
           remotely through a <strong>KISS modem</strong> over the air. You'll grant MeshTender admin yourself first.
           This is the usual choice.</p>
@@ -38,7 +38,7 @@
   <div class="col-md-6">
     <div class="card card-link h-100">
       <div class="card-body d-flex flex-column">
-        <h3 class="card-title">{{template "icon-plug" "me-1"}}Set up a brand-new repeater</h3>
+        <h2 class="card-title">{{template "icon-plug" "me-1"}}Set up a brand-new repeater</h2>
         <p class="text-secondary">Connect a freshly-flashed repeater over <strong>USB serial</strong> and let
           MeshTender generate and run the whole setup — identity, radio, region, name, and the admin grant —
           straight down the wire. Best for a repeater that isn't on the network yet.</p>
@@ -64,7 +64,7 @@
       <div class="d-flex">
         <div>{{template "icon-alert" "alert-icon"}}</div>
         <div>
-          <h4 class="alert-title">This grants full admin control to MeshTender</h4>
+          <h3 class="alert-title">This grants full admin control to MeshTender</h3>
           <ul class="mb-0 text-secondary">
             <li>This grants admin to <strong>MeshTender itself</strong> — <strong>not</strong> to other
               MeshTender users. Letting specific people operate the repeater is a separate step you control later
@@ -84,7 +84,7 @@
       <div class="d-flex">
         <div>{{template "icon-map-pin" "alert-icon"}}</div>
         <div>
-          <h4 class="alert-title">MeshTender will read the repeater's location</h4>
+          <h3 class="alert-title">MeshTender will read the repeater's location</h3>
           <p class="text-secondary mb-0">
             When you confirm this repeater — or use “Fetch location” later — MeshTender reads its coordinates by
             running <code>get lat</code> / <code>get lon</code> through your modem, <strong>on its own behalf</strong>
@@ -251,7 +251,7 @@
 
 {{/* Review + run */}}
 <div class="card mt-3" id="review-card" hidden>
-  <div class="card-header"><h3 class="card-title">Step 4 · Review &amp; run</h3></div>
+  <div class="card-header"><h2 class="card-title">Step 4 · Review &amp; run</h2></div>
   <div class="card-body">
     <p class="text-secondary">These commands will be sent to your repeater over USB, in order. The private key is
       shown masked; it never leaves your browser.</p>

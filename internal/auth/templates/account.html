@@ -3,7 +3,7 @@
 <div class="row g-2 align-items-center">
   <div class="col">
     <div class="page-pretitle">Your account</div>
-    <h2 class="page-title">Account settings</h2>
+    <h1 class="page-title fs-1">Account settings</h1>
   </div>
 </div>
 {{end}}
@@ -12,7 +12,7 @@
 {{if .OK}}<div class="alert alert-success">{{.OK}}</div>{{end}}
 
 <div class="card">
-  <div class="card-header"><h3 class="card-title">Username</h3></div>
+  <div class="card-header"><h2 class="card-title">Username</h2></div>
   <div class="card-body">
     <p class="text-secondary">Your username is your unique handle (3–32 chars: letters, digits, <code>_ . -</code>). You can change it once every 30 days. When you do, your old username is reserved for 90 days before anyone else can take it.</p>
         <form method="post" action="/account/username">
@@ -36,7 +36,7 @@
 </div>
 
 <div class="card mt-3">
-  <div class="card-header"><h3 class="card-title">Display name</h3></div>
+  <div class="card-header"><h2 class="card-title">Display name</h2></div>
   <div class="card-body">
     <p class="text-secondary">Your display name is what other people see — on shares and in organizations. It can be anything, and it isn't tied to sign-in.</p>
         <form method="post" action="/account/profile">
@@ -54,7 +54,7 @@
 </div>
 
 <div class="card mt-3">
-  <div class="card-header"><h3 class="card-title">Time zone</h3></div>
+  <div class="card-header"><h2 class="card-title">Time zone</h2></div>
   <div class="card-body">
     <p class="text-secondary">Dates and times across MeshTender are shown in this time zone (and in your browser's locale format). Leave it on <strong>Auto-detect</strong> to use whatever zone your browser reports.</p>
     <form method="post" action="/account/timezone">
@@ -82,7 +82,7 @@
 </div>
 
 <div class="card mt-3">
-  <div class="card-header"><h3 class="card-title">Public profile</h3></div>
+  <div class="card-header"><h2 class="card-title">Public profile</h2></div>
   <div class="card-body">
     <p class="text-secondary">These appear on your public page at <a href="{{.RootURL}}/u/{{.User.Username}}" target="_blank" rel="noopener">{{.RootURL}}/u/{{.User.Username}}</a>, which anyone can view. Leave a field blank to keep it off your page.</p>
     <form method="post" action="/account/profile-fields">
@@ -108,7 +108,7 @@
 </div>
 
 <div class="card mt-3">
-  <div class="card-header"><h3 class="card-title">Links <span class="text-secondary">(public)</span></h3></div>
+  <div class="card-header"><h2 class="card-title">Links <span class="text-secondary">(public)</span></h2></div>
   <div class="card-body">
     <p class="text-secondary">Ways to reach or find you — social media, a website, or your MeshCore public key (shown as a QR code). Mark one non-MeshCore link as your <strong>primary contact</strong> so people know the best way to reach you.</p>
     <form method="post" action="/account/links" data-link-editor>
@@ -174,7 +174,7 @@
 </div>
 
 <div class="card mt-3">
-  <div class="card-header"><h3 class="card-title">Passkeys</h3></div>
+  <div class="card-header"><h2 class="card-title">Passkeys</h2></div>
   <div class="card-body">
     <p class="text-secondary">Passkeys let you sign in with your device's fingerprint, face, or PIN — no password to remember or leak.</p>
         {{if .PKErr}}<div class="alert alert-danger">{{.PKErr}}</div>{{end}}
@@ -217,7 +217,7 @@
 </div>
 
 <div class="card mt-3">
-  <div class="card-header"><h3 class="card-title">Password</h3></div>
+  <div class="card-header"><h2 class="card-title">Password</h2></div>
   <div class="card-body">
         {{if .HasPassword}}
         <p class="text-secondary">Change the password you use as a fallback to passkeys.</p>
@@ -264,7 +264,7 @@
     <div class="modal-content">
       <form method="post" action="/account/passkeys/rename">
         <div class="modal-header">
-          <h5 class="modal-title">Rename passkey</h5>
+          <h2 class="modal-title">Rename passkey</h2>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body">

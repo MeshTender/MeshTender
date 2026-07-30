@@ -2,11 +2,22 @@
      It renders on whichever base layout the surface defaults to, so the chrome
      matches the rest of that host. Data: Status (int), Title, Message. */}}
 {{define "title"}}{{.Status}} · MeshTender{{end}}
-{{define "header"}}{{end}}
+{{/* The error's own title is the page heading, rendered through the normal page
+     header so this page's h1 matches every other page's.
+
+     It must be a real (non-empty) definition: Go templates treat a define whose body
+     is only whitespace or comments as EMPTY and do NOT let it replace an existing
+     definition, so the previous `{{define "header"}}{{end}}` silently fell through to
+     base.html's default header — which is why this page used to render a generic
+     "MeshTender" title above the error. */}}
+{{define "header"}}
+<div class="row g-2 align-items-center">
+  <div class="col"><h1 class="page-title fs-1">{{.Title}}</h1></div>
+</div>
+{{end}}
 {{define "content"}}
 <div class="empty py-6">
   <div class="empty-header">{{.Status}}</div>
-  <p class="empty-title">{{.Title}}</p>
   <p class="empty-subtitle text-secondary">{{.Message}}</p>
   <div class="empty-action">
     <a href="{{if .UserName}}{{.AppURL}}{{else}}{{.RootURL}}{{end}}/" class="btn btn-primary">

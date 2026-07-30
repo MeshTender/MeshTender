@@ -18,7 +18,7 @@
     <div class="card timeline-event-card">
       <div class="card-body">
         <div class="text-secondary float-end">{{ts .StartedAt "datetime"}}{{if .EndedAt}}–{{ts .EndedAt "time"}}{{else}} · in progress{{end}}</div>
-        <h4 class="mb-2">{{if .SenderUsername}}<a class="text-reset" href="{{$.RootURL}}/u/{{.SenderUsername}}">{{.SenderName}}</a>{{else}}{{.SenderName}}{{end}}</h4>
+        <h2 class="mb-2 fs-3">{{if .SenderUsername}}<a class="text-reset" href="{{$.RootURL}}/u/{{.SenderUsername}}">{{.SenderName}}</a>{{else}}{{.SenderName}}{{end}}</h2>
         <div class="table-responsive">
           <table class="table table-vcenter">
             <thead><tr><th>When</th><th>Command</th><th>Confirmed</th><th>Response</th></tr></thead>

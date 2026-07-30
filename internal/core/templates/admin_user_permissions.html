@@ -3,7 +3,7 @@
      closes the modal — no extra client JS needed. */}}
 {{define "permissions-modal"}}
 <div class="modal-header">
-  <h5 class="modal-title">Permissions — {{.Account.Name}} <span class="text-secondary">@{{.Account.Username}}</span></h5>
+  <h2 class="modal-title">Permissions — {{.Account.Name}} <span class="text-secondary">@{{.Account.Username}}</span></h2>
   <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
 </div>
 <form method="post" action="/admin/users/{{.Account.ID}}">

@@ -3,7 +3,7 @@
 <div class="row g-2 align-items-center">
   <div class="col">
     <div class="page-pretitle">Your equipment</div>
-    <h2 class="page-title">Repeaters</h2>
+    <h1 class="page-title fs-1">Repeaters</h1>
   </div>
   <div class="col-auto ms-auto d-print-none">
     <a class="btn btn-primary" href="/repeaters/add">{{template "icon-plus" "me-1"}}Add repeater</a>
@@ -31,7 +31,7 @@
               <span class="avatar bg-blue-lt d-none d-sm-flex">{{template "icon-antenna" ""}}</span>
               <div class="flex-fill" style="min-width:0">
                 <div class="d-flex align-items-center flex-wrap gap-2">
-                  <h3 class="m-0 fs-3">{{.Name}}</h3>
+                  <h2 class="m-0 fs-3">{{.Name}}</h2>
                   {{if .Shared}}<span class="badge bg-purple-lt">Shared with me</span>{{else}}<span class="badge bg-blue-lt">Owned</span>{{end}}
                   {{template "repstatus" .}}
                 </div>

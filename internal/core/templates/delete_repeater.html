@@ -1,7 +1,7 @@
 {{define "title"}}Delete {{.Repeater.Name}} · MeshTender{{end}}
 {{define "header"}}
 <div class="row g-2 align-items-center">
-  <div class="col"><h2 class="page-title">Delete “{{.Repeater.Name}}”?</h2></div>
+  <div class="col"><h1 class="page-title fs-1">Delete “{{.Repeater.Name}}”?</h1></div>
 </div>
 {{end}}
 {{define "content"}}
@@ -18,7 +18,7 @@
           <div class="d-flex">
             <div>{{template "icon-alert" "alert-icon"}}</div>
             <div>
-              <h4 class="alert-title">This does not revoke MeshTender's access</h4>
+              <h3 class="alert-title">This does not revoke MeshTender's access</h3>
               <div class="text-secondary">Your repeater still trusts MeshTender's identity at the firmware level. If you want MeshTender to truly lose access, revoke it on the device too — see below.</div>
             </div>
           </div>

@@ -3,7 +3,7 @@
 <div class="row g-2 align-items-center">
   <div class="col">
     <div class="page-pretitle">Help</div>
-    <h2 class="page-title">How MeshTender works</h2>
+    <h1 class="page-title fs-1">How MeshTender works</h1>
   </div>
 </div>
 {{end}}
@@ -19,7 +19,7 @@
     </div>
 
     <div class="card mt-3" id="setperm">
-      <div class="card-header"><h3 class="card-title">Granting MeshTender admin (<code>setperm</code>)</h3></div>
+      <div class="card-header"><h2 class="card-title">Granting MeshTender admin (<code>setperm</code>)</h2></div>
       <div class="card-body">
         <p>MeshTender signs in to a repeater as its server identity — one fixed public key. Until a repeater grants that key <strong>admin</strong> (permission level 3), MeshTender only has <strong>guest</strong> access — open to anyone with a blank password — and can't administer the repeater.</p>
         <p>Run this on your repeater — through the <strong>repeater console in the MeshCore companion app</strong>, directly over USB serial, or let MeshTender run it for you during USB setup:</p>
@@ -36,7 +36,7 @@
     </div>
 
     <div class="card mt-3" id="add">
-      <div class="card-header"><h3 class="card-title">Adding a repeater</h3></div>
+      <div class="card-header"><h2 class="card-title">Adding a repeater</h2></div>
       <div class="card-body">
         <p>There are two ways in, matching how you reach the repeater:</p>
         <ul class="mb-2">
@@ -49,7 +49,7 @@
     </div>
 
     <div class="card mt-3" id="kiss">
-      <div class="card-header"><h3 class="card-title">What's a KISS modem?</h3></div>
+      <div class="card-header"><h2 class="card-title">What's a KISS modem?</h2></div>
       <div class="card-body">
         <p>A <strong>KISS modem</strong> turns a MeshCore device into a plain radio for a host to drive: instead of acting as a repeater or companion, it just relays raw packets to and from whatever's connected to it. That's how MeshTender talks to your mesh <strong>over the air</strong> — you attach a KISS-modem device to your browser over USB serial, and MeshTender uses it as its radio to reach repeaters that are already deployed (the <a href="#add">over-the-air</a> flow above).</p>
         <p>It's a relatively new addition to MeshCore, and it's a <strong>standard firmware variant</strong> — you flash it right from the standard MeshCore flasher, the same place you'd flash Repeater or a Companion. It's available for a <strong>large number</strong> of MeshCore devices, though <strong>not all</strong> of them — check the flasher for your specific board.</p>
@@ -58,7 +58,7 @@
     </div>
 
     <div class="card mt-3" id="config">
-      <div class="card-header"><h3 class="card-title">Organizations</h3></div>
+      <div class="card-header"><h2 class="card-title">Organizations</h2></div>
       <div class="card-body">
         <p>An <strong>organization</strong> is a community that coordinates repeaters together. It helps you generate the commands to run to configure your repeater properly, and share settings with others in your area.</p>
         <p class="mb-0">Browse communities on the <a href="/orgs">Organizations</a> page.</p>
@@ -66,7 +66,7 @@
     </div>
 
     <div class="card mt-3" id="sharing">
-      <div class="card-header"><h3 class="card-title">Sharing &amp; stewards</h3></div>
+      <div class="card-header"><h2 class="card-title">Sharing &amp; stewards</h2></div>
       <div class="card-body">
         <p class="mb-0">You can share a repeater with other people so they can help operate it, and mark trusted helpers as <strong>stewards</strong> — co-maintainers listed on the repeater's public page. Public repeater and organization pages link to each person's <strong>public profile</strong>, so visitors can find a way to reach the people who keep the mesh running.</p>
       </div>
@@ -76,7 +76,7 @@
 
   <div class="col-lg-4">
     <div class="card">
-      <div class="card-header"><h3 class="card-title">On this page</h3></div>
+      <div class="card-header"><h2 class="card-title">On this page</h2></div>
       <div class="list-group list-group-flush">
         <a class="list-group-item list-group-item-action" href="#setperm">Granting admin (setperm)</a>
         <a class="list-group-item list-group-item-action" href="#add">Adding a repeater</a>
@@ -87,7 +87,7 @@
     </div>
     {{if .ServerKey}}
     <div class="card mt-3">
-      <div class="card-header"><h3 class="card-title">MeshTender's key</h3></div>
+      <div class="card-header"><h2 class="card-title">MeshTender's key</h2></div>
       <div class="card-body">
         <div class="form-label">MeshTender server public key</div>
         <code class="pk d-block">{{.ServerKey}}</code>

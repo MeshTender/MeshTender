@@ -9,7 +9,7 @@
   <div class="col-lg-8">
     <div class="card">
       <div class="card-header">
-        <h3 class="card-title">Details</h3>
+        <h2 class="card-title">Details</h2>
       </div>
       <div class="card-body">
         <div class="datagrid">
@@ -57,7 +57,7 @@
     {{if .IsOwner}}
     <div class="card mt-3">
       <div class="card-header">
-        <h3 class="card-title">Organizations</h3>
+        <h2 class="card-title">Organizations</h2>
         <div class="card-actions"><a href="/repeaters/{{.Repeater.PublicID}}/share" class="btn btn-sm">Manage</a></div>
       </div>
       {{if .Orgs}}
@@ -85,7 +85,7 @@
   <!-- Right column -->
   <div class="col-lg-4">
     <div class="card">
-      <div class="card-header"><h3 class="card-title">Identity</h3></div>
+      <div class="card-header"><h2 class="card-title">Identity</h2></div>
       <div class="card-body">
         <div class="form-label">Public key</div>
         <div class="d-flex align-items-start gap-2">
@@ -107,7 +107,7 @@
 
     {{if .IsOwner}}
     <div class="card mt-3">
-      <div class="card-header"><h3 class="card-title">Public page</h3></div>
+      <div class="card-header"><h2 class="card-title">Public page</h2></div>
       <div class="card-body">
         {{if and .Repeater.ExposePublicPage .PublicPageURL}}
         <p class="text-secondary small">Anyone with this link (or who taps an NFC tag / scans the QR inside the enclosure) sees the public documentation and stewards.</p>
@@ -133,7 +133,7 @@
 
     {{if .Repeater.Latitude}}
     <div class="card mt-3">
-      <div class="card-header"><h3 class="card-title">Location</h3></div>
+      <div class="card-header"><h2 class="card-title">Location</h2></div>
       <div class="card-body p-2">
         <link rel="stylesheet" href="{{ asset "/static/leaflet.css" }}">
         <div id="map" style="height:240px" role="region" aria-label="Map of this repeater's location"></div>

@@ -135,6 +135,63 @@ func TestTemplatesUseAssetHelper(t *testing.T) {
 	}
 }
 
+// TestTemplatesHeadingConventions pins the heading levels the shared layouts assume,
+// so a new page can't quietly reintroduce the outline problems from the audit (A1:
+// no <h1> anywhere; A2: levels skipped or jumping backwards). The rendered-page
+// counterpart is core.TestPageHeadingOutlines, which walks real responses; this one
+// catches a bad heading the moment it's written, in whichever template it lands.
+//
+// The rules mirror the page structure: the page title is the h1, cards and modal
+// dialogs are sections under it (h2), and alerts nest inside cards (h3).
+func TestTemplatesHeadingConventions(t *testing.T) {
+	t.Parallel()
+	root := moduleRoot(t)
+
+	banned := []struct {
+		pattern *regexp.Regexp
+		why     string
+	}{
+		{regexp.MustCompile(`(?i)<h[2-6][^>]*class="[^"]*\bpage-title\b`),
+			`page-title must be <h1> — it names the page`},
+		{regexp.MustCompile(`(?i)<h(?:[13-6])[^>]*class="[^"]*\bcard-title\b`),
+			`card-title must be <h2> — a card is a section under the page's h1 ` +
+				`(auth pages are the exception and are checked by the rendered test)`},
+		{regexp.MustCompile(`(?i)<h(?:1|[3-6])[^>]*class="[^"]*\bmodal-title\b`),
+			`modal-title must be <h2> — a dialog title sits under the page's h1`},
+		{regexp.MustCompile(`(?i)<h(?:[12]|[4-6])[^>]*class="[^"]*\balert-title\b`),
+			`alert-title must be <h3> — alerts nest inside cards`},
+	}
+	// login/signup have no page header, so their card title legitimately carries the
+	// page's h1.
+	authPages := map[string]bool{"login.html": true, "signup.html": true}
+
+	err := filepath.WalkDir(filepath.Join(root, "internal"), func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".html") {
+			return nil
+		}
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		rel, _ := filepath.Rel(root, path)
+		for _, rule := range banned {
+			if authPages[filepath.Base(path)] && strings.Contains(rule.why, "card-title") {
+				continue
+			}
+			if loc := rule.pattern.FindIndex(b); loc != nil {
+				t.Errorf("%s: %s — found %q", rel, rule.why, snippet(b, loc[0]))
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk templates: %v", err)
+	}
+}
+
 func snippet(b []byte, at int) string {
 	end := at + 40
 	if end > len(b) {

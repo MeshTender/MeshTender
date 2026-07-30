@@ -2,7 +2,7 @@
 {{define "content"}}
 <div class="card card-md">
   <div class="card-body">
-    <h2 class="card-title text-center mb-4">Sign in to your account</h2>
+    <h1 class="card-title text-center mb-4">Sign in to your account</h1>
     {{if .Error}}<div class="alert alert-danger">{{.Error}}</div>{{end}}
 
     <form method="post" action="/login/password" id="signin-form">

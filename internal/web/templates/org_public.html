@@ -53,7 +53,7 @@
   <!-- Left column: description (grows with content) -->
   <div class="col-lg-8">
     <div class="card">
-      <div class="card-header"><h3 class="card-title">About</h3></div>
+      <div class="card-header"><h2 class="card-title">About</h2></div>
       <div class="card-body">
         {{if .Org.Description}}<div class="markdown">{{markdown .Org.Description}}</div>{{else}}<p class="text-secondary mb-0">This organization hasn't added a description yet.</p>{{end}}
       </div>
@@ -63,7 +63,7 @@
   <!-- Right column: repeater map, admins, links -->
   <div class="col-lg-4">
     <div class="card">
-      <div class="card-header"><h3 class="card-title">Repeaters</h3></div>
+      <div class="card-header"><h2 class="card-title">Repeaters</h2></div>
       {{if .HasMap}}
       <div class="card-body p-2">
         <link rel="stylesheet" href="{{ asset "/static/leaflet.css" }}">
@@ -84,7 +84,7 @@
     </div>
 
     <div class="card mt-3">
-      <div class="card-header"><h3 class="card-title">Admins</h3></div>
+      <div class="card-header"><h2 class="card-title">Admins</h2></div>
       {{if .Admins}}
       <div class="list-group list-group-flush">
         {{range .Admins}}
@@ -100,7 +100,7 @@
 
     {{if .Links}}
     <div class="card mt-3">
-      <div class="card-header"><h3 class="card-title">Links</h3></div>
+      <div class="card-header"><h2 class="card-title">Links</h2></div>
       <div class="list-group list-group-flush">
         {{range .Links}}
         {{if .Href}}

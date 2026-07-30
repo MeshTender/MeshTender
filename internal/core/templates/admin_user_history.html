@@ -3,7 +3,7 @@
 <div class="row g-2 align-items-center">
   <div class="col">
     <div class="page-pretitle">Administration</div>
-    <h2 class="page-title">Username history</h2>
+    <h1 class="page-title fs-1">Username history</h1>
   </div>
 </div>
 {{end}}
@@ -35,7 +35,7 @@
 {{/* history-modal is the htmx fragment swapped into the shared modal's content. */}}
 {{define "history-modal"}}
 <div class="modal-header">
-  <h5 class="modal-title">Username history — {{.Account.Name}} <span class="text-secondary">@{{.Account.Username}}</span></h5>
+  <h2 class="modal-title">Username history — {{.Account.Name}} <span class="text-secondary">@{{.Account.Username}}</span></h2>
   <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
 </div>
 <div class="modal-body">

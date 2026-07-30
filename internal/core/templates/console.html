@@ -3,7 +3,7 @@
 <div class="row g-2 align-items-center">
   <div class="col">
     <div class="page-pretitle">Console</div>
-    <h2 class="page-title">{{.Repeater.Name}}</h2>
+    <h1 class="page-title fs-1">{{.Repeater.Name}}</h1>
   </div>
 </div>
 {{end}}
@@ -47,7 +47,7 @@ swap needs no new markup. The flex row is nested so the [hidden] attribute wins
 <div class="row row-cards">
   <div class="col-12 col-lg-8">
     <div class="card">
-      <div class="card-header"><h3 class="card-title">Console</h3></div>
+      <div class="card-header"><h2 class="card-title">Console</h2></div>
       <div class="card-body">
         <div id="unsupported" class="alert alert-danger" role="alert" hidden>
           This browser does not support WebSerial. Use Chrome, Edge, or another Chromium-based browser over HTTPS or on localhost.
@@ -75,7 +75,7 @@ swap needs no new markup. The flex row is nested so the [hidden] attribute wins
          data-config-url="/repeaters/{{.Repeater.PublicID}}/config.json"
          data-location-url="/repeaters/{{.Repeater.PublicID}}/location">
       <div class="card">
-        <div class="card-header"><h3 class="card-title">Apply organization configuration</h3></div>
+        <div class="card-header"><h2 class="card-title">Apply organization configuration</h2></div>
         <div class="card-body">
           <p class="text-secondary">
             Pick an organization and profile to see its recommended configuration for this repeater. Every command is
@@ -109,7 +109,7 @@ swap needs no new markup. The flex row is nested so the [hidden] attribute wins
   </div>
   <div class="col-12 col-lg-4">
     <div class="card" data-testid="allowed-commands">
-      <div class="card-header"><h3 class="card-title">Allowed commands</h3></div>
+      <div class="card-header"><h2 class="card-title">Allowed commands</h2></div>
       <div class="card-body">
         {{if .Commands}}
         <div class="d-flex flex-wrap gap-1" style="max-height:360px;overflow-y:auto">

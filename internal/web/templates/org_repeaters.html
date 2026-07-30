@@ -43,7 +43,7 @@
   <!-- Left: list -->
   <div class="col-lg-8">
     <div class="card">
-      <div class="card-header"><h3 class="card-title">Shared repeaters</h3></div>
+      <div class="card-header"><h2 class="card-title">Shared repeaters</h2></div>
       {{if .Reps.Repeaters}}
       <div class="list-group list-group-flush" id="rep-list">
         {{template "rep-rows" .}}
@@ -61,7 +61,7 @@
   <!-- Right: map -->
   <div class="col-lg-4">
     <div class="card">
-      <div class="card-header"><h3 class="card-title">Map</h3></div>
+      <div class="card-header"><h2 class="card-title">Map</h2></div>
       {{if .Reps.HasMap}}
       <div class="card-body p-2">
         <link rel="stylesheet" href="{{ asset "/static/leaflet.css" }}">

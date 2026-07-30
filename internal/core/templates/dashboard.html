@@ -3,7 +3,7 @@
 <div class="row g-2 align-items-center">
   <div class="col">
     <div class="page-pretitle">Dashboard</div>
-    <h2 class="page-title">Welcome back{{if .UserName}}, {{.UserName}}{{end}}</h2>
+    <h1 class="page-title fs-1">Welcome back{{if .UserName}}, {{.UserName}}{{end}}</h1>
   </div>
 </div>
 {{end}}
@@ -70,7 +70,7 @@
 {{if .Onboarding}}
 <div class="card mt-3">
   <div class="card-header">
-    <h3 class="card-title">Get started</h3>
+    <h2 class="card-title">Get started</h2>
     <div class="card-actions text-secondary small">{{.OnboardingDone}} of {{.OnboardingTotal}} done</div>
   </div>
   <div class="list-group list-group-flush">
@@ -95,7 +95,7 @@
   <div class="col-lg-8">
     <!-- Recent activity -->
     <div class="card">
-      <div class="card-header"><h3 class="card-title">Recent activity</h3></div>
+      <div class="card-header"><h2 class="card-title">Recent activity</h2></div>
       {{if .Recent}}
       <div class="table-responsive">
         <table class="table table-vcenter card-table">
@@ -123,7 +123,7 @@
   <div class="col-lg-4">
     <!-- Map -->
     <div class="card">
-      <div class="card-header"><h3 class="card-title">Repeater map</h3></div>
+      <div class="card-header"><h2 class="card-title">Repeater map</h2></div>
       {{if .Mapped}}
       <div class="card-body p-2">
         <link rel="stylesheet" href="{{ asset "/static/leaflet.css" }}">

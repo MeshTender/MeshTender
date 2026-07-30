@@ -3,7 +3,7 @@
 <div class="row g-2 align-items-center">
   <div class="col">
     <div class="page-pretitle">Profile</div>
-    <h2 class="page-title">{{.ProfileUser.Name}}</h2>
+    <h1 class="page-title fs-1">{{.ProfileUser.Name}}</h1>
     <div class="text-secondary">@{{.ProfileUser.Username}}</div>
   </div>
 </div>
@@ -14,7 +14,7 @@
   <!-- Left: about -->
   <div class="{{if $hasSidebar}}col-lg-8{{else}}col-12{{end}}">
     <div class="card">
-      <div class="card-header"><h3 class="card-title">About</h3></div>
+      <div class="card-header"><h2 class="card-title">About</h2></div>
       <div class="card-body">
         {{if or .Location .Callsign}}
         <div class="d-flex flex-wrap gap-3 mb-3 text-secondary">
@@ -34,7 +34,7 @@
   {{if $hasSidebar}}
   <div class="col-lg-4">
     <div class="card">
-      <div class="card-header"><h3 class="card-title">Links</h3></div>
+      <div class="card-header"><h2 class="card-title">Links</h2></div>
       <div class="list-group list-group-flush">
         {{range $i, $l := .Links}}
         {{if $l.IsMeshCore}}

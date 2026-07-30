@@ -8,7 +8,7 @@
 <form method="post" action="/repeaters/{{.Repeater.PublicID}}/docs">
   <div class="card">
     <div class="card-header">
-      <h3 class="card-title">Public documentation {{if .Repeater.ExposePublicPage}}<span class="text-secondary">· visible on the public page</span>{{else}}<span class="text-secondary">· not published yet</span>{{end}}</h3>
+      <h2 class="card-title">Public documentation {{if .Repeater.ExposePublicPage}}<span class="text-secondary">· visible on the public page</span>{{else}}<span class="text-secondary">· not published yet</span>{{end}}</h2>
     </div>
     <div class="card-body">
       <p class="text-secondary">
@@ -22,7 +22,7 @@
 
   <div class="card mt-3">
     <div class="card-header">
-      <h3 class="card-title">Internal notes <span class="text-secondary">· people with access only</span></h3>
+      <h2 class="card-title">Internal notes <span class="text-secondary">· people with access only</span></h2>
     </div>
     <div class="card-body">
       <p class="text-secondary">
@@ -39,7 +39,7 @@
 </form>
 {{else}}
 <div class="card">
-  <div class="card-header"><h3 class="card-title">Documentation</h3></div>
+  <div class="card-header"><h2 class="card-title">Documentation</h2></div>
   <div class="card-body">
     {{if .Repeater.DocPublic}}
     <div style="white-space: pre-wrap">{{.Repeater.DocPublic}}</div>
@@ -51,7 +51,7 @@
 
 {{if .Repeater.DocInternal}}
 <div class="card mt-3">
-  <div class="card-header"><h3 class="card-title">Internal notes <span class="text-secondary">· people with access only</span></h3></div>
+  <div class="card-header"><h2 class="card-title">Internal notes <span class="text-secondary">· people with access only</span></h2></div>
   <div class="card-body">
     <div style="white-space: pre-wrap">{{.Repeater.DocInternal}}</div>
   </div>

@@ -13,14 +13,14 @@
   <div class="col-lg-8">
     {{if .Config.Profiles}}
     <div class="card">
-      <div class="card-header"><h3 class="card-title">{{.Config.Selected}} · base settings</h3></div>
+      <div class="card-header"><h2 class="card-title">{{.Config.Selected}} · base settings</h2></div>
       <div class="card-body">{{template "step-list" .Config.SelectedSteps}}</div>
     </div>
     {{end}}
 
     {{if .Config.PreviewActive}}
     <div class="card{{if .Config.Profiles}} mt-3{{end}}">
-      <div class="card-header"><h3 class="card-title">Regions</h3></div>
+      <div class="card-header"><h2 class="card-title">Regions</h2></div>
       {{if .Config.RegionDef}}
       <div class="card-body"><pre class="mb-0"><code>{{range .Config.RegionDef}}{{.}}
 {{end}}</code></pre></div>
@@ -35,7 +35,7 @@
   <div class="col-lg-4">
     {{if .Config.Profiles}}
     <div class="card">
-      <div class="card-header"><h3 class="card-title">Profile</h3></div>
+      <div class="card-header"><h2 class="card-title">Profile</h2></div>
       <div class="card-body">
         <form method="get" action="/orgs/{{.Org.Slug}}/config">
           <select class="form-select" name="profile" aria-label="Choose a configuration profile" data-autosubmit>
@@ -53,7 +53,7 @@
 
     {{if .Config.HasRegionShapes}}
     <div class="card{{if .Config.Profiles}} mt-3{{end}}">
-      <div class="card-header"><h3 class="card-title">Preview a location</h3></div>
+      <div class="card-header"><h2 class="card-title">Preview a location</h2></div>
       <div class="card-body p-2">
         <link rel="stylesheet" href="{{ asset "/static/leaflet.css" }}">
         <div id="region-map" style="height:240px" role="region" aria-label="Click the map to preview a repeater's region config"></div>

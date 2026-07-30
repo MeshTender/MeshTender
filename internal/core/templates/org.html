@@ -56,7 +56,7 @@
   <div class="col-lg-8">
     <div class="card">
       <div class="card-header">
-        <h3 class="card-title">About</h3>
+        <h2 class="card-title">About</h2>
         {{if .IsAdmin}}
         <div class="card-actions">
           <button type="button" class="btn btn-sm" data-testid="edit-profile"
@@ -77,7 +77,7 @@
     {{if or .Links .IsAdmin}}
     <div class="card mt-3">
       <div class="card-header">
-        <h3 class="card-title">Links</h3>
+        <h2 class="card-title">Links</h2>
         {{if .IsAdmin}}
         <div class="card-actions">
           <button type="button" class="btn btn-sm" data-testid="edit-links"
@@ -114,7 +114,7 @@
          place yet. Re-enable this card (plus the domains data in pageOrg and the
          /domains routes in web.go) once it is.
     <div class="card mt-3">
-      <div class="card-header"><h3 class="card-title">Custom domains</h3></div>
+      <div class="card-header"><h2 class="card-title">Custom domains</h2></div>
       <div class="card-body">
         <p class="text-secondary">
           Point your own domain at MeshTender (CNAME it to this app). Once verified, visiting that
@@ -169,7 +169,7 @@
   <div class="col-lg-4">
     {{if .HasMap}}
     <div class="card">
-      <div class="card-header"><h3 class="card-title">Repeaters</h3></div>
+      <div class="card-header"><h2 class="card-title">Repeaters</h2></div>
       <div class="card-body p-2">
         <link rel="stylesheet" href="{{ asset "/static/leaflet.css" }}">
         <div id="map" style="height:260px" role="region" aria-label="Map of organization repeater locations"></div>
