@@ -101,15 +101,24 @@ func run(logger *slog.Logger) error {
 	}
 
 	// First-party traffic analytics: wrap the whole dispatcher so every host is
-	// captured, with a background goroutine doing the writes + rollups. It runs on
-	// its own context — NOT the signal context — so it keeps consuming events while
-	// in-flight requests drain during shutdown; we stop and drain it afterwards.
+	// captured, with a background goroutine doing the writes + rollups.
 	rec := analytics.New(st, cfg)
-	analyticsCtx, stopAnalytics := context.WithCancel(context.Background())
+
+	// Background workers run on their own context — NOT the signal context — so they
+	// keep working while in-flight requests drain during shutdown; we stop and drain
+	// them afterwards, before the pool closes. The analytics flusher needs this
+	// because draining requests still record events; the janitor just has no reason
+	// to stop early.
+	bgCtx, stopBackground := context.WithCancel(context.Background())
 	analyticsDone := make(chan struct{})
 	go func() {
 		defer close(analyticsDone)
-		rec.Run(analyticsCtx)
+		rec.Run(bgCtx)
+	}()
+	janitorDone := make(chan struct{})
+	go func() {
+		defer close(janitorDone)
+		pruneAuthCodes(bgCtx, st, authCodePruneInterval, logger)
 	}()
 
 	httpSrv := &http.Server{
@@ -159,9 +168,58 @@ func run(logger *slog.Logger) error {
 	}
 	wsCancel()
 
-	// Now stop the flusher and wait for its final flush to complete before the
-	// deferred st.Close() closes the pool underneath it.
-	stopAnalytics()
+	// Now stop the background workers and wait for them — the flusher's final flush
+	// especially — before the deferred st.Close() closes the pool underneath them.
+	stopBackground()
 	<-analyticsDone
+	<-janitorDone
 	return srvErr
+}
+
+// authCodePruneInterval is how often expired cross-host handoff codes are swept.
+// They live for authCodeTTL (60s), so this bounds a dead row's lifetime at a few
+// minutes — the table stays small, which is all that's needed. It matches the
+// cadence scs uses for its own session-table cleanup.
+const authCodePruneInterval = 5 * time.Minute
+
+// authCodePruner is the slice of the store the janitor needs. Declared at the point
+// of use so the loop can be exercised without a database.
+type authCodePruner interface {
+	PruneAuthCodes(ctx context.Context) (int64, error)
+}
+
+// pruneAuthCodes deletes expired handoff codes every `every` until ctx is cancelled.
+// ConsumeAuthCode only removes codes that are actually redeemed, so abandoned ones
+// (a sign-in whose tab was closed mid-handoff) would otherwise accumulate forever
+// holding a user_id and login_id. It sweeps once on entry so a restart cleans up
+// immediately rather than waiting out the first interval.
+//
+// This lives here rather than on the analytics rollup ticker — which also prunes,
+// on the same cadence — because analytics has no business knowing about auth codes.
+// A transient failure is logged and retried on the next tick; a failure caused by
+// shutdown cancelling ctx is not an error worth reporting.
+func pruneAuthCodes(ctx context.Context, p authCodePruner, every time.Duration, logger *slog.Logger) {
+	sweep := func() {
+		n, err := p.PruneAuthCodes(ctx)
+		switch {
+		case ctx.Err() != nil:
+			return // shutting down; not a real failure
+		case err != nil:
+			logger.Error("prune auth codes", "err", err)
+		case n > 0:
+			logger.Info("pruned expired auth codes", "count", n)
+		}
+	}
+	sweep()
+
+	t := time.NewTicker(every)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			sweep()
+		}
+	}
 }
