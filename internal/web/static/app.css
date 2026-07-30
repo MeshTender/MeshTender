@@ -7,12 +7,12 @@
    The dark theme's default selection highlight is nearly invisible inside form
    controls; force a high-contrast highlight everywhere, inputs included. */
 ::selection {
-  background-color: var(--tblr-primary, #4263eb);
+  background-color: var(--tblr-primary);
   color: #fff;
 }
 input::selection,
 textarea::selection {
-  background-color: var(--tblr-primary, #4263eb);
+  background-color: var(--tblr-primary);
   color: #fff;
 }
 
@@ -42,7 +42,7 @@ code.pk,
 code.pubkey {
   display: block;
   word-break: break-all;
-  background: var(--tblr-bg-surface-secondary, rgba(0, 0, 0, 0.2));
+  background: var(--tblr-bg-surface-secondary);
   border: 1px solid var(--tblr-border-color);
   border-radius: var(--tblr-border-radius);
   padding: 0.5rem 0.625rem;
@@ -68,7 +68,7 @@ code.pubkey {
   list-style: none;
   margin: 0;
   padding: 0.75rem;
-  background: var(--tblr-bg-surface-secondary, rgba(0, 0, 0, 0.25));
+  background: var(--tblr-bg-surface-secondary);
   border: 1px solid var(--tblr-border-color);
   border-radius: var(--tblr-border-radius);
   max-height: 240px;
@@ -78,7 +78,7 @@ code.pubkey {
 }
 .evlog:empty { display: none; }
 .evlog.console { max-height: 320px; }
-.ev { padding: 0.15rem 0; border-bottom: 1px solid var(--tblr-border-color-translucent, rgba(255, 255, 255, 0.05)); }
+.ev { padding: 0.15rem 0; border-bottom: 1px solid var(--tblr-border-color-translucent); }
 .ev:last-child { border-bottom: none; }
 /* Colors chosen for WCAG AA (≥4.5:1) on the near-black log background:
    --tblr-secondary (#6b7280) and --tblr-danger (#d63939) only reach ~3.7:1,
@@ -93,29 +93,45 @@ code.pubkey {
 
 /* ---------- Badge contrast (dark) ----------
    Tabler's light "-lt" badges set their text to the full-strength brand color
-   over a 10%-opacity tint. On the dark theme purple (#ae3ec9 → 2.80:1) and
-   secondary (#6b7280 → 2.74:1) fall below WCAG AA for this small status text;
-   lighten just those two. success/azure/warning/yellow already pass. */
+   over a 10%-opacity tint, which is too dark for this small status text on the dark
+   theme. The list below is now maintained by TestContrastMeetsWCAGAA rather than by
+   eye — an earlier by-hand pass asserted "azure/success/warning/yellow already pass",
+   and azure (4.15:1) and teal (4.13:1) in fact did not.
+
+   Where Tabler defines a dark-theme *-text-emphasis value, use it; the rest are mixed
+   toward white against their own palette variable, so they stay tied to the palette
+   instead of becoming hand-picked hexes. */
 .badge.bg-purple-lt { color: #d98fe6 !important; }
 .badge.bg-secondary-lt { color: var(--tblr-secondary-text-emphasis) !important; }
+.badge.bg-blue-lt { color: var(--tblr-primary-text-emphasis) !important; }
+.badge.bg-azure-lt { color: color-mix(in srgb, var(--tblr-azure) 80%, #fff) !important; }
+.badge.bg-teal-lt { color: color-mix(in srgb, var(--tblr-teal) 80%, #fff) !important; }
 
-/* ---------- Command catalog flag table (admin) ----------
-   Fixed layout so the flag columns line up across the per-feature cards (each is
-   its own table), plus a distinct checked color per flag for fast scanning. */
-.catalog-table { table-layout: fixed; }
-.form-check-input.cc-risky:checked  { background-color: var(--tblr-red);    border-color: var(--tblr-red); }
-.form-check-input.cc-share:checked  { background-color: var(--tblr-green);  border-color: var(--tblr-green); }
-.form-check-input.cc-member:checked { background-color: var(--tblr-blue);   border-color: var(--tblr-blue); }
-.form-check-input.cc-admin:checked  { background-color: var(--tblr-orange); border-color: var(--tblr-orange); }
+/* Tabler's danger button pairs its off-white foreground (#f9fafb) with the danger red,
+   which measures 4.46:1 — just under the 4.5:1 floor. Pure white reaches 4.66:1 without
+   touching the button's colour. */
+.btn-danger {
+  color: #fff;
+}
 
-/* ---------- Limit-commands opt-out table (org page) ----------
-   Fixed layout with shared column widths so the checkbox / command / description /
-   access columns line up across the per-feature cards (each is its own table).
-   Long command templates wrap rather than overflow the fixed command column. */
-.cmd-table { table-layout: fixed; }
-.cmd-table th:nth-child(1), .cmd-table td:nth-child(1) { width: 2.5rem; }
-.cmd-table th:nth-child(2), .cmd-table td:nth-child(2) { width: 30%; overflow-wrap: anywhere; }
-.cmd-table th:nth-child(4), .cmd-table td:nth-child(4) { width: 6rem; }
+/* ---------- Contrast corrections (WCAG AA on the dark theme) ----------
+   Found by internal/e2e TestContrastMeetsWCAGAA, which measures rendered pixels. All
+   three point at Tabler's own dark-theme *-text-emphasis values rather than
+   hand-picked colours, so they stay tied to the palette.
+
+   Tabler's dark theme lightens --tblr-link-hover-color but NOT --tblr-link-color, which
+   leaves every link at 3.55:1 on the page background and 2.94:1 on a card — below the
+   4.5:1 AA floor for body text. Emphasis blue measures 7.07:1 and 5.85:1. .back-link
+   already reads --tblr-link-color, so it's fixed by this too. */
+:root {
+  --tblr-link-color: var(--tblr-primary-text-emphasis);
+}
+
+/* Inactive tab labels use --tblr-muted (#6b7280 → 3.67:1). Emphasis grey is 7.65:1 and
+   still clearly dimmer than the active tab, which uses the full body colour. */
+.nav-tabs .nav-link {
+  color: var(--tblr-secondary-text-emphasis);
+}
 
 /* ---------- Members list filter (org members page) ----------
    The members page filters rows by role + search in JS (text search can't be
@@ -150,34 +166,34 @@ code.pubkey {
    after app.css (leaflet.css is pulled in per-page in the map card body). */
 .leaflet-popup .leaflet-popup-content-wrapper,
 .leaflet-popup .leaflet-popup-tip {
-  background: var(--tblr-bg-surface, #1a1d24);
-  color: var(--tblr-body-color, #e6edf3);
+  background: var(--tblr-bg-surface);
+  color: var(--tblr-body-color);
   box-shadow: var(--tblr-box-shadow, 0 1px 2px rgba(0, 0, 0, 0.4));
 }
-.leaflet-popup .leaflet-popup-content { color: var(--tblr-body-color, #e6edf3); }
+.leaflet-popup .leaflet-popup-content { color: var(--tblr-body-color); }
 .leaflet-container .leaflet-bar a,
 .leaflet-container .leaflet-control-zoom a {
-  background: var(--tblr-bg-surface, #1a1d24);
-  color: var(--tblr-body-color, #e6edf3);
-  border-bottom-color: var(--tblr-border-color, #2b2f36);
+  background: var(--tblr-bg-surface);
+  color: var(--tblr-body-color);
+  border-bottom-color: var(--tblr-border-color);
 }
-.leaflet-container .leaflet-bar a:hover { background: var(--tblr-bg-surface-secondary, #22262e); }
+.leaflet-container .leaflet-bar a:hover { background: var(--tblr-bg-surface-secondary); }
 /* Base-layer (Dark/Light) switcher: match the dark UI so the native radios render
    correctly. On the default white box + dark color-scheme, an unselected radio
    shows as a black dot; a dark box fixes that, and accent-color tints the selected
    one. Scoped under .leaflet-container to beat leaflet.css (loaded after app.css). */
 .leaflet-container .leaflet-control-layers {
-  background: var(--tblr-bg-surface, #1a1d24);
-  color: var(--tblr-body-color, #e6edf3);
-  border-color: var(--tblr-border-color, #2b2f36);
+  background: var(--tblr-bg-surface);
+  color: var(--tblr-body-color);
+  border-color: var(--tblr-border-color);
   box-shadow: var(--tblr-box-shadow, 0 1px 2px rgba(0, 0, 0, 0.4));
 }
-.leaflet-container .leaflet-control-layers-list label { margin: 0; color: var(--tblr-body-color, #e6edf3); }
-.leaflet-container .leaflet-control-layers-selector { accent-color: var(--tblr-primary, #4dabf7); }
+.leaflet-container .leaflet-control-layers-list label { margin: 0; color: var(--tblr-body-color); }
+.leaflet-container .leaflet-control-layers-selector { accent-color: var(--tblr-primary); }
 
 /* Active region block in the config editor: highlight the block currently being
    drawn on the shared region map. */
 .region-block.region-active {
-  border-color: var(--tblr-primary, #4dabf7) !important;
-  box-shadow: 0 0 0 1px var(--tblr-primary, #4dabf7);
+  border-color: var(--tblr-primary) !important;
+  box-shadow: 0 0 0 1px var(--tblr-primary);
 }
