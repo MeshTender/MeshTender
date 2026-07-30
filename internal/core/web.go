@@ -257,6 +257,13 @@ func (s *Handlers) appRouter() chi.Router {
 				r.With(s.requireCap(capUsers)).Get("/users/{id}/permissions", s.pageUserPermissions)
 				r.With(s.requireCap(capUsers)).Get("/users/{id}/history", s.pageUserHistory)
 				r.With(s.requireCap(capUsers)).Post("/users/{id}", s.handleSetUserCaps)
+				// Server-identity backup/restore. Gated on capUsers — the capability that
+				// already lets you grant capabilities, so the highest-trust one there is.
+				// The exported value stays sealed under the master key, so exporting
+				// discloses nothing to someone who lacks it (see admin_identity.go).
+				r.With(s.requireCap(capUsers)).Get("/identity", s.pageIdentityBackup)
+				r.With(s.requireCap(capUsers)).Post("/identity/export", s.handleExportIdentity)
+				r.With(s.requireCap(capUsers)).Post("/identity/restore", s.handleRestoreIdentity)
 			})
 		})
 	})

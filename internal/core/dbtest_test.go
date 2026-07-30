@@ -46,10 +46,22 @@ func appLogin(t *testing.T, ts *httptest.Server, st *store.Store, ctx context.Co
 // arrive with Host 127.0.0.1, which matches none of these, so they route to the
 // app surface by default — while the handoff/beacon still target real, distinct
 // origins.
+// testMasterKey is the master key for every DB-backed test. It's shared and fixed so
+// the identity service and the config always agree, exactly as they do in production —
+// harnesses used to seal the identity under a random key while leaving cfg.MasterKey
+// zero, which silently broke anything decrypting through the config.
+var testMasterKey = [32]byte{
+	0x54, 0x65, 0x73, 0x74, 0x4d, 0x61, 0x73, 0x74,
+	0x65, 0x72, 0x4b, 0x65, 0x79, 0x2d, 0x64, 0x6f,
+	0x2d, 0x6e, 0x6f, 0x74, 0x2d, 0x75, 0x73, 0x65,
+	0x2d, 0x69, 0x6e, 0x2d, 0x70, 0x72, 0x6f, 0x64,
+}
+
 func testConfig() *config.Config {
 	return &config.Config{
 		PrimaryHost: testAppHost, AuthHost: testAuthHost,
 		RootHost: testRootHost, WWWHost: testWWWHost,
+		MasterKey: testMasterKey,
 	}
 }
 

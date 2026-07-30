@@ -127,6 +127,19 @@ func LogError(r *http.Request, msg string, err error, args ...any) {
 	slog.Error(msg, append(base, args...)...)
 }
 
+// LogAudit records a security-relevant action that SUCCEEDED, keyed by request ID like
+// LogError. It exists so audit lines don't have to borrow LogError, which logs at error
+// level and would file every successful action as a fault — polluting error alerting and
+// burying real failures.
+func LogAudit(r *http.Request, msg string, args ...any) {
+	base := []any{
+		"method", r.Method,
+		"path", r.URL.Path,
+		"request_id", middleware.GetReqID(r.Context()),
+	}
+	slog.Info(msg, append(base, args...)...)
+}
+
 // Origin builds an absolute scheme://host[:port] for a sibling surface, reusing
 // the port the request arrived on (one binary serves all hosts on one port).
 func (e *Env) Origin(r *http.Request, host string) string {

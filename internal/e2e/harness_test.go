@@ -128,8 +128,16 @@ func newE2EServer(t *testing.T) *e2eServer {
 	}
 	t.Cleanup(st.Close)
 
-	var masterKey [32]byte
-	_, _ = rand.Read(masterKey[:])
+	// One fixed key for both the identity service and the config below, mirroring
+	// production where main.go threads a single MESHTENDER_MASTER_KEY through both. A
+	// random key here with a zero-valued cfg.MasterKey silently breaks anything that
+	// decrypts via the config (the identity backup page, for one).
+	masterKey := [32]byte{
+		0x54, 0x65, 0x73, 0x74, 0x4d, 0x61, 0x73, 0x74,
+		0x65, 0x72, 0x4b, 0x65, 0x79, 0x2d, 0x64, 0x6f,
+		0x2d, 0x6e, 0x6f, 0x74, 0x2d, 0x75, 0x73, 0x65,
+		0x2d, 0x69, 0x6e, 0x2d, 0x70, 0x72, 0x6f, 0x64,
+	}
 	idSvc, _ := identity.LoadOrCreate(ctx, st, masterKey)
 
 	// Listen up front so the RP origins can include the concrete (dynamic) port.
@@ -156,6 +164,7 @@ func newE2EServer(t *testing.T) *e2eServer {
 	}
 	srv, err := core.NewServer(st, authSvc, idSvc, &config.Config{
 		PrimaryHost: appHost(), AuthHost: authHost(), RootHost: rootHost(), Secure: true,
+		MasterKey: masterKey,
 	})
 	if err != nil {
 		t.Fatalf("server: %v", err)

@@ -49,8 +49,7 @@ func TestConsoleFetchesLocation(t *testing.T) {
 	t.Parallel()
 	st, ctx := coreStore(t)
 
-	var masterKey [32]byte
-	_, _ = rand.Read(masterKey[:])
+	masterKey := testMasterKey
 	idSvc, _ := identity.LoadOrCreate(ctx, st, masterKey)
 	authSvc, _ := auth.New(st, st.Pool(), testAuthConfig())
 	srv, _ := NewServer(st, authSvc, idSvc, testConfig())

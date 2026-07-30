@@ -2,7 +2,6 @@ package core
 
 import (
 	"context"
-	"crypto/rand"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -10,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/jleight/meshtender/internal/auth"
-	"github.com/jleight/meshtender/internal/config"
 	"github.com/jleight/meshtender/internal/identity"
 	"github.com/jleight/meshtender/internal/store"
 )
@@ -45,8 +43,7 @@ func splitServer(t *testing.T) (*store.Store, context.Context, *httptest.Server,
 	t.Helper()
 	st, ctx := coreStore(t)
 
-	var masterKey [32]byte
-	_, _ = rand.Read(masterKey[:])
+	masterKey := testMasterKey
 	idSvc, _ := identity.LoadOrCreate(ctx, st, masterKey)
 	authSvc, err := auth.New(st, st.Pool(), auth.Config{
 		RPID: "localhost", RPDisplayName: "test",
@@ -56,10 +53,7 @@ func splitServer(t *testing.T) (*store.Store, context.Context, *httptest.Server,
 	if err != nil {
 		t.Fatalf("auth: %v", err)
 	}
-	srv, err := NewServer(st, authSvc, idSvc, &config.Config{
-		PrimaryHost: testAppHost, AuthHost: testAuthHost,
-		RootHost: testRootHost, WWWHost: testWWWHost,
-	})
+	srv, err := NewServer(st, authSvc, idSvc, testConfig())
 	if err != nil {
 		t.Fatalf("server: %v", err)
 	}

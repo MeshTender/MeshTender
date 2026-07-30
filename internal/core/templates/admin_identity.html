@@ -1,0 +1,99 @@
+{{define "title"}}Server identity · Admin · MeshTender{{end}}
+{{define "header"}}
+<div class="row g-2 align-items-center">
+  <div class="col">
+    <div class="page-pretitle">Administration</div>
+    <h1 class="page-title fs-1">Server identity</h1>
+  </div>
+</div>
+{{end}}
+{{define "content"}}
+{{if .Error}}<div class="alert alert-danger" role="alert">{{.Error}}</div>{{end}}
+{{if .OK}}<div class="alert alert-success" role="alert">{{.OK}}</div>{{end}}
+
+<div class="card">
+  <div class="card-body">
+    <h2 class="card-title">This server's MeshCore identity</h2>
+    <p class="text-secondary">
+      Every repeater grants admin to <strong>this one public key</strong>. If it's lost and can't be
+      restored, MeshTender can no longer administer any repeater on the mesh — each owner would have to
+      physically re-run <code>setperm</code> with a new key.
+    </p>
+    <div class="form-label">Public key</div>
+    <code class="pk d-block" data-testid="identity-pubkey">{{.PublicKey}}</code>
+    {{if ne .PublicKey .RunningPublicKey}}
+    <div class="alert alert-warning mt-3 mb-0" role="alert">
+      <h3 class="alert-title">This instance is running a different identity</h3>
+      Stored: <code>{{.PublicKey}}</code><br>
+      In memory: <code>{{.RunningPublicKey}}</code><br>
+      The identity was changed after this process started. Restart the deployment so every replica
+      picks up the stored one.
+    </div>
+    {{end}}
+  </div>
+</div>
+
+<div class="card mt-3">
+  <div class="card-body">
+    <h2 class="card-title">Back up</h2>
+    <p class="text-secondary">
+      The backup is the identity's seed <strong>still encrypted with this deployment's master key</strong>
+      (<code>MESHTENDER_MASTER_KEY</code>), wrapped with the public key so it can be identified and
+      verified on the way back in. It's safe to store in a password manager: without the master key it
+      can't be opened, and only someone holding the master key can produce a valid one.
+    </p>
+    <p class="text-secondary">
+      Keep the master key backed up <strong>separately</strong> — this value alone cannot restore
+      anything.
+    </p>
+    <form method="post" action="/admin/identity/export" class="m-0">
+      <button type="submit" class="btn btn-primary" data-testid="export-identity">
+        {{template "icon-key" "me-1"}}Show backup value
+      </button>
+    </form>
+
+    {{if .Backup}}
+    <div class="mt-3">
+      <div class="form-label">Backup value</div>
+      <div class="input-group">
+        <textarea id="identity-backup" class="form-control font-monospace" rows="4" readonly
+                  aria-label="Server identity backup value" data-testid="identity-backup">{{.Backup}}</textarea>
+        <button type="button" class="btn" data-copy-target="#identity-backup">{{template "icon-copy" ""}}Copy</button>
+      </div>
+      <p class="text-secondary small mt-2 mb-0">
+        Copy this into your password manager alongside a note of which deployment it belongs to. It
+        stays valid until the identity changes.
+      </p>
+    </div>
+    {{end}}
+  </div>
+</div>
+
+<div class="card mt-3">
+  <div class="card-body">
+    <h2 class="card-title">Restore</h2>
+    <p class="text-secondary">
+      Paste a backup to reinstall its identity. This is for rebuilding onto an <strong>empty</strong>
+      deployment: if this server already holds a different identity <em>and</em> has repeaters
+      registered, the restore is refused, because installing another key would leave all of them
+      granting admin to a key MeshTender no longer has.
+    </p>
+    <p class="text-secondary">
+      Restoring the backup this server is already using does nothing, so it's safe to try.
+    </p>
+    <form method="post" action="/admin/identity/restore">
+      <div class="mb-3">
+        <label class="form-label" for="restore-backup">Backup value</label>
+        <textarea id="restore-backup" name="backup" class="form-control font-monospace" rows="4"
+                  placeholder="meshtender-identity-v1.…" required></textarea>
+      </div>
+      <button type="submit" class="btn btn-danger" data-testid="restore-identity"
+              data-confirm="Restore this MeshCore identity? If it differs from the current one and any repeater is registered, the restore will be refused.">
+        Restore identity
+      </button>
+    </form>
+  </div>
+</div>
+
+<a class="back-link mt-3" href="/admin">{{template "icon-arrow-left" "me-1"}}Back to admin</a>
+{{end}}

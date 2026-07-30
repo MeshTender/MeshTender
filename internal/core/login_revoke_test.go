@@ -1,7 +1,6 @@
 package core
 
 import (
-	"crypto/rand"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
@@ -19,8 +18,7 @@ func TestRevokedLoginLogsOut(t *testing.T) {
 	t.Parallel()
 	st, ctx := coreStore(t)
 
-	var masterKey [32]byte
-	_, _ = rand.Read(masterKey[:])
+	masterKey := testMasterKey
 	idSvc, _ := identity.LoadOrCreate(ctx, st, masterKey)
 	authSvc, _ := auth.New(st, st.Pool(), testAuthConfig())
 	srv, _ := NewServer(st, authSvc, idSvc, testConfig())

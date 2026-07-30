@@ -28,8 +28,7 @@ func TestConsoleRoundTrip(t *testing.T) {
 	t.Parallel()
 	st, ctx := coreStore(t)
 
-	var masterKey [32]byte
-	_, _ = rand.Read(masterKey[:])
+	masterKey := testMasterKey
 	idSvc, err := identity.LoadOrCreate(ctx, st, masterKey)
 	if err != nil {
 		t.Fatalf("identity: %v", err)
@@ -197,8 +196,7 @@ func TestConsoleGetLatUpdatesLocation(t *testing.T) {
 	t.Parallel()
 	st, ctx := coreStore(t)
 
-	var masterKey [32]byte
-	_, _ = rand.Read(masterKey[:])
+	masterKey := testMasterKey
 	idSvc, err := identity.LoadOrCreate(ctx, st, masterKey)
 	if err != nil {
 		t.Fatalf("identity: %v", err)
@@ -351,8 +349,7 @@ func TestConsoleGuestLoginConfirms(t *testing.T) {
 	t.Parallel()
 	st, ctx := coreStore(t)
 
-	var masterKey [32]byte
-	_, _ = rand.Read(masterKey[:])
+	masterKey := testMasterKey
 	idSvc, err := identity.LoadOrCreate(ctx, st, masterKey)
 	if err != nil {
 		t.Fatalf("identity: %v", err)
@@ -483,8 +480,7 @@ func TestConsoleAuditFailureRefusesCommand(t *testing.T) {
 	t.Parallel()
 	st, ctx := coreStore(t)
 
-	var masterKey [32]byte
-	_, _ = rand.Read(masterKey[:])
+	masterKey := testMasterKey
 	idSvc, err := identity.LoadOrCreate(ctx, st, masterKey)
 	if err != nil {
 		t.Fatalf("identity: %v", err)

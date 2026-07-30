@@ -38,10 +38,7 @@ func TestConsoleWebSocketOutlivesServerReadTimeout(t *testing.T) {
 	t.Parallel()
 	st, ctx := coreStore(t)
 
-	var masterKey [32]byte
-	if _, err := rand.Read(masterKey[:]); err != nil {
-		t.Fatalf("master key: %v", err)
-	}
+	masterKey := testMasterKey
 	idSvc, err := identity.LoadOrCreate(ctx, st, masterKey)
 	if err != nil {
 		t.Fatalf("identity: %v", err)
