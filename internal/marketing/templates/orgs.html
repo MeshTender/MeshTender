@@ -42,22 +42,12 @@
 {{define "content"}}
 {{if .Error}}<div class="alert alert-danger">{{.Error}}</div>{{end}}
 <div class="row row-cards">
-  <!-- Left: the directory -->
-  <div class="col-lg-9">
-    <div class="card">
-      {{if .All}}
-      <div class="list-group list-group-flush" id="org-list">
-        {{template "org-rows" .}}
-        {{if .NextCursor}}{{template "org-more" .}}{{end}}
-      </div>
-      {{else}}
-      <div class="card-body"><p class="text-secondary mb-0">{{if .Query}}No organizations match “{{.Query}}”.{{else}}No organizations yet.{{end}}</p></div>
-      {{end}}
-    </div>
-  </div>
-
-  <!-- Right: search + sort -->
-  <div class="col-lg-3">
+  {{/* Search/filters come FIRST in the DOM and move to the right of the list at lg
+       (order-lg-last). Source order governs both the mobile stack and the tab order,
+       so ordering with CSS alone would leave keyboard and screen-reader users
+       traversing every row to reach the control that exists to avoid exactly that. */}}
+  <!-- Search + sort (renders right of the list at lg) -->
+  <div class="col-lg-3 order-lg-last">
     <div class="card">
       <div class="card-body">
         <form method="get" action="/orgs">
@@ -80,5 +70,21 @@
       </div>
     </div>
   </div>
+
+  <!-- The directory itself -->
+  <div class="col-lg-9">
+    <div class="card">
+      {{if .All}}
+      <div class="list-group list-group-flush" id="org-list">
+        {{template "org-rows" .}}
+        {{if .NextCursor}}{{template "org-more" .}}{{end}}
+      </div>
+      {{else}}
+      <div class="card-body"><p class="text-secondary mb-0">{{if .Query}}No organizations match “{{.Query}}”.{{else}}No organizations yet.{{end}}</p></div>
+      {{end}}
+    </div>
+  </div>
+
+
 </div>
 {{end}}

@@ -58,22 +58,11 @@
 {{define "content"}}
 {{if .Error}}<div class="alert alert-danger">{{.Error}}</div>{{end}}
 <div class="row row-cards">
-  <!-- Left: the user list -->
-  <div class="col-lg-9">
-    <div class="card">
-      {{if .Users}}
-      <div class="list-group list-group-flush" id="user-list">
-        {{template "user-rows" .}}
-        {{if .NextCursor}}{{template "user-more" .}}{{end}}
-      </div>
-      {{else}}
-      <div class="card-body"><p class="text-secondary mb-0">{{if .Query}}No users match “{{.Query}}”.{{else}}No users match this filter.{{end}}</p></div>
-      {{end}}
-    </div>
-  </div>
-
-  <!-- Right: search, sort, filter -->
-  <div class="col-lg-3">
+  {{/* Search/filters come FIRST in the DOM and move to the right of the list at lg
+       (order-lg-last). Source order governs both the mobile stack and the tab order,
+       so ordering with CSS alone would leave keyboard and screen-reader users
+       traversing every row to reach the control that exists to avoid exactly that. */}}
+  <div class="col-lg-3 order-lg-last">
     <div class="card">
       <div class="card-body">
         <form method="get" action="/admin/users">
@@ -102,6 +91,20 @@
           <button class="btn btn-primary w-100" type="submit">{{template "icon-search" "me-1"}}Search</button>
         </form>
       </div>
+    </div>
+  </div>
+
+  <!-- The user list -->
+  <div class="col-lg-9">
+    <div class="card">
+      {{if .Users}}
+      <div class="list-group list-group-flush" id="user-list">
+        {{template "user-rows" .}}
+        {{if .NextCursor}}{{template "user-more" .}}{{end}}
+      </div>
+      {{else}}
+      <div class="card-body"><p class="text-secondary mb-0">{{if .Query}}No users match “{{.Query}}”.{{else}}No users match this filter.{{end}}</p></div>
+      {{end}}
     </div>
   </div>
 </div>

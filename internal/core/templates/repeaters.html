@@ -15,7 +15,43 @@
 
 {{if .Repeaters}}
 <div class="row row-cards" data-filter-root>
-  <!-- Left: repeater cards -->
+  {{/* Search/filters come FIRST in the DOM and move to the right of the list at lg
+       (order-lg-last). Source order governs both the mobile stack and the tab order,
+       so ordering with CSS alone would leave keyboard and screen-reader users
+       traversing every row to reach the control that exists to avoid exactly that. */}}
+  <div class="col-lg-3 order-lg-last">
+    <div class="card">
+      <div class="card-body">
+        <div class="mb-3">
+          <label class="form-label" for="rep-search">Search</label>
+          <input type="search" id="rep-search" class="form-control" data-filter-search placeholder="Repeater name" aria-label="Search your repeaters">
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="rep-access">Access</label>
+          <select id="rep-access" class="form-select" data-filter-key="access" aria-label="Filter by access">
+            <option value="">All</option>
+            <option value="owned">Owned</option>
+            <option value="shared">Shared with me</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="rep-status">Status</label>
+          <select id="rep-status" class="form-select" data-filter-key="status" aria-label="Filter by confirmation status">
+            <option value="">Any status</option>
+            <option value="confirmed">Confirmed</option>
+            <option value="unconfirmed">Unconfirmed</option>
+          </select>
+        </div>
+        <label class="form-check">
+          <input class="form-check-input" type="checkbox" data-filter-flag="sharedout">
+          <span class="form-check-label">Shared with others</span>
+          <span class="form-hint mt-0">Repeaters you own and have shared to at least one person or organization.</span>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- The repeater cards -->
   <div class="col-lg-9">
     <div class="row row-cards">
       {{range .Repeaters}}
@@ -55,39 +91,6 @@
     <div class="empty py-4" data-filter-empty hidden>
       <p class="empty-title">No matches</p>
       <p class="empty-subtitle text-secondary">No repeaters match your search and filters.</p>
-    </div>
-  </div>
-
-  <!-- Right: search + filter -->
-  <div class="col-lg-3">
-    <div class="card">
-      <div class="card-body">
-        <div class="mb-3">
-          <label class="form-label" for="rep-search">Search</label>
-          <input type="search" id="rep-search" class="form-control" data-filter-search placeholder="Repeater name" aria-label="Search your repeaters">
-        </div>
-        <div class="mb-3">
-          <label class="form-label" for="rep-access">Access</label>
-          <select id="rep-access" class="form-select" data-filter-key="access" aria-label="Filter by access">
-            <option value="">All</option>
-            <option value="owned">Owned</option>
-            <option value="shared">Shared with me</option>
-          </select>
-        </div>
-        <div class="mb-3">
-          <label class="form-label" for="rep-status">Status</label>
-          <select id="rep-status" class="form-select" data-filter-key="status" aria-label="Filter by confirmation status">
-            <option value="">Any status</option>
-            <option value="confirmed">Confirmed</option>
-            <option value="unconfirmed">Unconfirmed</option>
-          </select>
-        </div>
-        <label class="form-check">
-          <input class="form-check-input" type="checkbox" data-filter-flag="sharedout">
-          <span class="form-check-label">Shared with others</span>
-          <span class="form-hint mt-0">Repeaters you own and have shared to at least one person or organization.</span>
-        </label>
-      </div>
     </div>
   </div>
 </div>
