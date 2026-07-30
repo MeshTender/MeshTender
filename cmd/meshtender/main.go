@@ -56,7 +56,10 @@ func run(logger *slog.Logger) error {
 	if err := st.Migrate(ctx); err != nil {
 		return err
 	}
-	logger.Info("migrations applied")
+	// Migrate logs each migration it actually applies, so this is just the "schema is
+	// ready" checkpoint — saying "applied" here read as though work happened on every
+	// boot, when the steady state is that none does.
+	logger.Info("database schema ready")
 
 	if reset {
 		removed, err := st.Reset(ctx)

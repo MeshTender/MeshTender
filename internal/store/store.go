@@ -6,12 +6,15 @@ import (
 	"database/sql"
 	"embed"
 	"fmt"
+	"io/fs"
+	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
+	"github.com/pressly/goose/v3/lock"
 )
 
 //go:embed migrations/*.sql
@@ -70,16 +73,53 @@ func (s *Store) Close() { s.pool.Close() }
 // (e.g. the scs session store).
 func (s *Store) Pool() *pgxpool.Pool { return s.pool }
 
-// Migrate runs all embedded goose migrations against the database.
+// Migrate runs all embedded goose migrations against the database, holding a Postgres
+// advisory lock for the duration.
+//
+// The lock is what makes this safe to call from every replica at boot. Without it, a
+// rolling deploy has several instances running `goose up` concurrently against one
+// database: they interleave on the version table and can deadlock, double-apply, or
+// leave a migration recorded but not fully applied. With it, the first instance to
+// arrive migrates and the rest block, then find nothing pending and continue.
+//
+// goose's own session locker is used rather than a hand-rolled pg_advisory_lock,
+// because a Postgres advisory lock is SESSION-scoped: taking it on one pooled
+// connection and running the migration on another would silently protect nothing.
+// goose pins a single *sql.Conn for the lock and the migrations together.
+//
+// One residual, by design: Provider.Up checks HasPending BEFORE acquiring the lock, and
+// that check doesn't respect the locker. So multiple instances can all decide there's
+// work to do and then serialize — the loser simply applies nothing. goose likewise
+// retries creation of the version table, which is the one statement that can race on a
+// brand-new database.
 func (s *Store) Migrate(ctx context.Context) error {
-	goose.SetBaseFS(migrationsFS)
-	if err := goose.SetDialect("postgres"); err != nil {
-		return fmt.Errorf("set dialect: %w", err)
+	// The Provider takes the FS rooted at the migrations themselves, unlike the legacy
+	// API's global SetBaseFS + directory argument.
+	sub, err := fs.Sub(migrationsFS, "migrations")
+	if err != nil {
+		return fmt.Errorf("migrations fs: %w", err)
 	}
 	db := s.migrationDB()
 	defer func() { _ = db.Close() }()
-	if err := goose.UpContext(ctx, db, "migrations"); err != nil {
+
+	locker, err := lock.NewPostgresSessionLocker()
+	if err != nil {
+		return fmt.Errorf("new session locker: %w", err)
+	}
+	p, err := goose.NewProvider(goose.DialectPostgres, db, sub, goose.WithSessionLocker(locker))
+	if err != nil {
+		return fmt.Errorf("new goose provider: %w", err)
+	}
+	results, err := p.Up(ctx)
+	if err != nil {
 		return fmt.Errorf("goose up: %w", err)
+	}
+	// Report through slog rather than goose's own stdout logger, so migrations land in
+	// the same structured stream as everything else. Silent when there's nothing to do,
+	// which is every boot after the first.
+	for _, r := range results {
+		slog.Info("migration applied",
+			"version", r.Source.Version, "path", r.Source.Path, "duration", r.Duration)
 	}
 	return nil
 }
