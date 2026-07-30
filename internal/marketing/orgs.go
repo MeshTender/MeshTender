@@ -53,6 +53,17 @@ func (s *Handlers) pageOrgs(w http.ResponseWriter, r *http.Request) {
 	// htmx "load more": return just the rows + next control to append in place.
 	if r.Header.Get("HX-Request") != "" {
 		data["Layout"] = "orgs-frag"
+	} else {
+		// Only on a full page render: the count lives in the page header, which the
+		// fragment doesn't replace, so re-querying it for an append would be wasted
+		// work. It's a filter-wide total rather than a running tally precisely so it
+		// stays correct as more pages are appended beneath it.
+		total, err := s.Store.CountPublicOrgs(r.Context(), query)
+		if err != nil {
+			s.ServerError(w, r, "could not load organizations", err)
+			return
+		}
+		data["Total"] = total
 	}
 	s.Render(w, r, "orgs.html", data)
 }

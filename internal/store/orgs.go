@@ -240,16 +240,51 @@ func escapeLikePattern(s string) string {
 // denormalized columns on organizations (trigger-maintained; see migration
 // 0033), so every ordering sorts and seeks on an indexed column rather than a
 // correlated count subquery computed per org on each page load.
+// orgSearchFilter builds the directory's substring-search predicate over
+// name/description/region (trigram-indexed, migration 0033), registering its argument
+// through add. Returns "" when no search is active.
+//
+// Shared by ListPublicOrgsPage and CountPublicOrgs so the two can never disagree about
+// what "matching" means — a divergence would show a count that contradicts the rows
+// right beneath it.
+func orgSearchFilter(query string, add func(any) string) string {
+	q := strings.TrimSpace(query)
+	if q == "" {
+		return ""
+	}
+	ph := add("%" + escapeLikePattern(q) + "%")
+	return fmt.Sprintf("(o.name ILIKE %[1]s OR o.description ILIKE %[1]s OR o.region ILIKE %[1]s)", ph)
+}
+
+// CountPublicOrgs returns how many organizations match the directory's search filter,
+// ignoring any keyset position. That's deliberate: the directory loads further pages by
+// appending rows via htmx, so a "shown so far" number rendered outside the swapped
+// fragment would go stale on the first "Show more". A filter-wide total stays correct
+// however many pages are on screen.
+func (s *Store) CountPublicOrgs(ctx context.Context, query string) (int, error) {
+	var args []any
+	add := func(v any) string { args = append(args, v); return fmt.Sprintf("$%d", len(args)) }
+
+	where := ""
+	if f := orgSearchFilter(query, add); f != "" {
+		where = "WHERE " + f
+	}
+	var n int
+	err := s.pool.QueryRow(ctx,
+		fmt.Sprintf(`SELECT count(*) FROM organizations o %s`, where), args...).Scan(&n)
+	if err != nil {
+		return 0, fmt.Errorf("count public orgs: %w", err)
+	}
+	return n, nil
+}
+
 func (s *Store) ListPublicOrgsPage(ctx context.Context, p OrgListParams) ([]OrgSummary, bool, error) {
 	var args []any
 	add := func(v any) string { args = append(args, v); return fmt.Sprintf("$%d", len(args)) }
 
 	var where []string
-	// Substring search over name/description/region (trigram-indexed, migration 0033).
-	if q := strings.TrimSpace(p.Query); q != "" {
-		ph := add("%" + escapeLikePattern(q) + "%")
-		where = append(where, fmt.Sprintf(
-			"(o.name ILIKE %[1]s OR o.description ILIKE %[1]s OR o.region ILIKE %[1]s)", ph))
+	if f := orgSearchFilter(p.Query, add); f != "" {
+		where = append(where, f)
 	}
 
 	// Ordering + keyset seek. Each seek tuple mirrors its ORDER BY exactly.

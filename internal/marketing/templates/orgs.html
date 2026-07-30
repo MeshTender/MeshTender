@@ -1,7 +1,19 @@
 {{define "title"}}Organizations · MeshTender{{end}}
 {{define "header"}}
 <div class="row g-2 align-items-center">
-  <div class="col"><h1 class="page-title fs-1">Organizations</h1></div>
+  <div class="col">
+    <h1 class="page-title fs-1">Organizations</h1>
+    {{/* A filter-wide total, so a visitor can tell whether they're looking at the whole
+         directory or a slice of it. It counts matches rather than rows on screen, which
+         keeps it accurate as htmx appends further pages below. */}}
+    <div class="page-subtitle" data-testid="org-count">
+      {{if .Query}}
+        {{.Total}} {{if eq .Total 1}}organization{{else}}organizations{{end}} matching “{{.Query}}”
+      {{else}}
+        {{.Total}} {{if eq .Total 1}}organization{{else}}organizations{{end}}
+      {{end}}
+    </div>
+  </div>
   {{if .UserName}}
   <div class="col-auto ms-auto d-print-none">
     <a class="btn btn-primary" href="{{.AppURL}}/orgs/new">{{template "icon-plus" "me-1"}}Create organization</a>
@@ -14,7 +26,7 @@
      htmx "load more" fragment so appended pages match the first. */}}
 {{define "org-rows"}}
 {{range .All}}
-<a class="list-group-item list-group-item-action" href="/orgs/{{.Slug}}">
+<a class="list-group-item list-group-item-action" href="/orgs/{{.Slug}}" data-testid="org-row">
   <div class="d-flex align-items-center gap-2">
     <span class="fw-bold">{{.Name}}</span>
     {{if .Region}}<span class="badge bg-secondary-lt">{{.Region}}</span>{{end}}
@@ -84,7 +96,5 @@
       {{end}}
     </div>
   </div>
-
-
 </div>
 {{end}}
