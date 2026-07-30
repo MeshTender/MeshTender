@@ -11,7 +11,11 @@
       <div class="card-body">
         {{if eq .State "invalid"}}
           <h2 class="card-title">Invalid link</h2>
-          <p class="text-secondary">This share link is no longer valid — it's single-use and may have already been used or revoked. Ask the owner for a new one.</p>
+          {{/* Deliberately doesn't say WHICH reason: whoever holds this token
+               shouldn't learn whether it ever existed, was already claimed, or just
+               lapsed. Expiry is listed as a possibility so the message stays
+               accurate now that links have a shelf life. */}}
+          <p class="text-secondary">This share link is no longer valid — links are single-use and expire after {{.InviteTTLDays}} days, so it may have already been used, been revoked, or timed out. Ask the owner for a new one.</p>
           <a class="back-link" href="/">{{template "icon-arrow-left" "me-1"}}Go to dashboard</a>
 
         {{else if eq .State "auth_required"}}

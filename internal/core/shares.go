@@ -6,12 +6,30 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
 	"github.com/jleight/meshtender/internal/store"
 	"github.com/jleight/meshtender/internal/web"
 )
+
+// inviteTTLDays is store.InviteTTL in whole days, for the owner-facing and
+// recipient-facing copy. Derived from the store constant so the stated shelf life
+// can't drift from the one actually enforced.
+var inviteTTLDays = int(store.InviteTTL / (24 * time.Hour))
+
+// renderInviteInvalid renders the dead-link page. It exists so every "invalid"
+// path supplies InviteTTLDays — the template names it, and a map missing the key
+// would render "<no value>" into the copy. The message deliberately doesn't say
+// which reason applies (never existed / already claimed / revoked / lapsed), so a
+// stranger holding a token learns nothing from it.
+func (s *Handlers) renderInviteInvalid(w http.ResponseWriter, r *http.Request) {
+	s.Render(w, r, "invite.html", map[string]any{
+		"State":         "invalid",
+		"InviteTTLDays": inviteTTLDays,
+	})
+}
 
 // pageShare renders the sharing page for a repeater the user owns: the current
 // share link (if any) and the list of people who have accepted.
@@ -44,7 +62,10 @@ func (s *Handlers) pageShare(w http.ResponseWriter, r *http.Request) {
 		"Invites":  invites,
 		"Orgs":     orgs,
 		"BaseURL":  s.absoluteURL(r, ""),
-		"Error":    r.URL.Query().Get("error"),
+		// Stated in the copy so an owner knows a link is time-boxed before handing it
+		// out. Derived from the store's TTL so the two can't disagree.
+		"InviteTTLDays": inviteTTLDays,
+		"Error":         r.URL.Query().Get("error"),
 	})
 }
 
@@ -141,7 +162,7 @@ func (s *Handlers) pageInvite(w http.ResponseWriter, r *http.Request) {
 	// queryUserID drives the Shared flag; 0 when logged out is fine.
 	rep, err := s.Store.RepeaterByInviteToken(r.Context(), uid, token)
 	if errors.Is(err, store.ErrNotFound) {
-		s.Render(w, r, "invite.html", map[string]any{"State": "invalid"})
+		s.renderInviteInvalid(w, r)
 		return
 	}
 	if err != nil {
@@ -179,7 +200,7 @@ func (s *Handlers) handleAcceptInvite(w http.ResponseWriter, r *http.Request) {
 
 	rep, err := s.Store.RepeaterByInviteToken(r.Context(), uid, token)
 	if errors.Is(err, store.ErrNotFound) {
-		s.Render(w, r, "invite.html", map[string]any{"State": "invalid"})
+		s.renderInviteInvalid(w, r)
 		return
 	}
 	if err != nil {
@@ -201,7 +222,7 @@ func (s *Handlers) handleAcceptInvite(w http.ResponseWriter, r *http.Request) {
 	// failure can never delete the link without granting access. A row lock inside
 	// makes it the single-use gate against concurrent accepts.
 	if _, err := s.Store.AcceptInvite(r.Context(), token, uid); errors.Is(err, store.ErrNotFound) {
-		s.Render(w, r, "invite.html", map[string]any{"State": "invalid"})
+		s.renderInviteInvalid(w, r)
 		return
 	} else if err != nil {
 		s.ServerError(w, r, "could not accept invite", err)

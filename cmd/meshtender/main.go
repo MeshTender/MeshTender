@@ -118,7 +118,10 @@ func run(logger *slog.Logger) error {
 	janitorDone := make(chan struct{})
 	go func() {
 		defer close(janitorDone)
-		pruneAuthCodes(bgCtx, st, authCodePruneInterval, logger)
+		runJanitor(bgCtx, janitorInterval, logger,
+			janitorSweep{"auth codes", st.PruneAuthCodes},
+			janitorSweep{"share links", st.PruneInvites},
+		)
 	}()
 
 	httpSrv := &http.Server{
@@ -176,41 +179,50 @@ func run(logger *slog.Logger) error {
 	return srvErr
 }
 
-// authCodePruneInterval is how often expired cross-host handoff codes are swept.
-// They live for authCodeTTL (60s), so this bounds a dead row's lifetime at a few
-// minutes — the table stays small, which is all that's needed. It matches the
-// cadence scs uses for its own session-table cleanup.
-const authCodePruneInterval = 5 * time.Minute
+// janitorInterval is how often the expired-row sweeps run. It's set by the
+// shortest-lived thing they clean — a handoff code (authCodeTTL, 60s) — so this
+// bounds a dead code's lifetime at a few minutes, and it matches the cadence scs
+// uses for its own session-table cleanup.
+//
+// Share links are collected on a completely different timescale: they're kept for
+// store.ExpiredInviteGrace (30 days) past expiry so their owner can see and remove
+// them, so nearly every sweep finds nothing to do. That's fine — the delete is one
+// indexed statement, which isn't worth a second ticker to avoid.
+const janitorInterval = 5 * time.Minute
 
-// authCodePruner is the slice of the store the janitor needs. Declared at the point
-// of use so the loop can be exercised without a database.
-type authCodePruner interface {
-	PruneAuthCodes(ctx context.Context) (int64, error)
+// janitorSweep is one periodic cleanup job: a name for the log, and the delete to
+// run. Taking a closure rather than an interface keeps the janitor decoupled from
+// the store (a store method value satisfies it directly) and lets the loop be
+// exercised without a database.
+type janitorSweep struct {
+	name  string
+	prune func(ctx context.Context) (int64, error)
 }
 
-// pruneAuthCodes deletes expired handoff codes every `every` until ctx is cancelled.
-// ConsumeAuthCode only removes codes that are actually redeemed, so abandoned ones
-// (a sign-in whose tab was closed mid-handoff) would otherwise accumulate forever
-// holding a user_id and login_id. It sweeps once on entry so a restart cleans up
-// immediately rather than waiting out the first interval.
+// runJanitor runs every sweep once on entry — so a restart cleans up immediately
+// instead of waiting out the first interval — then again every `every` until ctx is
+// cancelled.
 //
-// This lives here rather than on the analytics rollup ticker — which also prunes,
-// on the same cadence — because analytics has no business knowing about auth codes.
-// A transient failure is logged and retried on the next tick; a failure caused by
-// shutdown cancelling ctx is not an error worth reporting.
-func pruneAuthCodes(ctx context.Context, p authCodePruner, every time.Duration, logger *slog.Logger) {
-	sweep := func() {
-		n, err := p.PruneAuthCodes(ctx)
-		switch {
-		case ctx.Err() != nil:
-			return // shutting down; not a real failure
-		case err != nil:
-			logger.Error("prune auth codes", "err", err)
-		case n > 0:
-			logger.Info("pruned expired auth codes", "count", n)
+// This lives here rather than on the analytics rollup ticker, which also prunes on
+// the same cadence, because analytics has no business knowing about auth codes or
+// share links. A transient failure is logged and retried on the next tick, and one
+// failing sweep doesn't stop the others; a failure caused by shutdown cancelling ctx
+// is not an error worth reporting.
+func runJanitor(ctx context.Context, every time.Duration, logger *slog.Logger, sweeps ...janitorSweep) {
+	runAll := func() {
+		for _, s := range sweeps {
+			n, err := s.prune(ctx)
+			switch {
+			case ctx.Err() != nil:
+				return // shutting down; not a real failure
+			case err != nil:
+				logger.Error("janitor sweep failed", "sweep", s.name, "err", err)
+			case n > 0:
+				logger.Info("janitor removed expired rows", "sweep", s.name, "count", n)
+			}
 		}
 	}
-	sweep()
+	runAll()
 
 	t := time.NewTicker(every)
 	defer t.Stop()
@@ -219,7 +231,7 @@ func pruneAuthCodes(ctx context.Context, p authCodePruner, every time.Duration, 
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			sweep()
+			runAll()
 		}
 	}
 }

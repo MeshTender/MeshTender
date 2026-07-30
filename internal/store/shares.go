@@ -177,13 +177,30 @@ type Invite struct {
 	Token       string
 	Description string
 	CreatedAt   time.Time
+	ExpiresAt   time.Time
 }
+
+// Expired reports whether the link is past its expiry and can no longer be
+// redeemed. The store won't hand it out either way; this is for presentation, so
+// the owner can see a spent link before deleting it.
+func (i Invite) Expired() bool { return !i.ExpiresAt.IsZero() && time.Now().After(i.ExpiresAt) }
+
+// InviteTTL is how long a new share link stays redeemable. Share links are
+// credentials that travel through chat and email, so they get a hard shelf life
+// rather than living until someone remembers to revoke them.
+//
+// It's applied when a link is minted and stored on the row (see migration 0040), so
+// changing this constant affects only future links — outstanding ones keep the
+// expiry they were created with. That's deliberate: a computed expiry would mean
+// lengthening this value silently resurrects links that already died.
+const InviteTTL = 7 * 24 * time.Hour
 
 // CreateInvite mints a new single-use share link for a repeater, returning its
 // token. description is an owner-facing label (may be empty). commandIDs is the
 // initial command set the accepter is granted on redemption (may be empty — the
 // owner can grant more afterwards); it and the invite row are written together so
-// the link never exists without its recorded grant.
+// the link never exists without its recorded grant. The link expires after
+// InviteTTL.
 func (s *Store) CreateInvite(ctx context.Context, repeaterID int64, description string, commandIDs []int64) (string, error) {
 	token, err := randomToken()
 	if err != nil {
@@ -192,8 +209,9 @@ func (s *Store) CreateInvite(ctx context.Context, repeaterID int64, description 
 	err = s.inTx(ctx, func(tx pgx.Tx) error {
 		var inviteID int64
 		if err := tx.QueryRow(ctx,
-			`INSERT INTO repeater_invites (repeater_id, token, description) VALUES ($1, $2, $3) RETURNING id`,
-			repeaterID, token, description).Scan(&inviteID); err != nil {
+			`INSERT INTO repeater_invites (repeater_id, token, description, expires_at)
+			 VALUES ($1, $2, $3, now() + $4) RETURNING id`,
+			repeaterID, token, description, InviteTTL).Scan(&inviteID); err != nil {
 			return fmt.Errorf("create invite: %w", err)
 		}
 		for _, cid := range commandIDs {
@@ -212,9 +230,12 @@ func (s *Store) CreateInvite(ctx context.Context, repeaterID int64, description 
 }
 
 // ListInvites returns a repeater's pending (unredeemed) share links, newest first.
+// Expired links are included — the owner should see that a link is spent, and be
+// able to delete it — so callers must present Invite.Expired() rather than implying
+// every row is live.
 func (s *Store) ListInvites(ctx context.Context, repeaterID int64) ([]Invite, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT id, token, description, created_at
+		SELECT id, token, description, created_at, expires_at
 		FROM repeater_invites
 		WHERE repeater_id = $1
 		ORDER BY created_at DESC`, repeaterID)
@@ -223,9 +244,39 @@ func (s *Store) ListInvites(ctx context.Context, repeaterID int64) ([]Invite, er
 	}
 	return collectRows(rows, func(r pgx.Row) (Invite, error) {
 		var inv Invite
-		err := r.Scan(&inv.ID, &inv.Token, &inv.Description, &inv.CreatedAt)
+		err := r.Scan(&inv.ID, &inv.Token, &inv.Description, &inv.CreatedAt, &inv.ExpiresAt)
 		return inv, err
 	})
+}
+
+// ExpiredInviteGrace is how long a lapsed share link stays in the table before the
+// janitor removes it. It exists so the owner can actually SEE that a link went stale
+// — the share page lists expired links with an Expired badge and a Remove button,
+// and sweeping them immediately would make that state unobservable (the janitor runs
+// every few minutes) and the button unreachable. Deleting them silently is the worse
+// UX for something the owner handed to a person: the link just vanishes with no
+// explanation of why it stopped working.
+//
+// Holding the row is not holding a credential: every lookup filters on expires_at,
+// so a lapsed link can't be redeemed, and the share page stops rendering its token
+// once it expires. Growth is bounded by a month of link creation.
+const ExpiredInviteGrace = 30 * 24 * time.Hour
+
+// PruneInvites deletes share links that lapsed more than ExpiredInviteGrace ago,
+// returning how many went. Redemption deletes a link and an owner can delete one by
+// hand, but an unredeemed link that simply timed out would otherwise sit in the table
+// forever. Index-assisted by repeater_invites_expires_at_idx.
+func (s *Store) PruneInvites(ctx context.Context) (int64, error) {
+	// $1 needs the explicit ::interval cast. Without it `now() - $1` is ambiguous —
+	// Postgres can read it as timestamptz - timestamptz → interval, which then makes
+	// the comparison `timestamptz < interval` and fails at plan time. (The `now() + $n`
+	// expressions elsewhere are fine because addition has only one candidate.)
+	tag, err := s.pool.Exec(ctx,
+		`DELETE FROM repeater_invites WHERE expires_at < now() - $1::interval`, ExpiredInviteGrace)
+	if err != nil {
+		return 0, fmt.Errorf("prune invites: %w", err)
+	}
+	return tag.RowsAffected(), nil
 }
 
 // DeleteInvite removes an invite by id, scoped to its repeater (so an owner can
@@ -240,11 +291,13 @@ func (s *Store) DeleteInvite(ctx context.Context, repeaterID, inviteID int64) er
 }
 
 // RepeaterByInviteToken resolves a valid share-link token to its repeater, or
-// ErrNotFound if the token is unknown, revoked, or already redeemed (redemption
-// deletes the link). queryUserID only populates the Shared flag and owner display.
+// ErrNotFound if the token is unknown, revoked, expired, or already redeemed
+// (redemption deletes the link). queryUserID only populates the Shared flag and
+// owner display.
 func (s *Store) RepeaterByInviteToken(ctx context.Context, queryUserID int64, token string) (*Repeater, error) {
 	row := s.pool.QueryRow(ctx, repeaterSelect+`
-		WHERE r.id = (SELECT repeater_id FROM repeater_invites WHERE token = $2)`,
+		WHERE r.id = (SELECT repeater_id FROM repeater_invites
+		              WHERE token = $2 AND expires_at > now())`,
 		queryUserID, token)
 	r, err := scanRepeater(row)
 	if err != nil {
@@ -261,14 +314,17 @@ func (s *Store) RepeaterByInviteToken(ctx context.Context, queryUserID int64, to
 // without deleting the link, leaving it redeemable again).
 //
 // It returns whether a new share was created (false if the user already had one)
-// and ErrNotFound if the token is unknown, revoked, or already redeemed. The row
-// lock is the single-use gate: concurrent accepts serialize on it, and the winner
-// deletes the row, so losers find nothing.
+// and ErrNotFound if the token is unknown, revoked, expired, or already redeemed.
+// The row lock is the single-use gate: concurrent accepts serialize on it, and the
+// winner deletes the row, so losers find nothing. The expiry is checked inside that
+// same locked read, so a link can't be redeemed by a request that started before it
+// lapsed.
 func (s *Store) AcceptInvite(ctx context.Context, token string, userID int64) (added bool, err error) {
 	err = s.inTx(ctx, func(tx pgx.Tx) error {
 		var inviteID, repeaterID int64
 		if err := tx.QueryRow(ctx,
-			`SELECT id, repeater_id FROM repeater_invites WHERE token = $1 FOR UPDATE`,
+			`SELECT id, repeater_id FROM repeater_invites
+			 WHERE token = $1 AND expires_at > now() FOR UPDATE`,
 			token).Scan(&inviteID, &repeaterID); err != nil {
 			return notFoundOr(err, "consume invite")
 		}

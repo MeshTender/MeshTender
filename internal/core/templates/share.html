@@ -29,24 +29,41 @@
     <p class="text-secondary mb-0">
       Invite specific people with single-use links: the recipient signs in and accepts to control this
       repeater from their own browser-connected KISS modem. Each link works once and disappears when it's
-      used — mint one per person, label it, and choose what they can do.
+      used — create one per person, label it, and choose what they can do. Links also
+      <strong>expire {{.InviteTTLDays}} days</strong> after you create them, so an unused one can't be
+      redeemed by whoever finds it later.
     </p>
 
     {{if .Invites}}
     <div class="list-group list-group-flush mt-3">
       {{range .Invites}}
-      <div class="list-group-item px-0">
+      <div class="list-group-item px-0" data-testid="invite-row">
         <div class="d-flex align-items-center gap-2 mb-1">
           <span class="fw-bold">{{if .Description}}{{.Description}}{{else}}(no label){{end}}</span>
+          {{if .Expired}}
+          <span class="badge bg-red-lt" data-testid="invite-expired">Expired</span>
+          {{else}}
           <span class="badge bg-yellow-lt">Unused</span>
+          {{end}}
         </div>
+        {{if .Expired}}
+        {{/* No copy control for a dead link — handing out a token that can't be
+             redeemed just produces a confused recipient. */}}
+        <p class="text-secondary mb-2">
+          Expired {{ ts .ExpiresAt "datetime" }} and can no longer be accepted. Create a new link instead.
+        </p>
+        {{else}}
         <div class="input-group mb-2">
           <code class="form-control font-monospace" id="link-{{.ID}}">{{$.BaseURL}}/invite/{{.Token}}</code>
           <button type="button" class="btn" data-copy-target="#link-{{.ID}}">{{template "icon-copy" ""}}Copy</button>
         </div>
+        <p class="text-secondary small mb-2">Expires {{ ts .ExpiresAt "datetime" }}</p>
+        {{end}}
         <form method="post" action="/repeaters/{{$.Repeater.PublicID}}/share/link/delete" class="m-0">
           <input type="hidden" name="invite_id" value="{{.ID}}">
-          <button type="submit" class="btn btn-sm btn-ghost-danger">Revoke link</button>
+          <button type="submit" class="btn btn-sm btn-ghost-danger">
+            {{if .Expired}}Remove{{else}}Revoke link{{end}}
+          </button>
         </form>
       </div>
       {{end}}
