@@ -4,7 +4,7 @@
   <div class="card-body">
     <h1 class="card-title text-center mb-2">Create your account</h1>
     {{if .Error}}<div class="alert alert-danger">{{.Error}}</div>{{end}}
-    <p class="text-secondary text-center mb-4">No email required. Passkeys are the easiest, most secure option — your device unlocks the account with a fingerprint, face, or PIN.</p>
+    <p class="text-secondary text-center mb-4">No email required. Passkeys are the easiest, most secure option — your device unlocks the account with a fingerprint, face, PIN, or a security key.</p>
 
     <form method="post" action="/signup/password" id="signup-form">
       {{if .Next}}<input type="hidden" name="next" value="{{.Next}}">{{end}}
@@ -17,24 +17,45 @@
         <input type="text" class="form-control" id="displayName" name="display_name" autocomplete="off" placeholder="Shown to people you share with">
       </div>
 
-      <div class="form-footer mt-0">
-        <button type="button" class="btn btn-primary w-100" id="signup-passkey-btn">{{template "icon-key" "me-2"}}Create account with a passkey</button>
-      </div>
-      <p id="passkey-status" class="text-secondary text-center small mt-2 mb-0" style="min-height:1.2em"></p>
-
-      <div class="hr-text">or use a password</div>
-
-      <div class="mb-3">
-        <label class="form-label" for="password">Password <span class="form-label-description">min {{.MinPasswordLen}} characters</span></label>
-        <div class="input-group input-group-flat">
-          <input type="password" class="form-control" id="password" name="password" autocomplete="new-password" minlength="{{.MinPasswordLen}}" placeholder="Choose a password" required>
-          <span class="input-group-text">
-            <a href="#" class="link-secondary" role="button" aria-pressed="false" title="Show password" data-pwtoggle="password" aria-label="Show password">{{template "icon-eye" ""}}</a>
-          </span>
+      {{/* Both credential options are rendered up front, so the page works with no
+           JavaScript at all. webauthn.js then adapts the emphasis to what the device
+           can actually do — collapsing the password half when a platform
+           authenticator exists, or hiding the passkey half when WebAuthn is missing
+           entirely. That's an enhancement of this baseline, never a prerequisite. */}}
+      <div id="passkey-section">
+        <div class="form-footer mt-0">
+          <button type="button" class="btn btn-primary w-100" id="signup-passkey-btn">{{template "icon-key" "me-2"}}Create account with a passkey</button>
         </div>
+        <p id="passkey-status" class="text-secondary text-center small mt-2 mb-0" style="min-height:1.2em"></p>
       </div>
-      <div class="form-footer mt-0">
-        <button type="submit" class="btn w-100">Create account with password</button>
+
+      {{/* Shown only when the browser has no WebAuthn support at all, so the passkey
+           button above would be a dead control. */}}
+      <p id="passkey-unavailable" class="text-secondary small text-center mt-2 mb-0 d-none">
+        This browser doesn't support passkeys, so you'll need a password. Passkeys work in current
+        versions of Safari, Chrome, Edge, and Firefox.
+      </p>
+
+      {{/* Revealed by JS only when the password half is collapsed. */}}
+      <div class="form-footer mt-0 d-none" id="use-password-wrap">
+        <button type="button" class="btn btn-link w-100" id="use-password">Use a password instead</button>
+      </div>
+
+      <div class="hr-text" id="password-divider">or use a password</div>
+
+      <div id="password-section">
+        <div class="mb-3">
+          <label class="form-label" for="password">Password <span class="form-label-description">min {{.MinPasswordLen}} characters</span></label>
+          <div class="input-group input-group-flat">
+            <input type="password" class="form-control" id="password" name="password" autocomplete="new-password" minlength="{{.MinPasswordLen}}" placeholder="Choose a password" required>
+            <span class="input-group-text">
+              <a href="#" class="link-secondary" role="button" aria-pressed="false" title="Show password" data-pwtoggle="password" aria-label="Show password">{{template "icon-eye" ""}}</a>
+            </span>
+          </div>
+        </div>
+        <div class="form-footer mt-0">
+          <button type="submit" class="btn w-100">Create account with password</button>
+        </div>
       </div>
     </form>
   </div>

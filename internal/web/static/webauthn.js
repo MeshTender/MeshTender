@@ -192,10 +192,24 @@ function passkeyButton() {
   return username ? passkeyLogin() : passkeyDiscoverable("optional");
 }
 
+// passkeysUnsupported reports whether this browser has no WebAuthn at all, hiding
+// the passkey controls on the sign-in / sign-up forms when so. Both templates wrap
+// their passkey button in #passkey-section and id their divider #password-divider, so
+// one helper serves both: a button that cannot possibly work is worse than no button.
+function passkeysUnsupported() {
+  if (window.PublicKeyCredential) return false;
+  const section = document.getElementById("passkey-section");
+  const divider = document.getElementById("password-divider");
+  if (section) section.classList.add("d-none");
+  if (divider) divider.classList.add("d-none");
+  return true;
+}
+
 // initSigninPasskey kicks off a passive conditional-mediation prompt on page
 // load, so a passkey can be offered automatically when the browser supports it.
 async function initSigninPasskey() {
-  if (!window.PublicKeyCredential || !PublicKeyCredential.isConditionalMediationAvailable) return;
+  if (passkeysUnsupported()) return;
+  if (!PublicKeyCredential.isConditionalMediationAvailable) return;
   try {
     if (await PublicKeyCredential.isConditionalMediationAvailable()) {
       passkeyDiscoverable("conditional");
@@ -203,6 +217,81 @@ async function initSigninPasskey() {
   } catch (_) {
     /* not supported — fall back to the explicit button */
   }
+}
+
+// initSignupEmphasis adapts the sign-up form to what this device can actually do.
+// The server renders both credential options, so no-JS visitors always see both;
+// this only shifts the emphasis.
+//
+// Three states, because "can't use a platform authenticator" is NOT the same as
+// "can't use a passkey" — registration asks only for a preferred resident key with no
+// attachment constraint (see RegisterBegin), so a roaming security key works fine:
+//
+//   1. no WebAuthn at all      → hide the passkey half; it would be a dead control
+//   2. WebAuthn, no platform   → leave both as rendered; a security key still works,
+//      authenticator              and nothing should imply otherwise
+//   3. platform authenticator  → collapse the password half behind a toggle, so the
+//      available                  easy, safe path is the default and a password is a
+//                                 deliberate choice rather than an equal option
+async function initSignupEmphasis() {
+  const passkeySection = document.getElementById("passkey-section");
+  const passwordSection = document.getElementById("password-section");
+  const divider = document.getElementById("password-divider");
+  const unavailable = document.getElementById("passkey-unavailable");
+  const useWrap = document.getElementById("use-password-wrap");
+  const useBtn = document.getElementById("use-password");
+  const password = document.getElementById("password");
+  const form = document.getElementById("signup-form");
+  const passkeyBtn = document.getElementById("signup-passkey-btn");
+  // Not the sign-up page (or a markup change) — do nothing rather than guess.
+  if (!passkeySection || !passwordSection || !password || !form) return;
+
+  // State 1: WebAuthn is unavailable, so the passkey button cannot work.
+  if (passkeysUnsupported()) {
+    if (unavailable) unavailable.classList.remove("d-none");
+    return;
+  }
+
+  let platform = false;
+  try {
+    if (PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable) {
+      platform = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+    }
+  } catch (_) {
+    platform = false; // treat an unclear answer as state 2 and change nothing
+  }
+  // State 2: leave the form exactly as rendered.
+  if (!platform || !useWrap || !useBtn) return;
+
+  // State 3: collapse the password half.
+  //
+  // Disabling the input matters as much as hiding it. A hidden-but-required control
+  // makes the browser refuse to submit — Chrome reports "an invalid form control is
+  // not focusable" and the submission silently dies — which anyone pressing Enter in
+  // the username field would hit. Disabled controls are skipped by validation and
+  // left out of the POST entirely.
+  passwordSection.classList.add("d-none");
+  if (divider) divider.classList.add("d-none");
+  password.disabled = true;
+  useWrap.classList.remove("d-none");
+
+  useBtn.addEventListener("click", function () {
+    passwordSection.classList.remove("d-none");
+    if (divider) divider.classList.remove("d-none");
+    password.disabled = false;
+    useWrap.classList.add("d-none");
+    password.focus();
+  });
+
+  // With the password half collapsed, Enter in the username field should start the
+  // passkey ceremony — the visible primary action — instead of posting an empty
+  // password form.
+  form.addEventListener("submit", function (e) {
+    if (password.disabled && passkeyBtn) {
+      e.preventDefault();
+      passkeyBtn.click();
+    }
+  });
 }
 
 // Bind the passkey buttons by id (only the one on the current page exists). This
@@ -217,6 +306,7 @@ async function initSigninPasskey() {
     var el = document.getElementById(b[0]);
     if (el) el.addEventListener("click", b[1]);
   });
+  if (document.getElementById("signup-form")) initSignupEmphasis();
 })();
 
 // Show/hide password toggles (any element with data-pwtoggle="<input id>").

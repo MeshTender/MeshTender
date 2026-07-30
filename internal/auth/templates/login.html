@@ -12,12 +12,18 @@
         <input type="text" class="form-control" id="username" name="username" autocomplete="username webauthn" autocapitalize="none" placeholder="your-username" required>
       </div>
 
-      <div class="form-footer mt-0">
-        <button type="button" class="btn btn-primary w-100" id="passkey-btn">{{template "icon-key" "me-2"}}Sign in with a passkey</button>
+      {{/* Wrapped so webauthn.js can hide the whole passkey affordance when the
+           browser has no WebAuthn support, rather than leaving a dead button. The
+           password half is never collapsed here: a returning visitor may well not
+           have a passkey, so hiding their way in would be hostile. */}}
+      <div id="passkey-section">
+        <div class="form-footer mt-0">
+          <button type="button" class="btn btn-primary w-100" id="passkey-btn">{{template "icon-key" "me-2"}}Sign in with a passkey</button>
+        </div>
+        <p id="passkey-status" class="text-secondary text-center small mt-2 mb-0" style="min-height:1.2em"></p>
       </div>
-      <p id="passkey-status" class="text-secondary text-center small mt-2 mb-0" style="min-height:1.2em"></p>
 
-      <div class="hr-text">or use your password</div>
+      <div class="hr-text" id="password-divider">or use your password</div>
 
       <div class="mb-3">
         <label class="form-label" for="password">Password</label>
