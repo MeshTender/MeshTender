@@ -135,6 +135,38 @@ func TestJanitorRunsEverySweep(t *testing.T) {
 	waitForCalls(t, healthy, 2, 2*time.Second)
 }
 
+// TestConnectionTimeoutsAreSet pins audit O1: every phase of a connection is bounded.
+// Zero means "no limit" in net/http, so a single omission silently reopens the hole
+// this closed, and nothing else would notice.
+func TestConnectionTimeoutsAreSet(t *testing.T) {
+	t.Parallel()
+	for _, c := range []struct {
+		name string
+		got  time.Duration
+	}{
+		{"readHeaderTimeout", readHeaderTimeout},
+		{"readTimeout", readTimeout},
+		{"writeTimeout", writeTimeout},
+		{"idleTimeout", idleTimeout},
+	} {
+		if c.got <= 0 {
+			t.Errorf("%s = %v; zero means unlimited, so a slow or idle peer can hold a "+
+				"connection open forever", c.name, c.got)
+		}
+	}
+
+	// Headers must not outlast the whole request they belong to.
+	if readHeaderTimeout > readTimeout {
+		t.Errorf("readHeaderTimeout (%v) exceeds readTimeout (%v)", readHeaderTimeout, readTimeout)
+	}
+	// The write budget has to cover a real download on a bad link. The largest asset is
+	// a few hundred KB, so anything under ~30s risks truncating legitimate responses for
+	// exactly the rural, marginal connections this product targets.
+	if writeTimeout < 30*time.Second {
+		t.Errorf("writeTimeout = %v; too tight for a large asset over a slow link", writeTimeout)
+	}
+}
+
 // TestJanitorIntervalOutlivesCodeTTL: the sweep only has to keep the table
 // small, but an interval shorter than the code TTL would mean pointless work, and a
 // wildly long one would defeat the purpose. Pin it to a sane band so a future edit

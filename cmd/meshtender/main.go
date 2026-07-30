@@ -127,7 +127,10 @@ func run(logger *slog.Logger) error {
 	httpSrv := &http.Server{
 		Addr:              cfg.Addr,
 		Handler:           rec.Handler(srv.Handler()),
-		ReadHeaderTimeout: 10 * time.Second,
+		ReadHeaderTimeout: readHeaderTimeout,
+		ReadTimeout:       readTimeout,
+		WriteTimeout:      writeTimeout,
+		IdleTimeout:       idleTimeout,
 	}
 
 	tls := cfg.TLSCert != "" && cfg.TLSKey != ""
@@ -189,6 +192,32 @@ func run(logger *slog.Logger) error {
 // them, so nearly every sweep finds nothing to do. That's fine — the delete is one
 // indexed statement, which isn't worth a second ticker to avoid.
 const janitorInterval = 5 * time.Minute
+
+// Connection timeouts. With all of these at zero (net/http's default) a slow or idle
+// peer can hold a connection open indefinitely after sending headers.
+//
+//   - readHeaderTimeout guards the classic slowloris: headers dribbled out forever.
+//   - readTimeout covers the body too. limitBody caps the SIZE at 1 MiB, but with no
+//     deadline a client could still take days to deliver it.
+//   - writeTimeout is deliberately generous. It has to cover a genuine download over a
+//     bad link — this product's users are on rural, marginal connections, and the
+//     largest asset is a few hundred KB — while still bounding a peer that stops
+//     reading mid-response.
+//   - idleTimeout reaps keep-alive connections between requests.
+//
+// The console WebSocket is unaffected. These become deadlines on the underlying
+// connection, which looks like it should sever an upgraded socket — but net/http clears
+// the deadline when a handler hijacks the connection (hijackLocked calls
+// rwc.SetDeadline(time.Time{})), so the socket inherits nothing and is bounded instead
+// by consoleIdleTimeout and the shutdown drain. That's the one thing these timeouts
+// could plausibly have broken, so
+// core.TestConsoleWebSocketOutlivesServerReadTimeout pins it.
+const (
+	readHeaderTimeout = 10 * time.Second
+	readTimeout       = 30 * time.Second
+	writeTimeout      = 120 * time.Second
+	idleTimeout       = 120 * time.Second
+)
 
 // janitorSweep is one periodic cleanup job: a name for the log, and the delete to
 // run. Taking a closure rather than an interface keeps the janitor decoupled from
