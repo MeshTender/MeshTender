@@ -3,6 +3,7 @@ package auth
 import (
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/mail"
 	"strconv"
@@ -87,12 +88,15 @@ func (s *Handlers) renderAccount(w http.ResponseWriter, r *http.Request, uid int
 		"Platforms":   store.UserLinkPlatforms(),
 		"PlatformsJS": web.LinkPlatformsJS(store.UserLinkPlatforms()),
 		"HasPassword": u.PasswordHash != nil,
-		"Passkeys":    views,
-		"NextRename":  nextRename, // nil when a rename is allowed now
-		"Error":       r.URL.Query().Get("error"),
-		"OK":          r.URL.Query().Get("ok"),
-		"PKMsg":       r.URL.Query().Get("pk"),
-		"PKErr":       r.URL.Query().Get("pkerr"),
+		// Stated in the change-password form and used as minlength, so the client
+		// hint can't drift from the server's floor.
+		"MinPasswordLen": MinPasswordLen,
+		"Passkeys":       views,
+		"NextRename":     nextRename, // nil when a rename is allowed now
+		"Error":          r.URL.Query().Get("error"),
+		"OK":             r.URL.Query().Get("ok"),
+		"PKMsg":          r.URL.Query().Get("pk"),
+		"PKErr":          r.URL.Query().Get("pkerr"),
 	}
 	for k, v := range overrides {
 		data[k] = v
@@ -421,7 +425,8 @@ func (s *Handlers) handleChangePassword(w http.ResponseWriter, r *http.Request) 
 
 	newPassword := r.FormValue("new_password")
 	if !ValidPassword(newPassword) {
-		accountRedirect(w, r, "error", "New password must be at least 8 characters.")
+		accountRedirect(w, r, "error", fmt.Sprintf(
+			"New password must be at least %d characters.", MinPasswordLen))
 		return
 	}
 	// When a password already exists, require the current one to change it.

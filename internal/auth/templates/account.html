@@ -236,9 +236,9 @@
             </div>
             {{end}}
             <div class="col-md">
-              <label class="form-label" for="new_pw">{{if .HasPassword}}New password{{else}}Password{{end}} <span class="form-label-description">min 8 characters</span></label>
+              <label class="form-label" for="new_pw">{{if .HasPassword}}New password{{else}}Password{{end}} <span class="form-label-description">min {{.MinPasswordLen}} characters</span></label>
               <div class="input-group input-group-flat">
-                <input type="password" class="form-control" id="new_pw" name="new_password" autocomplete="new-password" minlength="8" required>
+                <input type="password" class="form-control" id="new_pw" name="new_password" autocomplete="new-password" minlength="{{.MinPasswordLen}}" required>
                 <span class="input-group-text"><a href="#" class="link-secondary" role="button" aria-pressed="false" title="Show password" data-pwtoggle="new_pw" aria-label="Show password">{{template "icon-eye" ""}}</a></span>
               </div>
             </div>

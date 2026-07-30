@@ -149,6 +149,9 @@ func (s *Handlers) pageSignup(w http.ResponseWriter, r *http.Request) {
 		"Layout": "authbase",
 		"Error":  r.URL.Query().Get("error"),
 		"Next":   r.URL.Query().Get("next"),
+		// Stated in the form and used as minlength, so the client hint can't drift
+		// from the server's floor.
+		"MinPasswordLen": MinPasswordLen,
 	})
 }
 

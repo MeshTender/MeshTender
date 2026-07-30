@@ -411,7 +411,17 @@ func NormalizePasskeyName(s string) string {
 // MinPasswordLen is a basic strength floor. There is deliberately no maximum:
 // passwords are pre-hashed before bcrypt (see hashPassword), so bcrypt's 72-byte
 // input limit never reaches the user.
-const MinPasswordLen = 8
+//
+// It is enforced only where a password is *set* (signup and the account page's
+// change-password form), never on the verify path — so raising it doesn't lock out
+// accounts whose existing password predates the increase. They keep signing in, and
+// only have to meet the current floor if they choose a new password.
+//
+// 12 rather than 8 because length is the only strength signal here (no complexity
+// rules, no breach-list check) and there is no account recovery to fall back on if a
+// weak password is guessed — see the audit's B1. Passkeys remain the preferred path
+// and are offered first on both the sign-in and sign-up forms.
+const MinPasswordLen = 12
 
 // ValidPassword reports whether p meets the minimum length.
 func ValidPassword(p string) bool {

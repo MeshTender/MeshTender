@@ -21,7 +21,7 @@ import (
 // session cookie — the automatable way to mint an authenticated auth-host session.
 func authSSO(t *testing.T, ts *httptest.Server, h hostEnv, username string) *http.Cookie {
 	t.Helper()
-	resp := post(t, ts, h.auth, "/signup/password", url.Values{"username": {username}, "password": {"supersecret"}})
+	resp := post(t, ts, h.auth, "/signup/password", url.Values{"username": {username}, "password": {testPassword}})
 	resp.Body.Close()
 	c := cookieByName(resp, "meshtender_session")
 	if c == nil {
@@ -43,7 +43,7 @@ func TestPasswordSignupAndLogin(t *testing.T) {
 	}
 
 	// #19 signup, valid → creates the account + an SSO session and hands off.
-	ok := post(t, ts, h.auth, "/signup/password", url.Values{"username": {"pwuser"}, "password": {"supersecret"}})
+	ok := post(t, ts, h.auth, "/signup/password", url.Values{"username": {"pwuser"}, "password": {testPassword}})
 	ok.Body.Close()
 	if ok.StatusCode != http.StatusSeeOther || cookieByName(ok, "meshtender_session") == nil {
 		t.Fatalf("valid signup = %d, session=%v; want 303 + session cookie", ok.StatusCode, cookieByName(ok, "meshtender_session"))
@@ -60,7 +60,7 @@ func TestPasswordSignupAndLogin(t *testing.T) {
 	}
 
 	// #18 login, correct credentials → session + handoff.
-	good := post(t, ts, h.auth, "/login/password", url.Values{"username": {"pwuser"}, "password": {"supersecret"}})
+	good := post(t, ts, h.auth, "/login/password", url.Values{"username": {"pwuser"}, "password": {testPassword}})
 	good.Body.Close()
 	if good.StatusCode != http.StatusSeeOther || cookieByName(good, "meshtender_session") == nil {
 		t.Fatalf("good login = %d, session=%v; want 303 + session cookie", good.StatusCode, cookieByName(good, "meshtender_session"))
@@ -260,7 +260,7 @@ func TestAccountProfilePosts(t *testing.T) {
 	assertAccountOK(t, links, "links")
 
 	pw := post(t, ts, h.auth, "/account/password",
-		url.Values{"new_password": {"anothersecret"}, "current_password": {"supersecret"}}, sso)
+		url.Values{"new_password": {"anothersecret"}, "current_password": {testPassword}}, sso)
 	pw.Body.Close()
 	assertAccountOK(t, pw, "password")
 

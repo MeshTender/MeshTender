@@ -7,20 +7,38 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// TestValidPassword pins the 8-char floor and confirms there is no upper bound:
-// pre-hashing removes bcrypt's 72-byte input limit, so long passwords are valid.
+// TestValidPassword pins the floor at MinPasswordLen and confirms there is no upper
+// bound: pre-hashing removes bcrypt's 72-byte input limit, so long passwords are
+// valid.
+//
+// The boundary cases are expressed relative to the constant rather than hardcoded, so
+// changing the floor doesn't require editing the expectations — only the explicit
+// "old floor" case below, which is deliberate.
 func TestValidPassword(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
 		n    int
 		want bool
 	}{
-		{7, false}, {8, true}, {72, true}, {73, true}, {5000, true},
+		{MinPasswordLen - 1, false},
+		{MinPasswordLen, true},
+		{72, true},   // bcrypt's raw input limit — pre-hashing means it isn't ours
+		{73, true},   // past it
+		{5000, true}, // no maximum at all
 	}
 	for _, c := range cases {
 		if got := ValidPassword(strings.Repeat("a", c.n)); got != c.want {
 			t.Errorf("ValidPassword(len=%d) = %v, want %v", c.n, got, c.want)
 		}
+	}
+	// The floor was raised from 8 to 12 (audit S7); 8 must now be rejected when a
+	// password is *set*. Existing shorter passwords keep working because the floor is
+	// never applied on the verify path — see TestFloorNotAppliedToExistingPasswords.
+	if ValidPassword("12345678") {
+		t.Error("an 8-character password is still accepted; the floor didn't move")
+	}
+	if MinPasswordLen < 12 {
+		t.Errorf("MinPasswordLen = %d, want at least 12", MinPasswordLen)
 	}
 }
 

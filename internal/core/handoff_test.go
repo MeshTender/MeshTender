@@ -27,6 +27,20 @@ type hostEnv struct{ auth, app, root, www string }
 
 // splitServer stands up a server in full split-host mode (root/www/auth/app)
 // against the test database, returning the store and the per-surface host:port.
+// testPassword is the fixture password for sign-up/sign-in tests. It must satisfy
+// auth.MinPasswordLen — asserted below — so raising the floor doesn't quietly break
+// every credential test with a confusing "password too short" redirect.
+const testPassword = "correct-horse-battery-staple"
+
+// TestFixturePasswordMeetsFloor keeps the fixture honest if the floor moves again.
+func TestFixturePasswordMeetsFloor(t *testing.T) {
+	t.Parallel()
+	if len(testPassword) < auth.MinPasswordLen {
+		t.Fatalf("testPassword is %d chars, below the %d-char floor — credential tests "+
+			"would fail with a misleading validation error", len(testPassword), auth.MinPasswordLen)
+	}
+}
+
 func splitServer(t *testing.T) (*store.Store, context.Context, *httptest.Server, hostEnv) {
 	t.Helper()
 	st, ctx := coreStore(t)
@@ -251,7 +265,7 @@ func TestSingleLogout(t *testing.T) {
 
 	// Sign up on the auth host: creates login row L and the auth SSO session, then
 	// hands off to the app with a single-use code carrying L.
-	su := post(t, ts, h.auth, "/signup/password", url.Values{"username": {"sharuser"}, "password": {"supersecret"}})
+	su := post(t, ts, h.auth, "/signup/password", url.Values{"username": {"sharuser"}, "password": {testPassword}})
 	su.Body.Close()
 	sso := cookieByName(su, "meshtender_session")
 	if sso == nil {
@@ -301,7 +315,7 @@ func TestAuthLogoutClearsSSO(t *testing.T) {
 	t.Parallel()
 	_, _, ts, h := splitServer(t)
 
-	su := post(t, ts, h.auth, "/signup/password", url.Values{"username": {"ssoonly"}, "password": {"supersecret"}})
+	su := post(t, ts, h.auth, "/signup/password", url.Values{"username": {"ssoonly"}, "password": {testPassword}})
 	su.Body.Close()
 	sso := cookieByName(su, "meshtender_session")
 	if sso == nil {
@@ -329,7 +343,7 @@ func TestLogoutRejectsGet(t *testing.T) {
 	t.Parallel()
 	_, _, ts, h := splitServer(t)
 
-	su := post(t, ts, h.auth, "/signup/password", url.Values{"username": {"getlogout"}, "password": {"supersecret"}})
+	su := post(t, ts, h.auth, "/signup/password", url.Values{"username": {"getlogout"}, "password": {testPassword}})
 	su.Body.Close()
 	sso := cookieByName(su, "meshtender_session")
 	if sso == nil {
@@ -382,7 +396,7 @@ func TestAccountOnAuthHost(t *testing.T) {
 			t.Fatal("expected a session cookie carrying the auth-local flag")
 		}
 		fin := post(t, ts, h.auth, "/signup/password",
-			url.Values{"username": {"acctlocal"}, "password": {"supersecret"}}, sess)
+			url.Values{"username": {"acctlocal"}, "password": {testPassword}}, sess)
 		fin.Body.Close()
 		if got := fin.Header.Get("Location"); got != "/account" {
 			t.Fatalf("post-login redirect = %q, want local /account (no handoff)", got)
@@ -391,7 +405,7 @@ func TestAccountOnAuthHost(t *testing.T) {
 
 	t.Run("auth /account with SSO session renders", func(t *testing.T) {
 		su := post(t, ts, h.auth, "/signup/password",
-			url.Values{"username": {"acctsso"}, "password": {"supersecret"}})
+			url.Values{"username": {"acctsso"}, "password": {testPassword}})
 		su.Body.Close()
 		sso := cookieByName(su, "meshtender_session")
 		if sso == nil {
