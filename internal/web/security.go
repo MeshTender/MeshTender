@@ -4,8 +4,11 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"log/slog"
 	"net/http"
 	"strings"
+
+	"github.com/go-chi/chi/v5/middleware"
 )
 
 // nonceCtxKey keys the per-request CSP nonce in the request context.
@@ -56,6 +59,70 @@ func (e *Env) securityHeaders(next http.Handler) http.Handler {
 			h.Set("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
 		}
 		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), nonceCtxKey{}, nonce)))
+	})
+}
+
+// unsafeMethod reports whether a method can change server state. The safe set is
+// closed (per RFC 9110), so anything unrecognized — including a method added by a
+// future router — counts as unsafe and gets checked.
+func unsafeMethod(method string) bool {
+	switch method {
+	case http.MethodGet, http.MethodHead, http.MethodOptions, http.MethodTrace:
+		return false
+	}
+	return true
+}
+
+// blockCrossSiteWrites rejects state-changing requests that the browser tells us
+// came from another site. It is the second layer of CSRF defense: the first is the
+// session cookie's SameSite=Lax, which browsers use to withhold the cookie from a
+// cross-site POST. Lax is sound but it is a *single* control, and it is the wrong
+// shape for two failure modes — a browser or embedded webview that mishandles
+// SameSite re-opens every mutation, and a state-changing GET (easy to add by
+// accident) is forgeable outright, because Lax deliberately permits top-level GET
+// navigation.
+//
+// Sec-Fetch-Site is set by the browser and cannot be forged by page JavaScript (it
+// is a forbidden header name), so it is trustworthy when present. Values are
+// handled as follows:
+//
+//   - "cross-site" — rejected. This is the CSRF case: an attacker's page driving a
+//     write against us.
+//   - "same-origin" / "same-site" — allowed. Every form action and fetch() in the
+//     app is a relative path, and the CSP pins form-action to 'self', so real
+//     writes are same-origin. "same-site" is also allowed because it is exactly
+//     what Lax cookies already permit (sibling subdomains), so rejecting it would
+//     buy nothing this doesn't already concede.
+//   - "none" — allowed. It means the user initiated the request directly (address
+//     bar, bookmark), which an attacker cannot arrange; rejecting it would add no
+//     security and risk odd client behavior.
+//   - missing / unrecognized — allowed. Pre-2020 browsers and non-browser clients
+//     send nothing, and this is defense in depth layered on SameSite, not a
+//     replacement for it. Failing closed here would break those clients for no
+//     gain against an attacker, who cannot suppress the header in a real browser.
+//
+// Rejections are logged at Warn: this is a new control, and if it ever fires on
+// legitimate traffic we want to find out from the logs rather than a bug report.
+//
+// Note this is a header check by design, which is what makes it cheap. The
+// alternative — a synchronizer token in every form — would put a secret in an HTML
+// body, and HTML is compressed (see compressHTML), which is the BREACH
+// precondition. Keeping the check in headers sidesteps that entirely.
+func blockCrossSiteWrites(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if unsafeMethod(r.Method) && strings.EqualFold(r.Header.Get("Sec-Fetch-Site"), "cross-site") {
+			slog.Warn("blocked cross-site write",
+				"method", r.Method,
+				"path", r.URL.Path,
+				"host", r.Host,
+				"request_id", middleware.GetReqID(r.Context()),
+				"client_ip", clientIP(r),
+			)
+			http.Error(w, "This request appears to have come from another site and was blocked.",
+				http.StatusForbidden)
+			return
+		}
+		next.ServeHTTP(w, r)
 	})
 }
 

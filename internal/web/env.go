@@ -352,11 +352,12 @@ func (rn *Renderer) render(w http.ResponseWriter, r *http.Request, status int, p
 // auth-free. chi requires all Use() calls before any route is registered.
 func (e *Env) CommonMiddleware(r chi.Router) {
 	r.Use(middleware.RequestID)
-	r.Use(CaptureRemoteAddr) // preserve the true TCP peer before we resolve
-	r.Use(e.resolveClientIP) // trusted-proxy-aware X-Forwarded-For resolution
-	r.Use(e.securityHeaders) // CSP (+ per-request script nonce) and hardening headers
-	r.Use(limitBody)         // cap request bodies before any handler reads them
-	r.Use(compressHTML)      // gzip the server-rendered pages
+	r.Use(CaptureRemoteAddr)    // preserve the true TCP peer before we resolve
+	r.Use(e.resolveClientIP)    // trusted-proxy-aware X-Forwarded-For resolution
+	r.Use(e.securityHeaders)    // CSP (+ per-request script nonce) and hardening headers
+	r.Use(blockCrossSiteWrites) // CSRF second layer, before any handler reads the body
+	r.Use(limitBody)            // cap request bodies before any handler reads them
+	r.Use(compressHTML)         // gzip the server-rendered pages
 	r.Use(middleware.Recoverer)
 }
 
