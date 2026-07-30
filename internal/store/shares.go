@@ -367,15 +367,40 @@ func randomToken() (string, error) {
 
 const base62 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 
-// randomPublicID returns a short, opaque, URL-safe identifier (12 base62 chars,
-// ~71 bits) used in place of sequential integer ids in URLs.
+// publicIDLen is how many base62 characters a public id carries. 62^12 is just over
+// 2^71, so ids are far too sparse to enumerate by guessing.
+const publicIDLen = 12
+
+// maxUnbiasedByte is the smallest byte value that must be REJECTED to keep `% 62`
+// uniform. 256 isn't a multiple of 62 (4*62 = 248, with 8 left over), so folding a
+// full byte range onto the alphabet hands those 8 remainders to the first 8
+// characters — making '0'–'7' appear 5/256 of the time against 4/256 for every other
+// character, i.e. 25% more often. Discarding 248–255 leaves exactly four bytes per
+// character and removes the skew.
+const maxUnbiasedByte = byte((256 / len(base62)) * len(base62)) // 248
+
+// randomPublicID returns a short, opaque, URL-safe identifier (publicIDLen base62
+// chars) used in place of sequential integer ids in URLs.
+//
+// Bytes at or above maxUnbiasedByte are drawn again rather than folded, so every
+// character is equally likely. Only 8 of 256 values are rejected (~3%), so the refill
+// loop almost never runs a second time.
 func randomPublicID() (string, error) {
-	b := make([]byte, 12)
-	if _, err := rand.Read(b); err != nil {
-		return "", fmt.Errorf("random public id: %w", err)
+	out := make([]byte, 0, publicIDLen)
+	buf := make([]byte, publicIDLen)
+	for len(out) < publicIDLen {
+		if _, err := rand.Read(buf); err != nil {
+			return "", fmt.Errorf("random public id: %w", err)
+		}
+		for _, c := range buf {
+			if c >= maxUnbiasedByte {
+				continue // would skew the distribution; draw another byte
+			}
+			out = append(out, base62[int(c)%len(base62)])
+			if len(out) == publicIDLen {
+				break
+			}
+		}
 	}
-	for i, c := range b {
-		b[i] = base62[int(c)%len(base62)]
-	}
-	return string(b), nil
+	return string(out), nil
 }
