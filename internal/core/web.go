@@ -338,6 +338,14 @@ func (s *Handlers) pageDashboard(w http.ResponseWriter, r *http.Request) {
 		s.ServerError(w, r, "could not load account", err)
 		return
 	}
+	// Drives the passkey checklist step below. Someone who signed up with a password
+	// is never asked about passkeys again after that one form, so this is the only
+	// place that follows up.
+	passkeys, err := s.Store.ListCredentials(ctx, uid)
+	if err != nil {
+		s.ServerError(w, r, "could not load passkeys", err)
+		return
+	}
 
 	confirmed, unconfirmed := 0, 0
 	var mapped []*store.Repeater
@@ -359,6 +367,18 @@ func (s *Handlers) pageDashboard(w http.ResponseWriter, r *http.Request) {
 			Action: "Edit profile",
 			Href:   s.Origin(r, s.Cfg.AuthHost) + "/account",
 			Done:   user.DisplayName != nil && *user.DisplayName != "",
+		},
+		{
+			// Grouped with the profile step (both are account setup) and ahead of the
+			// mesh steps. Always listed rather than shown only to password users: a
+			// passkey holder sees it already satisfied, which reads as progress instead
+			// of a scold, and it keeps the list identical for everyone.
+			Title: "Add a passkey",
+			Desc: "Sign in with a fingerprint, face, PIN, or a security key — " +
+				"nothing to remember, and nothing to type on a shared computer.",
+			Action: "Add passkey",
+			Href:   s.Origin(r, s.Cfg.AuthHost) + "/account",
+			Done:   len(passkeys) > 0,
 		},
 		{
 			Title:  "Add a repeater",
