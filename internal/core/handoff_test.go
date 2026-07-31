@@ -41,14 +41,26 @@ func TestFixturePasswordMeetsFloor(t *testing.T) {
 
 func splitServer(t *testing.T) (*store.Store, context.Context, *httptest.Server, hostEnv) {
 	t.Helper()
+	st, ctx, ts, h, _ := splitServerMail(t)
+	return st, ctx, ts, h
+}
+
+// splitServerMail is splitServer plus the captured outbound mail. Every test server
+// gets a capturing sender (never a real provider, and never the log sender — which
+// would print recovery links into test output), with mail reported as configured so
+// the recovery UI is exercised rather than hidden.
+func splitServerMail(t *testing.T) (*store.Store, context.Context, *httptest.Server, hostEnv, *fakeSender) {
+	t.Helper()
 	st, ctx := coreStore(t)
 
 	masterKey := testMasterKey
 	idSvc, _ := identity.LoadOrCreate(ctx, st, masterKey)
+	sender := &fakeSender{}
 	authSvc, err := auth.New(st, st.Pool(), auth.Config{
 		RPID: "localhost", RPDisplayName: "test",
 		RPOrigins: []string{"http://auth.localhost", "http://app.localhost"},
 		AppHost:   testAppHost, AuthHost: testAuthHost, RootHost: testRootHost,
+		Mail: sender, MailEnabled: true,
 	})
 	if err != nil {
 		t.Fatalf("auth: %v", err)
@@ -61,7 +73,7 @@ func splitServer(t *testing.T) (*store.Store, context.Context, *httptest.Server,
 	t.Cleanup(ts.Close)
 	port := mustURL(t, ts.URL).Port()
 	hp := func(h string) string { return h + ":" + port }
-	return st, ctx, ts, hostEnv{auth: hp(testAuthHost), app: hp(testAppHost), root: hp(testRootHost), www: hp(testWWWHost)}
+	return st, ctx, ts, hostEnv{auth: hp(testAuthHost), app: hp(testAppHost), root: hp(testRootHost), www: hp(testWWWHost)}, sender
 }
 
 // seedSession creates a user and establishes an authenticated app-host session

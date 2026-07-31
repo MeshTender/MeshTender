@@ -83,6 +83,8 @@ func (s *Handlers) Routes() chi.Router {
 			r.Post("/account/profile-fields", s.handleSetProfileFields)
 			r.Post("/account/links", s.handleSetUserLinks)
 			r.Post("/account/password", s.handleChangePassword)
+			r.Post("/account/email", s.handleSetEmail)
+			r.Post("/account/email/verify", s.handleResendEmailVerification)
 			r.Post("/account/passkeys/rename", s.handleRenamePasskey)
 			r.Post("/account/passkeys/delete", s.handleDeletePasskey)
 		})
@@ -100,6 +102,12 @@ func (s *Handlers) Routes() chi.Router {
 func (s *Handlers) credentialRoutes(r chi.Router) {
 	r.Get("/login", s.pageLogin)
 	r.Get("/signup", s.pageSignup)
+	// Confirming an email address is deliberately session-free: the link is opened
+	// from a mailbox, frequently on a different device than the one that added the
+	// address. The single-use token names the account, so a session would add nothing
+	// but a failure mode. It sits here (inside the session-loading group but outside
+	// RequireSSO) so the page chrome still renders signed-in-aware.
+	r.Get("/verify-email/{token}", s.handleVerifyEmail)
 	// Throttle credential submission per client IP to blunt password guessing
 	// and signup spam. Allows a burst (e.g. fat-fingered retries), then ~1 try
 	// every 6s; bcrypt's cost is the second line of defense.

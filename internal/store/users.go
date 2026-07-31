@@ -33,6 +33,13 @@ type User struct {
 	// Timezone is the user's preferred IANA zone name (e.g. "America/New_York")
 	// for date/time display, or "" when unset (the browser auto-detects).
 	Timezone string
+	// Email is the account's optional email address, nil when unset. It is never
+	// public — it exists for account recovery (and, later, security notices) and
+	// must not be rendered on any page but the owner's own account settings.
+	// EmailVerifiedAt is nil until the address has been confirmed; only a verified
+	// address receives mail.
+	Email           *string
+	EmailVerifiedAt *time.Time
 	// Instance-level capability flags.
 	CapManageUsers   bool
 	CapManageCatalog bool
@@ -50,15 +57,34 @@ func (u *User) Name() string {
 	return u.Username
 }
 
-const userCols = `id, username, display_name, password_hash, bio, location, callsign, timezone, cap_manage_users, cap_manage_catalog, last_login_at, created_at`
+const userCols = `id, username, display_name, password_hash, bio, location, callsign, timezone, email, email_verified_at, cap_manage_users, cap_manage_catalog, last_login_at, created_at`
 
 func scanUser(row pgx.Row) (*User, error) {
 	var u User
 	if err := row.Scan(&u.ID, &u.Username, &u.DisplayName, &u.PasswordHash,
-		&u.Bio, &u.Location, &u.Callsign, &u.Timezone, &u.CapManageUsers, &u.CapManageCatalog, &u.LastLoginAt, &u.CreatedAt); err != nil {
+		&u.Bio, &u.Location, &u.Callsign, &u.Timezone, &u.Email, &u.EmailVerifiedAt,
+		&u.CapManageUsers, &u.CapManageCatalog, &u.LastLoginAt, &u.CreatedAt); err != nil {
 		return nil, err
 	}
 	return &u, nil
+}
+
+// EmailVerified reports whether the account has a confirmed address — the
+// precondition for sending it anything.
+func (u *User) EmailVerified() bool {
+	return u.Email != nil && *u.Email != "" && u.EmailVerifiedAt != nil
+}
+
+// CanResetPassword reports whether this account can be recovered by email.
+//
+// Both halves are required, and the password half is the load-bearing one: reset
+// only ever SETS a password on an account that already has one. A passkey-only
+// account is deliberately not recoverable this way — allowing it would silently
+// demote a phishing-resistant credential to "whoever controls the mailbox", which
+// is the opposite of why someone chose a passkey. Such users are pointed at adding
+// a second passkey instead.
+func (u *User) CanResetPassword() bool {
+	return u.PasswordHash != nil && u.EmailVerified()
 }
 
 // TouchLastLogin stamps the user's most recent sign-in time. Best-effort

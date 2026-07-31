@@ -26,9 +26,8 @@ func validEnv(t *testing.T) {
 	t.Setenv("MESHTENDER_MAIL_REPLY_TO", "")
 }
 
-// TestLoadMailDisabledByDefault: no API key means no delivery path, and the flag
-// that gates the recovery-by-email UI must say so rather than the UI offering mail
-// that would never arrive.
+// TestLoadMailDisabledByDefault: with nothing configured there's no from-address, so
+// the recovery-by-email UI stays hidden rather than offering mail that can't be sent.
 func TestLoadMailDisabledByDefault(t *testing.T) {
 	validEnv(t)
 	c, err := Load()
@@ -36,7 +35,26 @@ func TestLoadMailDisabledByDefault(t *testing.T) {
 		t.Fatalf("Load: %v", err)
 	}
 	if c.MailEnabled {
-		t.Fatal("MailEnabled = true with no API key configured")
+		t.Fatal("MailEnabled = true with nothing configured")
+	}
+}
+
+// TestLoadMailEnabledWithoutAPIKey is the dev path, and the reason the feature switch
+// and the delivery switch are separate: MAIL_FROM alone turns the recovery UI on
+// while messages go to the log. If this required an API key, none of the email UI
+// would be reachable locally and the logging sender would be useless.
+func TestLoadMailEnabledWithoutAPIKey(t *testing.T) {
+	validEnv(t)
+	t.Setenv("MESHTENDER_MAIL_FROM", "MeshTender <noreply@example.dev>")
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !c.MailEnabled {
+		t.Error("MailEnabled = false with a from-address set")
+	}
+	if c.ResendAPIKey != "" {
+		t.Error("an API key appeared from nowhere")
 	}
 }
 
@@ -51,7 +69,7 @@ func TestLoadMailKeyWithoutFromFailsFast(t *testing.T) {
 	}
 }
 
-// TestLoadMailEnabled: both halves present ⇒ mail is on.
+// TestLoadMailEnabled: both halves present ⇒ mail is on and delivers for real.
 func TestLoadMailEnabled(t *testing.T) {
 	validEnv(t)
 	t.Setenv("MESHTENDER_RESEND_API_KEY", "re_live_key")

@@ -88,6 +88,15 @@ func (s *Handlers) renderAccount(w http.ResponseWriter, r *http.Request, uid int
 		"Platforms":   store.UserLinkPlatforms(),
 		"PlatformsJS": web.LinkPlatformsJS(store.UserLinkPlatforms()),
 		"HasPassword": u.PasswordHash != nil,
+		// Email state, rendered honestly rather than as a single "has email" flag:
+		// what an address does for this account depends on whether it's confirmed AND
+		// whether there's a password to reset (see store.User.CanResetPassword).
+		"Email":          u.Email, // nil when unset
+		"EmailVerified":  u.EmailVerified(),
+		"CanResetByMail": u.CanResetPassword(),
+		// False when no mail provider is configured, which hides the whole card:
+		// offering recovery we can't deliver is worse than not offering it.
+		"MailEnabled": s.Auth.MailEnabled(),
 		// Stated in the change-password form and used as minlength, so the client
 		// hint can't drift from the server's floor.
 		"MinPasswordLen": MinPasswordLen,
@@ -97,6 +106,8 @@ func (s *Handlers) renderAccount(w http.ResponseWriter, r *http.Request, uid int
 		"OK":             r.URL.Query().Get("ok"),
 		"PKMsg":          r.URL.Query().Get("pk"),
 		"PKErr":          r.URL.Query().Get("pkerr"),
+		"EmMsg":          r.URL.Query().Get(flashEmail),
+		"EmErr":          r.URL.Query().Get(flashEmailErr),
 	}
 	for k, v := range overrides {
 		data[k] = v

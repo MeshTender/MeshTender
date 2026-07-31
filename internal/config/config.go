@@ -124,7 +124,12 @@ func Load() (*Config, error) {
 	if c.ResendAPIKey != "" && c.MailFrom == "" {
 		return nil, fmt.Errorf("MESHTENDER_MAIL_FROM is required when MESHTENDER_RESEND_API_KEY is set")
 	}
-	c.MailEnabled = c.ResendAPIKey != "" && c.MailFrom != ""
+	// MailFrom is the switch for the FEATURE; the API key is the switch for real
+	// DELIVERY. Keeping them separate is what makes the flow walkable in dev: set only
+	// MailFrom and the recovery UI is live while messages go to the log. Gating the
+	// feature on the API key instead would hide every email control locally, which
+	// would make the logging sender useless for the case it exists to serve.
+	c.MailEnabled = c.MailFrom != ""
 
 	// MeshTender runs across three hosts (auth + app + root). Require the two that
 	// have no sane default (PrimaryHost falls back to RPID above).

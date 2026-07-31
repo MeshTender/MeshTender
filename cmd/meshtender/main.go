@@ -87,16 +87,18 @@ func run(logger *slog.Logger) error {
 	}
 	logger.Info("server identity ready", "pubkey", idSvc.PublicKeyHex())
 
-	// Outbound mail is optional. Without a provider the server logs messages
-	// instead of sending them, so account recovery is fully walkable in dev, and
-	// cfg.MailEnabled keeps the UI from offering mail that would never arrive.
+	// Delivery is keyed on the API key, not on cfg.MailEnabled: MailEnabled is the
+	// feature switch (is the email UI offered at all), while the key decides whether
+	// messages actually leave the process. Setting only MESHTENDER_MAIL_FROM is the
+	// dev configuration — the recovery flow is live and its links land in this log.
 	var sender mail.Sender
-	if cfg.MailEnabled {
+	if cfg.ResendAPIKey != "" {
 		sender = mail.NewResend(cfg.ResendAPIKey, cfg.MailFrom, cfg.MailReplyTo)
 		logger.Info("mail provider ready", "from", cfg.MailFrom)
 	} else {
 		sender = &mail.LogSender{Logger: logger}
-		logger.Warn("no mail provider configured — recovery messages will be logged, not sent")
+		logger.Warn("no mail provider configured — messages will be logged, not sent",
+			"email_features_offered", cfg.MailEnabled)
 	}
 
 	authSvc, err := auth.New(st, st.Pool(), auth.Config{
@@ -148,6 +150,9 @@ func run(logger *slog.Logger) error {
 		runJanitor(bgCtx, janitorInterval, logger,
 			janitorSweep{"auth codes", st.PruneAuthCodes},
 			janitorSweep{"share links", st.PruneInvites},
+			// Verification and reset links are deleted only when someone actually
+			// clicks one, so abandoned ones would otherwise pile up forever.
+			janitorSweep{"email tokens", st.PruneEmailTokens},
 			// A violation that stops recurring eventually ages out, so a fixed
 			// problem leaves the admin page on its own.
 			janitorSweep{"csp reports", func(ctx context.Context) (int64, error) {

@@ -419,6 +419,20 @@ func (s *Handlers) pageDashboard(w http.ResponseWriter, r *http.Request) {
 			Done:   len(orgs) > 0,
 		},
 	}
+	// Only password holders are nudged, and only while mail is configured. A
+	// passkey-only account genuinely gains no recovery from an address (reset sets a
+	// password on accounts that have one), so asking would be asking for data we
+	// can't use — the right advice for them is a second passkey, which the step
+	// above already covers.
+	if user.PasswordHash != nil && s.Auth.MailEnabled() {
+		steps = append(steps, onboardingStep{
+			Title:  "Add a recovery email",
+			Desc:   "Optional, but without one a forgotten password can't be reset.",
+			Action: "Add email",
+			Href:   s.Origin(r, s.Cfg.AuthHost) + "/account",
+			Done:   user.EmailVerified(),
+		})
+	}
 	// People listed publicly (org admins, public repeater owners/stewards) should
 	// give visitors a way to reach them. Only nudge those users, and only until
 	// they set a primary contact link.

@@ -53,6 +53,78 @@
   </div>
 </div>
 
+{{/* Email card. Hidden entirely when no mail provider is configured: an address we
+     can't send to would be a promise we can't keep. What the card SAYS depends on
+     three things — whether an address is set, whether it's confirmed, and whether
+     there's a password to reset — because a passkey-only account's address genuinely
+     can't recover it, and implying otherwise is the one thing worse than silence.
+
+     Placed here, with the account-identity fields, because that's where people look
+     for it — but it sits directly above the two PUBLIC cards, so the header carries
+     "(private)" the way Links carries "(public)". Position reads louder than body
+     copy, and an address nobody meant to publish is the one mistake worth this much
+     redundancy. */}}
+{{if .MailEnabled}}
+<div class="card mt-3">
+  <div class="card-header"><h2 class="card-title">Email <span class="text-secondary">(private)</span></h2></div>
+  <div class="card-body">
+    <p class="text-secondary">
+      Optional. Used to recover your account if you forget your password. It's never shown
+      on your public profile, and we only email you about your account — never marketing.
+    </p>
+    {{if .EmErr}}<div class="alert alert-danger">{{.EmErr}}</div>{{end}}
+    {{if .EmMsg}}<div class="alert alert-success">{{.EmMsg}}</div>{{end}}
+
+    {{if .Email}}
+    <div class="list-group list-group-flush mb-3">
+      <div class="list-group-item d-flex align-items-center gap-3 px-0">
+        <span class="text-secondary">{{template "icon-mail" ""}}</span>
+        <div class="flex-fill" style="min-width:0">
+          <div class="text-truncate">{{.Email}}</div>
+          <div class="text-secondary small">
+            {{if .EmailVerified}}
+              {{if .CanResetByMail}}
+              <span class="badge bg-success-lt">confirmed</span> You can reset your password by email.
+              {{else}}
+              <span class="badge bg-success-lt">confirmed</span>
+              This account has no password, so there's nothing to reset — sign-in is by passkey only.
+              To keep access if you lose your device, add a passkey on a second device in the Passkeys section below.
+              {{end}}
+            {{else}}
+            <span class="badge bg-yellow-lt">unconfirmed</span>
+            Check your inbox for the confirmation link. Until it's confirmed, this address can't recover your account.
+            {{end}}
+          </div>
+        </div>
+        {{if not .EmailVerified}}
+        <form method="post" action="/account/email/verify" class="m-0">
+          <button type="submit" class="btn btn-sm">Resend</button>
+        </form>
+        {{end}}
+        <form method="post" action="/account/email" class="m-0" data-confirm="Remove your email address? If you forget your password, it can't be reset without one.">
+          <input type="hidden" name="remove" value="1">
+          <button type="submit" class="btn btn-sm btn-ghost-danger">Remove</button>
+        </form>
+      </div>
+    </div>
+    {{end}}
+
+    <form method="post" action="/account/email">
+      <div class="row g-2 align-items-end">
+        <div class="col-sm">
+          <label class="form-label" for="email">{{if .Email}}Change address{{else}}Email address{{end}} <span class="form-label-description">optional</span></label>
+          <input type="email" class="form-control" id="email" name="email" autocomplete="email" autocapitalize="none" maxlength="254" placeholder="you@example.com" required>
+        </div>
+        <div class="col-sm-auto">
+          <button type="submit" class="btn btn-primary w-100">{{if .Email}}Save new address{{else}}Save address{{end}}</button>
+        </div>
+      </div>
+      <small class="form-hint mt-1">We'll send a confirmation link. A new address has to be confirmed before it can recover your account.</small>
+    </form>
+  </div>
+</div>
+{{end}}
+
 <div class="card mt-3">
   <div class="card-header"><h2 class="card-title">Time zone</h2></div>
   <div class="card-body">
@@ -249,7 +321,10 @@
         </form>
 
         {{if .HasPassword}}
-        <form method="post" action="/account/password" class="mt-3" data-confirm="Remove your password? You will only be able to sign in with a passkey.">
+        {{/* The confirm text names the recovery consequence, not just the sign-in one:
+             email reset only ever sets a password on an account that HAS one, so
+             removing it silently turns a working recovery path into a dead end. */}}
+        <form method="post" action="/account/password" class="mt-3" data-confirm="Remove your password? You'll sign in with a passkey only — and email recovery will no longer apply to this account, since there'd be no password to reset.">
           <input type="hidden" name="remove" value="1">
           <button type="submit" class="btn btn-ghost-danger">Remove password</button>
           <small class="form-hint mt-1">Only available if you have at least one passkey.</small>
