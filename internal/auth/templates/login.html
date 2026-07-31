@@ -4,6 +4,10 @@
   <div class="card-body">
     <h1 class="card-title text-center mb-4">Sign in to your account</h1>
     {{if .Error}}<div class="alert alert-danger">{{.Error}}</div>{{end}}
+    {{/* Success flash: a completed password reset and a confirmed email address both
+         land here, and both need to say so — otherwise the visitor can't tell whether
+         what they just did worked. */}}
+    {{if .OK}}<div class="alert alert-success">{{.OK}}</div>{{end}}
 
     <form method="post" action="/login/password" id="signin-form">
       {{if .Next}}<input type="hidden" name="next" value="{{.Next}}">{{end}}
@@ -26,7 +30,12 @@
       <div class="hr-text" id="password-divider">or use your password</div>
 
       <div class="mb-3">
-        <label class="form-label" for="password">Password</label>
+        {{/* Rendered only when mail is configured: a "Forgot password?" link that leads
+             to a form we can't act on is worse than no link. */}}
+        <label class="form-label" for="password">
+          Password
+          {{if .MailEnabled}}<span class="form-label-description"><a href="/forgot" tabindex="-1">Forgot password?</a></span>{{end}}
+        </label>
         <div class="input-group input-group-flat">
           <input type="password" class="form-control" id="password" name="password" autocomplete="current-password" placeholder="Your password" required>
           <span class="input-group-text">

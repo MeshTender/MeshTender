@@ -1,0 +1,49 @@
+{{define "title"}}Choose a new password · MeshTender{{end}}
+{{define "content"}}
+<div class="card card-md">
+  <div class="card-body">
+    {{if .Invalid}}
+    <h1 class="card-title text-center mb-4">This link doesn't work</h1>
+    <p class="text-secondary">
+      Reset links can only be used once, and they expire shortly after being sent. This
+      one has already been used, has expired, or was never valid.
+    </p>
+    <div class="form-footer">
+      <a href="/forgot" class="btn btn-primary w-100">Send a new link</a>
+    </div>
+    {{else}}
+    <h1 class="card-title text-center mb-2">Choose a new password</h1>
+    {{/* The account is named because one address can hold several accounts, each with
+         its own link in the same email. Without this, someone picks the wrong link,
+         changes the wrong password, still can't sign in, and concludes reset is
+         broken. */}}
+    <p class="text-secondary text-center mb-4">for <strong>@{{.Username}}</strong></p>
+    {{if .Error}}<div class="alert alert-danger">{{.Error}}</div>{{end}}
+
+    <form method="post" action="/reset/{{.Token}}">
+      {{/* The username is here, hidden, purely so password managers file the saved
+           credential against the right account rather than prompting to update an
+           unrelated one. */}}
+      <input type="hidden" name="username" value="{{.Username}}" autocomplete="username">
+      <div class="mb-3">
+        <label class="form-label" for="new_pw">New password <span class="form-label-description">min {{.MinPasswordLen}} characters</span></label>
+        <div class="input-group input-group-flat">
+          <input type="password" class="form-control" id="new_pw" name="new_password"
+                 autocomplete="new-password" minlength="{{.MinPasswordLen}}"
+                 placeholder="Choose a password" required autofocus>
+          <span class="input-group-text">
+            <button type="button" class="link-secondary border-0 bg-transparent p-0" aria-pressed="false" title="Show password" data-pwtoggle="new_pw" aria-label="Show password">{{template "icon-eye" ""}}</button>
+          </span>
+        </div>
+      </div>
+      <div class="form-footer mt-0">
+        <button type="submit" class="btn btn-primary w-100">Set new password</button>
+      </div>
+    </form>
+    <p class="text-secondary small mt-3 mb-0">
+      Setting a new password signs out every device currently signed in to this account.
+    </p>
+    {{end}}
+  </div>
+</div>
+{{end}}

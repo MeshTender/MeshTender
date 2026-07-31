@@ -99,6 +99,19 @@ func (l *rateLimiter) sweep(now time.Time) {
 	}
 }
 
+// KeyLimiter throttles by a caller-chosen key rather than by client IP. It exists
+// for limits whose natural subject isn't the connection — password reset is keyed on
+// the identifier submitted, so one address can't be mailed repeatedly from a fresh IP
+// each time.
+type KeyLimiter interface {
+	Allow(key string) bool
+}
+
+// Allow reports whether an action for key may proceed, consuming a token. Use it for
+// limits keyed on something other than the client IP (see KeyLimiter); Middleware
+// remains the per-IP path.
+func (l *rateLimiter) Allow(key string) bool { return l.allow(key) }
+
 // middleware rejects requests from a client that has exceeded its rate, keyed by
 // client IP.
 func (l *rateLimiter) Middleware(next http.Handler) http.Handler {

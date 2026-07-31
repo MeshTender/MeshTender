@@ -1,0 +1,46 @@
+{{define "title"}}Reset your password · MeshTender{{end}}
+{{define "content"}}
+<div class="card card-md">
+  <div class="card-body">
+    {{if .Sent}}
+    {{/* One confirmation for every submission — address known or not, account
+         recoverable or not. Anything more specific would turn this page into an
+         account-enumeration oracle, since it's reachable without signing in. */}}
+    <h1 class="card-title text-center mb-4">Check your email</h1>
+    <p class="text-secondary">
+      If an account here has a confirmed email address, we've sent it a link to reset
+      the password. The link expires shortly, and it can only be used once.
+    </p>
+    <p class="text-secondary mb-0">
+      Nothing arrived? The address may not be confirmed on the account, or the account
+      may sign in with a passkey and have no password to reset.
+    </p>
+    <div class="form-footer">
+      <a href="/login" class="btn w-100">Back to sign in</a>
+    </div>
+    {{else}}
+    <h1 class="card-title text-center mb-2">Reset your password</h1>
+    <p class="text-secondary text-center mb-4">
+      Enter your username or the email address on your account, and we'll send a link
+      to set a new password.
+    </p>
+    {{if .Error}}<div class="alert alert-danger">{{.Error}}</div>{{end}}
+
+    <form method="post" action="/forgot">
+      <div class="mb-3">
+        <label class="form-label" for="identifier">Username or email</label>
+        <input type="text" class="form-control" id="identifier" name="identifier"
+               autocomplete="username" autocapitalize="none" spellcheck="false"
+               maxlength="254" placeholder="your-username or you@example.com" required>
+      </div>
+      <div class="form-footer mt-0">
+        <button type="submit" class="btn btn-primary w-100">Send reset link</button>
+      </div>
+    </form>
+    {{end}}
+  </div>
+</div>
+<div class="text-center text-secondary mt-3">
+  Remembered it? <a href="/login" tabindex="-1">Sign in</a>
+</div>
+{{end}}

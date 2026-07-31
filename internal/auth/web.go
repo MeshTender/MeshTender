@@ -126,6 +126,33 @@ func (s *Handlers) credentialRoutes(r chi.Router) {
 	r.Post("/api/login/finish", s.Auth.LoginFinish)
 	r.Post("/api/login/discoverable/begin", s.Auth.LoginDiscoverableBegin)
 	r.Post("/api/login/discoverable/finish", s.Auth.LoginDiscoverableFinish)
+	s.resetRoutes(r)
+}
+
+// resetRoutes mounts the password-reset flow, and only when mail is configured:
+// without a delivery path, "Forgot password?" would lead to a form that can't do
+// anything, which is worse than no link at all.
+//
+// Both POSTs are throttled on their own per-IP bucket rather than sharing the
+// credential-attempt one. They're rare, and each one sends mail — so the budget
+// should be tight, and a user fat-fingering the sign-in form shouldn't spend it.
+func (s *Handlers) resetRoutes(r chi.Router) {
+	if !s.Auth.MailEnabled() {
+		return
+	}
+	resetLimit := web.NewRateLimiter(5, 30*time.Second)
+	// The second, independent limit: keyed on the submitted identifier, so rotating
+	// source addresses can't turn one person's mailbox into a target. Deliberately
+	// slow to refill — three requests, then one every twenty minutes, which is well
+	// past what any real "I forgot my password" attempt needs.
+	addrLimit := web.NewRateLimiter(3, 20*time.Minute)
+
+	r.Get("/forgot", s.pageForgot)
+	r.With(resetLimit.Middleware).Post("/forgot", s.handleForgot(addrLimit))
+	// GET peeks the token (never spends it); POST spends it. Session-free, like the
+	// email-confirmation link, since the mailbox is often on another device.
+	r.Get("/reset/{token}", s.pageReset)
+	r.With(resetLimit.Middleware).Post("/reset/{token}", s.handleReset)
 }
 
 func (s *Handlers) pageLogin(w http.ResponseWriter, r *http.Request) {
@@ -141,7 +168,11 @@ func (s *Handlers) pageLogin(w http.ResponseWriter, r *http.Request) {
 	s.Render(w, r, "login.html", map[string]any{
 		"Layout": "authbase",
 		"Error":  r.URL.Query().Get("error"),
+		"OK":     r.URL.Query().Get("ok"),
 		"Next":   r.URL.Query().Get("next"),
+		// Gates the "Forgot password?" link — there's no point offering recovery on a
+		// deployment that can't send mail.
+		"MailEnabled": s.Auth.MailEnabled(),
 	})
 }
 

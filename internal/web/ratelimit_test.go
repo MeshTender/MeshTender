@@ -35,6 +35,42 @@ func TestRateLimiterBurstThenThrottle(t *testing.T) {
 	}
 }
 
+// TestKeyLimiterAllowIsIndependentOfIP: the exported Allow drives limits whose subject
+// isn't the connection — password reset is keyed on the submitted identifier, so one
+// address can't be mailed repeatedly just by arriving from a different IP each time.
+// Buckets must therefore be per-key and unrelated to any request.
+func TestKeyLimiterAllowIsIndependentOfIP(t *testing.T) {
+	t.Parallel()
+	now := time.Unix(0, 0)
+	var l KeyLimiter = func() *rateLimiter {
+		rl := NewRateLimiter(2, 10*time.Minute)
+		rl.now = func() time.Time { return now }
+		return rl
+	}()
+
+	for i := range 2 {
+		if !l.Allow("victim@example.test") {
+			t.Fatalf("request %d should be allowed within the burst", i+1)
+		}
+	}
+	// Third request for the same identifier is refused no matter who is asking.
+	if l.Allow("victim@example.test") {
+		t.Error("a third request for the same identifier was allowed")
+	}
+	// A different identifier is unaffected.
+	if !l.Allow("someone-else@example.test") {
+		t.Error("a distinct identifier shares another's bucket")
+	}
+	// Refill is slow by design: one more only after the interval.
+	now = now.Add(10 * time.Minute)
+	if !l.Allow("victim@example.test") {
+		t.Error("no token refilled after the interval")
+	}
+	if l.Allow("victim@example.test") {
+		t.Error("more than one token refilled")
+	}
+}
+
 func TestRateLimiterSweepReclaims(t *testing.T) {
 	t.Parallel()
 	now := time.Unix(0, 0)

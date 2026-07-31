@@ -51,6 +51,20 @@ func splitServer(t *testing.T) (*store.Store, context.Context, *httptest.Server,
 // the recovery UI is exercised rather than hidden.
 func splitServerMail(t *testing.T) (*store.Store, context.Context, *httptest.Server, hostEnv, *fakeSender) {
 	t.Helper()
+	return splitServerWithMail(t, true)
+}
+
+// splitServerNoMail builds a server with no mail provider configured, for the tests
+// that assert the email features hide themselves rather than offering recovery that
+// can't be delivered.
+func splitServerNoMail(t *testing.T) (*store.Store, context.Context, *httptest.Server, hostEnv) {
+	t.Helper()
+	st, ctx, ts, h, _ := splitServerWithMail(t, false)
+	return st, ctx, ts, h
+}
+
+func splitServerWithMail(t *testing.T, mailEnabled bool) (*store.Store, context.Context, *httptest.Server, hostEnv, *fakeSender) {
+	t.Helper()
 	st, ctx := coreStore(t)
 
 	masterKey := testMasterKey
@@ -60,7 +74,7 @@ func splitServerMail(t *testing.T) (*store.Store, context.Context, *httptest.Ser
 		RPID: "localhost", RPDisplayName: "test",
 		RPOrigins: []string{"http://auth.localhost", "http://app.localhost"},
 		AppHost:   testAppHost, AuthHost: testAuthHost, RootHost: testRootHost,
-		Mail: sender, MailEnabled: true,
+		Mail: sender, MailEnabled: mailEnabled,
 	})
 	if err != nil {
 		t.Fatalf("auth: %v", err)
