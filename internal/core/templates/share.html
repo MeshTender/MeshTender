@@ -75,8 +75,16 @@
 </div>
 
 <div class="card mt-3">
-  <div class="card-body">
+  <div class="card-header">
     <h2 class="card-title">People with access</h2>
+    <div class="card-actions">
+      <button type="button" class="btn" data-testid="transfer-ownership"
+              data-bs-toggle="modal" data-bs-target="#transfer-modal"
+              hx-get="/repeaters/{{.Repeater.PublicID}}/transfer"
+              hx-target="#transfer-modal-content" hx-swap="innerHTML">Transfer ownership</button>
+    </div>
+  </div>
+  <div class="card-body">
     <p class="text-secondary">
       Mark a trusted person a <strong>steward</strong> to make them a co-operator: they can run
       <strong>every</strong> command (including risky ones), just like you, and they're listed as a
@@ -124,8 +132,8 @@
 </div>
 </div>
 
-<!-- Shared modals; the People "Create single-use link" button and each org's
-     "Manage access" button load their fragments here via htmx. -->
+<!-- Shared modals; the "Create single-use link", per-person "Manage access",
+     and "Transfer ownership" buttons load their fragments here via htmx. -->
 <div class="modal modal-blur fade" id="invite-modal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg" role="document">
     <div class="modal-content" id="invite-modal-content"></div>
@@ -134,6 +142,11 @@
 <div class="modal modal-blur fade" id="person-modal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg" role="document">
     <div class="modal-content" id="person-modal-content"></div>
+  </div>
+</div>
+<div class="modal modal-blur fade" id="transfer-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" role="document">
+    <div class="modal-content" id="transfer-modal-content"></div>
   </div>
 </div>
 {{template "limits-modal-shell" .}}

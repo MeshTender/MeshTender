@@ -14,13 +14,24 @@
           all go away. This can't be undone.
         </p>
 
-        <div class="alert alert-danger" role="alert">
-          <div class="d-flex">
-            <div>{{template "icon-alert" "alert-icon"}}</div>
-            <div>
-              <h3 class="alert-title">This does not revoke MeshTender's access</h3>
-              <div class="text-secondary">Your repeater still trusts MeshTender's identity at the firmware level. If you want MeshTender to truly lose access, revoke it on the device too — see below.</div>
+        {{/* Deleting is rarely what someone wants when a node stays on the air and
+             only its keeper is changing — offer the handover before the red button. */}}
+        <div class="alert alert-info" role="alert">
+          <div>
+            <h3 class="alert-title">Is this repeater staying on the air?</h3>
+            <div class="text-secondary">
+              If someone else is taking it over, <a href="/repeaters/{{.Repeater.PublicID}}/transfer">transfer
+              ownership to a steward</a> instead. Its documentation, maintenance history, and public page
+              address survive the handover; deleting throws all of that away.
             </div>
+          </div>
+        </div>
+
+        <div class="alert alert-danger" role="alert">
+          <div>{{template "icon-alert" "alert-icon"}}</div>
+          <div>
+            <h3 class="alert-title">This does not revoke MeshTender's access</h3>
+            <div class="text-secondary">Your repeater still trusts MeshTender's identity at the firmware level. If you want MeshTender to truly lose access, revoke it on the device too — see below.</div>
           </div>
         </div>
 

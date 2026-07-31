@@ -58,7 +58,7 @@ func (s *Handlers) Routes() chi.Router {
 		r.Get("/session/beacon", s.Auth.BeaconCallback)
 		// The root host is the public discovery surface, so it stays crawlable; only
 		// the single-use beacon path is disallowed. The two sensitive pages below
-		// (per-repeater NFC/QR targets, personal profiles) stay crawlable but send
+		// (per-repeater public pages, personal profiles) stay crawlable but send
 		// noindex, so they're dropped from search results rather than blocked.
 		r.Get("/robots.txt", web.RobotsTxt("User-agent: *\nDisallow: /session/\n"))
 		r.Get("/", s.pageLanding)
@@ -68,7 +68,7 @@ func (s *Handlers) Routes() chi.Router {
 		r.Get("/orgs/{id}/repeaters", s.pageOrgRepeaters)          // public repeater list + map
 		r.Get("/orgs/{id}/repeaters.json", s.orgRepeatersJSON)     // map points (cached), fetched by both pages above
 		r.Get("/orgs/{id}/config", s.pageOrgConfig)                // public recommended config
-		r.With(web.NoIndex).Get("/r/{id}", s.pageRepeaterPublic)   // NFC/QR target — not for search
+		r.With(web.NoIndex).Get("/r/{id}", s.pageRepeaterPublic)   // public repeater page — not for search
 		r.With(web.NoIndex).Get("/u/{username}", s.pageUserPublic) // personal profile — not for search
 	})
 	return r

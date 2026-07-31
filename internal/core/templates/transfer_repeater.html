@@ -1,0 +1,127 @@
+{{/* Transfer ownership, in two presentations over ONE copy of the content: the
+     "transfer-modal" fragment htmx swaps into the share page's #transfer-modal,
+     and a standalone page for direct links (the delete page offers one) and for
+     browsers that never ran the htmx request. The shared blocks below are the
+     single source of the copy, so the two can't drift apart.
+
+     The form posts normally — a full navigation back to the repeater page, which
+     also closes the modal — exactly as the sibling invite/person-access modals
+     do. No client JS beyond ui.js's [data-confirm] gate. */}}
+
+{{/* The recipient picker, or the explainer when there's nobody eligible. */}}
+{{define "transfer-choices"}}
+  {{if .Stewards}}
+  <div class="list-group list-group-flush mb-3">
+    {{range $i, $s := .Stewards}}
+    <label class="list-group-item px-0 d-flex align-items-center gap-2" data-testid="steward-choice">
+      <input class="form-check-input m-0" type="radio" name="user_id" value="{{$s.UserID}}"
+             {{if eq $i 0}}checked{{end}} required>
+      <span class="fw-bold">{{$s.Name}}</span>
+      <span class="text-secondary">@{{$s.Username}}</span>
+    </label>
+    {{end}}
+  </div>
+
+  {{/* Icon and body are DIRECT children of .alert: it's a flex row with its own
+       gap, so wrapping them in a .d-flex (which has none) butts the icon against
+       the title. */}}
+  <div class="alert alert-warning mb-0" role="alert">
+    <div>{{template "icon-alert" "alert-icon"}}</div>
+    <div>
+      <h3 class="alert-title">What changes for you</h3>
+      <div class="text-secondary">
+        You become a <strong>steward</strong> of this repeater, so you keep full access to operate it —
+        but the new owner controls its settings, sharing, and whether it stays published, and they can
+        remove your access. Any unused share links you created are revoked. Only the new owner can
+        transfer it back.
+      </div>
+    </div>
+  </div>
+  {{else}}
+  {{/* No stewards yet: the fix is on the sharing page, so say so plainly rather
+       than rendering an empty picker. */}}
+  {{/* One child element: .alert is a flex ROW, so a bare heading beside its body
+       text lays out as two columns instead of a title above a paragraph. */}}
+  <div class="alert alert-info mb-0" role="alert">
+    <div>
+      <h3 class="alert-title">No stewards yet</h3>
+      <div class="text-secondary">
+        You can only transfer a repeater to a steward — someone you've shared it with and marked as a
+        co-maintainer. Share it with the person taking over, then turn on <strong>Steward</strong> in their
+        “Manage access” panel, and come back here.
+      </div>
+    </div>
+  </div>
+  {{end}}
+{{end}}
+
+{{define "transfer-intro"}}
+<p class="text-secondary">
+  Hand “{{.Repeater.Name}}” to one of its stewards. The repeater keeps everything that makes it findable
+  and serviceable — its documentation, maintenance history, command log, location, and its public page
+  address, which keeps working unchanged.
+</p>
+{{if .Stewards}}
+<p class="text-secondary">
+  Only stewards can receive a repeater: they already run every command you can and are listed publicly as
+  backup maintainers, so they're the people you've already trusted with it.
+</p>
+{{end}}
+{{end}}
+
+{{/* --- modal presentation --- */}}
+{{define "transfer-modal"}}
+<div class="modal-header">
+  <h2 class="modal-title">Transfer ownership</h2>
+  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+</div>
+<div class="modal-body">
+  {{if .Error}}<div class="alert alert-danger">{{.Error}}</div>{{end}}
+  {{template "transfer-intro" .}}
+  <form method="post" action="/repeaters/{{.Repeater.PublicID}}/transfer" id="transfer-form"
+        data-confirm="Transfer this repeater? The new owner controls it from then on, and you can't undo this yourself.">
+    {{template "transfer-choices" .}}
+  </form>
+</div>
+<div class="modal-footer">
+  <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">Cancel</button>
+  {{if .Stewards}}
+  <button type="submit" form="transfer-form" class="btn btn-primary" data-testid="confirm-transfer">Transfer ownership</button>
+  {{else}}
+  <a class="btn btn-primary" href="/repeaters/{{.Repeater.PublicID}}/share">Go to sharing</a>
+  {{end}}
+</div>
+{{end}}
+
+{{/* --- standalone page presentation --- */}}
+{{define "title"}}Transfer {{.Repeater.Name}} · MeshTender{{end}}
+{{define "header"}}{{template "repeater-header" .Nav}}{{end}}
+{{define "content"}}
+{{template "repeater-tabs" .Nav}}
+{{if .Error}}<div class="alert alert-danger">{{.Error}}</div>{{end}}
+
+<div class="row justify-content-center">
+  <div class="col-12 col-lg-8">
+    <div class="card">
+      <div class="card-header"><h2 class="card-title">Transfer ownership</h2></div>
+      <div class="card-body">
+        {{template "transfer-intro" .}}
+        <form method="post" action="/repeaters/{{.Repeater.PublicID}}/transfer" class="mt-3"
+              data-confirm="Transfer this repeater? The new owner controls it from then on, and you can't undo this yourself.">
+          {{template "transfer-choices" .}}
+          <div class="btn-list mt-3">
+            {{if .Stewards}}
+            <button type="submit" class="btn btn-primary" data-testid="confirm-transfer">Transfer ownership</button>
+            {{end}}
+            <a class="btn" href="/repeaters/{{.Repeater.PublicID}}/share">
+              {{if .Stewards}}Cancel{{else}}Go to sharing{{end}}
+            </a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<a class="back-link mt-3" href="/repeaters/{{.Repeater.PublicID}}/share">{{template "icon-arrow-left" "me-1"}}Back to sharing</a>
+{{end}}

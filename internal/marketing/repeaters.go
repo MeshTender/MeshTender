@@ -11,7 +11,7 @@ import (
 	"github.com/jleight/meshtender/internal/web"
 )
 
-// pageRepeaterPublic renders a repeater's public page — the NFC/QR tap target —
+// pageRepeaterPublic renders a repeater's public page —
 // for anonymous visitors on the root host. It exists only when the owner opted
 // in (expose_public_page); otherwise it 404s like any unknown resource. It shows
 // only public-safe information: what the node is, where it is, the public

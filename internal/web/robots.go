@@ -8,7 +8,7 @@ const RobotsDisallowAll = "User-agent: *\nDisallow: /\n"
 
 // NoIndex sets X-Robots-Tag: noindex so a crawler that fetches the response drops
 // it from its index. Used on public pages we don't want surfaced in search
-// (per-repeater NFC/QR targets, personal profiles) and blanket on the app/auth
+// (per-repeater public pages, personal profiles) and blanket on the app/auth
 // hosts. The page must stay crawlable (i.e. NOT robots.txt-blocked) for a crawler
 // to read this header — blocking and noindex together would hide the header.
 func NoIndex(next http.Handler) http.Handler {

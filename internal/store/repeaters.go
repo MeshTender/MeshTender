@@ -33,7 +33,7 @@ type Repeater struct {
 	// list, plus the map when coordinates are known.
 	ShowOnPublicOrg bool
 	// ExposePublicPage publishes a read-only public page for this repeater at its
-	// public_id URL (the NFC/QR tap target). Distinct consent from ShowOnPublicOrg.
+	// public_id URL. Distinct consent from ShowOnPublicOrg.
 	ExposePublicPage bool
 	// Documentation kept with the node. DocPublic is shown on the public page;
 	// DocInternal (site-access details) only to people with access.
@@ -252,7 +252,7 @@ func (s *Store) UpdateRepeaterDocs(ctx context.Context, ownerID, repeaterID int6
 
 // GetRepeaterPublic returns a repeater by its public_id only if its owner has
 // published a public page (expose_public_page), else ErrNotFound. No user scope:
-// this backs the anonymous public page (the NFC/QR tap target).
+// this backs the anonymous public page.
 func (s *Store) GetRepeaterPublic(ctx context.Context, publicID string) (*Repeater, error) {
 	// $1 = 0 (no querying user): the Shared flag is irrelevant for the public view.
 	row := s.pool.QueryRow(ctx, repeaterSelect+`

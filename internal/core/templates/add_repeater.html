@@ -61,19 +61,17 @@
     </p>
 
     <div class="alert alert-danger" role="alert">
-      <div class="d-flex">
-        <div>{{template "icon-alert" "alert-icon"}}</div>
-        <div>
-          <h3 class="alert-title">This grants full admin control to MeshTender</h3>
-          <ul class="mb-0 text-secondary">
-            <li>This grants admin to <strong>MeshTender itself</strong> — <strong>not</strong> to other
-              MeshTender users. Letting specific people operate the repeater is a separate step you control later
-              via sharing and contributing to organizations.</li>
-            <li>MeshTender will not abuse this access — but that is a <strong>promise, not a technical limit</strong>.</li>
-            <li>This is a standing grant. It remains until <strong>you</strong> revoke it on the repeater
-              (see below) — removing the repeater from this site does not revoke MeshTender's access.</li>
-          </ul>
-        </div>
+      <div>{{template "icon-alert" "alert-icon"}}</div>
+      <div>
+        <h3 class="alert-title">This grants full admin control to MeshTender</h3>
+        <ul class="mb-0 text-secondary">
+          <li>This grants admin to <strong>MeshTender itself</strong> — <strong>not</strong> to other
+            MeshTender users. Letting specific people operate the repeater is a separate step you control later
+            via sharing and contributing to organizations.</li>
+          <li>MeshTender will not abuse this access — but that is a <strong>promise, not a technical limit</strong>.</li>
+          <li>This is a standing grant. It remains until <strong>you</strong> revoke it on the repeater
+            (see below) — removing the repeater from this site does not revoke MeshTender's access.</li>
+        </ul>
       </div>
     </div>
 
@@ -81,18 +79,16 @@
     {{/* Add-existing only: USB setup sets the location explicitly, so there's no
     fetch to disclose there. */}}
     <div class="alert alert-info" role="alert">
-      <div class="d-flex">
-        <div>{{template "icon-map-pin" "alert-icon"}}</div>
-        <div>
-          <h3 class="alert-title">MeshTender will read the repeater's location</h3>
-          <p class="text-secondary mb-0">
-            When you confirm this repeater — or use “Fetch location” later — MeshTender reads its coordinates by
-            running <code>get lat</code> / <code>get lon</code> through your modem, <strong>on its own behalf</strong>
-            (not as a command you or anyone you share with runs). It uses them to place the repeater on the map and to
-            tailor its <code>region</code> configuration. You stay in control: you can keep it off the public map, and
-            you decide which commands other people may run on it.
-          </p>
-        </div>
+      <div>{{template "icon-map-pin" "alert-icon"}}</div>
+      <div>
+        <h3 class="alert-title">MeshTender will read the repeater's location</h3>
+        <p class="text-secondary mb-0">
+          When you confirm this repeater — or use “Fetch location” later — MeshTender reads its coordinates by
+          running <code>get lat</code> / <code>get lon</code> through your modem, <strong>on its own behalf</strong>
+          (not as a command you or anyone you share with runs). It uses them to place the repeater on the map and to
+          tailor its <code>region</code> configuration. You stay in control: you can keep it off the public map, and
+          you decide which commands other people may run on it.
+        </p>
       </div>
     </div>
     {{end}}
@@ -241,7 +237,7 @@
     </label>
     <label class="form-check mt-2">
       <input class="form-check-input" type="checkbox" id="expose_public_page">
-      <span class="form-check-label">Publish a <strong>public page</strong> for this repeater (the NFC/QR target) with its docs, stewards, and location.</span>
+      <span class="form-check-label">Publish a <strong>public page</strong> for this repeater with its docs, stewards, and location.</span>
     </label>
 
     <div class="btn-list mt-3">
@@ -321,7 +317,7 @@
       </label>
       <label class="form-check mt-2">
         <input class="form-check-input" type="checkbox" name="expose_public_page" value="1">
-        <span class="form-check-label">Publish a <strong>public page</strong> for this repeater (the NFC/QR target) with its docs, stewards, and location.</span>
+        <span class="form-check-label">Publish a <strong>public page</strong> for this repeater with its docs, stewards, and location.</span>
       </label>
 
       <div class="btn-list mt-3">

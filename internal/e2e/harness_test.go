@@ -43,6 +43,7 @@ import (
 
 	cdplog "github.com/chromedp/cdproto/log"
 	"github.com/chromedp/cdproto/network"
+	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/cdproto/security"
 	"github.com/chromedp/chromedp"
@@ -409,6 +410,22 @@ func startBrowser(t *testing.T) (context.Context, context.CancelFunc, *consoleWa
 		t.Fatalf("ignore certificate errors: %v", err)
 	}
 	return ctx, cancel, watch
+}
+
+// acceptDialogs auto-accepts window.confirm/alert dialogs for the rest of the
+// browser context's life. Needed by any flow behind a [data-confirm] gate (see
+// ui.js): the dialog blocks the page, so a click that opens one never completes
+// and the submit never reaches the server.
+//
+// The handler runs in its own goroutine because chromedp.Run can't be called
+// from inside a target listener on the same context — the listener holds the
+// dispatch loop, so an inline Run would deadlock against itself.
+func acceptDialogs(ctx context.Context) {
+	chromedp.ListenTarget(ctx, func(ev interface{}) {
+		if _, ok := ev.(*page.EventJavascriptDialogOpening); ok {
+			go func() { _ = chromedp.Run(ctx, page.HandleJavaScriptDialog(true)) }()
+		}
+	})
 }
 
 // devtoolsWebSocket asks the headless-shell container for its browser-level

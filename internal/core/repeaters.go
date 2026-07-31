@@ -104,9 +104,10 @@ func (s *Handlers) pageRepeater(w http.ResponseWriter, r *http.Request) {
 		"Radio":      radio,
 		"ContactURI": contactURI,
 		"Error":      r.URL.Query().Get("error"),
+		"OK":         r.URL.Query().Get("ok"),
 	}
 	// When the owner has published a public page, surface its link plus a QR code
-	// to print and place inside the enclosure (the NFC/QR tap target).
+	// for it.
 	if isOwner && rep.ExposePublicPage {
 		publicURL := s.Origin(r, s.rootHost()) + "/r/" + rep.PublicID
 		data["PublicPageURL"] = publicURL

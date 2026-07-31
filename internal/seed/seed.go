@@ -246,7 +246,7 @@ func seedRepeaters(ctx context.Context, st *store.Store, f *gofakeit.Faker, user
 			if chance(f, 70) {
 				_ = st.SetRepeaterLocation(ctx, rep.ID, f.Float64Range(25, 49), f.Float64Range(-124, -67))
 			}
-			// ~40% also publish a standalone public page (the NFC/QR target).
+			// ~40% also publish a standalone public page.
 			if chance(f, 40) {
 				_ = st.UpdateRepeater(ctx, u.ID, rep.ID, rep.Name, preset.freq, preset.bw, preset.sf, preset.cr, showOnOrg, true)
 			}

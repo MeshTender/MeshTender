@@ -3,7 +3,6 @@
 package e2e
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -12,20 +11,6 @@ import (
 	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/chromedp"
 )
-
-// acceptDialogs auto-accepts window.confirm/alert dialogs raised in bctx.
-//
-// Needed because ui.js gates destructive actions behind window.confirm via
-// [data-confirm]: with nothing answering the dialog, the page blocks and the click
-// appears to do nothing at all. The handler runs the reply in a goroutine — CDP
-// delivers events on the same loop chromedp.Run uses, so replying inline deadlocks.
-func acceptDialogs(bctx context.Context) {
-	chromedp.ListenTarget(bctx, func(ev interface{}) {
-		if _, ok := ev.(*page.EventJavascriptDialogOpening); ok {
-			go func() { _ = chromedp.Run(bctx, page.HandleJavaScriptDialog(true)) }()
-		}
-	})
-}
 
 // TestE2EPasswordRecoveryRoundTrip drives the entire recovery story in a real
 // browser, the way a locked-out user lives it: add an address, confirm it from the

@@ -227,6 +227,8 @@ func (s *Handlers) appRouter() chi.Router {
 			r.Post("/repeaters/{id}/share/link", s.handleCreateLink)
 			r.Post("/repeaters/{id}/share/link/delete", s.handleDeleteInvite)
 			r.Post("/repeaters/{id}/unshare", s.handleUnshare)
+			r.Get("/repeaters/{id}/transfer", s.pageTransferRepeater)
+			r.Post("/repeaters/{id}/transfer", s.handleTransferRepeater)
 			r.Get("/repeaters/{id}/share/{userID}/access", s.pagePersonAccess)
 			r.Post("/repeaters/{id}/share/{userID}/access", s.handleSavePersonAccess)
 			r.Get("/repeaters/{id}/orgs/{orgID}/limits", s.pageRepeaterOrgLimits)

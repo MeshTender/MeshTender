@@ -3,6 +3,7 @@
 {{define "content"}}
 {{template "repeater-tabs" .Nav}}
 {{if .Error}}<div class="alert alert-danger">{{.Error}}</div>{{end}}
+{{if .OK}}<div class="alert alert-success">{{.OK}}</div>{{end}}
 
 <div class="row row-cards">
   <!-- Left column -->
@@ -110,22 +111,22 @@
       <div class="card-header"><h2 class="card-title">Public page</h2></div>
       <div class="card-body">
         {{if and .Repeater.ExposePublicPage .PublicPageURL}}
-        <p class="text-secondary small">Anyone with this link (or who taps an NFC tag / scans the QR inside the enclosure) sees the public documentation and stewards.</p>
+        <p class="text-secondary small">Anyone with this link sees the public documentation and stewards.</p>
         <div class="input-group mb-2">
           <code class="form-control font-monospace" id="public-url">{{.PublicPageURL}}</code>
           <button type="button" class="btn" data-copy-target="#public-url">{{template "icon-copy" ""}}</button>
         </div>
         {{if .PublicPageQR}}
-        <button class="btn btn-sm w-100" type="button" data-bs-toggle="collapse" data-bs-target="#public-qr" aria-expanded="false" aria-controls="public-qr">{{template "icon-qrcode" "me-1"}}<span class="collapse-show">Show</span><span class="collapse-hide">Hide</span>&nbsp;enclosure QR code</button>
+        <button class="btn btn-sm w-100" type="button" data-bs-toggle="collapse" data-bs-target="#public-qr" aria-expanded="false" aria-controls="public-qr">{{template "icon-qrcode" "me-1"}}<span class="collapse-show">Show</span><span class="collapse-hide">Hide</span>&nbsp;QR code</button>
         <div class="collapse" id="public-qr">
           <div class="text-center mt-3">
             <img src="{{.PublicPageQR}}" width="200" height="200" class="img-fluid" style="max-width:200px" alt="Public page QR code for {{.Repeater.Name}}">
-            <p class="text-secondary small mt-2 mb-0">Print and place inside the enclosure. Tapping/scanning opens this repeater's public page.</p>
+            <p class="text-secondary small mt-2 mb-0">Scanning it opens this repeater's public page.</p>
           </div>
         </div>
         {{end}}
         {{else if not .Repeater.ExposePublicPage}}
-        <p class="text-secondary small mb-0">{{template "icon-world" "me-1"}}No public page. Enable one in <a href="/repeaters/{{.Repeater.PublicID}}/edit">Edit details</a> to get a link and QR code for the enclosure.</p>
+        <p class="text-secondary small mb-0">{{template "icon-world" "me-1"}}No public page. Enable one in <a href="/repeaters/{{.Repeater.PublicID}}/edit">Edit details</a> to get a link and QR code.</p>
         {{end}}
       </div>
     </div>

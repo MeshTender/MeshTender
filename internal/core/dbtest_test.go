@@ -23,6 +23,15 @@ func appLogin(t *testing.T, ts *httptest.Server, st *store.Store, ctx context.Co
 	if err != nil {
 		t.Fatalf("create user: %v", err)
 	}
+	return u, appSession(t, ts, st, ctx, host, u)
+}
+
+// appSession signs an EXISTING user in, returning an app-host session cookie. It
+// is appLogin without the account creation, for tests that need a session for
+// someone another part of the fixture already created (a steward, a share
+// recipient) — calling appLogin for them would fail on the duplicate username.
+func appSession(t *testing.T, ts *httptest.Server, st *store.Store, ctx context.Context, host string, u *store.User) *http.Cookie {
+	t.Helper()
 	loginID, err := st.CreateLogin(ctx, u.ID)
 	if err != nil {
 		t.Fatalf("create login: %v", err)
@@ -35,9 +44,9 @@ func appLogin(t *testing.T, ts *httptest.Server, st *store.Store, ctx context.Co
 	resp.Body.Close()
 	c := cookieByName(resp, "meshtender_session")
 	if c == nil {
-		t.Fatalf("no app session cookie after handoff for %q", username)
+		t.Fatalf("no app session cookie after handoff for %q", u.Username)
 	}
-	return u, c
+	return c
 }
 
 // testConfig/testAuthConfig give the integration tests the app/auth/root hosts,
