@@ -34,7 +34,7 @@
              to a form we can't act on is worse than no link. */}}
         <label class="form-label" for="password">
           Password
-          {{if .MailEnabled}}<span class="form-label-description"><a href="/forgot" tabindex="-1">Forgot password?</a></span>{{end}}
+          {{if .MailEnabled}}<span class="form-label-description"><a href="/forgot" tabindex="-1" data-testid="forgot-link">Forgot password?</a></span>{{end}}
         </label>
         <div class="input-group input-group-flat">
           <input type="password" class="form-control" id="password" name="password" autocomplete="current-password" placeholder="Your password" required>

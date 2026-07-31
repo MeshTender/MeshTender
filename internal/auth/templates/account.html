@@ -98,12 +98,12 @@
         </div>
         {{if not .EmailVerified}}
         <form method="post" action="/account/email/verify" class="m-0">
-          <button type="submit" class="btn btn-sm">Resend</button>
+          <button type="submit" class="btn btn-sm" data-testid="email-resend">Resend</button>
         </form>
         {{end}}
         <form method="post" action="/account/email" class="m-0" data-confirm="Remove your email address? If you forget your password, it can't be reset without one.">
           <input type="hidden" name="remove" value="1">
-          <button type="submit" class="btn btn-sm btn-ghost-danger">Remove</button>
+          <button type="submit" class="btn btn-sm btn-ghost-danger" data-testid="email-remove">Remove</button>
         </form>
       </div>
     </div>
@@ -116,7 +116,7 @@
           <input type="email" class="form-control" id="email" name="email" autocomplete="email" autocapitalize="none" maxlength="254" placeholder="you@example.com" required>
         </div>
         <div class="col-sm-auto">
-          <button type="submit" class="btn btn-primary w-100">{{if .Email}}Save new address{{else}}Save address{{end}}</button>
+          <button type="submit" class="btn btn-primary w-100" data-testid="email-save">{{if .Email}}Save new address{{else}}Save address{{end}}</button>
         </div>
       </div>
       <small class="form-hint mt-1">We'll send a confirmation link. A new address has to be confirmed before it can recover your account.</small>
