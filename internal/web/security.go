@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/go-chi/chi/v5/middleware"
@@ -28,9 +29,45 @@ var cspDirectives = strings.Join([]string{
 	"font-src 'self' data:",
 	"frame-ancestors 'none'",
 	"base-uri 'self'",
-	"form-action 'self'",
 	"object-src 'none'",
+	// form-action is NOT here: it has to name the sibling surfaces, and their origins
+	// include the request's port, so it's built per request. See formAction.
 }, "; ")
+
+// formAction builds the form-action directive: 'self' plus the other two surface
+// origins.
+//
+// 'self' alone is wrong here, and silently so. A credential POST lands on the auth
+// host and answers 303 to the app host's handoff callback — and **Chrome enforces
+// form-action across the redirect chain**, not just on the initial request (the CSP
+// spec says it shouldn't, and Firefox doesn't, which is exactly why this survived).
+//
+// The symptom is why it went unnoticed for a month in production. The POST itself
+// arrives normally — the handler runs, the account is created, the session is set, and
+// the log shows a clean 303 — and then the browser refuses to follow that redirect,
+// reporting it only to the console. To the user the button simply does nothing, so it
+// reads as flakiness; to the server everything looks successful. Analytics for the
+// affected window shows the tell: five sign-up POSTs in six minutes, all 303, from
+// someone pressing a dead button.
+//
+// So this must list every surface a form on one host may redirect to. Origins are
+// computed from the request, since dev serves all three on a non-default port and a
+// source expression without a port only matches 443.
+func (e *Env) formAction(r *http.Request) string {
+	sources := []string{"'self'"}
+	if e.Cfg != nil {
+		for _, host := range []string{e.Cfg.PrimaryHost, e.Cfg.AuthHost, e.Cfg.RootHost} {
+			if host == "" {
+				continue
+			}
+			origin := originFor(e.Cfg, r, host)
+			if !slices.Contains(sources, origin) {
+				sources = append(sources, origin)
+			}
+		}
+	}
+	return "form-action " + strings.Join(sources, " ")
+}
 
 // permissionsPolicy denies powerful browser features we don't use and explicitly
 // allows the two we do: WebSerial (the KISS modem on the confirm/console pages)
@@ -47,7 +84,8 @@ func (e *Env) securityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		nonce := newNonce()
 		h := w.Header()
-		policy := cspDirectives + "; script-src 'self' 'nonce-" + nonce + "'"
+		policy := cspDirectives + "; " + e.formAction(r) +
+			"; script-src 'self' 'nonce-" + nonce + "'"
 		if e.csp != nil {
 			// report-uri ONLY, deliberately — not the modern report-to /
 			// Reporting-Endpoints pair, despite report-uri being deprecated.
@@ -116,8 +154,9 @@ func unsafeMethod(method string) bool {
 //   - "cross-site" — rejected. This is the CSRF case: an attacker's page driving a
 //     write against us.
 //   - "same-origin" / "same-site" — allowed. Every form action and fetch() in the
-//     app is a relative path, and the CSP pins form-action to 'self', so real
-//     writes are same-origin. "same-site" is also allowed because it is exactly
+//     app is a relative path, and the CSP's form-action allows only this app's own
+//     surfaces (see formAction), so real writes are same-origin or between our own
+//     hosts. "same-site" is also allowed because it is exactly
 //     what Lax cookies already permit (sibling subdomains), so rejecting it would
 //     buy nothing this doesn't already concede.
 //   - "none" — allowed. It means the user initiated the request directly (address

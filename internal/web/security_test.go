@@ -52,6 +52,50 @@ func TestSecurityHeadersCSPNonce(t *testing.T) {
 	}
 }
 
+// TestCSPFormActionAllowsSiblingSurfaces is the regression test for a bug that broke
+// password sign-in and sign-up in Chrome while every server-side test passed.
+//
+// Credential POSTs land on the auth host and answer 303 to the app host's handoff.
+// Chrome enforces form-action across the redirect chain (the spec says it shouldn't,
+// and Firefox doesn't), so `form-action 'self'` made the browser refuse to follow that
+// redirect. The POST still arrived and the handler still succeeded — the server logged a
+// clean 303 — so the only visible symptom was a button that did nothing, and nothing
+// server-side looked wrong at all.
+//
+// The port matters as much as the host: a source expression without one only matches
+// 443, so a dev deployment on :8080 needs the port present or it's blocked all over
+// again.
+func TestCSPFormActionAllowsSiblingSurfaces(t *testing.T) {
+	t.Parallel()
+	cfg := &config.Config{
+		PrimaryHost: "app.example.test",
+		AuthHost:    "auth.example.test",
+		RootHost:    "example.test",
+		Secure:      true,
+	}
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/login", nil)
+	req.Host = "auth.example.test:8443"
+	(&Env{Cfg: cfg}).securityHeaders(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})).
+		ServeHTTP(rec, req)
+
+	csp := rec.Header().Get("Content-Security-Policy")
+	for _, want := range []string{
+		"'self'",
+		"https://app.example.test:8443",  // the handoff target — the one that was blocked
+		"https://auth.example.test:8443", // where credential forms live
+		"https://example.test:8443",      // the root beacon
+	} {
+		if !strings.Contains(csp, want) {
+			t.Errorf("form-action missing %q: %q", want, csp)
+		}
+	}
+	// Still a closed list — a foreign origin must not be able to receive our forms.
+	if strings.Contains(csp, "form-action *") || strings.Contains(csp, "form-action 'unsafe") {
+		t.Errorf("form-action was widened to a wildcard: %q", csp)
+	}
+}
+
 func TestSecurityHeadersHSTSGatedOnTLS(t *testing.T) {
 	t.Parallel()
 	// No TLS (nil/insecure config): no HSTS.

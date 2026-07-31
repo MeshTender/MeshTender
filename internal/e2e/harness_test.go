@@ -35,6 +35,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -46,11 +47,13 @@ import (
 	"github.com/chromedp/cdproto/security"
 	"github.com/chromedp/chromedp"
 	meshcore "github.com/meshcore-go/meshcore-go"
+	"golang.org/x/crypto/bcrypt"
 
 	"github.com/jleight/meshtender/internal/auth"
 	"github.com/jleight/meshtender/internal/config"
 	"github.com/jleight/meshtender/internal/core"
 	"github.com/jleight/meshtender/internal/identity"
+	mailer "github.com/jleight/meshtender/internal/mail"
 	"github.com/jleight/meshtender/internal/store"
 	"github.com/jleight/meshtender/internal/testdb"
 )
@@ -102,7 +105,45 @@ type e2eServer struct {
 	appURL  string // https://app.<browserHost>:PORT  — the product surface
 	authURL string // https://auth.<browserHost>:PORT — sign-in + account
 	rootURL string // https://root.<browserHost>:PORT — public discovery
+	// mail captures what the app would have sent. Account-recovery tests read the
+	// links out of it, which is the only way to drive those flows the way a real
+	// recipient does — the token exists nowhere else in plaintext.
+	mail *captureSender
 }
+
+// captureSender records messages instead of delivering them.
+type captureSender struct {
+	mu   sync.Mutex
+	sent []mailer.Message
+}
+
+func (c *captureSender) Send(_ context.Context, m mailer.Message) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.sent = append(c.sent, m)
+	return nil
+}
+
+// lastLink returns the path of the first recovery link in the most recent message.
+// Tests navigate to that path, so the browser follows exactly what a recipient
+// would click.
+func (c *captureSender) lastLink(t *testing.T) string {
+	t.Helper()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(c.sent) == 0 {
+		t.Fatal("no mail was sent")
+	}
+	body := c.sent[len(c.sent)-1].Text
+	match := recoveryLinkRe.FindStringSubmatch(body)
+	if match == nil {
+		t.Fatalf("no recovery link in message body:\n%s", body)
+	}
+	return match[1]
+}
+
+// recoveryLinkRe captures the path of a verification or reset link.
+var recoveryLinkRe = regexp.MustCompile(`https?://[^/\s]+(/(?:verify-email|reset)/[A-Za-z0-9_-]+)`)
 
 // Surface hostnames. All three are subdomains of browserHost() so a single
 // host-resolver rule (MAP *.<browserHost> <browserHost>) makes every surface
@@ -140,6 +181,7 @@ func newE2EServer(t *testing.T) *e2eServer {
 		0x2d, 0x69, 0x6e, 0x2d, 0x70, 0x72, 0x6f, 0x64,
 	}
 	idSvc, _ := identity.LoadOrCreate(ctx, st, masterKey)
+	sender := &captureSender{}
 
 	// Listen up front so the RP origins can include the concrete (dynamic) port.
 	ln, err := net.Listen("tcp", "0.0.0.0:0")
@@ -159,6 +201,9 @@ func newE2EServer(t *testing.T) *e2eServer {
 		RPOrigins: []string{origin(appHost()), origin(authHost()), origin(rootHost())},
 		AppHost:   appHost(), AuthHost: authHost(), RootHost: rootHost(),
 		Secure: true,
+		// Mail is reported as configured so the recovery UI is live, while nothing
+		// leaves the process. sender captures the links the tests follow.
+		Mail: sender, MailEnabled: true,
 	})
 	if err != nil {
 		t.Fatalf("auth: %v", err)
@@ -187,6 +232,7 @@ func newE2EServer(t *testing.T) *e2eServer {
 		appURL:  origin(appHost()),
 		authURL: origin(authHost()),
 		rootURL: origin(rootHost()),
+		mail:    sender,
 	}
 }
 
@@ -240,6 +286,41 @@ const (
 	sessionCookieName = "__Host-meshtender_session"
 	stateCookieName   = "__Host-mt_state"
 )
+
+// setPassword gives an existing account a password, so tests can drive the
+// password-dependent flows (sign-in, recovery) without going through the sign-up
+// form. MinCost keeps it cheap — these tests aren't measuring bcrypt.
+func (e *e2eServer) setPassword(t *testing.T, userID int64, plaintext string) {
+	t.Helper()
+	hash, err := bcrypt.GenerateFromPassword([]byte(plaintext), bcrypt.MinCost)
+	if err != nil {
+		t.Fatalf("hash password: %v", err)
+	}
+	if err := e.store.SetPassword(e.ctx, userID, string(hash)); err != nil {
+		t.Fatalf("set password: %v", err)
+	}
+}
+
+// waitForLocation polls the browser's URL until it carries prefix.
+//
+// chromedp has no "wait for this navigation to settle" primitive, and a form submit
+// here can redirect more than once (auth host → handoff → app host). Waiting on an
+// element instead is a trap: any selector that already matches the current page
+// returns immediately, and a Navigate issued while a redirect is still in flight
+// fails with ERR_ABORTED.
+func waitForLocation(prefix string) chromedp.ActionFunc {
+	return func(ctx context.Context) error {
+		deadline := time.Now().Add(15 * time.Second)
+		var loc string
+		for time.Now().Before(deadline) {
+			if err := chromedp.Location(&loc).Do(ctx); err == nil && strings.HasPrefix(loc, prefix) {
+				return nil
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+		return fmt.Errorf("browser never reached %s (last location %q)", prefix, loc)
+	}
+}
 
 // newRepeater creates a repeater owned by ownerID with a valid MeshCore key.
 func (e *e2eServer) newRepeater(t *testing.T, ownerID int64, name string) *store.Repeater {
