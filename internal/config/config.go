@@ -62,6 +62,17 @@ type Config struct {
 	TLSCert string
 	TLSKey  string
 
+	// Outbound mail, used only for account recovery (verify an address, reset a
+	// password). ResendAPIKey empty means no provider is configured: the server
+	// logs messages instead of sending them and MailEnabled is false, so the UI
+	// hides recovery-by-email rather than promising mail it can't deliver.
+	// MailFrom must be an address on a domain verified with Resend (SPF + DKIM
+	// published) or every send is rejected. MailReplyTo is optional.
+	ResendAPIKey string
+	MailFrom     string
+	MailReplyTo  string
+	MailEnabled  bool
+
 	// TrustedProxies are CIDR ranges whose X-Forwarded-For / X-Real-IP headers are
 	// trusted when resolving a request's client IP. Loopback is always trusted (a
 	// same-host reverse proxy). The client IP is the rightmost X-Forwarded-For
@@ -101,8 +112,19 @@ func Load() (*Config, error) {
 		WWWHost:        os.Getenv("MESHTENDER_WWW_HOST"),
 		TLSCert:        os.Getenv("MESHTENDER_TLS_CERT"),
 		TLSKey:         os.Getenv("MESHTENDER_TLS_KEY"),
+		ResendAPIKey:   os.Getenv("MESHTENDER_RESEND_API_KEY"),
+		MailFrom:       os.Getenv("MESHTENDER_MAIL_FROM"),
+		MailReplyTo:    os.Getenv("MESHTENDER_MAIL_REPLY_TO"),
 		TrustedProxies: trustedProxies,
 	}
+
+	// A configured API key with no From address can never deliver anything, and the
+	// failure would only show up as recovery mail silently not arriving. Fail closed
+	// at startup instead, the same treatment a malformed proxy range gets.
+	if c.ResendAPIKey != "" && c.MailFrom == "" {
+		return nil, fmt.Errorf("MESHTENDER_MAIL_FROM is required when MESHTENDER_RESEND_API_KEY is set")
+	}
+	c.MailEnabled = c.ResendAPIKey != "" && c.MailFrom != ""
 
 	// MeshTender runs across three hosts (auth + app + root). Require the two that
 	// have no sane default (PrimaryHost falls back to RPID above).

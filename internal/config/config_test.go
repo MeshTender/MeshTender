@@ -19,6 +19,50 @@ func validEnv(t *testing.T) {
 	t.Setenv("MESHTENDER_AUTH_HOST", "auth.example.dev")
 	t.Setenv("MESHTENDER_ROOT_HOST", "example.dev")
 	t.Setenv("MESHTENDER_WWW_HOST", "")
+	// Blanked explicitly so an ambient .env can't switch mail on underneath a test
+	// that says nothing about it.
+	t.Setenv("MESHTENDER_RESEND_API_KEY", "")
+	t.Setenv("MESHTENDER_MAIL_FROM", "")
+	t.Setenv("MESHTENDER_MAIL_REPLY_TO", "")
+}
+
+// TestLoadMailDisabledByDefault: no API key means no delivery path, and the flag
+// that gates the recovery-by-email UI must say so rather than the UI offering mail
+// that would never arrive.
+func TestLoadMailDisabledByDefault(t *testing.T) {
+	validEnv(t)
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if c.MailEnabled {
+		t.Fatal("MailEnabled = true with no API key configured")
+	}
+}
+
+// TestLoadMailKeyWithoutFromFailsFast: an API key with no From address can never
+// deliver, and the only symptom would be recovery mail silently never arriving —
+// so it's a startup error, not a warning.
+func TestLoadMailKeyWithoutFromFailsFast(t *testing.T) {
+	validEnv(t)
+	t.Setenv("MESHTENDER_RESEND_API_KEY", "re_live_key")
+	if _, err := Load(); err == nil {
+		t.Fatal("Load succeeded with an API key and no MESHTENDER_MAIL_FROM, want an error")
+	}
+}
+
+// TestLoadMailEnabled: both halves present ⇒ mail is on.
+func TestLoadMailEnabled(t *testing.T) {
+	validEnv(t)
+	t.Setenv("MESHTENDER_RESEND_API_KEY", "re_live_key")
+	t.Setenv("MESHTENDER_MAIL_FROM", "MeshTender <noreply@example.dev>")
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !c.MailEnabled {
+		t.Fatal("MailEnabled = false with both key and from set")
+	}
 }
 
 func TestLoadSplitHost(t *testing.T) {

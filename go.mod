@@ -17,6 +17,7 @@ require (
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/peterstace/simplefeatures v0.59.0
 	github.com/pressly/goose/v3 v3.27.2
+	github.com/resend/resend-go/v3 v3.12.0
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.43.0
 	github.com/yuin/goldmark v1.8.2

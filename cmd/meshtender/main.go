@@ -17,6 +17,7 @@ import (
 	"github.com/jleight/meshtender/internal/config"
 	"github.com/jleight/meshtender/internal/core"
 	"github.com/jleight/meshtender/internal/identity"
+	"github.com/jleight/meshtender/internal/mail"
 	"github.com/jleight/meshtender/internal/seed"
 	"github.com/jleight/meshtender/internal/store"
 	"github.com/jleight/meshtender/internal/web"
@@ -86,6 +87,18 @@ func run(logger *slog.Logger) error {
 	}
 	logger.Info("server identity ready", "pubkey", idSvc.PublicKeyHex())
 
+	// Outbound mail is optional. Without a provider the server logs messages
+	// instead of sending them, so account recovery is fully walkable in dev, and
+	// cfg.MailEnabled keeps the UI from offering mail that would never arrive.
+	var sender mail.Sender
+	if cfg.MailEnabled {
+		sender = mail.NewResend(cfg.ResendAPIKey, cfg.MailFrom, cfg.MailReplyTo)
+		logger.Info("mail provider ready", "from", cfg.MailFrom)
+	} else {
+		sender = &mail.LogSender{Logger: logger}
+		logger.Warn("no mail provider configured — recovery messages will be logged, not sent")
+	}
+
 	authSvc, err := auth.New(st, st.Pool(), auth.Config{
 		RPID:          cfg.RPID,
 		RPDisplayName: cfg.RPDisplayName,
@@ -94,6 +107,8 @@ func run(logger *slog.Logger) error {
 		AuthHost:      cfg.AuthHost,
 		RootHost:      cfg.RootHost,
 		Secure:        cfg.Secure,
+		Mail:          sender,
+		MailEnabled:   cfg.MailEnabled,
 	})
 	if err != nil {
 		return err

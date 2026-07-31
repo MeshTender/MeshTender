@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/jleight/meshtender/internal/mail"
 	"github.com/jleight/meshtender/internal/store"
 )
 
@@ -47,6 +48,14 @@ type Service struct {
 	// logged-in-aware UI. Empty ⇒ no beacon. See docs/auth-cross-host.md.
 	rootHost string
 	secure   bool
+
+	// mail delivers account-recovery messages. Never nil — a deployment with no
+	// provider configured gets a logging sender — so callers don't nil-check.
+	// mailEnabled is the separate question of whether recovery-by-email should be
+	// offered in the UI at all; a logging sender says "walkable in dev", not
+	// "promise this to users".
+	mail        mail.Sender
+	mailEnabled bool
 }
 
 // Config configures the auth service.
@@ -65,6 +74,12 @@ type Config struct {
 	RootHost string
 	// Secure marks cookies Secure (set false for plain-HTTP localhost dev).
 	Secure bool
+
+	// Mail delivers account-recovery messages; nil falls back to a logging sender,
+	// which is what dev and tests use. MailEnabled reports whether a real provider
+	// is configured, and gates whether the UI offers recovery by email.
+	Mail        mail.Sender
+	MailEnabled bool
 }
 
 // New constructs the auth Service, including the scs session manager backed by
@@ -93,16 +108,27 @@ func New(st *store.Store, pool *pgxpool.Pool, cfg Config) (*Service, error) {
 	sm.Cookie.Secure = cfg.Secure
 	sm.Cookie.Path = "/"
 
+	sender := cfg.Mail
+	if sender == nil {
+		sender = &mail.LogSender{}
+	}
+
 	return &Service{
-		wa:       wa,
-		store:    st,
-		Sessions: sm,
-		appHost:  cfg.AppHost,
-		authHost: cfg.AuthHost,
-		rootHost: cfg.RootHost,
-		secure:   cfg.Secure,
+		wa:          wa,
+		store:       st,
+		Sessions:    sm,
+		appHost:     cfg.AppHost,
+		authHost:    cfg.AuthHost,
+		rootHost:    cfg.RootHost,
+		secure:      cfg.Secure,
+		mail:        sender,
+		mailEnabled: cfg.MailEnabled,
 	}, nil
 }
+
+// MailEnabled reports whether a real mail provider is configured, so surfaces can
+// hide recovery-by-email instead of offering a link that would never arrive.
+func (s *Service) MailEnabled() bool { return s.mailEnabled }
 
 // cookieName applies the __Host- prefix over HTTPS (where browsers enforce it)
 // and a bare name over plain-HTTP dev (where the prefix is rejected).
