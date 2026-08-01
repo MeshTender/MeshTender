@@ -63,6 +63,8 @@ func (s *Handlers) Routes() chi.Router {
 		r.Get("/robots.txt", web.RobotsTxt("User-agent: *\nDisallow: /session/\n"))
 		r.Get("/", s.pageLanding)
 		r.Get("/docs", s.pageDocs)                                 // public help / how-it-works
+		r.Get("/privacy", s.pagePrivacy)                           // legal: what we collect
+		r.Get("/terms", s.pageTerms)                               // legal: terms of use
 		r.Get("/orgs", s.pageOrgs)                                 // public organization directory
 		r.Get("/orgs/{id}", s.pageOrgPublic)                       // public org page
 		r.Get("/orgs/{id}/repeaters", s.pageOrgRepeaters)          // public repeater list + map

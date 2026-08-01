@@ -9,10 +9,10 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// authCodeTTL bounds how long a handoff code is valid between the auth host
+// AuthCodeTTL bounds how long a handoff code is valid between the auth host
 // minting it and the app host consuming it. Kept short: the browser redirects
 // immediately, so this only needs to cover one network round-trip.
-const authCodeTTL = 60 * time.Second
+const AuthCodeTTL = 60 * time.Second
 
 // CreateAuthCode mints a single-use handoff code for userID, to be redeemed at
 // the app host's callback. loginID threads the originating login row so the
@@ -28,7 +28,7 @@ func (s *Store) CreateAuthCode(ctx context.Context, userID int64, loginID, next 
 	}
 	_, err = s.pool.Exec(ctx,
 		`INSERT INTO auth_codes (code, user_id, login_id, next, expiry) VALUES ($1, $2, $3, $4, now() + $5)`,
-		code, userID, loginID, next, authCodeTTL)
+		code, userID, loginID, next, AuthCodeTTL)
 	if err != nil {
 		return "", fmt.Errorf("create auth code: %w", err)
 	}

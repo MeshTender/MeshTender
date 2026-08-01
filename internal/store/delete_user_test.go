@@ -121,13 +121,16 @@ func populatedDeletionFixture(t *testing.T, st *Store, ctx context.Context) (vic
 	if err := st.ReplaceUserLinks(ctx, victim.ID, []UserLink{{Platform: "web", URL: "https://example.com"}}); err != nil {
 		t.Fatalf("replace links: %v", err)
 	}
-	// A rename, so username_changes already holds rows for this user.
-	if err := st.SetUsername(ctx, victim.ID, "victim2", UsernameChangeContext{ChangedBy: victim.ID}, false); err != nil {
+	// A rename, so username_changes already holds rows for this user — including
+	// the IP and user agent it records.
+	if err := st.SetUsername(ctx, victim.ID, "victim2", UsernameChangeContext{
+		ChangedBy: victim.ID, IP: "203.0.113.7", UserAgent: "Mozilla/5.0 (test)",
+	}, false); err != nil {
 		t.Fatalf("rename: %v", err)
 	}
 	// Console, command and maintenance history against SOMEONE ELSE'S repeater.
 	// That's the case worth testing: activity on a node that outlives the account
-	// must stay in its owner's audit trail, anonymised. (The same rows on their own
+	// must stay in its owner's audit trail, anonymized. (The same rows on their own
 	// repeater would simply cascade away with it, proving nothing about SET NULL.)
 	sessID, err := st.StartConsoleSession(ctx, theirs.ID, victim.ID)
 	if err != nil {
@@ -185,10 +188,10 @@ func TestDeleteUserLeavesNoReferences(t *testing.T) {
 	}
 }
 
-// TestDeleteUserKeepsAnonymisedHistory: the operational record of what was done
+// TestDeleteUserKeepsAnonymizedHistory: the operational record of what was done
 // to a repeater must outlive the account that did it (migration 0020's promise),
 // and other people's repeaters must survive their access being deleted.
-func TestDeleteUserKeepsAnonymisedHistory(t *testing.T) {
+func TestDeleteUserKeepsAnonymizedHistory(t *testing.T) {
 	t.Parallel()
 	st, ctx := orgTestStore(t)
 	victim, ownRepeater := populatedDeletionFixture(t, st, ctx)
@@ -261,6 +264,49 @@ func theirsID(t *testing.T, st *Store, ctx context.Context) int64 {
 		t.Fatalf("find surviving repeater: %v", err)
 	}
 	return id
+}
+
+// TestDeleteUserScrubsRenameHistory: the rename audit trail SURVIVES deletion
+// (the username cooldown is built on it), so the personal data inside it has to
+// be erased by hand — the FK only nulls user_id. An IP address left behind here
+// would outlive the account forever, which is both a broken promise and the kind
+// of thing a privacy policy must not have to be vague about.
+func TestDeleteUserScrubsRenameHistory(t *testing.T) {
+	t.Parallel()
+	st, ctx := orgTestStore(t)
+	victim, _ := populatedDeletionFixture(t, st, ctx)
+
+	// Precondition: the rename really did record an IP and user agent.
+	var before int
+	if err := st.pool.QueryRow(ctx,
+		`SELECT count(*) FROM username_changes WHERE ip IS NOT NULL OR user_agent IS NOT NULL`).Scan(&before); err != nil {
+		t.Fatal(err)
+	}
+	if before == 0 {
+		t.Fatal("fixture recorded no IP/user agent; this test would prove nothing")
+	}
+
+	if err := st.DeleteUser(ctx, victim.ID); err != nil {
+		t.Fatalf("DeleteUser: %v", err)
+	}
+
+	var leaked int
+	if err := st.pool.QueryRow(ctx,
+		`SELECT count(*) FROM username_changes WHERE ip IS NOT NULL OR user_agent IS NOT NULL`).Scan(&leaked); err != nil {
+		t.Fatal(err)
+	}
+	if leaked != 0 {
+		t.Errorf("%d rename row(s) still hold an IP or user agent after the account was deleted", leaked)
+	}
+	// The rows themselves must remain, or the username cooldown has nothing to
+	// reserve against.
+	var rows int
+	if err := st.pool.QueryRow(ctx, `SELECT count(*) FROM username_changes`).Scan(&rows); err != nil {
+		t.Fatal(err)
+	}
+	if rows == 0 {
+		t.Fatal("the rename history was deleted outright; the username cooldown depends on it")
+	}
 }
 
 // TestDeleteUserReservesUsername: a freed handle can't be claimed immediately.

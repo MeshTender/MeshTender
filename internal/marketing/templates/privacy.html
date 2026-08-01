@@ -1,0 +1,215 @@
+{{define "title"}}Privacy · MeshTender{{end}}
+{{define "header"}}
+<div class="row g-2 align-items-center">
+  <div class="col">
+    <div class="page-pretitle">Legal</div>
+    <h1 class="page-title fs-1">Privacy</h1>
+  </div>
+</div>
+{{end}}
+{{define "content"}}
+<div class="row row-cards">
+  <div class="col-lg-8">
+
+    <div class="card">
+      <div class="card-body">
+        <p>
+          This describes what MeshTender collects, why, how long it keeps it, and what you can do
+          about it. It covers this MeshTender instance{{if .Operator}}, run by {{.Operator}}{{end}} —
+          not your repeaters themselves, and not the wider MeshCore network, which nobody operates
+          centrally.
+        </p>
+        <p class="mb-0 text-secondary">
+          In force since {{.Effective}}.
+        </p>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-header"><h2 class="card-title">The short version</h2></div>
+      <div class="card-body">
+        <ul class="mb-0">
+          <li>No advertising, no trackers, no analytics companies, and nothing sold or shared for marketing.</li>
+          <li>Traffic statistics are counted without storing your IP address at all.</li>
+          <li>An email address is optional, and only used to prove it's yours and to reset a password.</li>
+          <li>You can delete your account yourself, and it really deletes.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-header"><h2 class="card-title">What we store</h2></div>
+      <div class="card-body">
+        <h3 class="mt-0">Your account</h3>
+        <p>
+          A username, and whatever else you choose to add: display name, bio, location, callsign,
+          contact links, time zone, and an optional email address. Plus the means to sign you in — a
+          password (stored only as a bcrypt hash, never the password itself) and/or the public half of
+          each passkey you register. We record when the account was created and when it last signed in.
+        </p>
+
+        <h3>What you create</h3>
+        <p>
+          Repeaters you register (name, public key, radio settings, and — if MeshTender reads them from
+          the device — coordinates), any documentation and maintenance notes you write, organizations
+          you create or join, and who you've shared a repeater with. Commands you send to a repeater are
+          recorded in that repeater's log with the command, the time, the reply, and a snapshot of your
+          username as it was at that moment.
+        </p>
+
+        <h3>Username changes</h3>
+        <p>
+          When you change your username we record the old and new names, the time, and the IP address
+          and browser user agent of the request. That's the one place we retain an IP, and it exists so
+          a handle can be traced back after a rename and so a freed name can't be grabbed straight away.
+          <strong>Deleting your account erases the IP address and user agent</strong>; the old handle and
+          date remain, unlinked from any account, because the name reservation depends on them.
+        </p>
+
+        <h3>Traffic statistics</h3>
+        <p>
+          For each page request we store the date and time, which surface and host it hit, the path,
+          the HTTP method, the response status, and a <em>visitor hash</em>. The hash is a salted
+          SHA-256 of the day plus your IP address and user agent — it rotates every day, so the same
+          visitor counts once per day and cannot be followed from one day to the next.
+          <strong>Your IP address is never written down</strong>, only mixed into that day's hash. Bot
+          traffic is skipped. This runs entirely on our own server; no analytics provider is involved.
+        </p>
+
+        <h3>Diagnostics</h3>
+        <p>
+          Error and audit logs record the HTTP method, path, and a request ID — no IP addresses. If your
+          browser blocks something under our content security policy, it reports the rule and the blocked
+          URL; those reports carry no information about you, and page addresses are stripped of query
+          strings and tokens before they're stored.
+        </p>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-header"><h2 class="card-title">What other people can see</h2></div>
+      <div class="card-body">
+        <p>
+          Your profile page shows your username and any profile fields and links you filled in. Blank
+          fields simply don't appear — leaving them empty is how you keep them private.
+        </p>
+        <p>
+          Organizations show their member list to people who can see the organization. A repeater is
+          visible to people you share it with and to organizations you belong to; it appears on public
+          pages only if you turn that on for that repeater.
+        </p>
+        <p class="mb-0">
+          Profile pages and individual repeater pages ask search engines not to index them. That's a
+          request, not a guarantee — anything on a public page should be treated as public.
+        </p>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-header"><h2 class="card-title">Cookies</h2></div>
+      <div class="card-body">
+        <p class="mb-0">
+          Two, both strictly necessary and neither used for tracking: a session cookie that keeps you
+          signed in, and a short-lived one that protects the sign-in handoff between our hosts. There
+          are no advertising, analytics, or third-party cookies, which is why there's no cookie banner.
+        </p>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-header"><h2 class="card-title">Who else sees anything</h2></div>
+      <div class="card-body">
+        <ul>
+          <li>
+            <strong>Resend</strong> delivers our email. When you add an address or ask for a password
+            reset, Resend handles that address and the message in order to send it. It's the only time
+            your address leaves our server.
+          </li>
+          <li>
+            <strong>CARTO</strong> serves the map tiles. When a page with a map loads, your browser
+            fetches tiles from CARTO directly, so CARTO sees your IP address and which tiles you asked
+            for. Pages without a map involve them not at all.
+          </li>
+          <li>
+            <strong>Our hosting provider</strong> runs the servers the site and database sit on, and can
+            technically access what's stored there.
+          </li>
+        </ul>
+        <p class="mb-0">
+          That's the complete list. Everything else — fonts, styles, scripts, icons — is served from this
+          site, so loading a page tells nobody else that you did.
+        </p>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-header"><h2 class="card-title">How long we keep it</h2></div>
+      <div class="card-body">
+        <ul class="mb-0">
+          <li><strong>Your account and what you created</strong> — until you delete the account.</li>
+          <li><strong>Raw traffic events</strong> — 90 days, then deleted. Daily totals (counts only, with nothing about individuals) are kept.</li>
+          <li><strong>Password reset links</strong> — 45 minutes, and one use.</li>
+          <li><strong>Email confirmation links</strong> — 24 hours, and one use.</li>
+          <li><strong>Sign-in handoff codes</strong> — 60 seconds, and one use.</li>
+          <li><strong>Repeater share links</strong> — 7 days to accept; spent and lapsed links are cleared within 30 days.</li>
+          <li><strong>A released username</strong> — reserved 90 days before anyone else can take it.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-header"><h2 class="card-title">Your choices</h2></div>
+      <div class="card-body">
+        <p>
+          Every profile field is optional and editable from your account page, and you can remove your
+          email address at any time. Your account page is also where you see everything the account
+          holds.
+        </p>
+        <p>
+          <strong>Deleting your account</strong> removes the account, your profile, your sign-in methods,
+          the repeaters you own along with their documentation and history, your organization
+          memberships, and your access to anything shared with you. Organizations where you're the only
+          member go too. It happens immediately and cannot be undone.
+        </p>
+        <p class="mb-0">
+          Two things deliberately survive, with no link back to you: commands you ran on
+          <em>other people's</em> repeaters stay in those repeaters' logs, and maintenance notes you
+          wrote stay in their history — both recorded against the name you had at the time. Removing them
+          would tear holes in records that other people rely on to look after shared infrastructure.
+        </p>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-header"><h2 class="card-title">Keeping it safe</h2></div>
+      <div class="card-body">
+        <p class="mb-0">
+          Traffic is encrypted in transit. Passwords are stored as bcrypt hashes; passkeys leave their
+          private half on your device, where we never see it. Cookies are HTTP-only and same-site. The
+          server's own mesh identity is stored encrypted. Pages run under a strict content security
+          policy with no third-party scripts. None of this makes a breach impossible, and we won't
+          pretend otherwise.
+        </p>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-header"><h2 class="card-title">Changes, and getting in touch</h2></div>
+      <div class="card-body">
+        <p{{if not .Contact}} class="mb-0"{{end}}>
+          If this policy changes in a way that matters, the date at the top changes with it, and material
+          changes will be announced on the site rather than slipped in quietly.
+        </p>
+        {{if .Contact}}
+        <p class="mb-0">
+          Questions about your data, or want help getting it out before you delete an account? Write to
+          <a href="mailto:{{.Contact}}">{{.Contact}}</a>.
+        </p>
+        {{end}}
+      </div>
+    </div>
+
+    <p class="text-secondary mt-3">See also: <a href="/terms">Terms of use</a>.</p>
+  </div>
+</div>
+{{end}}

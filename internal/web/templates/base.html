@@ -107,18 +107,30 @@
         </div>
       </div>
       <footer class="footer footer-transparent d-print-none">
-        <div class="container-xl">
-          <div class="row text-center align-items-center flex-row-reverse">
-            <div class="col-12 col-lg-auto mt-3 mt-lg-0">
-              <span class="text-secondary">MeshTender &mdash; tend your mesh.</span>
-            </div>
-          </div>
-        </div>
+        <div class="container-xl">{{template "footerbody" .}}</div>
       </footer>
     </div>
   </div>
 </body>
 </html>{{end}}
+
+{{/* footerbody is the one footer used by every layout, so the legal links can't
+     go missing on a surface. /privacy and /terms are served by the root host
+     only, hence absolute URLs: the app and auth hosts have no such routes. */}}
+{{define "footerbody"}}
+<div class="row text-center align-items-center flex-row-reverse gy-2">
+  <div class="col-12 col-lg-auto">
+    <span class="text-secondary">MeshTender &mdash; tend your mesh.</span>
+  </div>
+  <div class="col-12 col-lg-auto">
+    <ul class="list-inline list-inline-dots mb-0">
+      <li class="list-inline-item"><a class="link-secondary" href="{{.RootURL}}/docs">Docs</a></li>
+      <li class="list-inline-item"><a class="link-secondary" href="{{.RootURL}}/privacy">Privacy</a></li>
+      <li class="list-inline-item"><a class="link-secondary" href="{{.RootURL}}/terms">Terms</a></li>
+    </ul>
+  </div>
+</div>
+{{end}}
 
 {{/* rootnav is the public/root-host topbar: brand + Organizations, with the
      sign-in/create-account actions collapsing to a single Dashboard button once
@@ -194,13 +206,7 @@
         </div>
       </div>
       <footer class="footer footer-transparent d-print-none">
-        <div class="container-xl">
-          <div class="row text-center align-items-center flex-row-reverse">
-            <div class="col-12 col-lg-auto mt-3 mt-lg-0">
-              <span class="text-secondary">MeshTender &mdash; tend your mesh.</span>
-            </div>
-          </div>
-        </div>
+        <div class="container-xl">{{template "footerbody" .}}</div>
       </footer>
     </div>
   </div>
@@ -255,11 +261,7 @@
   {{template "rootnav" .}}
   {{template "content" .}}
   <footer class="footer footer-transparent">
-    <div class="container">
-      <div class="row align-items-center justify-content-center">
-        <div class="col-auto text-secondary">MeshTender &mdash; tend your mesh.</div>
-      </div>
-    </div>
+    <div class="container">{{template "footerbody" .}}</div>
   </footer>
 </body>
 </html>{{end}}

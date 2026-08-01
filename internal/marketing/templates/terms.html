@@ -1,0 +1,154 @@
+{{define "title"}}Terms · MeshTender{{end}}
+{{define "header"}}
+<div class="row g-2 align-items-center">
+  <div class="col">
+    <div class="page-pretitle">Legal</div>
+    <h1 class="page-title fs-1">Terms of use</h1>
+  </div>
+</div>
+{{end}}
+{{define "content"}}
+<div class="row row-cards">
+  <div class="col-lg-8">
+
+    <div class="card">
+      <div class="card-body">
+        <p>
+          These are the terms for using this MeshTender instance{{if .Operator}}, run by
+          {{.Operator}}{{end}}. Using the site means you accept them. They're written in plain English
+          on purpose — if something here is unclear, that's a fault worth reporting.
+        </p>
+        <p class="mb-0 text-secondary">In force since {{.Effective}}.</p>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-header"><h2 class="card-title">What MeshTender is</h2></div>
+      <div class="card-body">
+        <p class="mb-0">
+          A tool for registering, configuring, and maintaining MeshCore repeaters, and for sharing that
+          work with other people. It sends commands to your repeaters over the mesh under its own
+          identity, once a repeater has granted that identity access. It is a convenience layer over
+          hardware you own and control — not a network, not a carrier, and not a party to what your
+          radios transmit.
+        </p>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-header"><h2 class="card-title">Your account</h2></div>
+      <div class="card-body">
+        <p class="mb-0">
+          Keep your sign-in methods to yourself; anything done through your account is treated as done
+          by you. Don't impersonate someone else or register a username in order to pass yourself off as
+          them. One person may hold more than one account. You can delete your account at any time from
+          your account page.
+        </p>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-header"><h2 class="card-title">Your repeaters are your responsibility</h2></div>
+      <div class="card-body">
+        <p>
+          Only register a repeater you own or are authorized to administer. Granting MeshTender admin
+          access is a decision you make on the device, and you can revoke it there at any time — the
+          instructions are in the <a href="/docs">docs</a>.
+        </p>
+        <p class="mb-0">
+          Operating radio equipment is regulated, and the rules depend on where you are, what band you're
+          on, and what license you hold. Complying with them is entirely yours: MeshTender will faithfully
+          send the commands you ask it to, including ones that change transmit power, frequency, or
+          region settings, and it can't tell whether the result is legal where you're standing.
+        </p>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-header"><h2 class="card-title">Fair use</h2></div>
+      <div class="card-body">
+        <p>Don't:</p>
+        <ul class="mb-0">
+          <li>try to break into, overload, or probe the service or other people's accounts;</li>
+          <li>use it to reach or reconfigure repeaters you have no authority over;</li>
+          <li>automate it at a volume that degrades it for everyone else;</li>
+          <li>post content that's unlawful, or that harasses or endangers someone;</li>
+          <li>use it to interfere with other people's communications.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-header"><h2 class="card-title">What you write stays yours</h2></div>
+      <div class="card-body">
+        <p class="mb-0">
+          Your documentation, notes, profile, and organization content remain yours. By putting them here
+          you allow us to store and display them as needed to run the service — including showing them to
+          the people and organizations you share them with, and on public pages you switch on. Some
+          records are shared by nature: entries you add to a repeater's maintenance history, and commands
+          you run on someone else's repeater, stay in that repeater's log so its owner keeps an intact
+          record. Those persist after you delete your account, attributed to the name you used at the
+          time and nothing more.
+        </p>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-header"><h2 class="card-title">No promises about uptime</h2></div>
+      <div class="card-body">
+        <p class="mb-0">
+          This is a hobby project, run in spare time. It may be slow, break, lose data, change
+          without notice, or stop entirely. Keep your own record of anything you can't afford to lose —
+          especially repeater documentation and site access details. If the service is going to shut down
+          for good, we'll try to give warning and a way to get your data out, but that's an intention
+          rather than a guarantee.
+        </p>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-header"><h2 class="card-title">Provided as-is</h2></div>
+      <div class="card-body">
+        <p class="mb-0">
+          MeshTender is provided as-is, with no warranty of any kind. We don't promise it's fit for any
+          particular purpose, that it will be available when you need it, or that it won't send a command
+          that leaves a repeater in a state you didn't want. To the extent the law allows, we're not
+          liable for loss or damage arising from using it — including unreachable or misconfigured
+          hardware, lost data, or missed communications. Nothing here removes rights you have that can't
+          legally be waived.
+        </p>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-header"><h2 class="card-title">Ending it</h2></div>
+      <div class="card-body">
+        <p class="mb-0">
+          Delete your account whenever you like; the <a href="/privacy">privacy page</a> explains exactly
+          what that removes. We may suspend or remove an account that breaks these terms or puts the
+          service or other people at risk — where it's reasonable to do so, we'll say why first.
+        </p>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-header"><h2 class="card-title">Changes{{if or .Jurisdiction .Contact}}, and the rest{{end}}</h2></div>
+      <div class="card-body">
+        <p{{if not (or .Jurisdiction .Contact)}} class="mb-0"{{end}}>
+          These terms may change; the date at the top changes with them, and continuing to use the site
+          means accepting the new version. If any part turns out to be unenforceable, the rest still
+          applies.
+        </p>
+        {{if .Jurisdiction}}
+        <p{{if not .Contact}} class="mb-0"{{end}}>These terms are governed by the law of {{.Jurisdiction}}.</p>
+        {{end}}
+        {{if .Contact}}
+        <p class="mb-0">Questions: <a href="mailto:{{.Contact}}">{{.Contact}}</a>.</p>
+        {{end}}
+      </div>
+    </div>
+
+    <p class="text-secondary mt-3">See also: <a href="/privacy">Privacy</a>.</p>
+  </div>
+</div>
+{{end}}

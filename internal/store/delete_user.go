@@ -13,7 +13,7 @@ import (
 // decide: what must BLOCK a deletion (leaving an org or the instance with no
 // admin), and what must be cleaned up alongside the row.
 //
-// What deliberately survives, anonymised: the command log keeps its write-time
+// What deliberately survives, anonymized: the command log keeps its write-time
 // sender_username, maintenance entries keep author_name, and orgs/config profiles
 // keep their created_by history as NULL. That's by design (see migration 0020) —
 // the record of what was done to a repeater outlives the person who did it.
@@ -235,6 +235,18 @@ func (s *Store) DeleteUser(ctx context.Context, userID int64) error {
 				`DELETE FROM organizations WHERE id = ANY($1)`, orphaned); err != nil {
 				return fmt.Errorf("delete solo orgs: %w", err)
 			}
+		}
+
+		// Scrub the personal data in the rename history that the FK can't reach.
+		// username_changes.user_id is ON DELETE SET NULL, so the rows survive (the
+		// cooldown below depends on them) — but they also carry the IP and user
+		// agent captured at each rename, which would otherwise outlive the account
+		// indefinitely. The old/new handles and timestamps are what the cooldown
+		// needs; the IP and UA are not, so they go.
+		if _, err := tx.Exec(ctx, `
+			UPDATE username_changes SET ip = NULL, user_agent = NULL
+			WHERE user_id = $1 OR changed_by = $1`, userID); err != nil {
+			return fmt.Errorf("scrub rename history: %w", err)
 		}
 
 		// Reserve the freed username for the usual release cooldown. Profiles are

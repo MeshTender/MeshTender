@@ -22,12 +22,16 @@ import (
 )
 
 const (
-	bufferSize    = 2048            // dropped (not blocked) when full
-	flushEvery    = 2 * time.Second // max latency before a batch is written
-	flushBatch    = 200             // write early once this many are queued
-	rollupEvery   = 5 * time.Minute // aggregate-table refresh cadence
-	retentionDays = 90              // raw events kept this long
+	bufferSize  = 2048            // dropped (not blocked) when full
+	flushEvery  = 2 * time.Second // max latency before a batch is written
+	flushBatch  = 200             // write early once this many are queued
+	rollupEvery = 5 * time.Minute // aggregate-table refresh cadence
 )
+
+// RetentionDays is how long raw request events are kept before the sweep deletes
+// them. Exported because the privacy page states this window and a test binds the
+// two together — the published figure must not drift from the one enforced here.
+const RetentionDays = 90
 
 // Recorder buffers request events and persists them in the background.
 type Recorder struct {
@@ -102,7 +106,7 @@ func (rec *Recorder) rollup(ctx context.Context) {
 	if err := rec.st.RollupAnalytics(ctx); err != nil {
 		slog.Error("analytics: rollup", "err", err)
 	}
-	if err := rec.st.PruneAnalytics(ctx, retentionDays); err != nil {
+	if err := rec.st.PruneAnalytics(ctx, RetentionDays); err != nil {
 		slog.Error("analytics: prune", "err", err)
 	}
 }
