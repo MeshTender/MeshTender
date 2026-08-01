@@ -268,7 +268,7 @@ type janitorSweep struct {
 
 // runJanitor runs every sweep once on entry — so a restart cleans up immediately
 // instead of waiting out the first interval — then again every `every` until ctx is
-// cancelled.
+// canceled.
 //
 // This lives here rather than on the analytics rollup ticker, which also prunes on
 // the same cadence, because analytics has no business knowing about auth codes or

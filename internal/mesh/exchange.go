@@ -93,7 +93,7 @@ func (e *Exchanger) HandleData(raw []byte) {
 // retrying up to e.tries times. build receives the 1-based attempt number so it
 // can vary routing (e.g. direct early, flood as a fallback). onAttempt
 // (optional) is called before each send. Returns ErrNoReply if exhausted, or
-// ctx.Err() if cancelled.
+// ctx.Err() if canceled.
 func (e *Exchanger) exchange(ctx context.Context, build func(ts time.Time, attempt int) ([]byte, error), matchFn func([]byte) bool, onAttempt func(attempt, max int)) error {
 	for attempt := 1; attempt <= e.tries; attempt++ {
 		if onAttempt != nil {

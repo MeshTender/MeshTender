@@ -585,7 +585,7 @@ func TestCrossSiteWriteBlockerExemptsReportPath(t *testing.T) {
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 	if rec.Code != http.StatusNoContent {
-		t.Errorf("report POST labelled cross-site got %d, want it to pass through", rec.Code)
+		t.Errorf("report POST labeled cross-site got %d, want it to pass through", rec.Code)
 	}
 
 	// The exemption must be exactly that one path — everything else still blocks.

@@ -15,7 +15,7 @@ const MaxOrgLinks = 20
 
 // LinkKind classifies how a platform's value is entered, validated, stored, and
 // rendered. It replaces the per-platform switch statements the link editors used
-// to carry: behaviour is a property of the platform, looked up once here.
+// to carry: behavior is a property of the platform, looked up once here.
 type LinkKind string
 
 const (
@@ -41,7 +41,7 @@ const (
 // no custom label of its own; Icon names the "icon-*" template used by link-icon.
 //
 // For KindHandle: URLFmt is the canonical profile URL with a single %s for the
-// handle, and Hosts are the URL hosts we recognise when a user pastes a full
+// handle, and Hosts are the URL hosts we recognize when a user pastes a full
 // profile URL instead of a bare handle. Placeholder is the editor input hint.
 type LinkPlatform struct {
 	Key         string
@@ -176,7 +176,7 @@ func canonicalMastodon(s string) (string, bool) {
 }
 
 // hostAllowed reports whether host (case-insensitive, port stripped) is one of
-// the platform's recognised hosts.
+// the platform's recognized hosts.
 func hostAllowed(host string, hosts []string) bool {
 	host = strings.ToLower(host)
 	if i := strings.IndexByte(host, ':'); i >= 0 {

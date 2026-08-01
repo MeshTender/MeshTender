@@ -25,12 +25,12 @@ import (
 // are resolved from CSS variables that only exist at runtime. Nothing about this is
 // checkable by reading the stylesheets.
 const contrastProbe = `(() => {
-  // --- colour maths, per WCAG 2.1 -------------------------------------------------
-  // Chrome serialises computed colours in more than one syntax: plain rgb()/rgba(),
+  // --- color math, per WCAG 2.1 -------------------------------------------------
+  // Chrome serializes computed colors in more than one syntax: plain rgb()/rgba(),
   // and color(srgb r g b / a) with 0..1 components for values that came through
-  // colour-mixing or a wide-gamut source. An earlier version of this probe only
+  // color-mixing or a wide-gamut source. An earlier version of this probe only
   // matched rgb() and SILENTLY SKIPPED the rest — which hid every failing link on the
-  // site, since Tabler's link colour arrives in color(srgb ...) form. Anything still
+  // site, since Tabler's link color arrives in color(srgb ...) form. Anything still
   // unparseable is now reported rather than ignored (see unparsed below).
   function parse(css) {
     let m = css.match(/^\s*color\(\s*srgb\s+([^)]+)\)/i);
@@ -71,7 +71,7 @@ const contrastProbe = `(() => {
   // --- the background a pixel of text actually sits on ---------------------------
   // Walks ancestors compositing translucent layers until something opaque is found.
   // Returns null when an ancestor paints an image or gradient, since the effective
-  // colour then isn't knowable from computed style alone.
+  // color then isn't knowable from computed style alone.
   function backdrop(el) {
     let layers = [];
     for (let n = el; n; n = n.parentElement) {
@@ -128,7 +128,7 @@ const contrastProbe = `(() => {
 
     const fg = parse(cs.color);
     if (!fg) {
-      // Never skip quietly: an unrecognised colour syntax means this element went
+      // Never skip quietly: an unrecognized color syntax means this element went
       // unchecked, which is exactly how the original probe missed every link.
       unparsed.add(cs.color);
       return;
@@ -172,9 +172,9 @@ type contrastFailure struct {
 // TestContrastMeetsWCAGAA measures real rendered contrast across the app.
 //
 // This is the check that makes shipping a single dark theme defensible: WCAG has no
-// requirement to offer two colour schemes, but it does require the one you ship to meet
+// requirement to offer two color schemes, but it does require the one you ship to meet
 // AA — 4.5:1 for body text, 3:1 for large text. That had never been verified, and the
-// stylesheet already carried a hand-picked colour added to fix a contrast problem
+// stylesheet already carried a hand-picked color added to fix a contrast problem
 // (.badge.bg-purple-lt) with nothing guarding it.
 //
 // Deliberately measured in a browser rather than read from CSS: the foreground is often
@@ -290,7 +290,7 @@ func TestContrastMeetsWCAGAA(t *testing.T) {
 			return
 		}
 		if len(result.Unparsed) > 0 {
-			t.Errorf("%s: colour syntax the probe can't read, so those elements went "+
+			t.Errorf("%s: color syntax the probe can't read, so those elements went "+
 				"unchecked: %v", label, result.Unparsed)
 		}
 		t.Logf("%-18s %3d elements checked", label, result.Checked)

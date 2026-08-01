@@ -56,7 +56,7 @@ type CSPReport struct {
 // Deliberately excludes Sample, SourceFile, LineNumber and Hits. The sample varies
 // between otherwise identical violations (different inline snippets on the same page)
 // and the line number moves whenever a template changes, so including either would
-// shatter one problem into many rows — exactly the row-per-report behaviour the
+// shatter one problem into many rows — exactly the row-per-report behavior the
 // aggregate table exists to avoid. SourceFile is omitted as redundant: it already
 // drives Source, which IS in the fingerprint, so an extension-injected inline
 // violation and a page one on the same path are already separate rows.

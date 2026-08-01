@@ -79,7 +79,7 @@ func TestCSPReportsSeparateDistinctViolations(t *testing.T) {
 
 // TestCSPReportFingerprintIgnoresSample: the sample varies between otherwise
 // identical violations, so including it would shatter one problem into many rows —
-// the row-per-report behaviour the aggregate table exists to prevent.
+// the row-per-report behavior the aggregate table exists to prevent.
 func TestCSPReportFingerprintIgnoresSample(t *testing.T) {
 	t.Parallel()
 	a := cspReport("script-src-elem", "inline", "/x")

@@ -24,7 +24,7 @@ const (
 	consoleIdleTimeout = 5 * time.Minute
 	// consoleEndTimeout bounds the deferred EndConsoleSession stamp that runs when
 	// a console handler returns (including on shutdown drain). It uses a fresh
-	// background context — the session context is already cancelled by then — so
+	// background context — the session context is already canceled by then — so
 	// the stamp still lands. WSDrainTimeout MUST exceed this (plus unwind slack) or
 	// the drain gives up before the stamp completes and the session is orphaned as
 	// "in progress" forever (see TestDrainWebSockets).
@@ -334,7 +334,7 @@ func (s *Handlers) wsConsole(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, mesh.ErrNoReply):
 		_ = bridge.Status("warning", "Couldn't reach the repeater to establish a session — commands will still be attempted (flood), but may not work if it doesn't recognize MeshTender.")
 	case err != nil:
-		return // context cancelled
+		return // context canceled
 	default:
 		if userPathSet {
 			reportPathOutcome(bridge, lr)
@@ -411,7 +411,7 @@ func (s *Handlers) wsConsole(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, mesh.ErrNoReply):
 			_ = bridge.Status("noreply", "No reply received after several tries — the command may still have run.")
 		default:
-			// context cancelled or a build/transmit error
+			// context canceled or a build/transmit error
 		}
 	}
 

@@ -27,9 +27,9 @@ import (
 // the connection (hijackLocked calls rwc.SetDeadline(time.Time{})), so the socket
 // inherits nothing and is bounded only by consoleIdleTimeout and the shutdown drain.
 //
-// That behaviour is load-bearing but belongs to the standard library, not to this
+// That behavior is load-bearing but belongs to the standard library, not to this
 // codebase, so it's worth an explicit test: it would catch a future WebSocket library
-// that re-arms deadlines after hijacking, or a change in Go's behaviour, either of
+// that re-arms deadlines after hijacking, or a change in Go's behavior, either of
 // which would silently start cutting console sessions mid-command.
 //
 // The server here uses a deliberately tiny 250ms ReadTimeout rather than the

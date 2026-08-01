@@ -59,7 +59,7 @@ func NewCSPCollector(st *store.Store, cfg *config.Config) *CSPCollector {
 	}
 }
 
-// Run owns the write loop until ctx is cancelled. Start it in a goroutine. Pruning
+// Run owns the write loop until ctx is canceled. Start it in a goroutine. Pruning
 // is not done here — it's a janitor sweep (store.PruneCSPReports), alongside the
 // other expiry sweeps.
 func (c *CSPCollector) Run(ctx context.Context) {
@@ -83,7 +83,7 @@ func (c *CSPCollector) Run(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			// Drain what's queued (reports arriving while requests were draining),
-			// then write on a fresh context since ctx is already cancelled.
+			// then write on a fresh context since ctx is already canceled.
 			for drained := true; drained; {
 				select {
 				case rep := <-c.ch:

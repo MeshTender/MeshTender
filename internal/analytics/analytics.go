@@ -48,7 +48,7 @@ func New(st *store.Store, cfg *config.Config) *Recorder {
 	return &Recorder{st: st, cfg: cfg, salt: salt, ch: make(chan store.AnalyticsEvent, bufferSize)}
 }
 
-// Run owns the write + rollup loops until ctx is cancelled. Start it in a
+// Run owns the write + rollup loops until ctx is canceled. Start it in a
 // goroutine. A nil Recorder's Run is a no-op.
 func (rec *Recorder) Run(ctx context.Context) {
 	if rec == nil {
@@ -75,7 +75,7 @@ func (rec *Recorder) Run(ctx context.Context) {
 		case <-ctx.Done():
 			// Drain anything still queued (e.g. events recorded while in-flight
 			// requests were draining) into the batch, then final-flush on a fresh
-			// context since ctx is already cancelled.
+			// context since ctx is already canceled.
 			for drained := true; drained; {
 				select {
 				case e := <-rec.ch:

@@ -20,7 +20,7 @@ func analyticsMigrate(dsn string) error {
 	return s.Migrate(ctx)
 }
 
-// TestRunFlushesQueuedEventsOnShutdown: when Run's context is cancelled, it drains
+// TestRunFlushesQueuedEventsOnShutdown: when Run's context is canceled, it drains
 // events still queued in the channel and persists them in the final flush, rather
 // than dropping them. This is what lets main.go stop the flusher after the HTTP
 // drain without losing the events recorded during that window.

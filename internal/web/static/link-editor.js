@@ -1,4 +1,4 @@
-// Shared behaviour for the profile/org link editors. Both the account page and
+// Shared behavior for the profile/org link editors. Both the account page and
 // the org page render a `<form data-link-editor>` with repeatable `.link-row`s;
 // this script adds/removes rows, renumbers the primary-contact radios, adapts
 // each row to its selected platform (placeholder + whether the optional label

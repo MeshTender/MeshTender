@@ -178,7 +178,7 @@ func unsafeMethod(method string) bool {
 // The violation-report endpoint is exempt. Reports are POSTs the browser generates
 // itself, out-of-band from the document that triggered them, and the Sec-Fetch-Site
 // value on that delivery is not something the CSP or Reporting API specifications
-// pin down — so a report could arrive labelled "cross-site" and be silently
+// pin down — so a report could arrive labeled "cross-site" and be silently
 // discarded, leaving reporting looking merely quiet. Exempting it costs nothing:
 // the endpoint takes no session, performs no authenticated action, and its only
 // effect is incrementing a counter on an aggregate row (see CSPCollector).

@@ -109,7 +109,7 @@ code.pubkey {
 
 /* Tabler's danger button pairs its off-white foreground (#f9fafb) with the danger red,
    which measures 4.46:1 — just under the 4.5:1 floor. Pure white reaches 4.66:1 without
-   touching the button's colour. */
+   touching the button's color. */
 .btn-danger {
   color: #fff;
 }
@@ -117,7 +117,7 @@ code.pubkey {
 /* ---------- Contrast corrections (WCAG AA on the dark theme) ----------
    Found by internal/e2e TestContrastMeetsWCAGAA, which measures rendered pixels. All
    three point at Tabler's own dark-theme *-text-emphasis values rather than
-   hand-picked colours, so they stay tied to the palette.
+   hand-picked colors, so they stay tied to the palette.
 
    Tabler's dark theme lightens --tblr-link-hover-color but NOT --tblr-link-color, which
    leaves every link at 3.55:1 on the page background and 2.94:1 on a card — below the
@@ -127,8 +127,8 @@ code.pubkey {
   --tblr-link-color: var(--tblr-primary-text-emphasis);
 }
 
-/* Inactive tab labels use --tblr-muted (#6b7280 → 3.67:1). Emphasis grey is 7.65:1 and
-   still clearly dimmer than the active tab, which uses the full body colour. */
+/* Inactive tab labels use --tblr-muted (#6b7280 → 3.67:1). Emphasis gray is 7.65:1 and
+   still clearly dimmer than the active tab, which uses the full body color. */
 .nav-tabs .nav-link {
   color: var(--tblr-secondary-text-emphasis);
 }
