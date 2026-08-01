@@ -333,6 +333,22 @@
   </div>
 </div>
 
+{{/* Deletion is a page, not a button here: what it removes depends on what you
+     own, and that has to be shown before anyone commits to it. */}}
+<div class="card mt-3 border-danger">
+  <div class="card-header"><h2 class="card-title text-danger">Delete account</h2></div>
+  <div class="card-body">
+    <p class="text-secondary">
+      Permanently delete your account, your public profile, and the repeaters you own. This can't be
+      undone — the next page shows exactly what would go, and lets you hand any repeater to a steward
+      first.
+    </p>
+    <a class="btn btn-outline-danger" href="/account/delete" data-testid="delete-account">
+      {{template "icon-trash" "me-1"}}Delete my account…
+    </a>
+  </div>
+</div>
+
 <!-- Rename-passkey modal: populated from the clicked row's data-* attributes. -->
 <div class="modal modal-blur fade" id="rename-passkey" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-sm modal-dialog-centered" role="document">

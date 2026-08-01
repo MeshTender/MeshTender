@@ -87,6 +87,14 @@ func (s *Handlers) Routes() chi.Router {
 			r.Post("/account/email/verify", s.handleResendEmailVerification)
 			r.Post("/account/passkeys/rename", s.handleRenamePasskey)
 			r.Post("/account/passkeys/delete", s.handleDeletePasskey)
+			r.Get("/account/delete", s.pageDeleteAccount)
+			r.Post("/account/delete", s.handleDeleteAccount)
+			// Re-auth ceremony for passkey holders confirming a sensitive action.
+			// Session-gated (it asserts against the signed-in user's own
+			// credentials), so it lives here rather than with the public /api
+			// sign-in ceremonies.
+			r.Post("/account/reauth/passkey/begin", s.Auth.ReauthPasskeyBegin)
+			r.Post("/account/reauth/passkey/finish", s.Auth.ReauthPasskeyFinish)
 		})
 
 		// Bare visits to the auth host go to the sign-in page.

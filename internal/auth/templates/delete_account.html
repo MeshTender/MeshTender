@@ -1,0 +1,194 @@
+{{define "title"}}Delete your account · MeshTender{{end}}
+{{define "header"}}
+<div class="row g-2 align-items-center">
+  <div class="col"><h1 class="page-title fs-1">Delete your account?</h1></div>
+</div>
+{{end}}
+{{define "content"}}
+{{if .Error}}<div class="alert alert-danger">{{.Error}}</div>{{end}}
+
+<div class="row justify-content-center">
+  <div class="col-12 col-lg-8">
+
+{{if .Preview.Blocked}}
+{{/* Blocked: show only what must be resolved. Rendering the confirm form under a
+     "you can't do this yet" banner just invites a click that will fail. */}}
+<div class="card">
+  <div class="card-header"><h2 class="card-title">Not yet — someone has to take over first</h2></div>
+  <div class="card-body">
+    <p class="text-secondary">
+      Your account can't be deleted while other people depend on it for administration. Once these are
+      resolved, come back here and it'll go through.
+    </p>
+    {{if .Preview.LastSiteAdmin}}
+    <div class="alert alert-warning" role="alert">
+      <div>{{template "icon-alert" "alert-icon"}}</div>
+      <div>
+        <h3 class="alert-title">You're the last administrator of this site</h3>
+        <div class="text-secondary">
+          Deleting your account would leave MeshTender with nobody able to manage users. Give another
+          account the manage-users capability first.
+        </div>
+      </div>
+    </div>
+    {{end}}
+    {{if .Preview.OrgsBlocked}}
+    <div class="alert alert-warning mb-0" role="alert">
+      <div>{{template "icon-alert" "alert-icon"}}</div>
+      <div>
+        <h3 class="alert-title">
+          You're the only admin of {{if eq (len .Preview.OrgsBlocked) 1}}an organization{{else}}some organizations{{end}} with other members
+        </h3>
+        <div class="text-secondary">
+          Make someone else an admin in each of these, or remove the other members:
+          <ul class="mt-2 mb-0">
+            {{range .Preview.OrgsBlocked}}
+            <li><a href="{{$.AppOrigin}}/orgs/{{.Slug}}/members">{{.Name}}</a> — {{.Members}} members</li>
+            {{end}}
+          </ul>
+        </div>
+      </div>
+    </div>
+    {{end}}
+  </div>
+</div>
+<a class="back-link mt-3" href="/account">{{template "icon-arrow-left" "me-1"}}Back to account</a>
+
+{{else}}
+
+<div class="card">
+  <div class="card-header"><h2 class="card-title">What deleting removes</h2></div>
+  <div class="card-body">
+    <p class="text-secondary">
+      This deletes your account, your profile at <strong>/u/{{.User.Username}}</strong>, your sign-in
+      methods, and the things below. <strong>It can't be undone</strong>, and you'll be signed out
+      everywhere immediately.
+    </p>
+
+    {{if .Preview.Repeaters}}
+    <div class="hr-text hr-text-left">Repeaters you own</div>
+    <p class="text-secondary">
+      These are deleted outright — with their documentation, maintenance history, command log, and
+      everyone else's access to them. If a repeater is staying on the air, hand it to a steward instead;
+      it keeps all of that and its public page address.
+    </p>
+    <div class="list-group list-group-flush mb-3">
+      {{range .Preview.Repeaters}}
+      <div class="list-group-item d-flex align-items-center gap-2 flex-wrap px-0" data-testid="doomed-repeater">
+        <span class="fw-bold">{{.Name}}</span>
+        {{if .Stewards}}
+        <a class="btn btn-sm ms-auto" href="{{$.AppOrigin}}/repeaters/{{.PublicID}}/transfer">
+          Transfer to a steward
+        </a>
+        {{else}}
+        <span class="text-secondary ms-auto small">
+          No stewards — <a href="{{$.AppOrigin}}/repeaters/{{.PublicID}}/share">share it with someone</a>
+          to hand it over instead
+        </span>
+        {{end}}
+      </div>
+      {{end}}
+    </div>
+    {{end}}
+
+    {{if .Preview.OrgsDeleted}}
+    <div class="hr-text hr-text-left">Organizations deleted with your account</div>
+    <p class="text-secondary">You're the only member of {{if eq (len .Preview.OrgsDeleted) 1}}this one{{else}}these{{end}}, so nothing is left behind:</p>
+    <ul class="text-secondary">
+      {{range .Preview.OrgsDeleted}}<li data-testid="doomed-org">{{.Name}}</li>{{end}}
+    </ul>
+    {{end}}
+
+    {{if .Preview.OrgsLeft}}
+    <div class="hr-text hr-text-left">Organizations you'll simply leave</div>
+    <p class="text-secondary">These carry on without you:</p>
+    <ul class="text-secondary">
+      {{range .Preview.OrgsLeft}}<li>{{.Name}}</li>{{end}}
+    </ul>
+    {{end}}
+
+    {{/* Each line is conditional: listing "0 passkeys" or access to "0 repeaters"
+         reads as a bug, and padding the consequences with non-consequences makes
+         the real ones easier to skim past. */}}
+    <div class="hr-text hr-text-left">Also removed</div>
+    <ul class="text-secondary mb-0">
+      {{if .Preview.Passkeys}}
+      <li>{{.Preview.Passkeys}} passkey{{if ne .Preview.Passkeys 1}}s{{end}}{{if .HasPassword}} and your password{{end}}</li>
+      {{else if .HasPassword}}
+      <li>Your password</li>
+      {{end}}
+      {{if .Preview.SharedWithUser}}
+      <li>Your access to {{.Preview.SharedWithUser}} repeater{{if ne .Preview.SharedWithUser 1}}s{{end}} other people share with you</li>
+      {{end}}
+      <li>Your display name, bio, location, callsign, links, and email address</li>
+    </ul>
+  </div>
+</div>
+
+<div class="card mt-3">
+  <div class="card-header"><h2 class="card-title">What stays</h2></div>
+  <div class="card-body">
+    <p class="text-secondary mb-0">
+      Commands you ran on <em>other people's</em> repeaters stay in those repeaters' logs, and maintenance
+      notes you wrote stay in their history — recorded against the name you had at the time, with no link
+      back to an account. Removing them would tear holes in records their owners rely on. Your username is
+      held in reserve for 90 days so nobody can pick it up and inherit those mentions.
+    </p>
+  </div>
+</div>
+
+<div class="card mt-3">
+  <div class="card-header"><h2 class="card-title">Confirm it's you</h2></div>
+  <div class="card-body">
+    <form method="post" action="/account/delete" id="delete-account-form"
+          data-confirm="Permanently delete your account? This cannot be undone.">
+      {{if .HasPassword}}
+      {{/* Deliberately not `required`: a passkey holder verifies instead of
+           typing, and browser validation would block that submit. The server
+           accepts either proof and says which is missing. */}}
+      <label class="form-label" for="password">Your password</label>
+      <div class="input-group mb-3">
+        <input type="password" class="form-control" id="password" name="password"
+               autocomplete="current-password">
+        <span class="input-group-text">
+          <button type="button" class="link-secondary border-0 bg-transparent p-0" data-pwtoggle="password"
+                  aria-pressed="false" aria-label="Show password" title="Show password">{{template "icon-eye" ""}}</button>
+        </span>
+      </div>
+      {{end}}
+
+      <div class="btn-list">
+        <button type="submit" class="btn btn-danger" data-testid="confirm-delete">
+          {{template "icon-trash" "me-1"}}Delete my account
+        </button>
+        <a class="btn" href="/account">Cancel</a>
+      </div>
+    </form>
+
+    {{if and .HasPasskeys (not .HasPassword)}}
+    {{/* Passkey-only: there's no password to type, so the ceremony IS the
+         confirmation. The button verifies, then submits the form above. */}}
+    <p class="text-secondary mt-3 mb-2">Verify with your passkey to enable deletion.</p>
+    <button type="button" class="btn btn-outline-danger" id="delete-reauth-btn"
+            data-form="delete-account-form" data-testid="verify-passkey">
+      Verify with passkey
+    </button>
+    <div class="mt-2" id="passkey-status" role="status" aria-live="polite"></div>
+    {{else if .HasPasskeys}}
+    <p class="text-secondary mt-3 mb-2">Or verify with a passkey instead of typing your password:</p>
+    <button type="button" class="btn btn-outline-danger" id="delete-reauth-btn"
+            data-form="delete-account-form" data-testid="verify-passkey">
+      Verify with passkey
+    </button>
+    <div class="mt-2" id="passkey-status" role="status" aria-live="polite"></div>
+    {{end}}
+  </div>
+</div>
+
+<a class="back-link mt-3" href="/account">{{template "icon-arrow-left" "me-1"}}Back to account</a>
+{{end}}
+
+  </div>
+</div>
+<script src="{{ asset "/static/webauthn.js" }}"></script>
+{{end}}

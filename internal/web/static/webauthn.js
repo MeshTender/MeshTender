@@ -153,6 +153,35 @@ async function passkeyLogin() {
   }
 }
 
+// reauthPasskey re-verifies the ALREADY signed-in user before a sensitive action
+// (account deletion), then submits the form named by the button's data-form.
+//
+// Unlike the sign-in ceremonies this posts no username — the server asserts
+// against the session's own account — and grants no access by itself: it stamps
+// the session as freshly verified, and the form's handler decides what that's
+// worth. requestSubmit (not submit) so the form's [data-confirm] gate still runs.
+async function reauthPasskey(e) {
+  const btn = e.currentTarget;
+  const form = document.getElementById(btn.getAttribute("data-form") || "");
+  try {
+    setStatus("Starting…");
+    const options = await postJSON("/account/reauth/passkey/begin", {});
+    const cred = await navigator.credentials.get({ publicKey: decodeRequest(options.publicKey) });
+    setStatus("Verifying…");
+    const result = await fetch("/account/reauth/passkey/finish", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(encodeAssertion(cred)),
+    });
+    const data = await result.json().catch(() => ({}));
+    if (!result.ok) throw new Error(data.error || "verification failed");
+    setStatus("Verified.");
+    if (form) form.requestSubmit();
+  } catch (err) {
+    setStatus("Error: " + err.message);
+  }
+}
+
 // Tracks an in-flight conditional-mediation request so an explicit action can
 // supersede the passive autofill prompt without the two colliding.
 let conditionalAbort = null;
@@ -301,6 +330,7 @@ async function initSignupEmphasis() {
     ["add-passkey-btn", addPasskey],
     ["passkey-btn", passkeyButton],
     ["signup-passkey-btn", passkeyRegister],
+    ["delete-reauth-btn", reauthPasskey],
   ];
   bindings.forEach(function (b) {
     var el = document.getElementById(b[0]);
