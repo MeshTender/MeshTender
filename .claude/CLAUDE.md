@@ -99,6 +99,28 @@ selecting on Bootstrap layout classes. CI runs these non-gating
 (`.woodpecker/e2e.yaml`); `E2E_DEVTOOLS_URL`/`E2E_BROWSER_HOST` override the
 addresses there.
 
+**Tabler markup gotchas — the CSS decides the DOM you must write.** A component
+can silently demand a particular child structure, and getting it wrong renders
+badly without failing anything (no error, no CSP violation, no test). Check the
+component's rule in `internal/web/static/tabler.min.css` before writing new
+markup for it. The one that has already bitten us:
+
+- **`.alert` is `display:flex; flex-direction:row; gap:1rem`.** Every child node
+  becomes a side-by-side COLUMN. So the natural way to write an alert — prose
+  with an inline `<code>`/`<strong>` in the middle, or a heading above a list —
+  breaks the box into gutters instead of flowing or stacking. **Wrap the whole
+  body in a single `<div>`:**
+  ```html
+  <div class="alert alert-info" role="alert">
+    <div>… prose with <code>inline</code> markup …</div>
+  </div>
+  ```
+  The only intentional multi-column case is Tabler's icon layout
+  (`<div>{{template "icon-alert" "alert-icon"}}</div>` followed by the body div).
+  `TestAlertBodiesAreSingleChild` (`internal/web/alert_layout_test.go`) enforces
+  this; it parses the templates structurally, so extend it there if you find
+  another flex-container component with the same trap.
+
 ### 5. CI is the gate, not the first line
 Woodpecker (`.woodpecker/`): `test` + `lint` + `vuln` (govulncheck) must pass
 before `build`; `deploy` follows `build` on `main`. A reachable CVE blocks the

@@ -38,9 +38,11 @@ swap needs no new markup. The flex row is nested so the [hidden] attribute wins
 
 {{if and .Repeater.Confirmed .Repeater.AccessKnown (not .Repeater.IsAdmin)}}
 <div class="alert alert-warning" role="alert" data-testid="guest-banner">
-  MeshTender only has <strong>guest</strong> access here. Guest is available to anyone with a blank password,
-  so there's no point operating at this level — re-run <code>setperm &lt;your key&gt; 3</code> on the repeater
-  to grant admin, then reconnect.
+  <div>
+    MeshTender only has <strong>guest</strong> access here. Guest is available to anyone with a blank password,
+    so there's no point operating at this level — re-run <code>setperm &lt;your key&gt; 3</code> on the repeater
+    to grant admin, then reconnect.
+  </div>
 </div>
 {{end}}
 

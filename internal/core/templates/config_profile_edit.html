@@ -15,15 +15,19 @@
 
 {{if .Errors}}
 <div class="alert alert-danger">
-  <div class="fw-bold">Nothing was saved — fix these first:</div>
-  <ul class="mb-0">{{range .Errors}}<li>{{.}}</li>{{end}}</ul>
+  <div>
+    <div class="fw-bold">Nothing was saved — fix these first:</div>
+    <ul class="mb-0">{{range .Errors}}<li>{{.}}</li>{{end}}</ul>
+  </div>
 </div>
 {{end}}
 {{if .RiskyWarn}}
 <div class="alert alert-warning">
-  <div class="fw-bold">Risky commands in this profile</div>
-  <p class="mb-1">These can take over or brick a node — included on purpose?</p>
-  <ul class="mb-0">{{range .RiskyWarn}}<li><code>{{.}}</code></li>{{end}}</ul>
+  <div>
+    <div class="fw-bold">Risky commands in this profile</div>
+    <p class="mb-1">These can take over or brick a node — included on purpose?</p>
+    <ul class="mb-0">{{range .RiskyWarn}}<li><code>{{.}}</code></li>{{end}}</ul>
+  </div>
 </div>
 {{end}}
 

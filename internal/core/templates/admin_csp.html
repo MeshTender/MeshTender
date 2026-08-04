@@ -40,10 +40,12 @@
 
 {{if .Stats.AtCapacity}}
 <div class="alert alert-warning mt-3" role="alert" data-testid="csp-at-capacity">
-  <h3 class="alert-title">Report storage is full</h3>
-  All {{.Capacity}} slots for distinct violations are in use, so <strong>new kinds of violation are no
-  longer being recorded</strong> — only repeats of what's already listed. Clear the reports you've
-  triaged to make room.
+  <div>
+    <h3 class="alert-title">Report storage is full</h3>
+    All {{.Capacity}} slots for distinct violations are in use, so <strong>new kinds of violation are no
+    longer being recorded</strong> — only repeats of what's already listed. Clear the reports you've
+    triaged to make room.
+  </div>
 </div>
 {{end}}
 

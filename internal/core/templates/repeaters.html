@@ -80,7 +80,9 @@
             </div>
             {{if and (not .Shared) .Confirmed .AccessKnown (not .IsAdmin)}}
             <div class="alert alert-warning mt-3 mb-0">
-              MeshTender only has <strong>guest</strong> access here. Guest is available to anyone with a blank password, so there's no point operating at this level — re-run <code>setperm &lt;your key&gt; 3</code> on the repeater to grant admin, then re-test.
+              <div>
+                MeshTender only has <strong>guest</strong> access here. Guest is available to anyone with a blank password, so there's no point operating at this level — re-run <code>setperm &lt;your key&gt; 3</code> on the repeater to grant admin, then re-test.
+              </div>
             </div>
             {{end}}
           </div>

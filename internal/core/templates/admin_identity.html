@@ -23,11 +23,13 @@
     <code class="pk d-block" data-testid="identity-pubkey">{{.PublicKey}}</code>
     {{if ne .PublicKey .RunningPublicKey}}
     <div class="alert alert-warning mt-3 mb-0" role="alert">
-      <h3 class="alert-title">This instance is running a different identity</h3>
-      Stored: <code>{{.PublicKey}}</code><br>
-      In memory: <code>{{.RunningPublicKey}}</code><br>
-      The identity was changed after this process started. Restart the deployment so every replica
-      picks up the stored one.
+      <div>
+        <h3 class="alert-title">This instance is running a different identity</h3>
+        Stored: <code>{{.PublicKey}}</code><br>
+        In memory: <code>{{.RunningPublicKey}}</code><br>
+        The identity was changed after this process started. Restart the deployment so every replica
+        picks up the stored one.
+      </div>
     </div>
     {{end}}
   </div>
