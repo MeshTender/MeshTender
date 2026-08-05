@@ -13,8 +13,11 @@ import (
 // root/marketing host (anonymous) can render the same shared templates — the
 // same split that lets both surfaces render org_public.html.
 
-// ProfileView is one named base-settings profile for display.
+// ProfileView is one named base-settings profile for display. ID is carried so
+// the admin surface can build its edit/delete URLs from the same list the
+// read-only view renders (the public surface just ignores it).
 type ProfileView struct {
+	ID    int64
 	Name  string
 	Steps []store.ConfigStep
 }
@@ -68,7 +71,7 @@ func BuildConfigView(ctx context.Context, st *store.Store, orgID int64, selected
 		PreviewActive: lat != nil && lon != nil,
 	}
 	for _, p := range profiles {
-		cv.Profiles = append(cv.Profiles, ProfileView{Name: p.Name, Steps: p.Steps})
+		cv.Profiles = append(cv.Profiles, ProfileView{ID: p.ID, Name: p.Name, Steps: p.Steps})
 	}
 	if len(profiles) > 0 {
 		idx := 0

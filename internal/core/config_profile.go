@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -75,9 +76,9 @@ func (s *Handlers) pageOrgConfig(w http.ResponseWriter, r *http.Request) {
 	s.Render(w, r, "org_config.html", data)
 }
 
-// pageConfigHub is the admin configuration overview: a list of profiles (each
-// edited on its own page) and a summary of the org's regions (edited on the map
-// page). It replaces the old single mega-form.
+// pageConfigHub is the admin configuration overview: a summary of the org's
+// regions, which are edited on the map page. (Profiles are managed inline on the
+// Configuration page itself.)
 func (s *Handlers) pageConfigHub(w http.ResponseWriter, r *http.Request) {
 	orgID, ok := s.requireOrgAdmin(w, r)
 	if !ok {
@@ -86,11 +87,6 @@ func (s *Handlers) pageConfigHub(w http.ResponseWriter, r *http.Request) {
 	org, err := s.Store.GetOrg(r.Context(), orgID)
 	if err != nil {
 		s.NotFound(w, r)
-		return
-	}
-	profiles, err := s.Store.ListProfiles(r.Context(), orgID)
-	if err != nil {
-		s.ServerError(w, r, "could not load config", err)
 		return
 	}
 	regions, err := s.Store.ListRegions(r.Context(), orgID)
@@ -108,7 +104,6 @@ func (s *Handlers) pageConfigHub(w http.ResponseWriter, r *http.Request) {
 	s.Render(w, r, "config_edit.html", map[string]any{
 		"Org":           org,
 		"Nav":           s.OrgNavFor(r.Context(), web.OrgNavArgs{OrgID: orgID, Name: org.Name, Slug: org.Slug, Active: "config", IsMember: true, IsAdmin: true, Manage: true}),
-		"Profiles":      profiles,
 		"RegionCount":   len(regions),
 		"PrimaryRegion": primary,
 	})
@@ -148,18 +143,34 @@ func (s *Handlers) pageProfileEdit(w http.ResponseWriter, r *http.Request) {
 	s.renderProfileEdit(w, r, org, pid, name, stepsText, nil, nil)
 }
 
-// renderProfileEdit renders the profile editor page (shared by the initial GET
-// and the error re-render). pid 0 means a new profile.
+// renderProfileEdit renders the profile editor (shared by the initial GET and the
+// error re-render). pid 0 means a new profile. An htmx request gets the modal
+// fragment the Configuration page swaps in place; anything else (no JS, or a
+// direct link) gets the standalone page.
 func (s *Handlers) renderProfileEdit(w http.ResponseWriter, r *http.Request, org *store.Org, pid int64, name, stepsText string, errs, risky []string) {
-	s.Render(w, r, "config_profile_edit.html", map[string]any{
+	data := map[string]any{
 		"Org":       org,
 		"Nav":       s.OrgNavFor(r.Context(), web.OrgNavArgs{OrgID: org.ID, Name: org.Name, Slug: org.Slug, Active: "config", IsMember: true, IsAdmin: true, Manage: true}),
 		"ProfileID": pid,
+		"Action":    profileFormAction(org.Slug, pid),
 		"Name":      name,
 		"StepsText": stepsText,
 		"Errors":    errs,
 		"RiskyWarn": risky,
-	})
+	}
+	if r.Header.Get("HX-Request") != "" {
+		data["Layout"] = "config-profile-modal"
+	}
+	s.Render(w, r, "config_profile_edit.html", data)
+}
+
+// profileFormAction is where the editor posts: the collection for a new profile,
+// the profile's own URL for an update.
+func profileFormAction(slug string, pid int64) string {
+	if pid == 0 {
+		return "/orgs/" + slug + "/config/profiles"
+	}
+	return "/orgs/" + slug + "/config/profiles/" + strconv.FormatInt(pid, 10)
 }
 
 // handleCreateProfile validates and inserts a new profile.
@@ -227,7 +238,9 @@ func (s *Handlers) saveProfile(w http.ResponseWriter, r *http.Request, orgID, pi
 			s.ServerError(w, r, "could not save profile", err)
 			return
 		default:
-			http.Redirect(w, r, "/orgs/"+orgParam(r)+"/config/edit", http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
+			// Back to the config page with the saved profile selected, so the editor
+			// closes onto what was just changed. hxRedirect closes the modal.
+			s.hxRedirect(w, r, "/orgs/"+orgParam(r)+"/config?profile="+url.QueryEscape(name))
 			return
 		}
 	}
@@ -249,7 +262,7 @@ func (s *Handlers) handleDeleteProfile(w http.ResponseWriter, r *http.Request) {
 		s.ServerError(w, r, "could not delete profile", err)
 		return
 	}
-	http.Redirect(w, r, "/orgs/"+orgParam(r)+"/config/edit", http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
+	http.Redirect(w, r, "/orgs/"+orgParam(r)+"/config", http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
 }
 
 // pageRegionsEdit renders the region map editor (map + side list).

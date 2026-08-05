@@ -87,14 +87,15 @@ func TestOrgConfigProfileUpdateDelete(t *testing.T) {
 	upd := post(t, ts, h.app, base+"/profiles/"+strconv.FormatInt(pid, 10),
 		url.Values{"profile_name": {"Heltec"}, "profile_steps": {"# base"}}, sess)
 	upd.Body.Close()
-	if loc, _ := url.Parse(upd.Header.Get("Location")); upd.StatusCode != http.StatusSeeOther || loc.Path != base+"/edit" {
-		t.Fatalf("update profile = %d %q, want 303 → config/edit", upd.StatusCode, upd.Header.Get("Location"))
+	// Both land back on the config page, where profiles are managed.
+	if loc, _ := url.Parse(upd.Header.Get("Location")); upd.StatusCode != http.StatusSeeOther || loc.Path != base {
+		t.Fatalf("update profile = %d %q, want 303 → config", upd.StatusCode, upd.Header.Get("Location"))
 	}
 
 	del := post(t, ts, h.app, base+"/profiles/"+strconv.FormatInt(pid, 10)+"/delete", url.Values{}, sess)
 	del.Body.Close()
-	if loc, _ := url.Parse(del.Header.Get("Location")); del.StatusCode != http.StatusSeeOther || loc.Path != base+"/edit" {
-		t.Fatalf("delete profile = %d %q, want 303 → config/edit", del.StatusCode, del.Header.Get("Location"))
+	if loc, _ := url.Parse(del.Header.Get("Location")); del.StatusCode != http.StatusSeeOther || loc.Path != base {
+		t.Fatalf("delete profile = %d %q, want 303 → config", del.StatusCode, del.Header.Get("Location"))
 	}
 }
 

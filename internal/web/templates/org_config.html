@@ -3,9 +3,9 @@
 {{define "content"}}
 {{template "org-tabs" .Nav}}
 
-{{if not .Config.HasConfig}}
+{{if and (not .Config.HasConfig) (not .CanEdit)}}
 <div class="card"><div class="card-body text-secondary">
-  This organization hasn't defined any configuration yet.{{if .CanEdit}} Use <strong>Edit</strong> to add a profile or region.{{end}}
+  This organization hasn't defined any configuration yet.
 </div></div>
 {{else}}
 <div class="row row-cards">
@@ -15,6 +15,15 @@
     <div class="card">
       <div class="card-header"><h2 class="card-title">{{.Config.Selected}} · base settings</h2></div>
       <div class="card-body">{{template "step-list" .Config.SelectedSteps}}</div>
+    </div>
+    {{else if .CanEdit}}
+    <!-- Admin, no profiles yet: explain what a profile is and point at Add profile. -->
+    <div class="card">
+      <div class="card-header"><h2 class="card-title">What's a profile?</h2></div>
+      <div class="card-body">
+        <p>A <strong>profile</strong> is this organization's recommended configuration: the commands a repeater owner runs to bring their repeater in spec, not just onto the mesh. Profiles vary by hardware and use case, so give each one a name that tells members which fits theirs.</p>
+        <p class="text-secondary mb-0">Use <strong>Add profile</strong> to create your first one.</p>
+      </div>
     </div>
     {{end}}
 
@@ -31,28 +40,54 @@
     {{end}}
   </div>
 
-  <!-- Sidebar: profile selector (if profiles) + a click-to-preview location map -->
+  <!-- Sidebar: the profile list (select one to show it on the left; admins edit in
+       place) + a click-to-preview location map -->
   <div class="col-lg-4">
-    {{if .Config.Profiles}}
+    {{if or .Config.Profiles .CanEdit}}
     <div class="card">
-      <div class="card-header"><h2 class="card-title">Profile</h2></div>
-      <div class="card-body">
-        <form method="get" action="/orgs/{{.Org.Slug}}/config">
-          <select class="form-select" name="profile" aria-label="Choose a configuration profile" data-autosubmit>
-            {{range .Config.Profiles}}<option value="{{.Name}}"{{if eq .Name $.Config.Selected}} selected{{end}}>{{.Name}}</option>{{end}}
-          </select>
-          {{if .PreviewLat}}<input type="hidden" name="lat" value="{{.PreviewLat}}">{{end}}
-          {{if .PreviewLon}}<input type="hidden" name="lon" value="{{.PreviewLon}}">{{end}}
-        </form>
-        <p class="text-secondary small mt-2 mb-0">
-          Pick the profile matching your hardware to see its base settings.{{if .Config.HasRegions}} A repeater's regions are assigned separately, by location.{{end}}
-        </p>
+      <div class="card-header">
+        <h2 class="card-title">Profiles</h2>
+        {{if .CanEdit}}
+        <div class="card-actions">
+          <button type="button" class="btn btn-sm btn-primary" data-testid="config-profile-add"
+                  data-bs-toggle="modal" data-bs-target="#config-profile-modal"
+                  hx-get="/orgs/{{.Org.Slug}}/config/profiles/new" hx-target="#config-profile-modal-content" hx-swap="innerHTML">{{template "icon-plus" "me-1"}}Add profile</button>
+        </div>
+        {{end}}
       </div>
+      {{if .Config.Profiles}}
+      <div class="list-group list-group-flush list-group-hoverable profile-list" data-testid="config-profile-list">
+        {{range .Config.Profiles}}
+        <div class="list-group-item d-flex align-items-center gap-2{{if eq .Name $.Config.Selected}} active{{end}}" data-testid="config-profile-row">
+          <a class="flex-fill text-truncate text-reset text-decoration-none"
+             href="/orgs/{{$.Org.Slug}}/config?profile={{.Name | urlquery}}{{if $.PreviewLat}}&amp;lat={{$.PreviewLat}}&amp;lon={{$.PreviewLon}}{{end}}"
+             {{if eq .Name $.Config.Selected}}aria-current="true"{{end}}>{{.Name}}</a>
+          {{if $.CanEdit}}
+          <button type="button" class="btn btn-icon btn-ghost-secondary" data-testid="config-profile-edit"
+                  title="Edit profile" aria-label="Edit profile {{.Name}}"
+                  data-bs-toggle="modal" data-bs-target="#config-profile-modal"
+                  hx-get="/orgs/{{$.Org.Slug}}/config/profiles/{{.ID}}/edit" hx-target="#config-profile-modal-content" hx-swap="innerHTML">{{template "icon-pencil" ""}}</button>
+          <form method="post" action="/orgs/{{$.Org.Slug}}/config/profiles/{{.ID}}/delete" class="m-0" data-confirm="Delete the profile “{{.Name}}”?">
+            <button type="submit" class="btn btn-icon btn-ghost-danger" data-testid="config-profile-delete"
+                    title="Delete profile" aria-label="Delete profile {{.Name}}">{{template "icon-trash" ""}}</button>
+          </form>
+          {{end}}
+        </div>
+        {{end}}
+      </div>
+      {{else}}
+      <div class="card-body text-secondary">No profiles yet.</div>
+      {{end}}
+      {{if or .Config.Profiles .Config.HasRegions}}
+      <div class="card-footer text-secondary small">
+        {{if .Config.Profiles}}Select a profile to see its base settings.{{end}}{{if .Config.HasRegions}} A repeater's regions are assigned separately, by location.{{end}}
+      </div>
+      {{end}}
     </div>
     {{end}}
 
     {{if .Config.HasRegionShapes}}
-    <div class="card{{if .Config.Profiles}} mt-3{{end}}">
+    <div class="card{{if or .Config.Profiles .CanEdit}} mt-3{{end}}">
       <div class="card-header"><h2 class="card-title">Preview a location</h2></div>
       <div class="card-body p-2">
         <link rel="stylesheet" href="{{ asset "/static/leaflet.css" }}">
@@ -74,6 +109,15 @@
     {{end}}
   </div>
 </div>
+
+{{if .CanEdit}}
+<!-- Admin profile editor; the Add/Edit buttons load their fragment here via htmx. -->
+<div class="modal modal-blur fade" id="config-profile-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content" id="config-profile-modal-content"></div>
+  </div>
+</div>
+{{end}}
 {{end}}
 {{end}}
 

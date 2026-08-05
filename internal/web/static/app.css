@@ -209,6 +209,23 @@ code.pubkey {
 .leaflet-container .leaflet-control-layers-list label { margin: 0; color: var(--tblr-body-color); }
 .leaflet-container .leaflet-control-layers-selector { accent-color: var(--tblr-primary); }
 
+/* Profile list on the org config page: a long list scrolls inside its card
+   instead of pushing the location-preview map off the page. Rows are compact —
+   Tabler's default list-group padding plus a full-size icon button makes a ~4.5rem
+   row, so only a couple fit before scrolling. Both are driven by CSS variables, so
+   turn those down here rather than overriding the padding itself. */
+.profile-list {
+  max-height: 22rem;
+  overflow-y: auto;
+}
+.profile-list .list-group-item {
+  --tblr-list-group-item-padding-y: 0.375rem;
+}
+.profile-list .btn-icon {
+  --tblr-btn-padding-y: 0.25rem;
+  --tblr-btn-icon-size: 1.25rem;
+}
+
 /* Active region block in the config editor: highlight the block currently being
    drawn on the shared region map. */
 .region-block.region-active {

@@ -31,13 +31,17 @@ func TestOrgConfigProfilesFlow(t *testing.T) {
 		t.Fatalf("create org: %v", err)
 	}
 
-	// Two profiles, each created on its own page.
+	// Two profiles, each created through the editor. A save lands back on the
+	// config page with the new profile selected.
 	for _, p := range []struct{ name, steps string }{{"ESP32", "# esp base"}, {"nRF52", "# nrf base"}} {
 		save := post(t, ts, h.app, "/orgs/"+org.Slug+"/config/profiles",
 			url.Values{"profile_name": {p.name}, "profile_steps": {p.steps}}, sess)
 		save.Body.Close()
 		if save.StatusCode != http.StatusSeeOther {
 			t.Fatalf("create profile %s status = %d, want 303", p.name, save.StatusCode)
+		}
+		if got, want := save.Header.Get("Location"), "/orgs/"+org.Slug+"/config?profile="+url.QueryEscape(p.name); got != want {
+			t.Fatalf("create profile %s redirected to %q, want %q", p.name, got, want)
 		}
 	}
 	// A geofenced region, saved on the region page.
@@ -55,9 +59,13 @@ func TestOrgConfigProfilesFlow(t *testing.T) {
 	}
 
 	body := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/config", sess))
-	// Profiles list with a selector; the geofenced region surfaces as the
-	// click-to-preview location map (regions aren't listed individually).
-	for _, want := range []string{"ESP32", "nRF52", "<select", "Preview a location", "region-map"} {
+	// The profile list, with per-row admin actions; the geofenced region surfaces as
+	// the click-to-preview location map (regions aren't listed individually).
+	for _, want := range []string{
+		"ESP32", "nRF52", `data-testid="config-profile-list"`,
+		`data-testid="config-profile-add"`, `data-testid="config-profile-edit"`, `data-testid="config-profile-delete"`,
+		`id="config-profile-modal"`, "Preview a location", "region-map",
+	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("config view missing %q", want)
 		}
@@ -72,14 +80,17 @@ func TestOrgConfigProfilesFlow(t *testing.T) {
 		t.Fatalf("?profile=nRF52 should show nRF52's base settings")
 	}
 
-	// The admin editor pages render: the hub lists the profiles + region summary,
-	// the new-profile page shows the base-settings editor, and the region page has
-	// the map + a region row.
+	// The admin editor pages render: the hub summarizes the regions (profiles live
+	// on the config page now), the new-profile page shows the base-settings editor,
+	// and the region page has the map + a region row.
 	hub := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/config/edit", sess))
-	for _, want := range []string{"ESP32", "nRF52", "Add profile", "Edit regions", "1 region"} {
+	for _, want := range []string{"Edit regions", "1 region"} {
 		if !strings.Contains(hub, want) {
 			t.Fatalf("config hub missing %q", want)
 		}
+	}
+	if strings.Contains(hub, "Add profile") {
+		t.Fatalf("config hub should no longer manage profiles")
 	}
 	newProf := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/config/profiles/new", sess))
 	if !strings.Contains(newProf, "Base settings") || !strings.Contains(newProf, "Create profile") {

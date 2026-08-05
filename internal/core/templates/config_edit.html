@@ -16,36 +16,6 @@
 <div class="card">
   <div class="card-header">
     <div>
-      <h2 class="card-title">Profiles</h2>
-      <div class="text-secondary small">Named sets of base settings — e.g. one per board family. Members pick the profile matching their use case.</div>
-    </div>
-    <div class="card-actions">
-      <a class="btn btn-primary" href="/orgs/{{.Org.Slug}}/config/profiles/new">{{template "icon-plus" "me-1"}}Add profile</a>
-    </div>
-  </div>
-  {{if .Profiles}}
-  <div class="list-group list-group-flush">
-    {{range .Profiles}}
-    <div class="list-group-item d-flex align-items-center gap-3">
-      <div class="flex-fill" style="min-width:0">
-        <div class="fw-bold text-truncate">{{.Name}}</div>
-        <div class="text-secondary small">{{len .Steps}} step{{if ne (len .Steps) 1}}s{{end}}</div>
-      </div>
-      <a class="btn btn-sm" href="/orgs/{{$.Org.Slug}}/config/profiles/{{.ID}}/edit">Edit</a>
-      <form method="post" action="/orgs/{{$.Org.Slug}}/config/profiles/{{.ID}}/delete" class="m-0" data-confirm="Delete the profile “{{.Name}}”?">
-        <button type="submit" class="btn btn-sm btn-ghost-danger">Delete</button>
-      </form>
-    </div>
-    {{end}}
-  </div>
-  {{else}}
-  <div class="card-body"><p class="text-secondary mb-0">No profiles yet. Add one to give members a base-settings preset for their hardware.</p></div>
-  {{end}}
-</div>
-
-<div class="card mt-3">
-  <div class="card-header">
-    <div>
       <h2 class="card-title">Regions</h2>
       <div class="text-secondary small">Named areas drawn on a map. A repeater is auto-assigned to every region whose area contains it, forming its <code>region def</code>.</div>
     </div>
