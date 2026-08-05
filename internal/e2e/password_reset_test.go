@@ -49,11 +49,12 @@ func TestE2EPasswordRecoveryRoundTrip(t *testing.T) {
 		page.Enable(),
 		setSessionCookie(cookie),
 		chromedp.Navigate(srv.authURL+"/account"),
-		chromedp.WaitVisible(`#email`, chromedp.ByQuery),
+		expandSection("manage-email", `#email`),
 		chromedp.SendKeys(`#email`, address, chromedp.ByQuery),
 		chromedp.Click(`[data-testid="email-save"]`, chromedp.ByQuery),
 		// The saved-address row is the state we need, and unlike a flash alert it can't
-		// be left over from an earlier action.
+		// be left over from an earlier action. The save's flash reopens the row, so
+		// there's nothing to expand here.
 		chromedp.WaitVisible(`[data-testid="email-remove"]`, chromedp.ByQuery),
 	); err != nil {
 		t.Fatalf("add address: %v", err)
@@ -71,7 +72,9 @@ func TestE2EPasswordRecoveryRoundTrip(t *testing.T) {
 		// and fails with ERR_ABORTED.
 		waitForLocation(srv.authURL+"/account"),
 		chromedp.Navigate(srv.authURL+"/account"),
-		chromedp.WaitVisible(`[data-testid="email-remove"]`, chromedp.ByQuery),
+		// A fresh load has no flash, so the email row is closed again.
+		expandSection("manage-email", `[data-testid="email-remove"]`),
+		// The confirmed/unconfirmed badge is on the row summary, not inside the panel.
 		chromedp.Text(`.badge`, &confirmedState, chromedp.ByQuery),
 	); err != nil {
 		t.Fatalf("confirm address: %v", err)
@@ -185,7 +188,7 @@ func TestE2ERemoveEmailConfirmDialog(t *testing.T) {
 		page.Enable(),
 		setSessionCookie(cookie),
 		chromedp.Navigate(srv.authURL+"/account"),
-		chromedp.WaitVisible(`#email`, chromedp.ByQuery),
+		expandSection("manage-email", `#email`),
 		chromedp.SendKeys(`#email`, address, chromedp.ByQuery),
 		chromedp.Click(`[data-testid="email-save"]`, chromedp.ByQuery),
 		chromedp.WaitVisible(`[data-testid="email-remove"]`, chromedp.ByQuery),

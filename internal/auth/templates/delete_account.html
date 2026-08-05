@@ -169,14 +169,14 @@
     {{/* Passkey-only: there's no password to type, so the ceremony IS the
          confirmation. The button verifies, then submits the form above. */}}
     <p class="text-secondary mt-3 mb-2">Verify with your passkey to enable deletion.</p>
-    <button type="button" class="btn btn-outline-danger" id="delete-reauth-btn"
+    <button type="button" class="btn btn-outline-danger" data-reauth
             data-form="delete-account-form" data-testid="verify-passkey">
       Verify with passkey
     </button>
     <div class="mt-2" id="passkey-status" role="status" aria-live="polite"></div>
     {{else if .HasPasskeys}}
     <p class="text-secondary mt-3 mb-2">Or verify with a passkey instead of typing your password:</p>
-    <button type="button" class="btn btn-outline-danger" id="delete-reauth-btn"
+    <button type="button" class="btn btn-outline-danger" data-reauth
             data-form="delete-account-form" data-testid="verify-passkey">
       Verify with passkey
     </button>

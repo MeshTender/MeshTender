@@ -54,7 +54,8 @@ func TestE2EDeleteAccountWithPasskey(t *testing.T) {
 	if err := chromedp.Run(ctx,
 		setSessionCookie(cookie),
 		chromedp.Navigate(e.authURL+"/account"),
-		chromedp.WaitVisible("#add-passkey-btn", chromedp.ByID),
+		// The add-a-passkey form lives behind the Passkeys row's toggle.
+		expandSection("manage-passkeys", "#add-passkey-btn"),
 		chromedp.Click("#add-passkey-btn", chromedp.ByID),
 	); err != nil {
 		t.Fatalf("add a passkey: %v", err)

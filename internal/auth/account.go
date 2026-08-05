@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/mail"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -31,8 +32,8 @@ func accountRedirect(w http.ResponseWriter, r *http.Request, key, msg string) {
 }
 
 // passkeyRedirect bounces back to the account page with a flash shown inside the
-// Passkeys card ("pk" for success, "pkerr" for failure), so passkey messages
-// stay next to the passkey controls rather than in the top banner.
+// "Sign-in & security" card ("pk" for success, "pkerr" for failure), so passkey
+// messages stay next to the passkey controls rather than in the top banner.
 func passkeyRedirect(w http.ResponseWriter, r *http.Request, key, msg string) {
 	web.RedirectFlash(w, r, "/account", key, msg)
 }
@@ -141,11 +142,41 @@ func (s *Handlers) handleChangeUsername(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
-// handleUpdateProfile saves the user's display name.
-func (s *Handlers) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
+// handleSaveProfile saves the user's whole public profile from the single form
+// on the account page: display name, the text fields shown on their public page,
+// and the link set. One form, one endpoint, one transaction — nothing here is
+// meaningful on its own, and saving them separately let a user leave the page
+// having stored half of what they'd written.
+func (s *Handlers) handleSaveProfile(w http.ResponseWriter, r *http.Request) {
 	uid := s.Auth.CurrentUserID(r.Context())
-	displayName := NormalizeDisplayName(r.FormValue("display_name"))
-	if err := s.Store.SetDisplayName(r.Context(), uid, displayName); err != nil {
+	if err := r.ParseForm(); err != nil {
+		accountRedirect(w, r, "error", "Could not save your profile.")
+		return
+	}
+	p := store.UserProfile{
+		DisplayName: NormalizeDisplayName(r.FormValue("display_name")),
+		Bio:         boundedText(r.FormValue("bio"), 500),
+		Location:    boundedText(r.FormValue("location"), 120),
+		Callsign:    boundedText(r.FormValue("callsign"), 32),
+	}
+	links, errMsg := parseUserLinks(r.Form)
+	if errMsg != "" {
+		// Re-render the form with everything the user typed and the error, so their
+		// work survives the round-trip. 200, not a redirect: there's nothing new to
+		// bookmark and we need the POST body to rebuild the fields. Every field goes
+		// back, not just the links — they're one form now, so a bad link row must not
+		// cost someone the bio they wrote next to it.
+		s.renderAccount(w, r, uid, map[string]any{
+			"DisplayName": p.DisplayName,
+			"Bio":         p.Bio,
+			"Location":    p.Location,
+			"Callsign":    p.Callsign,
+			"Links":       submittedUserLinks(r.Form),
+			"Error":       errMsg,
+		})
+		return
+	}
+	if err := s.Store.SaveUserProfile(r.Context(), uid, p, links); err != nil {
 		accountRedirect(w, r, "error", "Could not save your profile.")
 		return
 	}
@@ -173,45 +204,18 @@ func (s *Handlers) handleSetTimezone(w http.ResponseWriter, r *http.Request) {
 	accountRedirect(w, r, "ok", "Time zone updated.")
 }
 
-// handleSetProfileFields saves the user's public profile fields (bio, location,
-// callsign) shown on their public page. Each field is trimmed and bounded; a
-// blank field simply won't render.
-func (s *Handlers) handleSetProfileFields(w http.ResponseWriter, r *http.Request) {
-	uid := s.Auth.CurrentUserID(r.Context())
-	bio := boundedText(r.FormValue("bio"), 500)
-	location := boundedText(r.FormValue("location"), 120)
-	callsign := boundedText(r.FormValue("callsign"), 32)
-	if err := s.Store.SetProfile(r.Context(), uid, bio, location, callsign); err != nil {
-		accountRedirect(w, r, "error", "Could not save your profile.")
-		return
-	}
-	accountRedirect(w, r, "ok", "Profile updated.")
-}
-
-// handleSetUserLinks replaces the current user's whole set of public profile
-// links from the repeatable rows posted by the editor. Rows with a blank value
-// are dropped. Most rows carry an http(s) URL; a "meshcore" row carries a
-// MeshCore public key (validated as hex) and renders as a QR code. The optional
-// primary-contact radio flags one non-MeshCore link as the preferred way to
-// reach the user.
-func (s *Handlers) handleSetUserLinks(w http.ResponseWriter, r *http.Request) {
-	uid := s.Auth.CurrentUserID(r.Context())
-	if err := r.ParseForm(); err != nil {
-		accountRedirect(w, r, "error", "Could not save links.")
-		return
-	}
+// parseUserLinks validates the repeatable link rows posted by the editor into
+// the set we'd persist. Rows with a blank value are dropped. Most rows carry an
+// http(s) URL; a "meshcore" row carries a MeshCore public key (validated as hex)
+// and renders as a QR code. The optional primary-contact radio flags one
+// non-MeshCore link as the preferred way to reach the user. It returns the first
+// validation problem as a message; an empty message means every row was fine.
+func parseUserLinks(form url.Values) ([]store.UserLink, string) {
 	// Index-aligned parallel arrays, one entry per row, in row order.
-	platforms := r.Form["link_platform"]
-	labels := r.Form["link_label"]
-	urls := r.Form["link_url"]
-	// The primary radio's value is the row index (renumbered to DOM order on
-	// submit), or absent when no primary is chosen.
-	primaryIdx := -1
-	if v := r.FormValue("link_primary"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil {
-			primaryIdx = n
-		}
-	}
+	platforms := form["link_platform"]
+	labels := form["link_label"]
+	urls := form["link_url"]
+	primaryIdx := primaryLinkIndex(form)
 	// Validate every non-empty row into the set we'd persist. On the first
 	// problem we remember the message but keep parsing, so a failed save can
 	// re-render every row the user entered (see errMsg handling below) rather
@@ -286,21 +290,17 @@ func (s *Handlers) handleSetUserLinks(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
-	if errMsg != "" {
-		// Re-render the editor with the user's own rows and the error, so their
-		// work survives the round-trip. 200, not a redirect: there's nothing new
-		// to bookmark and we need the POST body to rebuild the rows.
-		s.renderAccount(w, r, uid, map[string]any{
-			"Links": submittedUserLinks(urls, labels, platforms, primaryIdx),
-			"Error": errMsg,
-		})
-		return
+	return links, errMsg
+}
+
+// primaryLinkIndex reads the primary-contact radio, whose value is the row index
+// (renumbered to DOM order on submit). It returns -1 when no primary is chosen.
+func primaryLinkIndex(form url.Values) int {
+	n, err := strconv.Atoi(form.Get("link_primary"))
+	if err != nil {
+		return -1
 	}
-	if err := s.Store.ReplaceUserLinks(r.Context(), uid, links); err != nil {
-		accountRedirect(w, r, "error", "Could not save links.")
-		return
-	}
-	accountRedirect(w, r, "ok", "Links updated.")
+	return n
 }
 
 // setIfEmpty stores msg in *dst only if it's still empty, so we surface the first
@@ -315,7 +315,11 @@ func setIfEmpty(dst *string, msg string) {
 // their raw (untrimmed-of-meaning) values, so a failed save can re-render exactly
 // what they typed. Empty rows are dropped to match the save path; the primary
 // radio is preserved by index.
-func submittedUserLinks(urls, labels, platforms []string, primaryIdx int) []store.UserLink {
+func submittedUserLinks(form url.Values) []store.UserLink {
+	platforms := form["link_platform"]
+	labels := form["link_label"]
+	urls := form["link_url"]
+	primaryIdx := primaryLinkIndex(form)
 	var rows []store.UserLink
 	for i, raw := range urls {
 		val := strings.TrimSpace(raw)
@@ -426,6 +430,16 @@ func (s *Handlers) handleChangePassword(w http.ResponseWriter, r *http.Request) 
 			accountRedirect(w, r, "error", "Add a passkey before removing your password — it's your only way to sign in.")
 			return
 		}
+		// Removing a password permanently narrows how this account can be recovered,
+		// so it takes a fresh assertion — the same bar as deleting the account. A live
+		// session only says somebody signed in here at some point; the passkey says
+		// the account holder is at the keyboard now. The UI runs the ceremony before
+		// submitting, so reaching this message means the proof expired or the form was
+		// posted directly.
+		if !s.Auth.ReauthFresh(ctx) {
+			accountRedirect(w, r, "error", "Verify with your passkey to remove your password.")
+			return
+		}
 		if err := s.Store.ClearPassword(ctx, uid); err != nil {
 			accountRedirect(w, r, "error", "Could not remove password.")
 			return
@@ -438,6 +452,12 @@ func (s *Handlers) handleChangePassword(w http.ResponseWriter, r *http.Request) 
 	if !ValidPassword(newPassword) {
 		accountRedirect(w, r, "error", fmt.Sprintf(
 			"New password must be at least %d characters.", MinPasswordLen))
+		return
+	}
+	// The confirmation field catches a typo in a value the user can't see. Checked
+	// server-side as well as by the form, since the form is only a convenience.
+	if r.FormValue("confirm_password") != newPassword {
+		accountRedirect(w, r, "error", "The new passwords don't match.")
 		return
 	}
 	// When a password already exists, require the current one to change it.

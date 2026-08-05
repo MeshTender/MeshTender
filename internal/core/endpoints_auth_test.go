@@ -239,28 +239,30 @@ func assertAccountOK(t *testing.T, resp *http.Response, label string) {
 	}
 }
 
-// #29 profile, #100 profile-fields, #101 links, #30 password, #28 username.
+// #29 profile (display name, text fields, and links in one post), #30 password,
+// #28 username.
 func TestAccountProfilePosts(t *testing.T) {
 	t.Parallel()
 	st, ctx, ts, h := splitServer(t)
 	sso := authSSO(t, ts, h, "acctuser")
 
-	profile := post(t, ts, h.auth, "/account/profile", url.Values{"display_name": {"Ada Lovelace"}}, sso)
+	profile := post(t, ts, h.auth, "/account/profile", url.Values{
+		"display_name":  {"Ada Lovelace"},
+		"bio":           {"hi there"},
+		"location":      {"NYC"},
+		"callsign":      {"W1AW"},
+		"link_platform": {"website"},
+		"link_label":    {"Site"},
+		"link_url":      {"https://example.com"},
+	}, sso)
 	profile.Body.Close()
 	assertAccountOK(t, profile, "profile")
 
-	fields := post(t, ts, h.auth, "/account/profile-fields",
-		url.Values{"bio": {"hi there"}, "location": {"NYC"}, "callsign": {"W1AW"}}, sso)
-	fields.Body.Close()
-	assertAccountOK(t, fields, "profile-fields")
-
-	links := post(t, ts, h.auth, "/account/links",
-		url.Values{"link_platform": {"website"}, "link_label": {"Site"}, "link_url": {"https://example.com"}}, sso)
-	links.Body.Close()
-	assertAccountOK(t, links, "links")
-
-	pw := post(t, ts, h.auth, "/account/password",
-		url.Values{"new_password": {"anothersecret"}, "current_password": {testPassword}}, sso)
+	pw := post(t, ts, h.auth, "/account/password", url.Values{
+		"current_password": {testPassword},
+		"new_password":     {"anothersecret"},
+		"confirm_password": {"anothersecret"},
+	}, sso)
 	pw.Body.Close()
 	assertAccountOK(t, pw, "password")
 

@@ -46,7 +46,7 @@ func TestE2EAccountTimezonePicker(t *testing.T) {
 		chromedp.Text(`[data-tz-detected]`, &detectedHint, chromedp.ByQuery),
 		// Choose a specific zone and save.
 		chromedp.SetValue(`#acct_timezone`, "America/New_York", chromedp.ByQuery),
-		chromedp.Click(`[data-testid="tz-save"]`, chromedp.ByQuery),
+		chromedp.Click(`[data-testid="preferences-save"]`, chromedp.ByQuery),
 		// The save redirects back to /account with a success flash.
 		chromedp.WaitVisible(`.alert-success`, chromedp.ByQuery),
 	); err != nil {

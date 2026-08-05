@@ -121,23 +121,29 @@ func (s *Store) ListUserLinks(ctx context.Context, userID int64) ([]UserLink, er
 // as primary (the first flagged wins). Platform/URL validation is the caller's
 // responsibility.
 func (s *Store) ReplaceUserLinks(ctx context.Context, userID int64, links []UserLink) error {
-	primarySeen := false
 	return s.inTx(ctx, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx, `DELETE FROM user_links WHERE user_id = $1`, userID); err != nil {
-			return fmt.Errorf("clear user links: %w", err)
-		}
-		for i, l := range links {
-			primary := l.IsPrimary && !primarySeen
-			if primary {
-				primarySeen = true
-			}
-			if _, err := tx.Exec(ctx,
-				`INSERT INTO user_links (user_id, platform, label, url, position, is_primary)
-				 VALUES ($1, $2, $3, $4, $5, $6)`,
-				userID, l.Platform, l.Label, l.URL, i, primary); err != nil {
-				return fmt.Errorf("insert user link: %w", err)
-			}
-		}
-		return nil
+		return replaceUserLinksTx(ctx, tx, userID, links)
 	})
+}
+
+// replaceUserLinksTx is the body of ReplaceUserLinks, so a caller already inside
+// a transaction (SaveUserProfile) can reuse it rather than open a second one.
+func replaceUserLinksTx(ctx context.Context, tx pgx.Tx, userID int64, links []UserLink) error {
+	if _, err := tx.Exec(ctx, `DELETE FROM user_links WHERE user_id = $1`, userID); err != nil {
+		return fmt.Errorf("clear user links: %w", err)
+	}
+	primarySeen := false
+	for i, l := range links {
+		primary := l.IsPrimary && !primarySeen
+		if primary {
+			primarySeen = true
+		}
+		if _, err := tx.Exec(ctx,
+			`INSERT INTO user_links (user_id, platform, label, url, position, is_primary)
+			 VALUES ($1, $2, $3, $4, $5, $6)`,
+			userID, l.Platform, l.Label, l.URL, i, primary); err != nil {
+			return fmt.Errorf("insert user link: %w", err)
+		}
+	}
+	return nil
 }

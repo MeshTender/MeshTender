@@ -63,8 +63,13 @@ function encodeAssertion(cred) {
   };
 }
 
-function setStatus(msg) {
-  const el = document.getElementById("passkey-status");
+// setStatus writes ceremony progress into a status line. Pages with a single
+// ceremony use the default #passkey-status; where a page runs more than one (the
+// account page adds a passkey in one row and re-verifies to remove a password in
+// another), the button names its own status element via data-status so the
+// message lands next to the button that was pressed.
+function setStatus(msg, id) {
+  const el = document.getElementById(id || "passkey-status");
   if (el) el.textContent = msg;
 }
 
@@ -163,11 +168,12 @@ async function passkeyLogin() {
 async function reauthPasskey(e) {
   const btn = e.currentTarget;
   const form = document.getElementById(btn.getAttribute("data-form") || "");
+  const status = btn.getAttribute("data-status") || "";
   try {
-    setStatus("Starting…");
+    setStatus("Starting…", status);
     const options = await postJSON("/account/reauth/passkey/begin", {});
     const cred = await navigator.credentials.get({ publicKey: decodeRequest(options.publicKey) });
-    setStatus("Verifying…");
+    setStatus("Verifying…", status);
     const result = await fetch("/account/reauth/passkey/finish", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -175,10 +181,10 @@ async function reauthPasskey(e) {
     });
     const data = await result.json().catch(() => ({}));
     if (!result.ok) throw new Error(data.error || "verification failed");
-    setStatus("Verified.");
+    setStatus("Verified.", status);
     if (form) form.requestSubmit();
   } catch (err) {
-    setStatus("Error: " + err.message);
+    setStatus("Error: " + err.message, status);
   }
 }
 
@@ -330,11 +336,15 @@ async function initSignupEmphasis() {
     ["add-passkey-btn", addPasskey],
     ["passkey-btn", passkeyButton],
     ["signup-passkey-btn", passkeyRegister],
-    ["delete-reauth-btn", reauthPasskey],
   ];
   bindings.forEach(function (b) {
     var el = document.getElementById(b[0]);
     if (el) el.addEventListener("click", b[1]);
+  });
+  // Re-auth buttons are bound by attribute, not id: a page can carry more than
+  // one, each naming the form it submits and the status line it writes to.
+  document.querySelectorAll("[data-reauth]").forEach(function (el) {
+    el.addEventListener("click", reauthPasskey);
   });
   if (document.getElementById("signup-form")) initSignupEmphasis();
 })();

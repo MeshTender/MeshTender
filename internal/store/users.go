@@ -371,6 +371,34 @@ func (s *Store) SetProfile(ctx context.Context, userID int64, bio, location, cal
 	return nil
 }
 
+// UserProfile is the set of public profile fields the account page saves
+// together. Empty strings clear a field; bounding the lengths is the caller's
+// responsibility.
+type UserProfile struct {
+	DisplayName string
+	Bio         string
+	Location    string
+	Callsign    string
+}
+
+// SaveUserProfile writes a user's whole public profile — the text fields and the
+// link set — in one transaction, so a page that presents them as a single form
+// can't half-succeed and leave a profile the user never composed.
+func (s *Store) SaveUserProfile(ctx context.Context, userID int64, p UserProfile, links []UserLink) error {
+	var dn *string
+	if p.DisplayName != "" {
+		dn = &p.DisplayName
+	}
+	return s.inTx(ctx, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx,
+			`UPDATE users SET display_name = $2, bio = $3, location = $4, callsign = $5 WHERE id = $1`,
+			userID, dn, p.Bio, p.Location, p.Callsign); err != nil {
+			return fmt.Errorf("save user profile: %w", err)
+		}
+		return replaceUserLinksTx(ctx, tx, userID, links)
+	})
+}
+
 // SetTimezone updates a user's preferred IANA time zone for date/time display.
 // An empty string clears it (the browser auto-detects). Validating that tz is a
 // real IANA name is the caller's responsibility.

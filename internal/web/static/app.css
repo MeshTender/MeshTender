@@ -63,6 +63,24 @@ code.pubkey {
   display: inline;
 }
 
+/* A row's expanded panel (account page credential rows) lines up with the row's
+   heading rather than with the icon gutter to its left: one .icon (1.25rem) plus
+   one g-3 grid gutter (1rem). Hardcoded rather than read from --tblr-icon-size,
+   which Tabler redefines per component context. */
+.row-panel {
+  padding-left: 2.25rem;
+}
+
+/* A chevron on a collapse toggle: points down when the panel is closed, up when
+   it's open. Bootstrap maintains aria-expanded on the toggle itself, so the same
+   attribute the Show/Hide labels key off drives this too — no JS of our own. */
+.collapse-chevron {
+  transition: transform 0.2s ease;
+}
+[aria-expanded="true"] .collapse-chevron {
+  transform: rotate(180deg);
+}
+
 /* ---------- Live event / console log ---------- */
 .evlog {
   list-style: none;

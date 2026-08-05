@@ -323,6 +323,27 @@ func waitForLocation(prefix string) chromedp.ActionFunc {
 	}
 }
 
+// expandSection opens a collapsed panel and waits for something inside it to be
+// visible. The account page's Sign-in & security rows keep each credential's form
+// behind a toggle button, so a test has to open the row before it can type in it.
+// Only call it on a closed panel — a second click would collapse it again (rows
+// carrying a flash message render already open).
+func expandSection(toggleTestID, wantVisible string) chromedp.Tasks {
+	toggle := `[data-testid="` + toggleTestID + `"]`
+	return chromedp.Tasks{
+		chromedp.WaitVisible(toggle, chromedp.ByQuery),
+		chromedp.Click(toggle, chromedp.ByQuery),
+		// Wait out the expand animation before anything clicks inside the panel.
+		// Bootstrap marks a collapse mid-transition with .collapsing and its
+		// contents keep moving until that class is gone — a click dispatched at
+		// coordinates sampled during the slide lands on whatever has scrolled into
+		// that spot instead.
+		chromedp.Poll(`!document.querySelector(".collapsing")`, nil,
+			chromedp.WithPollingTimeout(10*time.Second)),
+		chromedp.WaitVisible(wantVisible, chromedp.ByQuery),
+	}
+}
+
 // newRepeater creates a repeater owned by ownerID with a valid MeshCore key.
 func (e *e2eServer) newRepeater(t *testing.T, ownerID int64, name string) *store.Repeater {
 	t.Helper()

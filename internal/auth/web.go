@@ -78,10 +78,10 @@ func (s *Handlers) Routes() chi.Router {
 			r.Use(s.Auth.RequireSSO)
 			r.Get("/account", s.pageAccount)
 			r.Post("/account/username", s.handleChangeUsername)
-			r.Post("/account/profile", s.handleUpdateProfile)
+			// One endpoint for the whole public profile — display name, text
+			// fields, and links are a single form on the account page.
+			r.Post("/account/profile", s.handleSaveProfile)
 			r.Post("/account/timezone", s.handleSetTimezone)
-			r.Post("/account/profile-fields", s.handleSetProfileFields)
-			r.Post("/account/links", s.handleSetUserLinks)
 			r.Post("/account/password", s.handleChangePassword)
 			r.Post("/account/email", s.handleSetEmail)
 			r.Post("/account/email/verify", s.handleResendEmailVerification)
