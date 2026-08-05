@@ -36,6 +36,17 @@
           </span>
         </div>
       </div>
+      <div class="mb-3">
+        <label class="form-label" for="confirm_pw">Confirm new password</label>
+        <div class="input-group input-group-flat">
+          <input type="password" class="form-control" id="confirm_pw" name="confirm_password"
+                 autocomplete="new-password" minlength="{{.MinPasswordLen}}"
+                 placeholder="Type it again" required>
+          <span class="input-group-text">
+            <button type="button" class="link-secondary border-0 bg-transparent p-0" aria-pressed="false" title="Show password" data-pwtoggle="confirm_pw" aria-label="Show password">{{template "icon-eye" ""}}</button>
+          </span>
+        </div>
+      </div>
       <div class="form-footer mt-0">
         <button type="submit" class="btn btn-primary w-100" data-testid="reset-submit">Set new password</button>
       </div>

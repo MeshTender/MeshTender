@@ -117,6 +117,7 @@ func TestE2EPasswordRecoveryRoundTrip(t *testing.T) {
 		// own link in the same message.
 		chromedp.Text(`.card-body`, &resetHeading, chromedp.ByQuery),
 		chromedp.SendKeys(`#new_pw`, newPassword, chromedp.ByQuery),
+		chromedp.SendKeys(`#confirm_pw`, newPassword, chromedp.ByQuery),
 		chromedp.Click(`[data-testid="reset-submit"]`, chromedp.ByQuery),
 		// Lands back on sign-in with the success flash.
 		chromedp.WaitVisible(`.alert-success`, chromedp.ByQuery),

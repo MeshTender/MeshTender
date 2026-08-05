@@ -222,7 +222,7 @@ func TestResetHappyPath(t *testing.T) {
 	}
 
 	const newPassword = "an-entirely-new-password"
-	resp := post(t, ts, h.auth, path, url.Values{"new_password": {newPassword}})
+	resp := post(t, ts, h.auth, path, url.Values{"new_password": {newPassword}, "confirm_password": {newPassword}})
 	resp.Body.Close()
 	loc, _ := url.Parse(resp.Header.Get("Location"))
 	if resp.StatusCode != http.StatusSeeOther || loc.Path != "/login" || loc.Query().Get("ok") == "" {
@@ -254,10 +254,10 @@ func TestResetLinkIsSingleUse(t *testing.T) {
 	forgot(t, ts, h, "single@example.test").Body.Close()
 	path := linkPath(t, sender.last(t))
 
-	first := post(t, ts, h.auth, path, url.Values{"new_password": {"first-new-password"}})
+	first := post(t, ts, h.auth, path, url.Values{"new_password": {"first-new-password"}, "confirm_password": {"first-new-password"}})
 	first.Body.Close()
 
-	second := post(t, ts, h.auth, path, url.Values{"new_password": {"second-new-password"}})
+	second := post(t, ts, h.auth, path, url.Values{"new_password": {"second-new-password"}, "confirm_password": {"second-new-password"}})
 	body := readAll(t, second)
 	if !strings.Contains(body, "This link doesn't work") {
 		t.Error("a spent reset link was accepted a second time")
@@ -284,7 +284,7 @@ func TestResetGetDoesNotSpendToken(t *testing.T) {
 	do(t, ts, h.auth, path).Body.Close()
 	do(t, ts, h.auth, path).Body.Close()
 
-	resp := post(t, ts, h.auth, path, url.Values{"new_password": {"still-works-password"}})
+	resp := post(t, ts, h.auth, path, url.Values{"new_password": {"still-works-password"}, "confirm_password": {"still-works-password"}})
 	resp.Body.Close()
 	loc, _ := url.Parse(resp.Header.Get("Location"))
 	if loc.Path != "/login" || loc.Query().Get("ok") == "" {
@@ -302,7 +302,7 @@ func TestResetRejectsShortPasswordWithoutSpendingToken(t *testing.T) {
 	forgot(t, ts, h, "shortpw@example.test").Body.Close()
 	path := linkPath(t, sender.last(t))
 
-	bad := post(t, ts, h.auth, path, url.Values{"new_password": {"short"}})
+	bad := post(t, ts, h.auth, path, url.Values{"new_password": {"short"}, "confirm_password": {"short"}})
 	body := readAll(t, bad)
 	if !strings.Contains(body, "at least") {
 		t.Errorf("no length error shown:\n%s", body)
@@ -312,11 +312,56 @@ func TestResetRejectsShortPasswordWithoutSpendingToken(t *testing.T) {
 	}
 
 	// The same link still works with an acceptable password.
-	good := post(t, ts, h.auth, path, url.Values{"new_password": {"now-long-enough-password"}})
+	good := post(t, ts, h.auth, path, url.Values{"new_password": {"now-long-enough-password"}, "confirm_password": {"now-long-enough-password"}})
 	good.Body.Close()
 	loc, _ := url.Parse(good.Header.Get("Location"))
 	if loc.Query().Get("ok") == "" {
 		t.Errorf("retry after a short password failed: %q", good.Header.Get("Location"))
+	}
+}
+
+// TestResetRejectsMismatchedConfirmationWithoutSpendingToken: the confirmation
+// field is worth having on this page above all others — the person typing is
+// already locked out, can't see what they're typing, and the next thing they do
+// with it is sign in. Like the length check, a mismatch has to be caught before
+// the token is consumed, or a typo costs them the link rather than a retry.
+func TestResetRejectsMismatchedConfirmationWithoutSpendingToken(t *testing.T) {
+	t.Parallel()
+	st, ctx, ts, h, sender := splitServerMail(t)
+	u := recoverable(t, st, ctx, "typopw", "typopw@example.test")
+	forgot(t, ts, h, "typopw@example.test").Body.Close()
+	path := linkPath(t, sender.last(t))
+
+	bad := post(t, ts, h.auth, path, url.Values{
+		"new_password":     {"a-long-enough-password"},
+		"confirm_password": {"a-long-enough-passwrod"},
+	})
+	body := readAll(t, bad)
+	if !strings.Contains(body, "passwords don&#39;t match") && !strings.Contains(body, "passwords don't match") {
+		t.Errorf("no mismatch error shown:\n%s", body)
+	}
+	if strings.Contains(body, "This link doesn't work") {
+		t.Fatal("the token was spent by a mistyped confirmation")
+	}
+
+	// Nothing was written, so the old password still signs in.
+	before, err := st.GetUserByID(ctx, u.ID)
+	if err != nil {
+		t.Fatalf("reload user: %v", err)
+	}
+	if before.PasswordHash == nil {
+		t.Fatal("a rejected reset cleared the password")
+	}
+
+	// The same link still works once the two fields agree.
+	good := post(t, ts, h.auth, path, url.Values{
+		"new_password":     {"a-long-enough-password"},
+		"confirm_password": {"a-long-enough-password"},
+	})
+	good.Body.Close()
+	loc, _ := url.Parse(good.Header.Get("Location"))
+	if loc.Query().Get("ok") == "" {
+		t.Errorf("retry after a mismatch failed: %q", good.Header.Get("Location"))
 	}
 }
 
@@ -355,7 +400,7 @@ func TestResetRevokesExistingSessions(t *testing.T) {
 
 	forgot(t, ts, h, "evict@example.test").Body.Close()
 	path := linkPath(t, sender.last(t))
-	post(t, ts, h.auth, path, url.Values{"new_password": {"brand-new-password-here"}}).Body.Close()
+	post(t, ts, h.auth, path, url.Values{"new_password": {"brand-new-password-here"}, "confirm_password": {"brand-new-password-here"}}).Body.Close()
 
 	after := do(t, ts, h.app, "/", victim)
 	after.Body.Close()
@@ -463,7 +508,7 @@ func TestResetRefusedIfPasswordRemovedAfterSending(t *testing.T) {
 		t.Fatalf("clear password: %v", err)
 	}
 
-	resp := post(t, ts, h.auth, path, url.Values{"new_password": {"should-not-apply-pw"}})
+	resp := post(t, ts, h.auth, path, url.Values{"new_password": {"should-not-apply-pw"}, "confirm_password": {"should-not-apply-pw"}})
 	resp.Body.Close()
 	loc, _ := url.Parse(resp.Header.Get("Location"))
 	if loc.Query().Get("error") == "" {

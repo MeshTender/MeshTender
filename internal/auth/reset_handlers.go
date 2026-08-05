@@ -86,9 +86,20 @@ func (s *Handlers) handleReset(w http.ResponseWriter, r *http.Request) {
 	token := chi.URLParam(r, "token")
 	password := r.FormValue("new_password")
 
-	// Validated BEFORE the token is spent: a too-short password must cost the user a
-	// correction, not their only link.
-	if !ValidPassword(password) {
+	// Both checks run BEFORE the token is spent: a correctable mistake — too short,
+	// or a mistyped confirmation — must cost the user a correction, not their only
+	// link. Whoever is here can't sign in, so a dead link is the expensive failure.
+	errMsg := ""
+	switch {
+	case !ValidPassword(password):
+		errMsg = fmt.Sprintf("Password must be at least %d characters.", MinPasswordLen)
+	case r.FormValue("confirm_password") != password:
+		// Worth confirming here more than anywhere else: it's a value the user can't
+		// see, typed by someone already locked out, and the next thing they do with it
+		// is sign in.
+		errMsg = "The passwords don't match."
+	}
+	if errMsg != "" {
 		u, ok, err := s.Auth.PeekResetToken(ctx, token)
 		if err != nil {
 			s.ServerError(w, r, "could not check reset link", err)
@@ -98,8 +109,7 @@ func (s *Handlers) handleReset(w http.ResponseWriter, r *http.Request) {
 			s.renderResetInvalid(w, r)
 			return
 		}
-		s.renderReset(w, r, token, u, fmt.Sprintf(
-			"Password must be at least %d characters.", MinPasswordLen))
+		s.renderReset(w, r, token, u, errMsg)
 		return
 	}
 
