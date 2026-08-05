@@ -76,6 +76,56 @@ func TestAlertBodiesAreSingleChild(t *testing.T) {
 	}
 }
 
+// TestFullWidthFlexButtonsAreTextStart is the same class of trap as
+// TestAlertBodiesAreSingleChild: a component whose default styling quietly
+// contradicts the layout it's being used for.
+//
+// A <button> centers its text. That's invisible on an ordinary button, whose text
+// is the whole content — but a full-width button used as a row (d-flex + w-100,
+// e.g. the MeshCore key row in the public profile's Links list) inherits that
+// centering into every child, so its label floats in the middle of the row while
+// every neighboring row is left-aligned. Nothing errors; it just looks wrong next
+// to the rows around it.
+//
+// The fix is always the same: add text-start.
+func TestFullWidthFlexButtonsAreTextStart(t *testing.T) {
+	t.Parallel()
+	root := moduleRoot(t)
+
+	// Buttons only: an <a> or <div> laid out the same way already inherits the
+	// page's left alignment. w-100 scopes this to buttons acting as rows.
+	buttonRe := regexp.MustCompile(`(?is)<button[^>]*class="([^"]*)"[^>]*>`)
+
+	err := filepath.WalkDir(filepath.Join(root, "internal"), func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".html") {
+			return nil
+		}
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		rel, _ := filepath.Rel(root, path)
+		for _, m := range buttonRe.FindAllSubmatch(b, -1) {
+			classes := map[string]bool{}
+			for _, c := range strings.Fields(string(m[1])) {
+				classes[c] = true
+			}
+			if classes["d-flex"] && classes["w-100"] && !classes["text-start"] {
+				t.Errorf("%s: full-width flex <button> is missing text-start — a button "+
+					"centers its text, so this row's label sits centered while the rows "+
+					"around it are left-aligned. Found class=%q", rel, m[1])
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk templates: %v", err)
+	}
+}
+
 // findAlerts returns every element carrying the bare "alert" class. Modifier
 // classes (alert-title, alert-icon, alert-heading) are not flex containers and
 // are deliberately excluded.

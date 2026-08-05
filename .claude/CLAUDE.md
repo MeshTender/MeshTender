@@ -121,6 +121,12 @@ markup for it. The one that has already bitten us:
   this; it parses the templates structurally, so extend it there if you find
   another flex-container component with the same trap.
 
+- **A `<button>` centers its text.** Invisible on a normal button, wrong the
+  moment you use one as a full-width row (`d-flex w-100`, e.g. a `list-group-item`
+  that expands a collapse): the label sits centered while every neighboring row is
+  left-aligned. **Add `text-start`.** `TestFullWidthFlexButtonsAreTextStart`, in
+  the same file, enforces it.
+
 ### 5. CI is the gate, not the first line
 Woodpecker (`.woodpecker/`): `test` + `lint` + `vuln` (govulncheck) must pass
 before `build`; `deploy` follows `build` on `main`. A reachable CVE blocks the

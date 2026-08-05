@@ -39,7 +39,10 @@
         {{range $i, $l := .Links}}
         {{if $l.IsMeshCore}}
         <div class="list-group-item">
-          <button type="button" class="d-flex align-items-center gap-2 text-reset border-0 bg-transparent p-0 w-100" data-bs-toggle="collapse" data-bs-target="#mesh-{{$i}}" aria-expanded="false" aria-controls="mesh-{{$i}}">
+          {{/* text-start because this row is a <button>, and a button centers its
+               text by default — without it this one label sits centered while every
+               other row in the list is left-aligned. */}}
+          <button type="button" class="d-flex align-items-center gap-2 text-reset text-start border-0 bg-transparent p-0 w-100" data-bs-toggle="collapse" data-bs-target="#mesh-{{$i}}" aria-expanded="false" aria-controls="mesh-{{$i}}">
             <span class="text-secondary d-flex" title="{{$l.PlatformName}}">{{template "link-icon" $l.Platform}}</span>
             <span class="flex-fill text-truncate">{{$l.Display}}</span>
             <span class="text-secondary d-flex">{{template "icon-qrcode" ""}}</span>
