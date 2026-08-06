@@ -95,7 +95,11 @@
   <label class="form-check form-switch">
     <input class="form-check-input" type="checkbox" name="region_allow_flood" value="1" {{if .Region.AllowFlood}}checked{{end}}>
     <span class="form-check-label">Allow flood</span>
-    <small class="form-hint">Whether flooding is permitted inside this region.</small>
+    {{/* A repeater repeats a scoped flood packet only if it matches a region that
+         allows flooding (RegionMap::findMatch, and allowPacketForward in
+         examples/simple_repeater/MyMesh.cpp), so this is "carry this region's
+         traffic", not a property of the area itself. */}}
+    <small class="form-hint">Repeat flood packets scoped to this region. Turn it off and a repeater here drops them.</small>
   </label>
   <label class="form-check form-switch">
     <input class="form-check-input" type="checkbox" name="region_primary" value="1" {{if .Region.Primary}}checked{{end}}>

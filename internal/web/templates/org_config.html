@@ -108,6 +108,24 @@
     </div>
     {{end}}
   </div>
+  {{if and .CanEdit (not .Config.RootAllowFlood)}}
+  {{/* Denying the wildcard is the one setting here that can quietly take an org off
+       the air, so it gets a standing alert rather than a line of small print. */}}
+  <div class="card-body">
+    <div class="alert alert-danger mb-0" role="alert" data-testid="config-root-deny-warning">
+      <div>{{template "icon-alert" "alert-icon"}}</div>
+      <div>
+        <div class="fw-bold">Unscoped packets are being dropped</div>
+        <p class="mb-0">
+          Flooding is denied on <code>*</code>, so a repeater running this configuration
+          repeats nothing that arrives without a region — including traffic from any
+          companion whose owner hasn't set up regions yet. Only packets scoped to a
+          region you allow below get through.
+        </p>
+      </div>
+    </div>
+  </div>
+  {{end}}
   <div class="card-body p-0">
     <div class="row g-0">
       <div class="col-lg-8">
@@ -142,11 +160,14 @@
         <div class="list-group list-group-flush" style="max-height:520px; overflow-y:auto">
           {{if .CanEdit}}
           {{/* The root (*) isn't a region row — it lives on the org — so it has no
-               swatch and its only setting is flood policy, saved on its own. */}}
+               swatch and its only setting is flood policy, saved on its own.
+               It is NOT "everywhere": MeshCore consults the wildcard only for packets
+               that carry no region, and scoped packets are matched against the defined
+               regions alone (meshcore-go node/region.go, FindFloodMatch). The old
+               wording invited exactly the wrong reading. */}}
           <div class="list-group-item d-flex align-items-center gap-2" data-testid="config-region-root">
             <div class="flex-fill" style="min-width:0">
-              <div class="fw-bold">Root <span class="text-secondary fw-normal">· <code>*</code> · everywhere</span></div>
-              <div class="text-secondary small">Deny flood to scope flooding to your defined regions.</div>
+              <div class="fw-bold">Root <span class="text-secondary fw-normal">· <code>*</code></span></div>
             </div>
             <form method="post" action="/orgs/{{.Org.Slug}}/config/root-flood" class="m-0 flex-shrink-0">
               {{/* No hidden shadow input: an unchecked checkbox simply isn't submitted,
@@ -158,6 +179,20 @@
                 <span class="form-check-label">Allow flood</span>
               </label>
             </form>
+            {{/* Sits next to the switch, not the row label: what needs explaining is
+                 allow/deny flooding, not the word "Root". Outside the <label> so a
+                 click opens the popover instead of toggling the switch.
+
+                 Every claim below is from the firmware — filterRecvFloodPacket and
+                 allowPacketForward in examples/simple_repeater/MyMesh.cpp, and
+                 RegionMap::findMatch. Notably the direct-route exemption is real:
+                 direct packets also get a NULL region, but the region check in
+                 allowPacketForward is guarded by isRouteFlood(), so they pass. */}}
+            <button type="button" class="btn btn-icon btn-ghost-secondary btn-sm flex-shrink-0 ms-2"
+                    data-popover data-testid="config-root-info"
+                    aria-label="How flooding and regions work"
+                    title="How flooding and regions work"
+                    data-bs-content="A flooded packet either carries a region scope or it doesn&#39;t.&lt;br&gt;&lt;br&gt;&lt;strong&gt;Unscoped&lt;/strong&gt; packets are matched only by &lt;code&gt;*&lt;/code&gt;. &lt;strong&gt;Scoped&lt;/strong&gt; packets are matched only against the regions defined below — define none, and every scoped packet is dropped.&lt;br&gt;&lt;br&gt;&lt;strong&gt;Allow flood&lt;/strong&gt; on a region means a repeater configured with it repeats packets scoped to that region. &lt;strong&gt;Deny flood&lt;/strong&gt; means it drops them — the same as never defining that region.&lt;br&gt;&lt;br&gt;Most meshes allow flood on &lt;code&gt;*&lt;/code&gt;: a companion whose owner hasn&#39;t set up regions sends unscoped, and that is how it reaches the mesh.&lt;br&gt;&lt;br&gt;None of this touches direct-routed packets. Those follow the path recorded in them rather than flooding.">{{template "icon-help" ""}}</button>
           </div>
           {{end}}
           {{range .Config.Regions}}

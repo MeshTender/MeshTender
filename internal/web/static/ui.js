@@ -23,6 +23,10 @@
 //                                    on hover/focus, instead of the browser's slow
 //                                    native one. Use it on icon-only controls,
 //                                    where the icon alone doesn't say what it does.
+//   [data-popover]                — like data-tooltip but for a paragraph rather
+//                                    than a label: title= is the heading and
+//                                    data-bs-content= the body. Put it on a
+//                                    <button> so it is reachable by keyboard.
 //
 // It also localizes timestamps: any <time data-fmt="…"> element (emitted by the
 // `ts` template func) is rewritten from its machine-readable datetime attribute
@@ -40,6 +44,18 @@
   // — an element can only carry one, and these controls already use it for modals.
   if (window.tabler && window.tabler.Tooltip) {
     new window.tabler.Tooltip(document.body, { selector: "[data-tooltip]" });
+  }
+  // Popovers carry an explanation too long for a tooltip. Same delegation, and
+  // "hover focus" means a pointer reveals it while keyboard and touch can still
+  // reach it — both dismiss on leave/blur, so there is no sticky panel to close.
+  // Content is server-authored copy, never user data; Bootstrap sanitizes it anyway.
+  if (window.tabler && window.tabler.Popover) {
+    new window.tabler.Popover(document.body, {
+      selector: "[data-popover]",
+      trigger: "hover focus",
+      html: true,
+      placement: "left",
+    });
   }
 
   // --- timestamp localization ---------------------------------------------

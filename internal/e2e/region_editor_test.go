@@ -217,6 +217,51 @@ func TestE2ERegionIconTooltips(t *testing.T) {
 	watch.assertClean(t)
 }
 
+// TestE2ERootRegionExplainer: the wildcard's info button opens a popover explaining
+// what it does and doesn't govern. Bootstrap popovers are opt-in and initialized once
+// in ui.js against [data-popover]; the content is the thing people most often misread,
+// so it's worth proving it actually reaches the screen.
+func TestE2ERootRegionExplainer(t *testing.T) {
+	srv := newE2EServer(t)
+	user, cookie := srv.login(t, "e2erootinfo")
+	org, err := srv.store.CreateOrg(srv.ctx, "Root Info Org", user.ID)
+	if err != nil {
+		t.Fatalf("create org: %v", err)
+	}
+
+	bctx, cancel, watch := startBrowser(t)
+	defer cancel()
+
+	var header, body string
+	cfgURL := srv.appURL + "/orgs/" + org.Slug + "/config"
+	if err := chromedp.Run(bctx,
+		network.Enable(),
+		cdplog.Enable(),
+		setSessionCookie(cookie),
+		chromedp.Navigate(cfgURL),
+		chromedp.WaitVisible(`[data-testid="config-root-info"]`, chromedp.ByQuery),
+		chromedp.Focus(`[data-testid="config-root-info"]`, chromedp.ByQuery),
+		chromedp.WaitVisible(`.popover .popover-body`, chromedp.ByQuery),
+		chromedp.Text(`.popover .popover-header`, &header, chromedp.ByQuery),
+		chromedp.Text(`.popover .popover-body`, &body, chromedp.ByQuery),
+	); err != nil {
+		t.Fatalf("browser run against %s: %v", cfgURL, err)
+	}
+	if !strings.Contains(header, "flooding") {
+		t.Errorf("popover header = %q, want it to mention flooding", header)
+	}
+	// The claims that matter, each verified against the firmware
+	// (filterRecvFloodPacket / allowPacketForward in MyMesh.cpp): the wildcard
+	// governs unscoped packets, scoped ones are matched against the defined regions,
+	// and direct-routed packets are exempt from all of it.
+	for _, want := range []string{"Unscoped", "Scoped", "direct-routed"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("popover body missing %q; got %q", want, body)
+		}
+	}
+	watch.assertClean(t)
+}
+
 // TestE2ERootFloodSwitchAutosubmits: the root (*) flood switch on the Configuration
 // page saves by itself — it's a data-autosubmit checkbox inside its own form nested
 // in a list row, so this proves the delegated handler reaches it and that the POST

@@ -361,4 +361,23 @@ func TestConfigRootFloodToggle(t *testing.T) {
 	if !strings.Contains(page, `name="root_allow_flood" value="1"`) {
 		t.Fatal("config page should render the root flood switch")
 	}
+	// While flooding is allowed there's nothing to warn about.
+	if strings.Contains(page, `data-testid="config-root-deny-warning"`) {
+		t.Error("the deny warning should only show while flooding is denied")
+	}
+
+	// Denying is the consequential setting: the wildcard is the only thing that
+	// repeats unscoped packets (meshcore-go node/region.go, FindFloodMatch), so
+	// turning it off silently strands anyone who hasn't configured regions. Say so.
+	resp = post(t, ts, h.app, path, url.Values{}, sess)
+	resp.Body.Close()
+	denied := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/config", sess))
+	if !strings.Contains(denied, `data-testid="config-root-deny-warning"`) {
+		t.Error("denying root flood should warn what it does to unscoped traffic")
+	}
+	// And the label must not claim the wildcard applies "everywhere" — it governs
+	// only packets that carry no region.
+	if strings.Contains(denied, "everywhere") {
+		t.Error(`the root row should not describe the wildcard as "everywhere"`)
+	}
 }
