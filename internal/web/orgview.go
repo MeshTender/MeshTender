@@ -22,34 +22,155 @@ type ProfileView struct {
 	Steps []store.ConfigStep
 }
 
+// RegionPalette is the set of translucent fills used to tell regions apart, both as
+// the legend's swatches and as the polygon colors on every region map. It lives here
+// rather than in regionmap.js so one ordering drives both — a swatch can't drift
+// from the shape it labels. Templates pass each region's Color through to the map.
+var RegionPalette = []string{
+	"#4dabf7", "#f783ac", "#69db7c", "#ffa94d",
+	"#9775fa", "#ffd43b", "#3bc9db", "#ff8787",
+}
+
+// RegionColor returns the palette entry for the i-th region, wrapping around.
+func RegionColor(i int) string { return RegionPalette[i%len(RegionPalette)] }
+
+// RegionView is one region for display, mirroring ProfileView: it carries ID so the
+// admin surface can build its edit/area/delete URLs from the same list the
+// read-only view renders. HasShape is false for a draft — a region created before
+// its area was drawn, which applies nowhere until it has one. Matches reports
+// whether the region covers the previewed location (always false without one), which
+// drives the highlighting that explains why a token appears in the assembled config.
+type RegionView struct {
+	ID          int64
+	DisplayName string
+	Token       string
+	Layer       int
+	Primary     bool
+	AllowFlood  bool
+	HasShape    bool
+	Matches     bool
+	Color       string
+	Depth       int
+}
+
+// maxRegionDepth caps legend indentation. Layers are arbitrary integers, so a deep
+// tree would otherwise indent a row off the side of a narrow column.
+const maxRegionDepth = 4
+
+// assignRegionDepths sets each row's Depth to the rank of its layer among the
+// distinct layers present, not the layer number itself: an org whose only regions
+// are layers 2 and 7 reads as two nested levels rather than seven. Regions arrive
+// ordered by (layer, token) from ListRegions, so a single pass suffices.
+func assignRegionDepths(rows []RegionView) {
+	depth := -1
+	prev := 0
+	for i := range rows {
+		if depth < 0 || rows[i].Layer != prev {
+			depth++
+			prev = rows[i].Layer
+		}
+		rows[i].Depth = min(depth, maxRegionDepth)
+	}
+}
+
 // ConfigView is an org's configuration for display: its named profiles (with one
-// selected for its base settings) and its regions, kept independent. The regions
-// themselves aren't listed here — they surface only through the location picker —
-// so this carries just what that map needs. PreviewActive is true when a location
-// was supplied.
+// selected for its base settings) and its regions, kept independent. Regions are
+// listed as the map's legend and drawn on the map itself, so this carries both the
+// rows and the geometry. PreviewActive is true when a location was supplied.
+//
+// The map frames itself from the shapes it draws (and the previewed point), so there
+// is no server-computed bounding box.
 type ConfigView struct {
 	HasConfig       bool
 	Profiles        []ProfileView
 	Selected        string
 	SelectedSteps   []store.ConfigStep
-	HasRegions      bool      // org defines at least one region
-	HasRegionShapes bool      // some region has a geofence (so the picker map is useful)
-	MapBounds       []float64 // {minLat, minLon, maxLat, maxLon} framing all geofences, or nil
-	RegionDef       []string  // region def/save commands for the previewed location
+	Regions         []RegionView
+	MapRegions      []MapRegion // the shaped regions, as the read-only map draws them
+	HasRegions      bool        // org defines at least one region
+	HasRegionShapes bool        // some region has a geofence (so the picker map is useful)
+	RootAllowFlood  bool        // the org root (*) flood policy — not a region row
+	RegionDef       []string    // region def/save commands for the previewed location
 	PreviewActive   bool
 }
 
-// bbox accumulates a lat/lon bounding box. A nil *bbox is empty, so extend can be
-// chained from nil to fold in the first point/box.
-type bbox struct{ minLat, minLon, maxLat, maxLon float64 }
+// MapRegion is one region as the read-only config map draws it — the payload handed
+// to regionMapView. Only regions with an area appear; a draft has nothing to draw.
+// Color comes from RegionPalette by the same index the legend swatch uses, so the
+// two always agree.
+//
+// This ships every region's geometry with the page. That is fine for the handful of
+// hand-drawn polygons an org defines; if imported administrative boundaries ever
+// make these large, serve them from their own endpoint (or simplify for display)
+// rather than growing the HTML.
+type MapRegion struct {
+	Name    string `json:"name"`
+	GeoJSON string `json:"geojson"`
+	Matched bool   `json:"matched"`
+	Color   string `json:"color"`
+	// Primary marks the org's primary region, which the map opens framed on — that
+	// is where the org actually operates, so a nationwide parent region shouldn't
+	// force a continental view.
+	Primary bool `json:"primary"`
+}
 
-func (b *bbox) extend(minLat, minLon, maxLat, maxLon float64) *bbox {
-	if b == nil {
-		return &bbox{minLat, minLon, maxLat, maxLon}
+// ConfigLine is one line of the assembled config preview. FromRegion marks the lines
+// contributed by the previewed location's regions rather than by the profile, so the
+// page can show which came from where. IsMarker is the {{ region }} placeholder,
+// rendered as a hint when no location is picked instead of leaking its literal text.
+type ConfigLine struct {
+	Text       string
+	IsComment  bool
+	IsMarker   bool
+	FromRegion bool
+}
+
+// AssembledLines renders the selected profile and the previewed location's region
+// commands as the single ordered list a repeater owner would actually run: the
+// profile's steps with the region block spliced in at its {{ region }} marker, or
+// appended after every step when it has none.
+//
+// This is the same assembly the console (console_config.go) and serial setup
+// (repeater_setup.go) perform via store.SplitAtRegionMarker — the page used to show
+// the two halves as separate blocks and leave the merge to the reader, which meant
+// it displayed something subtly different from what those surfaces emit.
+//
+// With no location picked there are no region lines, and the marker survives as
+// IsMarker so the page can say where they will land.
+func (cv ConfigView) AssembledLines() []ConfigLine {
+	before, after := store.SplitAtRegionMarker(cv.SelectedSteps)
+	// No marker means SplitAtRegionMarker put everything in before; the region block
+	// then follows all of it, which is the documented default.
+	hasMarker := len(after) > 0 || len(before) != len(cv.SelectedSteps)
+
+	out := make([]ConfigLine, 0, len(cv.SelectedSteps)+len(cv.RegionDef))
+	emit := func(steps []store.ConfigStep) {
+		for _, st := range steps {
+			if st.IsComment() {
+				out = append(out, ConfigLine{Text: st.Comment, IsComment: true})
+				continue
+			}
+			out = append(out, ConfigLine{Text: st.CommandLine})
+		}
 	}
-	b.minLat, b.minLon = min(b.minLat, minLat), min(b.minLon, minLon)
-	b.maxLat, b.maxLon = max(b.maxLat, maxLat), max(b.maxLon, maxLon)
-	return b
+	region := func() {
+		if len(cv.RegionDef) == 0 {
+			// Nothing to splice: keep the marker visible so the page can explain that
+			// region commands land here once a location is picked.
+			if hasMarker {
+				out = append(out, ConfigLine{IsMarker: true})
+			}
+			return
+		}
+		for _, line := range cv.RegionDef {
+			out = append(out, ConfigLine{Text: line, FromRegion: true})
+		}
+	}
+
+	emit(before)
+	region()
+	emit(after)
+	return out
 }
 
 // BuildConfigView loads an org's profiles and regions for read-only display.
@@ -88,40 +209,36 @@ func BuildConfigView(ctx context.Context, st *store.Store, orgID int64, selected
 	// none is set (or it has no shape), fall back to the org's public repeaters;
 	// failing that, the union of all geofences. (The picker only renders when
 	// HasRegionShapes, so a usable box almost always exists.)
-	var union *bbox
-	for _, z := range regions {
+	for i, z := range regions {
+		matched := lat != nil && lon != nil && store.RegionMatches(z, lat, lon)
+		if len(z.GeofenceJSON) > 0 {
+			cv.MapRegions = append(cv.MapRegions, MapRegion{
+				Name: z.DisplayName, GeoJSON: string(z.GeofenceJSON),
+				Matched: matched, Color: RegionColor(i), Primary: z.Primary,
+			})
+		}
+		cv.Regions = append(cv.Regions, RegionView{
+			ID: z.ID, DisplayName: z.DisplayName, Token: z.Token, Layer: z.Layer,
+			Primary: z.Primary, AllowFlood: z.AllowFlood, HasShape: len(z.GeofenceJSON) > 0,
+			// RegionMatches is the same predicate RegionDefCommands uses to decide
+			// which tokens ship, so the highlight can't disagree with the commands.
+			Matches: matched,
+			Color:   RegionColor(i),
+		})
 		if len(z.GeofenceJSON) > 0 {
 			cv.HasRegionShapes = true
 		}
-		if a, b, c, d, ok := z.Geofence.Bounds(); ok {
-			union = union.extend(a, b, c, d)
-			if z.Primary {
-				cv.MapBounds = []float64{a, b, c, d}
-			}
-		}
 	}
-	if cv.MapBounds == nil {
-		if reps, err := st.ListPublicRepeaters(ctx, orgID); err == nil {
-			var rb *bbox
-			for _, rp := range reps {
-				if rp.HasLocation {
-					rb = rb.extend(rp.Lat, rp.Lon, rp.Lat, rp.Lon)
-				}
-			}
-			if rb != nil {
-				cv.MapBounds = []float64{rb.minLat, rb.minLon, rb.maxLat, rb.maxLon}
-			}
-		}
-	}
-	if cv.MapBounds == nil && union != nil {
-		cv.MapBounds = []float64{union.minLat, union.minLon, union.maxLat, union.maxLon}
+	assignRegionDepths(cv.Regions)
+	// The root (*) flood policy isn't a region row, so it's fetched separately — one
+	// PK lookup on the org, needed both by the admin's root switch and by the region
+	// def preview.
+	cv.RootAllowFlood, err = st.RootAllowFlood(ctx, orgID)
+	if err != nil {
+		return ConfigView{}, err
 	}
 	if cv.PreviewActive {
-		rootAllow, err := st.RootAllowFlood(ctx, orgID)
-		if err != nil {
-			return ConfigView{}, err
-		}
-		cv.RegionDef = store.RegionDefCommands(regions, rootAllow, lat, lon)
+		cv.RegionDef = store.RegionDefCommands(regions, cv.RootAllowFlood, lat, lon)
 	}
 	return cv, nil
 }
@@ -134,8 +251,8 @@ type OrgNavArgs struct {
 	Slug   string
 	Active string // "home" | "members" | "repeaters" | "config"
 	// IsMember gates the Members tab (personal info), so it's false on public views
-	// even when a member is previewing. IsAdmin gates the "Edit configuration"
-	// action.
+	// even when a member is previewing. IsAdmin keeps the Configuration tab visible
+	// on an org that hasn't defined any config yet, so an admin can go and create it.
 	IsMember bool
 	IsAdmin  bool
 	// Manage selects the header's right-side controls: true renders the member

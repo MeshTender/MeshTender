@@ -4,7 +4,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jleight/meshtender/internal/geo"
 	"github.com/jleight/meshtender/internal/store"
 )
 
@@ -79,34 +78,4 @@ func TestParseConfigStepsRegionMarker(t *testing.T) {
 		t.Fatalf("errs = %v, want one 'only once' error", errs)
 	}
 	_ = risky
-}
-
-func TestRegionGeofence(t *testing.T) {
-	t.Parallel()
-
-	// Empty shape → everywhere (nil geofence, ok).
-	if gf, ok := regionGeofence(configRegionView{}, "z", new([]string)); !ok || gf != nil {
-		t.Fatalf("empty shape: got (%v,%v), want (nil,true)", gf, ok)
-	}
-
-	// A drawn polygon → carried through verbatim, parseable, contains its center.
-	drawn := `{"type":"Polygon","coordinates":[[[30,10],[40,10],[40,20],[30,20],[30,10]]]}`
-	var errs []string
-	gf, ok := regionGeofence(configRegionView{GeofenceJSON: drawn}, "z", &errs)
-	if !ok || gf == nil {
-		t.Fatalf("drawn polygon: got (%v,%v), want non-nil geofence ok", gf, ok)
-	}
-	shape, err := geo.Parse(gf)
-	if err != nil {
-		t.Fatalf("parse geofence: %v", err)
-	}
-	if !shape.Contains(15, 35) {
-		t.Fatalf("geofence should contain its center")
-	}
-
-	// Malformed GeoJSON → error.
-	errs = nil
-	if _, ok := regionGeofence(configRegionView{GeofenceJSON: "{not geojson"}, "z", &errs); ok || len(errs) == 0 {
-		t.Fatalf("invalid shape should be rejected with an error")
-	}
 }

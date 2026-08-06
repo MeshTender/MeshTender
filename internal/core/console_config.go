@@ -118,28 +118,23 @@ func (s *Handlers) consoleConfigJSON(w http.ResponseWriter, r *http.Request) {
 
 	// Profile base settings (verbatim; comment-only steps are notes, not commands),
 	// with the location-derived region commands spliced at the profile's
-	// {{ region }} marker or appended after all steps when it has none. The marker
-	// itself is dropped by SplitAtRegionMarker.
-	emitStep := func(step store.ConfigStep) {
-		c := consoleConfigCommand{Line: step.CommandLine, Comment: step.Comment}
-		if step.IsComment() {
-			c.Reason = "note"
-		} else {
-			c.Runnable, c.Reason = runnable(step.CommandLine)
+	// {{ region }} marker or appended after all steps when it has none.
+	//
+	// AssembledLines owns that ordering, shared with the org Configuration page, so
+	// what an owner previews there is exactly what the console offers to run.
+	for _, l := range cv.AssembledLines() {
+		if l.IsMarker {
+			continue // a placeholder for the page; never sent to a device
+		}
+		c := consoleConfigCommand{}
+		switch {
+		case l.IsComment:
+			c.Comment, c.Reason = l.Text, "note"
+		default:
+			c.Line = l.Text
+			c.Runnable, c.Reason = runnable(l.Text)
 		}
 		resp.Commands = append(resp.Commands, c)
-	}
-	before, after := store.SplitAtRegionMarker(cv.SelectedSteps)
-	for _, step := range before {
-		emitStep(step)
-	}
-	for _, line := range cv.RegionDef {
-		c := consoleConfigCommand{Line: line}
-		c.Runnable, c.Reason = runnable(line)
-		resp.Commands = append(resp.Commands, c)
-	}
-	for _, step := range after {
-		emitStep(step)
 	}
 
 	resp.Location = consoleConfigLocation{

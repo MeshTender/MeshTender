@@ -43,9 +43,9 @@ func TestE2EConfigProfileSelect(t *testing.T) {
 		chromedp.WaitVisible(`[data-testid="config-profile-list"]`, chromedp.ByQuery),
 		// Click the second row's name to select it.
 		chromedp.Click(`[data-testid="config-profile-row"]:nth-of-type(2) a`, chromedp.ByQuery),
-		chromedp.WaitVisible(`.card-title`, chromedp.ByQuery),
-		chromedp.Text(`.col-lg-8 .card-title`, &heading, chromedp.ByQuery),
-		chromedp.Text(`.col-lg-8 .card-body pre`, &steps, chromedp.ByQuery),
+		chromedp.WaitVisible(`[data-testid="config-preview"]`, chromedp.ByQuery),
+		chromedp.Text(`[data-testid="config-preview"] .card-title`, &heading, chromedp.ByQuery),
+		chromedp.Text(`[data-testid="config-commands"]`, &steps, chromedp.ByQuery),
 		chromedp.Evaluate(`!!document.querySelector('[data-testid="config-profile-row"]:nth-of-type(2).active')`, &rowActive),
 	); err != nil {
 		t.Fatalf("browser run against %s: %v", cfgURL, err)
@@ -92,7 +92,7 @@ func TestE2EConfigProfileModalSave(t *testing.T) {
 		chromedp.Click(`[data-testid="save-profile"]`, chromedp.ByQuery),
 		// HX-Redirect navigates back to the config page, now showing the new profile.
 		chromedp.WaitVisible(`[data-testid="config-profile-list"]`, chromedp.ByQuery),
-		chromedp.Text(`.col-lg-8 .card-title`, &heading, chromedp.ByQuery),
+		chromedp.Text(`[data-testid="config-preview"] .card-title`, &heading, chromedp.ByQuery),
 		chromedp.Location(&currentURL),
 	); err != nil {
 		t.Fatalf("browser run against %s: %v", cfgURL, err)

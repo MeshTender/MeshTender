@@ -246,14 +246,22 @@ func (s *Handlers) appRouter() chi.Router {
 			r.Post("/orgs/{id}/leave", s.handleLeaveOrg)
 			r.Post("/orgs/{id}/members/{userID}", s.handleSetOrgMember)
 			r.Get("/orgs/{id}/config", s.pageOrgConfig)
-			r.Get("/orgs/{id}/config/edit", s.pageConfigHub)
 			r.Get("/orgs/{id}/config/profiles/new", s.pageProfileEdit)
 			r.Post("/orgs/{id}/config/profiles", s.handleCreateProfile)
 			r.Get("/orgs/{id}/config/profiles/{pid}/edit", s.pageProfileEdit)
 			r.Post("/orgs/{id}/config/profiles/{pid}", s.handleUpdateProfile)
 			r.Post("/orgs/{id}/config/profiles/{pid}/delete", s.handleDeleteProfile)
-			r.Get("/orgs/{id}/config/regions", s.pageRegionsEdit)
-			r.Post("/orgs/{id}/config/regions", s.handleSaveRegions)
+			// Regions: attributes edit in a modal (mirroring profiles), the drawn area
+			// on its own workspace page. The root (*) flood policy isn't a region row,
+			// so it toggles on its own.
+			r.Get("/orgs/{id}/config/regions/new", s.pageRegionEdit)
+			r.Post("/orgs/{id}/config/regions", s.handleCreateRegion)
+			r.Get("/orgs/{id}/config/regions/{rid}/edit", s.pageRegionEdit)
+			r.Post("/orgs/{id}/config/regions/{rid}", s.handleUpdateRegion)
+			r.Post("/orgs/{id}/config/regions/{rid}/delete", s.handleDeleteRegion)
+			r.Get("/orgs/{id}/config/regions/{rid}/area", s.pageRegionArea)
+			r.Post("/orgs/{id}/config/regions/{rid}/area", s.handleSaveRegionArea)
+			r.Post("/orgs/{id}/config/root-flood", s.handleSetRootFlood)
 			// Custom org domains are hidden for now — the hosting/TLS infrastructure
 			// isn't in place yet. Leave the handlers in tree but don't expose them.
 			// r.Post("/orgs/{id}/domains", s.handleAddOrgDomain)

@@ -17,8 +17,7 @@ import (
 func TestE2EOrgActionsConsistent(t *testing.T) {
 	srv := newE2EServer(t)
 	user, cookie := srv.login(t, "e2eorgtabs")
-	// CreateOrg makes the creator an admin member, so the Actions menu (with
-	// Edit configuration) renders.
+	// CreateOrg makes the creator an admin member, so the Actions menu renders.
 	org, err := srv.store.CreateOrg(srv.ctx, "Tabs Org", user.ID)
 	if err != nil {
 		t.Fatalf("create org: %v", err)
@@ -43,10 +42,14 @@ func TestE2EOrgActionsConsistent(t *testing.T) {
 	); err != nil {
 		t.Fatalf("browser run against %s: %v", membersURL, err)
 	}
-	for _, want := range []string{"Edit configuration", "View public page", "Leave organization"} {
+	for _, want := range []string{"View public page", "Leave organization"} {
 		if !strings.Contains(items, want) {
 			t.Errorf("Actions menu on the Members tab missing %q; got %q", want, items)
 		}
+	}
+	// Configuration has its own tab, so it isn't duplicated in this menu.
+	if strings.Contains(items, "Edit configuration") {
+		t.Errorf("Actions menu still offers Edit configuration; got %q", items)
 	}
 	watch.assertClean(t)
 }

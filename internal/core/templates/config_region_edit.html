@@ -1,0 +1,106 @@
+{{/* The region attribute editor — everything about a region except its drawn area,
+     which is saved separately on the area workspace page so a rejected edit here
+     can never discard a polygon. Admins normally reach it as the config-region-modal
+     fragment swapped into #config-region-modal on the Configuration page; it posts
+     via htmx so a validation error re-renders the fragment in place (modal stays
+     open, entered values preserved) and a save sends HX-Redirect back to the config
+     page. The full page below is the no-JS / direct-link fallback, so it carries the
+     same form without the htmx attributes. */}}
+
+{{define "title"}}{{if .Region.ID}}Edit region{{else}}Add region{{end}} · {{.Org.Name}} · MeshTender{{end}}
+{{define "header"}}
+<div class="row g-2 align-items-center">
+  <div class="col">
+    <div class="page-pretitle">{{.Org.Name}} · Configuration</div>
+    <h1 class="page-title fs-1">{{if .Region.ID}}Edit region{{else}}Add region{{end}}</h1>
+  </div>
+  <div class="col-auto ms-auto d-print-none">
+    <a class="btn" href="/orgs/{{.Org.Slug}}/config">Back to configuration</a>
+  </div>
+</div>
+{{end}}
+{{define "content"}}
+{{template "org-tabs" .Nav}}
+
+{{template "region-editor-alerts" .}}
+
+<div class="card">
+  <div class="card-body">
+    <form method="post" action="{{.Action}}">
+      {{template "region-editor-fields" .}}
+      <div class="btn-list mt-3">
+        <button type="submit" class="btn btn-primary">{{if .Region.ID}}Save region{{else}}Create region{{end}}</button>
+        <a class="btn" href="/orgs/{{.Org.Slug}}/config">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{{end}}
+
+{{/* config-region-modal is the htmx fragment swapped into #config-region-modal. */}}
+{{define "config-region-modal"}}
+<div class="modal-header">
+  <h2 class="modal-title">{{if .Region.ID}}Edit region{{else}}Add region{{end}}</h2>
+  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+</div>
+<div class="modal-body">
+  {{template "region-editor-alerts" .}}
+  <form method="post" action="{{.Action}}" id="config-region-form"
+        hx-post="{{.Action}}" hx-target="#config-region-modal-content" hx-swap="innerHTML">
+    {{template "region-editor-fields" .}}
+  </form>
+</div>
+<div class="modal-footer">
+  <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">Cancel</button>
+  <button type="submit" form="config-region-form" class="btn btn-primary" data-testid="save-region">{{if .Region.ID}}Save region{{else}}Create region{{end}}</button>
+</div>
+{{end}}
+
+{{/* region-editor-alerts renders the validation errors, shared by page and modal. */}}
+{{define "region-editor-alerts"}}
+{{if .Errors}}
+<div class="alert alert-danger" role="alert">
+  <div>
+    <div class="fw-bold">Nothing was saved — fix these first:</div>
+    <ul class="mb-0">{{range .Errors}}<li>{{.}}</li>{{end}}</ul>
+  </div>
+</div>
+{{end}}
+{{end}}
+
+{{/* region-editor-fields are the form controls themselves — the <form> element
+     around them differs between the page and the modal. The area is deliberately
+     absent: it's drawn on the workspace page. */}}
+{{define "region-editor-fields"}}
+<div class="mb-3">
+  <label class="form-label" for="region_display">Display name</label>
+  <input class="form-control" id="region_display" name="region_display" value="{{.Region.DisplayName}}"
+         placeholder="Buffalo" maxlength="60" autofocus>
+  <small class="form-hint">The human label. Defaults to the short name if you leave it blank.</small>
+</div>
+<div class="row g-3">
+  <div class="col">
+    <label class="form-label" for="region_token">Short name</label>
+    <input class="form-control font-monospace" id="region_token" name="region_token" value="{{.Region.Token}}"
+           placeholder="buf" maxlength="30" spellcheck="false">
+    <small class="form-hint">Used by MeshCore in <code>region def</code>. Letters, digits, <code>-</code>, <code>_</code>.</small>
+  </div>
+  <div class="col-auto">
+    <label class="form-label" for="region_layer">Level</label>
+    <input class="form-control" type="number" id="region_layer" name="region_layer" value="{{.Region.Layer}}" style="width:6rem">
+    <small class="form-hint">Depth</small>
+  </div>
+</div>
+<div class="mt-3">
+  <label class="form-check form-switch">
+    <input class="form-check-input" type="checkbox" name="region_allow_flood" value="1" {{if .Region.AllowFlood}}checked{{end}}>
+    <span class="form-check-label">Allow flood</span>
+    <small class="form-hint">Whether flooding is permitted inside this region.</small>
+  </label>
+  <label class="form-check form-switch">
+    <input class="form-check-input" type="checkbox" name="region_primary" value="1" {{if .Region.Primary}}checked{{end}}>
+    <span class="form-check-label">Primary region</span>
+    <small class="form-hint">Frames the map on the Configuration page. Turning this on clears whichever region held it.</small>
+  </label>
+</div>
+{{end}}

@@ -1,15 +1,27 @@
 // regionmap.js — Leaflet + Geoman map for org config regions.
 //
-// A region's geofence is a GeoJSON Polygon/MultiPolygon geometry; an empty
-// geometry means "applies everywhere" (no shape on the map). Two entry points:
+// A region's geofence is a GeoJSON Polygon/MultiPolygon geometry; no geometry means
+// the region is a draft that applies nowhere until an area is drawn. Two entry
+// points:
 //
-//   initRegionEditor(mapId, listId)  — the admin editor: draw/edit one polygon
-//       per region block, with every region shown at once so overlaps are visible.
-//   regionMapView(mapId, regions, preview) — read-only: render every region's
-//       polygon (and an optional previewed location marker).
+//   initRegionArea(mapId, opts)  — the admin area workspace: draw/edit exactly one
+//       region's polygon, with the org's other regions outlined as read-only context.
+//   regionMapView(mapId, opts) — read-only: a location picker (with an optional
+//       previewed location marker).
 (function () {
-  // Distinct translucent fills so overlapping regions read as layered colors.
-  var PALETTE = ["#4dabf7", "#f783ac", "#69db7c", "#ffa94d", "#9775fa", "#ffd43b", "#3bc9db", "#ff8787"];
+  // Colors come from the server (web.RegionPalette) so a legend swatch and the
+  // polygon it labels can never drift apart. FALLBACK covers a caller that passes
+  // none.
+  var FALLBACK = "#4dabf7";
+
+  // Breathing room when framing a map. FIT_PADDING is in screen pixels, so it stays
+  // a consistent visual margin no matter how large the area is — a geographic pad
+  // would scale with the region and zoom a big one right back out. PRIMARY_CONTEXT
+  // is the small geographic nudge that shows a little of what surrounds the primary
+  // region; keep it low, because fitBounds then rounds *down* to an integer zoom and
+  // any slack here gets magnified by that rounding.
+  var FIT_PADDING = [24, 24];
+  var PRIMARY_CONTEXT = 0.08;
 
   // baseLayers adds the dark (default) and a light basemap with a layers control to
   // toggle between them, remembering the choice in localStorage (shared with
@@ -44,14 +56,36 @@
     });
   }
 
-  function styleFor(i, active) {
-    var c = PALETTE[i % PALETTE.length];
+  // editableStyle is the one shape the current page can modify: drawn prominently so
+  // it always reads which polygon the tools will act on.
+  function editableStyle(color) {
+    var c = color || FALLBACK;
+    return { color: c, weight: 3, opacity: 1, fillColor: c, fillOpacity: 0.25 };
+  }
+
+  // Region fills stack: nested regions overlap, so N of them at opacity a cover
+  // 1-(1-a)^N of the basemap. Orgs run deep hierarchies (3 levels is common, 5-6 is
+  // planned), and at a=0.25 six levels reach 82% — the map underneath disappears.
+  // These are chosen so six levels stay readable (~43% matched, ~22% context) while
+  // three land at ~25%, the weight a single region used to carry. Raise them and
+  // deep hierarchies turn to mud; the stroke, not the fill, is what identifies a
+  // region.
+  var FILL_MATCHED = 0.09;
+  var FILL_CONTEXT = 0.04;
+
+  // outlineStyle is a region drawn for reference — a neighbor on the area editor, or
+  // any region on the read-only config map. Dimmed by default; a region that applies
+  // at the previewed location is brought forward, which is what explains why its
+  // token shows up in the assembled config.
+  function outlineStyle(color, matched) {
+    var c = color || FALLBACK;
     return {
       color: c,
-      weight: active ? 3 : 1.5,
-      opacity: active ? 1 : 0.6,
+      weight: matched ? 3 : 1.5,
+      opacity: matched ? 1 : 0.55,
       fillColor: c,
-      fillOpacity: active ? 0.25 : 0.1,
+      fillOpacity: matched ? FILL_MATCHED : FILL_CONTEXT,
+      interactive: false,
     };
   }
 
@@ -82,15 +116,31 @@
     }
   }
 
-  // ---- Editor -------------------------------------------------------------
+  // ---- Area editor (one region) -------------------------------------------
 
-  window.initRegionEditor = function (mapId, listId) {
-    var listEl = document.getElementById(listId);
-    if (!listEl) return;
+  // initRegionArea drives the per-region area workspace. It edits exactly one
+  // shape — the region whose page this is — and renders the org's other regions as
+  // non-interactive outlines for spatial reference. opts:
+  //   input    — id of the hidden field carrying the GeoJSON geometry (required);
+  //   status   — id of an element to show "Custom area" / "No area yet" in;
+  //   clear    — id of a button that removes the shape;
+  //   name     — this region's label, used in the shape's tooltip;
+  //   color    — this region's palette color (see web.RegionPalette);
+  //   siblings — [{name, geojson, color}] drawn read-only.
+  //
+  // Everything the form submits lives in the hidden input, so the server sees the
+  // same shape whether it was drawn, edited, or cleared.
+  window.initRegionArea = function (mapId, opts) {
+    opts = opts || {};
+    var input = document.getElementById(opts.input);
+    if (!input) return;
+    var statusEl = opts.status ? document.getElementById(opts.status) : null;
     var map = L.map(mapId);
     baseLayers(map);
 
-    // Geoman toolbar: only the tools that make sense for area geofences.
+    // Geoman toolbar: only the tools that make sense for an area geofence. Drawing
+    // is enabled only while there's no shape — one region, one polygon, so a second
+    // draw would be ambiguous.
     map.pm.addControls({
       position: "topleft",
       drawMarker: false,
@@ -108,157 +158,76 @@
     });
     map.pm.setGlobalOptions({ allowSelfIntersection: false });
 
-    var blocks = []; // { el, hidden, status, layer }
-    var active = null;
-    var banner = document.getElementById(mapId + "-active");
+    var layer = null;
 
-    // While a polygon is being drawn, clicks place vertices — they must not be
-    // treated as region selections. drawTarget locks onto the region that was
-    // selected when drawing began, captured here so a vertex landing on top of
-    // another region's polygon can't hijack the selection mid-draw.
-    var drawing = false;
-    var drawTarget = null;
-    map.on("pm:drawstart", function () { drawing = true; drawTarget = active; });
-    map.on("pm:drawend", function () { drawing = false; });
-
-    function setStatus(b) {
-      if (b.status) b.status.textContent = b.layer ? "Custom area" : "No area yet";
-    }
-    function serialize(b) {
-      b.hidden.value = b.layer ? geomString(b.layer) : "";
-      setStatus(b);
-    }
-    function restyle() {
-      blocks.forEach(function (b, i) {
-        if (b.layer && b.layer.setStyle) b.layer.setStyle(styleFor(i, b === active));
-      });
-    }
-    function setActive(b) {
-      active = b;
-      blocks.forEach(function (x) {
-        var on = x === b;
-        x.el.classList.toggle("region-active", on);
-        // The Edit-area button is the visible selection affordance: it lights up
-        // and reads "Editing area" for the active region, "Edit area" otherwise.
-        if (x.edit) {
-          x.edit.classList.toggle("btn-primary", on);
-          x.edit.textContent = on ? "Editing area" : "Edit area";
-        }
-      });
-      if (banner) banner.textContent = b ? regionName(b) : "—";
-      restyle();
-    }
-    function regionName(b) {
-      var display = b.el.querySelector('input[name="region_display"]');
-      var token = b.el.querySelector('input[name="region_token"]');
-      return (display && display.value.trim()) || (token && token.value.trim()) || "this region";
+    function serialize() {
+      input.value = layer ? geomString(layer) : "";
+      if (statusEl) statusEl.textContent = layer ? "Custom area" : "No area yet";
+      // With a shape present, drawing is off (edit/drag/remove stay on); once it's
+      // cleared, the draw tools come back.
+      map.pm.Toolbar.setButtonDisabled("drawPolygon", !!layer);
+      map.pm.Toolbar.setButtonDisabled("drawRectangle", !!layer);
     }
 
-    function bindLayer(b, layer) {
-      layer.addTo(map);
+    function bind(l) {
+      layer = l;
+      l.setStyle(editableStyle(opts.color));
+      if (opts.name) l.bindTooltip(String(opts.name), { sticky: true });
+      l.addTo(map);
       // Re-serialize after any vertex edit or whole-shape drag.
-      layer.on("pm:edit pm:update pm:dragend pm:markerdragend", function () { serialize(b); });
-      layer.on("click", function () { if (!drawing) setActive(b); });
-      b.layer = layer;
+      l.on("pm:edit pm:update pm:dragend pm:markerdragend", serialize);
+      serialize();
     }
-    function attach(b, layer) {
-      if (b.layer) map.removeLayer(b.layer); // one shape per region
-      bindLayer(b, layer);
-      serialize(b);
-      restyle();
-    }
-    function clearShape(b) {
-      if (b.layer) {
-        map.removeLayer(b.layer);
-        b.layer = null;
+
+    function clear() {
+      if (layer) {
+        map.removeLayer(layer);
+        layer = null;
       }
-      serialize(b);
+      serialize();
     }
 
-    // reconcile() syncs our block list with the DOM, which the page mutates as
-    // the admin adds/removes region blocks (addBlock/removeBlock in the template).
-    function reconcile() {
-      var els = Array.prototype.slice.call(listEl.querySelectorAll(".region-block"));
-      // Drop blocks whose DOM node is gone.
-      blocks = blocks.filter(function (b) {
-        if (els.indexOf(b.el) === -1) {
-          if (b.layer) map.removeLayer(b.layer);
-          if (active === b) active = null;
-          return false;
-        }
-        return true;
-      });
-      // Register newly added blocks.
-      var added = [];
-      els.forEach(function (el) {
-        if (blocks.some(function (b) { return b.el === el; })) return;
-        var b = {
-          el: el,
-          hidden: el.querySelector('input[name="region_geojson"]'),
-          status: el.querySelector(".region-shape-status"),
-          edit: el.querySelector(".region-edit-btn"),
-          layer: null,
-        };
-        var layer = layerFromGeoJSON(b.hidden && b.hidden.value);
-        if (layer) bindLayer(b, layer);
-        setStatus(b);
-        // Selection is driven by the explicit Edit button (and clicking the shape on
-        // the map) — the card itself isn't clickable, which read as unintuitive.
-        if (b.edit) b.edit.addEventListener("click", function () { if (!drawing) setActive(b); });
-        var clearBtn = el.querySelector(".region-clear");
-        if (clearBtn) clearBtn.addEventListener("click", function (e) {
-          e.stopPropagation();
-          setActive(b);
-          clearShape(b);
-        });
-        blocks.push(b);
-        added.push(b);
-      });
-      // Reorder to match DOM order (keeps palette colors stable by position).
-      blocks.sort(function (a, b) {
-        return els.indexOf(a.el) - els.indexOf(b.el);
-      });
-      restyle();
-      // A newly added block becomes the active one (so clicking "Add region"
-      // selects it); otherwise keep the current selection, defaulting to the last.
-      if (added.length) setActive(added[added.length - 1]);
-      else if (!active && blocks.length) setActive(blocks[blocks.length - 1]);
-    }
-
-    // A freshly drawn shape fills the region that was selected when drawing began
-    // (drawTarget) — but only if that region has no shape yet. If it already has
-    // one, or nothing was selected, the shape goes into a brand-new region, so
-    // drawing never overwrites an existing area (e.g. drawing the US inside an
-    // existing North America region adds the US rather than replacing NA).
     map.on("pm:create", function (e) {
-      var target = drawTarget;
-      if (!target || target.layer) {
-        if (typeof addBlock === "function") {
-          addBlock("region");
-          reconcile(); // registers + selects the new block synchronously
-        }
-        target = active || (blocks.length ? blocks[blocks.length - 1] : null);
-      }
-      if (!target) { map.removeLayer(e.layer); return; } // nothing to attach to
-      setActive(target);
-      attach(target, e.layer);
-      if (target.el.scrollIntoView) target.el.scrollIntoView({ block: "nearest" });
+      // Belt and braces: the draw buttons are disabled while a shape exists, but if
+      // one is somehow drawn anyway, replace rather than orphan a second polygon.
+      if (layer) map.removeLayer(layer);
+      bind(e.layer);
     });
-    // Toolbar removal: clear whichever region owned the removed layer.
     map.on("pm:remove", function (e) {
-      var b = blocks.filter(function (x) { return x.layer === e.layer; })[0];
-      if (b) { b.layer = null; serialize(b); }
+      if (e.layer === layer) clear();
     });
 
-    new MutationObserver(reconcile).observe(listEl, { childList: true });
-    reconcile();
-    fitToLayers(map, blocks.map(function (b) { return b.layer; }).filter(Boolean));
+    // Siblings first, so the edited shape sits on top of them.
+    var context = [];
+    (opts.siblings || []).forEach(function (sib) {
+      if (!sib) return;
+      var l = layerFromGeoJSON(sib.geojson);
+      if (!l) return;
+      l.setStyle(outlineStyle(sib.color));
+      if (sib.name) l.bindTooltip(String(sib.name));
+      l.addTo(map);
+      context.push(l);
+    });
+
+    var existing = layerFromGeoJSON(input.value);
+    if (existing) bind(existing);
+    else serialize();
+
+    var clearBtn = opts.clear ? document.getElementById(opts.clear) : null;
+    if (clearBtn) clearBtn.addEventListener("click", clear);
+
+    // Frame the edited shape when there is one, otherwise the siblings — a brand-new
+    // region should open looking at where its neighbors are.
+    fitToLayers(map, layer ? [layer] : context);
   };
 
   // ---- Read-only viewer ---------------------------------------------------
 
-  // regionMapView renders a location-picker map (no region outlines — those are
-  // just noise here). opts:
+  // regionMapView renders a read-only region map. opts:
+  //   regions — [{name, geojson, matched, color, primary}] drawn as non-interactive
+  //             outlines, the ones matching the previewed location brought forward.
+  //             Omit for a plain location picker (the console and serial-setup
+  //             callers do);
   //   pickURL — clicking the map navigates here with lat/lon appended so the
   //             server resolves the region def for that point (must end "?"/"&");
   //   preview — {lat, lon} of an already-picked point, shown as a marker;
@@ -267,6 +236,22 @@
     opts = opts || {};
     var map = L.map(mapId, { scrollWheelZoom: false });
     baseLayers(map);
+
+    // Region outlines go on first so the picked-location marker stays on top. They
+    // are non-interactive (see outlineStyle), so a click still reaches the map and
+    // drops a pin rather than being swallowed by a polygon.
+    var drawn = [];
+    var primary = null;
+    (opts.regions || []).forEach(function (r) {
+      if (!r) return;
+      var l = layerFromGeoJSON(r.geojson);
+      if (!l) return;
+      l.setStyle(outlineStyle(r.color, r.matched));
+      if (r.name) l.bindTooltip(String(r.name));
+      l.addTo(map);
+      drawn.push(l);
+      if (r.primary) primary = l;
+    });
     if (opts.pickURL) {
       map.on("click", function (e) {
         window.location = opts.pickURL + "lat=" + e.latlng.lat.toFixed(6) + "&lon=" + e.latlng.lng.toFixed(6);
@@ -287,6 +272,14 @@
     }
     var fit = [];
     if (opts.bounds) fit.push(opts.bounds[0], opts.bounds[1]);
+    // With no explicit bounds, open framed on the primary region — where the org
+    // actually operates — with room around it for context, rather than zooming out
+    // to contain a nationwide parent. Without a primary, frame everything drawn.
+    if (!opts.bounds && drawn.length) {
+      var rb = L.featureGroup(primary ? [primary] : drawn).getBounds();
+      if (primary) rb = rb.pad(PRIMARY_CONTEXT);
+      fit.push(rb.getSouthWest(), rb.getNorthEast());
+    }
     if (opts.preview) {
       L.circleMarker([opts.preview.lat, opts.preview.lon], {
         radius: 7, color: "#fff", weight: 2, fillColor: "#fff", fillOpacity: 0.9,
@@ -298,7 +291,7 @@
       // A zero-size box (single point — one repeater, or a preview with no
       // region box) can't be fit; center on it at a neighborhood zoom instead.
       if (b.getNorthEast().equals(b.getSouthWest())) map.setView(b.getCenter(), 11, { animate: false });
-      else map.fitBounds(b.pad(0.2), { animate: false });
+      else map.fitBounds(b, { animate: false, padding: FIT_PADDING });
     } else {
       map.setView([20, 0], 2, { animate: false });
     }

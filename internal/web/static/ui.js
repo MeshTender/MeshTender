@@ -19,12 +19,28 @@
 //   [data-risky] (checkbox)       — confirm before enabling; unchecks on cancel.
 //                                    Delegated so it works in htmx-swapped content
 //                                    (a modal fragment can't run inline script).
+//   [data-tooltip]                — show this element's title= as a styled tooltip
+//                                    on hover/focus, instead of the browser's slow
+//                                    native one. Use it on icon-only controls,
+//                                    where the icon alone doesn't say what it does.
 //
 // It also localizes timestamps: any <time data-fmt="…"> element (emitted by the
 // `ts` template func) is rewritten from its machine-readable datetime attribute
 // into the viewer's locale and time zone. See formatTimes below.
 (function () {
   "use strict";
+
+  // --- tooltips ------------------------------------------------------------
+  // Bootstrap tooltips are opt-in, so wire them once here rather than per page.
+  // Delegating through the `selector` option means a control swapped in later by
+  // htmx (a modal fragment, a re-rendered list) gets one with no re-initialization.
+  //
+  // It reads the element's title=, which stays as the no-JS fallback: without this,
+  // hovering still surfaces the native tooltip. Note data-bs-toggle is NOT the hook
+  // — an element can only carry one, and these controls already use it for modals.
+  if (window.tabler && window.tabler.Tooltip) {
+    new window.tabler.Tooltip(document.body, { selector: "[data-tooltip]" });
+  }
 
   // --- timestamp localization ---------------------------------------------
   // The server emits <time datetime="<RFC3339 UTC>" data-fmt="date|datetime|

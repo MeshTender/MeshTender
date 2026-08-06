@@ -8,16 +8,35 @@
   This organization hasn't defined any configuration yet.
 </div></div>
 {{else}}
+
+{{/* Section 1 — the configuration a chosen profile produces, with the profile list
+     in the right rail above the region legend (the sidebar position the rest of the
+     site uses). The main pane shows the *assembled* list — profile steps with the
+     location's region commands spliced in — which is what a repeater owner actually
+     runs; see ConfigView.AssembledLines. Main comes first in the DOM so a narrow
+     screen reads content before its picker, matching the other org pages. */}}
+{{if or .Config.Profiles .Config.PreviewActive .CanEdit}}
 <div class="row row-cards">
-  <!-- Main: selected profile's base settings + regions (only what's defined) -->
   <div class="col-lg-8">
-    {{if .Config.Profiles}}
-    <div class="card">
-      <div class="card-header"><h2 class="card-title">{{.Config.Selected}} · base settings</h2></div>
-      <div class="card-body">{{template "step-list" .Config.SelectedSteps}}</div>
+    {{if or .Config.Profiles .Config.PreviewActive}}
+    <div class="card" data-testid="config-preview">
+      <div class="card-header">
+        <h2 class="card-title">
+          {{if .Config.Profiles}}{{.Config.Selected}}{{else}}Region commands{{end}}
+          <span class="text-secondary fw-normal">{{if .Config.PreviewActive}} · at {{.PreviewLat}}, {{.PreviewLon}}{{else}} · base settings{{end}}</span>
+        </h2>
+      </div>
+      <div class="card-body">{{template "config-lines" .Config.AssembledLines}}</div>
+      {{if .Config.PreviewActive}}
+        {{if not .Config.RegionDef}}
+        <div class="card-footer text-secondary small">No regions cover this location.</div>
+        {{end}}
+      {{else if .Config.HasRegionShapes}}
+      <div class="card-footer text-secondary small">Click a spot on the map below to see the region commands a repeater there would also run.</div>
+      {{end}}
     </div>
     {{else if .CanEdit}}
-    <!-- Admin, no profiles yet: explain what a profile is and point at Add profile. -->
+    {{/* Admin, no profiles yet: explain what a profile is and point at Add profile. */}}
     <div class="card">
       <div class="card-header"><h2 class="card-title">What's a profile?</h2></div>
       <div class="card-body">
@@ -26,22 +45,7 @@
       </div>
     </div>
     {{end}}
-
-    {{if .Config.PreviewActive}}
-    <div class="card{{if .Config.Profiles}} mt-3{{end}}">
-      <div class="card-header"><h2 class="card-title">Regions</h2></div>
-      {{if .Config.RegionDef}}
-      <div class="card-body"><pre class="mb-0"><code>{{range .Config.RegionDef}}{{.}}
-{{end}}</code></pre></div>
-      {{else}}
-      <div class="card-body text-secondary">No regions cover this location.</div>
-      {{end}}
-    </div>
-    {{end}}
   </div>
-
-  <!-- Sidebar: the profile list (select one to show it on the left; admins edit in
-       place) + a click-to-preview location map -->
   <div class="col-lg-4">
     {{if or .Config.Profiles .CanEdit}}
     <div class="card">
@@ -63,12 +67,12 @@
              href="/orgs/{{$.Org.Slug}}/config?profile={{.Name | urlquery}}{{if $.PreviewLat}}&amp;lat={{$.PreviewLat}}&amp;lon={{$.PreviewLon}}{{end}}"
              {{if eq .Name $.Config.Selected}}aria-current="true"{{end}}>{{.Name}}</a>
           {{if $.CanEdit}}
-          <button type="button" class="btn btn-icon btn-ghost-secondary" data-testid="config-profile-edit"
+          <button type="button" class="btn btn-icon btn-ghost-secondary" data-testid="config-profile-edit" data-tooltip
                   title="Edit profile" aria-label="Edit profile {{.Name}}"
                   data-bs-toggle="modal" data-bs-target="#config-profile-modal"
                   hx-get="/orgs/{{$.Org.Slug}}/config/profiles/{{.ID}}/edit" hx-target="#config-profile-modal-content" hx-swap="innerHTML">{{template "icon-pencil" ""}}</button>
           <form method="post" action="/orgs/{{$.Org.Slug}}/config/profiles/{{.ID}}/delete" class="m-0" data-confirm="Delete the profile “{{.Name}}”?">
-            <button type="submit" class="btn btn-icon btn-ghost-danger" data-testid="config-profile-delete"
+            <button type="submit" class="btn btn-icon btn-ghost-danger" data-testid="config-profile-delete" data-tooltip
                     title="Delete profile" aria-label="Delete profile {{.Name}}">{{template "icon-trash" ""}}</button>
           </form>
           {{end}}
@@ -78,51 +82,156 @@
       {{else}}
       <div class="card-body text-secondary">No profiles yet.</div>
       {{end}}
-      {{if or .Config.Profiles .Config.HasRegions}}
-      <div class="card-footer text-secondary small">
-        {{if .Config.Profiles}}Select a profile to see its base settings.{{end}}{{if .Config.HasRegions}} A repeater's regions are assigned separately, by location.{{end}}
-      </div>
-      {{end}}
-    </div>
-    {{end}}
-
-    {{if .Config.HasRegionShapes}}
-    <div class="card{{if or .Config.Profiles .CanEdit}} mt-3{{end}}">
-      <div class="card-header"><h2 class="card-title">Preview a location</h2></div>
-      <div class="card-body p-2">
-        <link rel="stylesheet" href="{{ asset "/static/leaflet.css" }}">
-        <div id="region-map" style="height:240px" role="region" aria-label="Click the map to preview a repeater's region config"></div>
-        <script src="{{ asset "/static/leaflet.js" }}"></script>
-        <script src="{{ asset "/static/regionmap.js" }}"></script>
-        <script nonce="{{.Nonce}}">
-          regionMapView('region-map', {
-            pickURL: '/orgs/{{.Org.Slug}}/config?{{if .Config.Profiles}}profile={{.Config.Selected | urlquery}}&{{end}}',
-            {{if .Config.PreviewActive}}preview: {lat: {{.PreviewLat}}, lon: {{.PreviewLon}}},{{end}}
-            {{if .Config.MapBounds}}bounds: [[{{index .Config.MapBounds 0}}, {{index .Config.MapBounds 1}}], [{{index .Config.MapBounds 2}}, {{index .Config.MapBounds 3}}]]{{end}}
-          });
-        </script>
-        {{if .Config.PreviewActive}}
-        <div class="text-secondary small mt-2 text-center">{{template "icon-map-pin" "me-1"}}<span class="font-monospace">{{.PreviewLat}}, {{.PreviewLon}}</span></div>
-        {{end}}
-      </div>
     </div>
     {{end}}
   </div>
+
 </div>
+{{end}}
+
+{{/* Section 2 — Regions: the map is the view of them, and the list beside it is the
+     map's legend (swatch + hierarchy by indentation). Everyone sees it; only admins
+     get the controls. Clicking the map picks a location, which is what drives the
+     assembled preview above. */}}
+{{if or .Config.Regions .CanEdit}}
+<div class="card mt-3" data-testid="config-regions">
+  <div class="card-header">
+    <div>
+      <h2 class="card-title">Regions</h2>
+      <div class="text-secondary small">Named areas drawn on a map. A repeater joins every region whose area contains it.</div>
+    </div>
+    {{if .CanEdit}}
+    <div class="card-actions">
+      <button type="button" class="btn btn-sm btn-primary" data-testid="config-region-add"
+              data-bs-toggle="modal" data-bs-target="#config-region-modal"
+              hx-get="/orgs/{{.Org.Slug}}/config/regions/new" hx-target="#config-region-modal-content" hx-swap="innerHTML">{{template "icon-plus" "me-1"}}Add region</button>
+    </div>
+    {{end}}
+  </div>
+  <div class="card-body p-0">
+    <div class="row g-0">
+      <div class="col-lg-8">
+        {{if .Config.HasRegionShapes}}
+        <link rel="stylesheet" href="{{ asset "/static/leaflet.css" }}">
+        <div id="region-map" style="height:520px" role="region"
+             aria-label="Map of this organization’s regions — click to preview a location"></div>
+        <script src="{{ asset "/static/leaflet.js" }}"></script>
+        <script src="{{ asset "/static/regionmap.js" }}"></script>
+        {{/* Region names and shapes are user data, interpolated in a JS context so
+             html/template JSON-encodes and escapes them. */}}
+        <script nonce="{{.Nonce}}">
+          regionMapView('region-map', {
+            regions: {{.Config.MapRegions}},
+            pickURL: '/orgs/{{.Org.Slug}}/config?{{if .Config.Profiles}}profile={{.Config.Selected | urlquery}}&{{end}}'{{if .Config.PreviewActive}},
+            preview: {lat: {{.PreviewLat}}, lon: {{.PreviewLon}}}{{end}}
+          });
+        </script>
+        {{else}}
+        <div class="p-4 text-secondary" data-testid="config-regions-noshapes">
+          {{if .Config.Regions}}
+          No region has an area drawn yet, so there is nothing to show on a map.
+          {{if .CanEdit}}Use the area button on a region to outline where it applies.{{end}}
+          {{else}}
+          Regions apply settings by location. Add one, draw where it applies, and a
+          repeater there picks it up automatically.
+          {{end}}
+        </div>
+        {{end}}
+      </div>
+      <div class="col-lg-4 border-start">
+        <div class="list-group list-group-flush" style="max-height:520px; overflow-y:auto">
+          {{if .CanEdit}}
+          {{/* The root (*) isn't a region row — it lives on the org — so it has no
+               swatch and its only setting is flood policy, saved on its own. */}}
+          <div class="list-group-item d-flex align-items-center gap-2" data-testid="config-region-root">
+            <div class="flex-fill" style="min-width:0">
+              <div class="fw-bold">Root <span class="text-secondary fw-normal">· <code>*</code> · everywhere</span></div>
+              <div class="text-secondary small">Deny flood to scope flooding to your defined regions.</div>
+            </div>
+            <form method="post" action="/orgs/{{.Org.Slug}}/config/root-flood" class="m-0 flex-shrink-0">
+              {{/* No hidden shadow input: an unchecked checkbox simply isn't submitted,
+                   which the handler reads as deny. */}}
+              <label class="form-check form-switch m-0 text-nowrap">
+                <input class="form-check-input" type="checkbox" name="root_allow_flood" value="1"
+                       {{if .Config.RootAllowFlood}}checked{{end}} data-autosubmit
+                       aria-label="Allow flood at the root region">
+                <span class="form-check-label">Allow flood</span>
+              </label>
+            </form>
+          </div>
+          {{end}}
+          {{range .Config.Regions}}
+          <div class="list-group-item d-flex align-items-center gap-2" data-testid="config-region-row">
+            {{/* Align to the top, not the middle: the swatch labels the region's name
+                 on the first line, and centering would float it down beside the token. */}}
+            <div class="flex-fill d-flex align-items-start gap-2" style="min-width:0; padding-left:{{.Depth}}rem">
+              {{if .HasShape}}
+              <span class="flex-shrink-0" aria-hidden="true"
+                    style="width:.75rem; height:.75rem; margin-top:.4rem; border-radius:2px; background-color:{{.Color}}"></span>
+              {{else}}
+              <span class="flex-shrink-0 text-warning" title="No area drawn yet">{{template "icon-alert" ""}}</span>
+              {{end}}
+              {{/* Name, then token, then status — each on its own line. A token is an
+                   identifier, so it never wraps mid-string. */}}
+              <div style="min-width:0">
+                <div>{{.DisplayName}}</div>
+                <div><span class="text-secondary text-nowrap"><code>{{.Token}}</code></span></div>
+                {{if not .HasShape}}
+                <div class="text-warning small" data-testid="config-region-draft">Needs an area</div>
+                {{else if .Matches}}
+                <div class="text-green small" data-testid="config-region-match">Applies here</div>
+                {{else if not .AllowFlood}}
+                <div class="text-secondary small">Flood denied</div>
+                {{end}}
+              </div>
+            </div>
+            {{if $.CanEdit}}
+            <a class="btn btn-icon btn-ghost-secondary flex-shrink-0" data-testid="config-region-area" data-tooltip
+               title="{{if .HasShape}}Edit area{{else}}Draw area{{end}}"
+               aria-label="{{if .HasShape}}Edit{{else}}Draw{{end}} area for {{.DisplayName}}"
+               href="/orgs/{{$.Org.Slug}}/config/regions/{{.ID}}/area">{{template "icon-map-pin" ""}}</a>
+            <button type="button" class="btn btn-icon btn-ghost-secondary flex-shrink-0" data-testid="config-region-edit" data-tooltip
+                    title="Edit region" aria-label="Edit region {{.DisplayName}}"
+                    data-bs-toggle="modal" data-bs-target="#config-region-modal"
+                    hx-get="/orgs/{{$.Org.Slug}}/config/regions/{{.ID}}/edit" hx-target="#config-region-modal-content" hx-swap="innerHTML">{{template "icon-pencil" ""}}</button>
+            <form method="post" action="/orgs/{{$.Org.Slug}}/config/regions/{{.ID}}/delete" class="m-0 flex-shrink-0" data-confirm="Delete the region “{{.DisplayName}}”?">
+              <button type="submit" class="btn btn-icon btn-ghost-danger" data-testid="config-region-delete" data-tooltip
+                      title="Delete region" aria-label="Delete region {{.DisplayName}}">{{template "icon-trash" ""}}</button>
+            </form>
+            {{end}}
+          </div>
+          {{end}}
+          {{if not .Config.Regions}}
+          <div class="list-group-item text-secondary">No regions yet.</div>
+          {{end}}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{{end}}
 
 {{if .CanEdit}}
-<!-- Admin profile editor; the Add/Edit buttons load their fragment here via htmx. -->
+<!-- Admin editors; the Add/Edit buttons load their fragment here via htmx. A region's
+     area is not edited here — it needs a full-width map, so it has its own page. -->
 <div class="modal modal-blur fade" id="config-profile-modal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg" role="document">
     <div class="modal-content" id="config-profile-modal-content"></div>
   </div>
 </div>
+<div class="modal modal-blur fade" id="config-region-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" role="document">
+    <div class="modal-content" id="config-region-modal-content"></div>
+  </div>
+</div>
 {{end}}
 {{end}}
 {{end}}
 
-{{/* step-list renders a sequence of ConfigStep as a copy-pasteable block. */}}
-{{define "step-list"}}
-{{if .}}<pre class="mb-0"><code>{{range .}}{{if .IsComment}}# {{.Comment}}{{else}}{{.CommandLine}}{{end}}
+{{/* config-lines renders assembled ConfigLines as one copy-pasteable block. Region
+     lines are tinted so it reads which came from the location rather than the
+     profile, matching the highlighted polygons on the map. */}}
+{{define "config-lines"}}
+{{if .}}<pre class="mb-0" data-testid="config-commands"><code>{{range .}}{{if .IsMarker}}<span class="text-secondary">&#8230; click a spot on the map below to fill in the region commands &#8230;</span>{{else if .IsComment}}# {{.Text}}{{else if .FromRegion}}<span class="text-azure" data-testid="config-region-line">{{.Text}}</span>{{else}}{{.Text}}{{end}}
 {{end}}</code></pre>{{else}}<div class="text-secondary">No steps.</div>{{end}}
 {{end}}

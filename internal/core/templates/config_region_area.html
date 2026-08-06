@@ -1,0 +1,96 @@
+{{/* The region area workspace: one region's geofence, drawn on a full-width map with
+     its siblings shown as read-only context. Attributes live in the modal on the
+     Configuration page — this page saves only the shape, through its own endpoint.
+
+     The side panel is deliberately roomy: it's where boundary import (load a real
+     administrative border and pick the areas you want) will land next to the draw
+     tools. */}}
+
+{{define "title"}}{{.Region.DisplayName}} area · {{.Org.Name}} · MeshTender{{end}}
+{{define "header"}}
+<div class="row g-2 align-items-center">
+  <div class="col">
+    <div class="page-pretitle">{{.Org.Name}} · Configuration · {{.Region.DisplayName}}</div>
+    <h1 class="page-title fs-1">Edit area</h1>
+  </div>
+  <div class="col-auto ms-auto d-print-none">
+    <a class="btn" href="/orgs/{{.Org.Slug}}/config">Back to configuration</a>
+  </div>
+</div>
+{{end}}
+{{define "content"}}
+{{template "org-tabs" .Nav}}
+
+{{if .Errors}}
+<div class="alert alert-danger" role="alert">
+  <div>
+    <div class="fw-bold">The area wasn't saved — fix this first:</div>
+    <ul class="mb-0">{{range .Errors}}<li>{{.}}</li>{{end}}</ul>
+  </div>
+</div>
+{{end}}
+
+<link rel="stylesheet" href="{{ asset "/static/leaflet.css" }}">
+<link rel="stylesheet" href="{{ asset "/static/leaflet-geoman.css" }}">
+
+<form method="post" action="/orgs/{{.Org.Slug}}/config/regions/{{.Region.ID}}/area" id="region-area-form">
+  <div class="row g-3">
+    <div class="col-lg-8">
+      <div id="region-map" style="height:600px; border-radius:var(--tblr-border-radius)"
+           role="region" aria-label="Map for drawing this region's boundary"></div>
+    </div>
+    <div class="col-lg-4">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h2 class="card-title">{{.Region.DisplayName}}</h2>
+            <div class="text-secondary small">
+              <code>{{.Region.Token}}</code> · level {{.Region.Layer}}
+            </div>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="mb-3" data-testid="region-area-status">
+            <span class="text-secondary">Area:</span>
+            <span class="fw-bold" id="region-area-status">—</span>
+          </div>
+          <p class="text-secondary small">
+            Draw with the tools at the top-left of the map. A region needs an area
+            before it applies to anything — until then it's a draft and no repeater
+            picks it up.
+          </p>
+          {{if .Siblings}}
+          <p class="text-secondary small mb-0">
+            The org's other regions are outlined for reference. They can't be edited
+            here — open each one's own area editor.
+          </p>
+          {{end}}
+        </div>
+        <div class="card-footer">
+          <div class="btn-list">
+            <button type="submit" class="btn btn-primary" data-testid="save-area">Save area</button>
+            <a class="btn" href="/orgs/{{.Org.Slug}}/config">Cancel</a>
+            <button type="button" class="btn btn-ghost-danger ms-auto" id="region-area-clear">Clear area</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <input type="hidden" name="region_geojson" id="region_geojson" value="{{.Region.GeofenceJSON}}">
+</form>
+
+<script src="{{ asset "/static/leaflet.js" }}"></script>
+<script src="{{ asset "/static/leaflet-geoman.js" }}"></script>
+<script src="{{ asset "/static/regionmap.js" }}"></script>
+{{/* Values are interpolated in a JS context, so html/template JSON-encodes and
+     escapes them — the region names and shapes are user data. */}}
+<script nonce="{{.Nonce}}">
+  initRegionArea('region-map', {
+    input: 'region_geojson',
+    status: 'region-area-status',
+    clear: 'region-area-clear',
+    name: {{.Region.DisplayName}},
+    siblings: {{.Siblings}}
+  });
+</script>
+{{end}}

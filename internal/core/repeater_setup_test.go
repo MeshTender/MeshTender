@@ -64,18 +64,17 @@ func TestSerialSetupFlow(t *testing.T) {
 	if save.StatusCode != http.StatusSeeOther {
 		t.Fatalf("profile save status = %d, want 303", save.StatusCode)
 	}
-	// Scoped-flooding pattern: allow flood inside the zone, deny at the root
-	// (root_allow_flood omitted = unchecked = deny).
-	rsave := post(t, ts, h.app, "/orgs/"+org.Slug+"/config/regions", url.Values{
-		"region_display":     {"Zone"},
-		"region_token":       {"zone"},
-		"region_layer":       {"1"},
-		"region_allow_flood": {"1"},
-		"region_geojson":     {`{"type":"Polygon","coordinates":[[[30,10],[40,10],[40,20],[30,20],[30,10]]]}`},
-	}, sess)
-	rsave.Body.Close()
-	if rsave.StatusCode != http.StatusSeeOther {
-		t.Fatalf("region save status = %d, want 303", rsave.StatusCode)
+	// Scoped-flooding pattern: allow flood inside the zone, deny at the root. The
+	// region itself is fixture here — the region editor's own endpoints are covered
+	// in config_region_modal_test.go — so it's written straight to the store.
+	if _, err := st.CreateRegion(ctx, org.ID, store.RegionInput{
+		Token: "zone", DisplayName: "Zone", Layer: 1, AllowFlood: true,
+		GeofenceJSON: []byte(`{"type":"Polygon","coordinates":[[[30,10],[40,10],[40,20],[30,20],[30,10]]]}`),
+	}); err != nil {
+		t.Fatalf("create region: %v", err)
+	}
+	if err := st.SetRootAllowFlood(ctx, org.ID, false); err != nil {
+		t.Fatalf("deny root flood: %v", err)
 	}
 
 	// Build the command list for a point inside the region.

@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/jleight/meshtender/internal/store"
 )
 
 // Black-box coverage for the org-management POST endpoints (create/edit/links/
@@ -68,8 +70,10 @@ func TestOrgManagementPosts(t *testing.T) {
 	}
 }
 
-// #56 update config profile, #57 delete config profile. (Create #54 and regions
-// #59 are covered by TestOrgConfigProfilesFlow.)
+// #56 update config profile, #57 delete config profile, and the matching region
+// writes (#107 update, #108 delete, #110 area, #111 root flood). (Profile create #54
+// and region create #59 are covered by TestOrgConfigProfilesFlow; the modal/area
+// surfaces in config_region_modal_test.go.)
 func TestOrgConfigProfileUpdateDelete(t *testing.T) {
 	t.Parallel()
 	st, ctx, ts, h := splitServer(t)
@@ -96,6 +100,29 @@ func TestOrgConfigProfileUpdateDelete(t *testing.T) {
 	del.Body.Close()
 	if loc, _ := url.Parse(del.Header.Get("Location")); del.StatusCode != http.StatusSeeOther || loc.Path != base {
 		t.Fatalf("delete profile = %d %q, want 303 → config", del.StatusCode, del.Header.Get("Location"))
+	}
+
+	// Regions mirror the same shape: every write lands back on the config page.
+	rid, err := st.CreateRegion(ctx, org.ID, store.RegionInput{Token: "buf", DisplayName: "Buffalo", AllowFlood: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	region := base + "/regions/" + strconv.FormatInt(rid, 10)
+	for _, step := range []struct {
+		name string
+		path string
+		form url.Values
+	}{
+		{"update region", region, url.Values{"region_token": {"buf"}, "region_display": {"Buffalo NY"}}},
+		{"save area", region + "/area", url.Values{"region_geojson": {`{"type":"Polygon","coordinates":[[[30,10],[40,10],[40,20],[30,20],[30,10]]]}`}}},
+		{"root flood", base + "/root-flood", url.Values{"root_allow_flood": {"1"}}},
+		{"delete region", region + "/delete", url.Values{}},
+	} {
+		resp := post(t, ts, h.app, step.path, step.form, sess)
+		resp.Body.Close()
+		if loc, _ := url.Parse(resp.Header.Get("Location")); resp.StatusCode != http.StatusSeeOther || loc.Path != base {
+			t.Errorf("%s = %d %q, want 303 → config", step.name, resp.StatusCode, resp.Header.Get("Location"))
+		}
 	}
 }
 
@@ -251,7 +278,7 @@ func TestOrgEditModals(t *testing.T) {
 
 // TestOrgTabsHeaderConsistent: the shared org-header renders the Actions menu on
 // EVERY member tab (not just Home) — the fix for the menu vanishing when you switch
-// tabs. Admins also get "Edit configuration" in it.
+// tabs.
 func TestOrgTabsHeaderConsistent(t *testing.T) {
 	t.Parallel()
 	st, ctx, ts, h := splitServer(t)
@@ -262,10 +289,18 @@ func TestOrgTabsHeaderConsistent(t *testing.T) {
 	}
 	for _, tab := range []string{"", "/members", "/repeaters", "/config"} {
 		body := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+tab, sess))
-		for _, want := range []string{">Actions<", "Leave organization", "View public page", "Edit configuration"} {
+		for _, want := range []string{">Actions<", "Leave organization", "View public page"} {
 			if !strings.Contains(body, want) {
 				t.Errorf("tab %q missing %q from the shared Actions header", tab, want)
 			}
+		}
+		// Configuration is reached by its own tab, which an admin always sees — even
+		// before the org has any config — so the Actions menu doesn't duplicate it.
+		if strings.Contains(body, "Edit configuration") {
+			t.Errorf("tab %q still offers Edit configuration in the Actions menu", tab)
+		}
+		if !strings.Contains(body, "/orgs/"+org.Slug+"/config") {
+			t.Errorf("tab %q does not link to the Configuration tab", tab)
 		}
 	}
 }

@@ -3,6 +3,7 @@ package core
 import (
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -44,63 +45,119 @@ func TestOrgConfigProfilesFlow(t *testing.T) {
 			t.Fatalf("create profile %s redirected to %q, want %q", p.name, got, want)
 		}
 	}
-	// A geofenced region, saved on the region page.
+	// A region, created in two steps the way the editor does it: the attribute form
+	// creates it as a draft, then the area page saves its drawn shape.
 	rsave := post(t, ts, h.app, "/orgs/"+org.Slug+"/config/regions", url.Values{
 		"region_display":     {"Mountains"},
 		"region_token":       {"mtns"},
 		"region_layer":       {"2"},
 		"region_allow_flood": {"1"},
-		"root_allow_flood":   {"1"},
-		"region_geojson":     {`{"type":"Polygon","coordinates":[[[30,10],[40,10],[40,20],[30,20],[30,10]]]}`},
 	}, sess)
 	rsave.Body.Close()
 	if rsave.StatusCode != http.StatusSeeOther {
-		t.Fatalf("save regions status = %d, want 303", rsave.StatusCode)
+		t.Fatalf("create region status = %d, want 303", rsave.StatusCode)
+	}
+	regions, err := st.ListRegions(ctx, org.ID)
+	if err != nil || len(regions) != 1 {
+		t.Fatalf("ListRegions = %v, %v; want one region", regions, err)
+	}
+	rid := strconv.FormatInt(regions[0].ID, 10)
+
+	// Before an area is drawn the region is a draft: flagged on the config page and
+	// contributing nothing to a location's region def.
+	draftView := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/config?lat=15&lon=35", sess))
+	if !strings.Contains(draftView, `data-testid="config-region-draft"`) {
+		t.Fatal("a region with no area should be flagged as needing one")
+	}
+	if strings.Contains(draftView, "region def") {
+		t.Fatal("a draft region must not produce region def commands")
+	}
+
+	asave := post(t, ts, h.app, "/orgs/"+org.Slug+"/config/regions/"+rid+"/area", url.Values{
+		"region_geojson": {`{"type":"Polygon","coordinates":[[[30,10],[40,10],[40,20],[30,20],[30,10]]]}`},
+	}, sess)
+	asave.Body.Close()
+	if asave.StatusCode != http.StatusSeeOther {
+		t.Fatalf("save area status = %d, want 303", asave.StatusCode)
 	}
 
 	body := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/config", sess))
-	// The profile list, with per-row admin actions; the geofenced region surfaces as
-	// the click-to-preview location map (regions aren't listed individually).
+	// The profile list and the region list, each with per-row admin actions, plus the
+	// click-to-preview location map the drawn geofence enables.
 	for _, want := range []string{
 		"ESP32", "nRF52", `data-testid="config-profile-list"`,
 		`data-testid="config-profile-add"`, `data-testid="config-profile-edit"`, `data-testid="config-profile-delete"`,
-		`id="config-profile-modal"`, "Preview a location", "region-map",
+		`id="config-profile-modal"`, `data-testid="config-regions"`, "region-map",
+		"Mountains", "mtns", `data-testid="config-region-row"`, `data-testid="config-region-add"`,
+		`data-testid="config-region-area"`, `id="config-region-modal"`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("config view missing %q", want)
 		}
 	}
-	// Default selection shows the first profile's base settings.
-	if !strings.Contains(body, "ESP32 · base settings") {
-		t.Fatalf("default config view should show the first profile's base settings")
+	// With an area drawn, the region is no longer flagged as a draft.
+	if strings.Contains(body, `data-testid="config-region-draft"`) {
+		t.Fatal("a region with an area should not be flagged as needing one")
+	}
+	// And it now applies at a location inside it.
+	preview := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/config?lat=15&lon=35", sess))
+	if !strings.Contains(preview, "region def mtns") {
+		t.Fatal("a drawn region should apply at a location inside it")
+	}
+	// Default selection shows the first profile's steps, not the second's.
+	if !strings.Contains(body, "esp base") || strings.Contains(body, "nrf base") {
+		t.Fatal("default config view should show the first profile's base settings")
 	}
 	// The profile selector works: ?profile= switches the shown base settings.
 	sel := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/config?profile=nRF52", sess))
-	if !strings.Contains(sel, "nRF52 · base settings") {
-		t.Fatalf("?profile=nRF52 should show nRF52's base settings")
+	if !strings.Contains(sel, "nrf base") || strings.Contains(sel, "esp base") {
+		t.Fatal("?profile=nRF52 should show nRF52's base settings")
 	}
 
-	// The admin editor pages render: the hub summarizes the regions (profiles live
-	// on the config page now), the new-profile page shows the base-settings editor,
-	// and the region page has the map + a region row.
-	hub := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/config/edit", sess))
-	for _, want := range []string{"Edit regions", "1 region"} {
-		if !strings.Contains(hub, want) {
-			t.Fatalf("config hub missing %q", want)
+	// The preview is assembled: with a location picked, the selected profile's steps
+	// and that location's region commands appear in one block, which is what a
+	// repeater owner actually runs.
+	assembled := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/config?profile=ESP32&lat=15&lon=35", sess))
+	block := assembled[strings.Index(assembled, `data-testid="config-commands"`):]
+	block = block[:strings.Index(block, "</code>")]
+	for _, want := range []string{"esp base", "region def mtns", "region save"} {
+		if !strings.Contains(block, want) {
+			t.Fatalf("assembled preview missing %q; got %q", want, block)
 		}
 	}
-	if strings.Contains(hub, "Add profile") {
-		t.Fatalf("config hub should no longer manage profiles")
+	// Region-contributed lines are marked so the page can show where they came from.
+	if !strings.Contains(block, `data-testid="config-region-line"`) {
+		t.Fatal("region commands in the assembled preview should be marked as region lines")
 	}
+	// And the legend marks the regions that cover the picked location.
+	if !strings.Contains(assembled, `data-testid="config-region-match"`) {
+		t.Fatal("the legend should mark which regions apply at the previewed location")
+	}
+
+	// The standalone editor pages render (the no-JS fallbacks): the new-profile page
+	// shows the base-settings editor, and the region area page has the map.
 	newProf := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/config/profiles/new", sess))
 	if !strings.Contains(newProf, "Base settings") || !strings.Contains(newProf, "Create profile") {
 		t.Fatalf("new-profile page missing its form")
 	}
-	rgn := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/config/regions", sess))
-	for _, want := range []string{"region-map", "Mountains", "mtns", "Add region", "everywhere", "Allow flood"} {
+	rgn := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/config/regions/"+rid+"/area", sess))
+	for _, want := range []string{"region-map", "Mountains", "mtns", "Save area", "Clear area"} {
 		if !strings.Contains(rgn, want) {
-			t.Fatalf("regions editor missing %q", want)
+			t.Fatalf("region area editor missing %q", want)
 		}
+	}
+	// The old config hub is gone entirely (404), and the old bulk region editor's
+	// path is now POST-only — the collection you create a region through — so a GET
+	// there is a 405 rather than a page.
+	hub := do(t, ts, h.app, "/orgs/"+org.Slug+"/config/edit", sess)
+	hub.Body.Close()
+	if hub.StatusCode != http.StatusNotFound {
+		t.Errorf("GET /config/edit = %d, want 404 (route removed)", hub.StatusCode)
+	}
+	bulk := do(t, ts, h.app, "/orgs/"+org.Slug+"/config/regions", sess)
+	bulk.Body.Close()
+	if bulk.StatusCode != http.StatusMethodNotAllowed {
+		t.Errorf("GET /config/regions = %d, want 405 (POST-only collection)", bulk.StatusCode)
 	}
 
 	// A non-admin member of a config-less org does NOT see the Configuration tab.

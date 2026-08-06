@@ -75,9 +75,10 @@ type Profile struct {
 // Region is one node in an org's region hierarchy. Token is the MeshCore region
 // name used in `region def` (e.g. "buf"); DisplayName is the human label (e.g.
 // "Buffalo"); Layer is its depth and ordering in the chain (lower = nearer the
-// root). Geofence is nil for a region that applies everywhere. GeofenceJSON is the
-// raw stored GeoJSON (nil for a match-all region), carried verbatim so the editor
-// can round-trip an arbitrary polygon without collapsing it to its bounding box.
+// root). Geofence is nil for a draft — a region whose area hasn't been drawn yet,
+// which applies nowhere (see RegionMatches). GeofenceJSON is the raw stored GeoJSON,
+// carried verbatim so the editor can round-trip an arbitrary polygon without
+// collapsing it to its bounding box.
 type Region struct {
 	ID           int64
 	Token        string
@@ -89,8 +90,9 @@ type Region struct {
 	GeofenceJSON []byte
 }
 
-// ProfileInput / RegionInput are an org's config as submitted by the editor for a
-// full replace. GeofenceJSON is raw GeoJSON (nil/empty = everywhere).
+// ProfileInput / RegionInput are an org's config as submitted by the editor.
+// GeofenceJSON is raw GeoJSON; nil/empty leaves the region a draft (applies
+// nowhere) until an area is drawn.
 type ProfileInput struct {
 	Name  string
 	Steps []ConfigStep
@@ -248,20 +250,6 @@ func (s *Store) ReplaceOrgConfig(ctx context.Context, orgID int64, profiles []Pr
 	})
 }
 
-// ReplaceRegions replaces just an org's regions (profiles untouched) and sets the
-// org's root (*) flood policy, in one transaction. Regions are spatially
-// interdependent — parenting is derived from overlap — so the region editor sends
-// the full desired set each save.
-func (s *Store) ReplaceRegions(ctx context.Context, orgID int64, regions []RegionInput, rootAllowFlood bool) error {
-	return s.inTx(ctx, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx,
-			`UPDATE organizations SET root_allow_flood = $2 WHERE id = $1`, orgID, rootAllowFlood); err != nil {
-			return fmt.Errorf("set root flood: %w", err)
-		}
-		return replaceRegionsTx(ctx, tx, orgID, regions)
-	})
-}
-
 // RootAllowFlood reports whether flooding is allowed at the org's root region (*).
 func (s *Store) RootAllowFlood(ctx context.Context, orgID int64) (bool, error) {
 	var allow bool
@@ -356,6 +344,146 @@ func (s *Store) DeleteProfile(ctx context.Context, orgID, profileID int64) error
 	return nil
 }
 
+// Regions are edited one at a time (attributes in a modal, geometry on the area
+// page), so each of the following touches exactly one row. Contrast
+// ReplaceOrgConfig above, which still replaces an org's whole config wholesale for
+// seeding and imports.
+
+// CreateRegion inserts one region for an org and returns its id. GeofenceJSON may
+// be nil — that's a draft region whose area hasn't been drawn yet, which applies
+// nowhere until it has a shape (see RegionMatches). Returns ErrDuplicate if the org
+// already has a region with that token.
+func (s *Store) CreateRegion(ctx context.Context, orgID int64, z RegionInput) (int64, error) {
+	var id int64
+	err := s.inTx(ctx, func(tx pgx.Tx) error {
+		if err := clearOtherPrimaries(ctx, tx, orgID, 0, z.Primary); err != nil {
+			return err
+		}
+		return tx.QueryRow(ctx,
+			`INSERT INTO config_regions (org_id, token, display_name, layer, is_primary, allow_flood, geofence)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+			orgID, z.Token, z.DisplayName, z.Layer, z.Primary, z.AllowFlood, nilIfEmpty(z.GeofenceJSON)).Scan(&id)
+	})
+	if isUniqueViolation(err) {
+		return 0, ErrDuplicate
+	}
+	if err != nil {
+		return 0, fmt.Errorf("insert region %q: %w", z.Token, err)
+	}
+	return id, nil
+}
+
+// GetRegion returns a single region scoped to its org, or ErrNotFound if no such
+// region belongs to the org.
+func (s *Store) GetRegion(ctx context.Context, orgID, regionID int64) (*Region, error) {
+	var z Region
+	var raw []byte
+	err := s.pool.QueryRow(ctx,
+		`SELECT id, token, display_name, layer, is_primary, allow_flood, geofence
+		 FROM config_regions WHERE id = $1 AND org_id = $2`, regionID, orgID).
+		Scan(&z.ID, &z.Token, &z.DisplayName, &z.Layer, &z.Primary, &z.AllowFlood, &raw)
+	if err != nil {
+		return nil, notFoundOr(err, "get region")
+	}
+	if z.Geofence, err = geo.Parse(raw); err != nil {
+		return nil, fmt.Errorf("get region %d: %w", regionID, err)
+	}
+	z.GeofenceJSON = raw
+	return &z, nil
+}
+
+// UpdateRegion replaces a region's attributes, leaving its geofence alone — the
+// area is saved separately by UpdateRegionGeofence, so a failed attribute edit can
+// never discard a drawn shape. Returns ErrNotFound if the region isn't the org's,
+// or ErrDuplicate if the new token collides with another of its regions.
+func (s *Store) UpdateRegion(ctx context.Context, orgID, regionID int64, z RegionInput) error {
+	err := s.inTx(ctx, func(tx pgx.Tx) error {
+		if err := clearOtherPrimaries(ctx, tx, orgID, regionID, z.Primary); err != nil {
+			return err
+		}
+		tag, err := tx.Exec(ctx,
+			`UPDATE config_regions SET token = $3, display_name = $4, layer = $5, is_primary = $6, allow_flood = $7
+			 WHERE id = $1 AND org_id = $2`,
+			regionID, orgID, z.Token, z.DisplayName, z.Layer, z.Primary, z.AllowFlood)
+		if err != nil {
+			return fmt.Errorf("update region: %w", err)
+		}
+		if tag.RowsAffected() == 0 {
+			return ErrNotFound
+		}
+		return nil
+	})
+	if isUniqueViolation(err) {
+		return ErrDuplicate
+	}
+	return err
+}
+
+// UpdateRegionGeofence saves just a region's drawn area. A nil/empty geofence
+// clears it back to a draft. Returns ErrNotFound if the region isn't the org's.
+func (s *Store) UpdateRegionGeofence(ctx context.Context, orgID, regionID int64, geofence []byte) error {
+	tag, err := s.pool.Exec(ctx,
+		`UPDATE config_regions SET geofence = $3 WHERE id = $1 AND org_id = $2`,
+		regionID, orgID, nilIfEmpty(geofence))
+	if err != nil {
+		return fmt.Errorf("update region geofence: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// DeleteRegion removes a region, scoped to its org. Returns ErrNotFound if no such
+// region belongs to the org.
+func (s *Store) DeleteRegion(ctx context.Context, orgID, regionID int64) error {
+	tag, err := s.pool.Exec(ctx,
+		`DELETE FROM config_regions WHERE id = $1 AND org_id = $2`, regionID, orgID)
+	if err != nil {
+		return fmt.Errorf("delete region: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// SetRootAllowFlood sets the org's root (*) flood policy on its own — the root
+// isn't a config_regions row, so it's toggled independently of any region.
+func (s *Store) SetRootAllowFlood(ctx context.Context, orgID int64, allow bool) error {
+	if _, err := s.pool.Exec(ctx,
+		`UPDATE organizations SET root_allow_flood = $2 WHERE id = $1`, orgID, allow); err != nil {
+		return fmt.Errorf("set root flood: %w", err)
+	}
+	return nil
+}
+
+// clearOtherPrimaries demotes the org's other primary regions so the one being
+// written can take the flag. keepID is excluded (0 when inserting). A no-op when
+// the region isn't becoming primary — turning the flag off never touches siblings.
+// This runs before the write, so config_regions_one_primary_idx never actually
+// fires; the index is there to keep the invariant if anything else writes the table.
+func clearOtherPrimaries(ctx context.Context, tx pgx.Tx, orgID, keepID int64, primary bool) error {
+	if !primary {
+		return nil
+	}
+	if _, err := tx.Exec(ctx,
+		`UPDATE config_regions SET is_primary = false WHERE org_id = $1 AND id <> $2 AND is_primary`,
+		orgID, keepID); err != nil {
+		return fmt.Errorf("clear other primary regions: %w", err)
+	}
+	return nil
+}
+
+// nilIfEmpty maps an empty geofence to nil so it lands as SQL NULL (a draft region)
+// rather than an empty JSONB value.
+func nilIfEmpty(b []byte) []byte {
+	if len(b) == 0 {
+		return nil
+	}
+	return b
+}
+
 // insertProfile inserts one profile row plus its steps, returning the new id.
 func insertProfile(ctx context.Context, tx pgx.Tx, orgID int64, name string, pos int, steps []ConfigStep) (int64, error) {
 	var pid int64
@@ -376,13 +504,9 @@ func replaceRegionsTx(ctx context.Context, tx pgx.Tx, orgID int64, regions []Reg
 		return fmt.Errorf("clear regions: %w", err)
 	}
 	for _, z := range regions {
-		var geofence []byte // nil → SQL NULL → everywhere
-		if len(z.GeofenceJSON) > 0 {
-			geofence = z.GeofenceJSON
-		}
 		if _, err := tx.Exec(ctx,
 			`INSERT INTO config_regions (org_id, token, display_name, layer, is_primary, allow_flood, geofence) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-			orgID, z.Token, z.DisplayName, z.Layer, z.Primary, z.AllowFlood, geofence); err != nil {
+			orgID, z.Token, z.DisplayName, z.Layer, z.Primary, z.AllowFlood, nilIfEmpty(z.GeofenceJSON)); err != nil {
 			return fmt.Errorf("insert region %q: %w", z.Token, err)
 		}
 	}
@@ -546,11 +670,18 @@ func floodCommand(name string, allow bool) string {
 	return "region denyf " + name
 }
 
-// RegionMatches reports whether a region applies at (lat, lon): a match-all region
-// always does; a geofenced one only when the location is known and inside it.
+// RegionMatches reports whether a region applies at (lat, lon): only when the
+// location is known and inside the region's geofence.
+//
+// A region with no geofence applies *nowhere*, not everywhere. Every row in
+// config_regions is a bounded area by definition — the only "applies everywhere"
+// region is the org root (*), which lives on the organizations row and is never a
+// region row. So a NULL geofence means a draft: a region created before its area
+// has been drawn. It stays out of every `region def` chain until it has a shape,
+// rather than silently applying to every repeater on the mesh.
 func RegionMatches(z Region, lat, lon *float64) bool {
 	if z.Geofence == nil {
-		return true
+		return false
 	}
 	return lat != nil && lon != nil && z.Geofence.Contains(*lat, *lon)
 }
