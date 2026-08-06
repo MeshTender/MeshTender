@@ -1,4 +1,9 @@
-/* @preserve Leaflet.markercluster 1.5.3 styles (MarkerCluster.css + MarkerCluster.Default.css), MIT License. Vendored. */
+/* @preserve
+ * Leaflet.markercluster 1.5.3 styles, https://github.com/Leaflet/Leaflet.markercluster
+ * Copyright 2012 David Leaver, MIT License.
+ * Upstream MarkerCluster.css + MarkerCluster.Default.css concatenated.
+ * Vendored (self-hosted per CSP); see THIRD-PARTY-NOTICES.md.
+ */
 .leaflet-cluster-anim .leaflet-marker-icon, .leaflet-cluster-anim .leaflet-marker-shadow {
 	-webkit-transition: -webkit-transform 0.3s ease-out, opacity 0.3s ease-in;
 	-moz-transition: -moz-transform 0.3s ease-out, opacity 0.3s ease-in;

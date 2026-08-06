@@ -1,3 +1,9 @@
+/* @preserve
+ * Leaflet-Geoman (leaflet-geoman-free) 2.20.0 stylesheet, https://geoman.io
+ * (c) 2017 Sumit Kumar, MIT License.
+ * Banner restored by hand: the upstream esbuild bundle ships none.
+ * Vendored (self-hosted per CSP); see THIRD-PARTY-NOTICES.md.
+ */
 /* src/css/layers.css */
 .marker-icon {
   background-color: #ffffff;

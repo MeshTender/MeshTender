@@ -127,13 +127,36 @@ markup for it. The one that has already bitten us:
   left-aligned. **Add `text-start`.** `TestFullWidthFlexButtonsAreTextStart`, in
   the same file, enforces it.
 
-### 5. CI is the gate, not the first line
+### 5. Third-party licensing is a gate — permissive only
+We ship a binary and an image, so every dependency has to be one whose license
+we can actually comply with. Dependencies stay permissive — copyleft terms
+(GPL, LGPL, AGPL, MPL, SSPL) would reach back and constrain how MeshTender
+itself may be licensed and distributed. The allowed set is `AllowedSPDX` in
+`internal/licenses/manifest.go`; adding to it is a legal decision, not a build
+fix. This applies to the test tree too.
+
+- `mise run licenses` scans the Go module graph (binary + test + `browser` tag)
+  with `google/licensecheck` **and** the non-Go manifest, then verifies
+  `THIRD-PARTY-NOTICES.md` is current. `--update` regenerates it. CI gates on it
+  (`.woodpecker/licenses.yaml`).
+- Anything third-party that Go tooling can't see — vendored front-end files,
+  bundled code, icon artwork, the base image, external services — lives in
+  `internal/licenses/manifest.go` with its version, SHA-256, upstream source, and
+  committed license text. The tests there verify the declared SPDX ID against the
+  actual text, pin file hashes, require attribution banners, and **fail if a file
+  in `internal/web/static/` is neither declared nor listed as first-party**. Don't
+  work around that last one — it's what stops a new library escaping the audit.
+- **Minifiers strip copyright banners; MIT and BSD require they stay.** When you
+  update a vendored asset, keep or restore the banner (with the copyright line,
+  not just the license name) and refresh the manifest hash.
+
+### 6. CI is the gate, not the first line
 Woodpecker (`.woodpecker/`): `test` + `lint` + `vuln` (govulncheck) must pass
 before `build`; `deploy` follows `build` on `main`. A reachable CVE blocks the
 build. Catch problems locally first; if CI catches something you didn't, close the
 local-testing gap.
 
-### 6. Git hygiene — stage one batch at a time, don't commit
+### 7. Git hygiene — stage one batch at a time, don't commit
 This is a single-developer project with no PR workflow. **Stage your changes but do
 NOT commit or push** — the developer commits from a git GUI. Stage exactly the
 files for one logical change with explicit `git add <file> …` (never `-A`/`.`).

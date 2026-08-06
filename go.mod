@@ -12,6 +12,7 @@ require (
 	github.com/coder/websocket v1.8.15
 	github.com/go-chi/chi/v5 v5.3.1
 	github.com/go-webauthn/webauthn v0.17.4
+	github.com/google/licensecheck v0.3.1
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/meshcore-go/meshcore-go v1.0.9
 	github.com/microcosm-cc/bluemonday v1.0.27

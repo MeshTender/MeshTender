@@ -15,6 +15,17 @@ run = "go run ./cmd/meshtender"
 [tasks.lint]
 run = "golangci-lint run"
 
+# Audits every third-party dependency: scans the Go module graph (including
+# test-only and browser-tagged deps) plus the non-Go manifest in
+# internal/licenses, and fails if anything is not permissively licensed or if
+# THIRD-PARTY-NOTICES.md has drifted. Copyleft terms would constrain how
+# MeshTender itself may be licensed, so this is a licensing gate, not a lint.
+[tasks.licenses]
+usage = '''
+flag "-u --update" help="Rewrite THIRD-PARTY-NOTICES.md instead of only checking it"
+'''
+run = 'go run ./cmd/licenses ${usage_update:+--update}'
+
 [tasks.seed]
 run = "go run ./cmd/meshtender --seed"
 
