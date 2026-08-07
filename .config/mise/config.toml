@@ -1,10 +1,21 @@
 [tools]
-go = "latest"
+# Go is pinned exactly, not floating: the published image is meant to be
+# byte-for-byte reproducible by an outside auditor, and a different compiler
+# version produces a different binary. Bump this together with GOTOOLCHAIN
+# below, the `go` directive in go.mod, and the builder image in
+# .woodpecker/build.yaml.
+go = "1.26.5"
 "golangci-lint" = "latest"
 pitchfork = "latest"
+# Builds the OCI image (see .ko.yaml). Pinned for the same reason as Go.
+"aqua:ko-build/ko" = "0.19.1"
 
 [env]
 _.file = ".env"
+# Force the exact compiler, not merely "at least the go.mod version": with
+# GOTOOLCHAIN=auto a developer on a newer Go would build a different binary
+# from the same commit. Keep in sync with the `go` pin above.
+GOTOOLCHAIN = "go1.26.5"
 
 [deps.go]
 auto = true
@@ -14,6 +25,32 @@ run = "go run ./cmd/meshtender"
 
 [tasks.lint]
 run = "golangci-lint run"
+
+# Builds the OCI image with ko (configured in .ko.yaml). There is no Dockerfile:
+# the app is pure Go with everything embedded, so ko lays the binary straight
+# onto a digest-pinned base image with zeroed layer timestamps.
+#
+# The default run pushes nothing and just prints the image digest — that is the
+# value an auditor compares against a published release, and it does not depend
+# on our registry (the repo name is not part of the digest). `--load` instead
+# loads the image into the local Docker daemon so it can actually be run.
+#
+# The digest is only reproducible from a CLEAN checkout of the exact commit: Go
+# stamps the commit SHA, commit time, and dirty flag into the binary. See
+# "Verifying a build" in README.md.
+[tasks.image]
+usage = '''
+flag "-l --load" help="Load the image into the local Docker daemon instead of only printing its digest"
+flag "-p --platform <platform>" help="Target platform (default linux/amd64)"
+'''
+run = """
+platform="${usage_platform:-linux/amd64}"
+if [ -n "${usage_load:-}" ]; then
+  KO_DOCKER_REPO=ko.local ko build --platform="$platform" --sbom=none ./cmd/meshtender
+else
+  KO_DOCKER_REPO=meshtender ko build --bare --push=false --platform="$platform" --sbom=none ./cmd/meshtender
+fi
+"""
 
 # Audits every third-party dependency: scans the Go module graph (including
 # test-only and browser-tagged deps) plus the non-Go manifest in

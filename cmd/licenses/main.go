@@ -141,26 +141,62 @@ func repoRoot() (string, error) {
 	}
 }
 
+// platform is a GOOS/GOARCH pair the audit covers.
+type platform struct{ GOOS, GOARCH string }
+
+// shipPlatform decides which modules count as "linked into the binary". It is
+// the platform we publish images for, so the notices file describes what we
+// actually redistribute rather than whatever machine ran the command.
+var shipPlatform = platform{GOOS: "linux", GOARCH: "amd64"}
+
+// auditPlatforms is the fixed matrix the module scan unions over.
+//
+// `go list -deps` resolves imports for one GOOS/GOARCH, and the answer differs
+// per platform: Linux pulls in moby/sys/userns and tklauser/numcpus, macOS
+// pulls in ebitengine/purego. Scanning only the host therefore made the
+// generated file depend on who ran the command — a developer on macOS and the
+// Linux CI runner produced different module lists, so the drift check could
+// never pass on both. Unioning a FIXED matrix makes the output identical
+// everywhere, and is the right answer for a licensing gate anyway: a copyleft
+// dependency must not be able to hide behind a GOOS constraint.
+//
+// Windows is deliberately excluded — it is neither a release target nor a
+// supported dev platform, and including it would add four Windows-only
+// testcontainers dependencies that we never build or ship. Add an entry here if
+// that changes.
+var auditPlatforms = []platform{
+	{GOOS: "linux", GOARCH: "amd64"},
+	{GOOS: "linux", GOARCH: "arm64"},
+	{GOOS: "darwin", GOARCH: "amd64"},
+	{GOOS: "darwin", GOARCH: "arm64"},
+}
+
 // scanModules resolves every module in the build to its license. It asks the go
 // tool three questions: which modules the shipped binary links, which the tests
 // add, and which the browser-tagged e2e suite adds on top of that — so a
-// dependency cannot hide behind a build tag.
+// dependency cannot hide behind a build tag. Each question is asked once per
+// auditPlatforms entry, so one cannot hide behind a GOOS constraint either.
 func scanModules(root string) ([]licenses.GoModule, []string, error) {
-	binary, err := listModules(root, []string{"list", "-deps", "-json", "./cmd/meshtender"})
+	binary, err := listModules(root, shipPlatform, []string{"list", "-deps", "-json", "./cmd/meshtender"})
 	if err != nil {
 		return nil, nil, fmt.Errorf("listing binary dependencies: %w", err)
 	}
-	all, err := listModules(root, []string{"list", "-deps", "-test", "-json", "./..."})
-	if err != nil {
-		return nil, nil, fmt.Errorf("listing all dependencies: %w", err)
-	}
-	browser, err := listModules(root, []string{"list", "-deps", "-test", "-tags", "browser", "-json", "./..."})
-	if err != nil {
-		return nil, nil, fmt.Errorf("listing browser-tagged dependencies: %w", err)
-	}
-	for path, dir := range browser {
-		if _, ok := all[path]; !ok {
-			all[path] = dir
+
+	all := map[string]moduleInfo{}
+	for _, p := range auditPlatforms {
+		for _, args := range [][]string{
+			{"list", "-deps", "-test", "-json", "./..."},
+			{"list", "-deps", "-test", "-tags", "browser", "-json", "./..."},
+		} {
+			mods, err := listModules(root, p, args)
+			if err != nil {
+				return nil, nil, fmt.Errorf("listing dependencies for %s/%s: %w", p.GOOS, p.GOARCH, err)
+			}
+			for path, info := range mods {
+				if _, ok := all[path]; !ok {
+					all[path] = info
+				}
+			}
 		}
 	}
 
@@ -203,9 +239,13 @@ type moduleInfo struct {
 
 // listModules runs a `go list -json` invocation and collects the modules behind
 // the packages it reports, skipping the standard library and this module itself.
-func listModules(root string, args []string) (map[string]moduleInfo, error) {
+func listModules(root string, p platform, args []string) (map[string]moduleInfo, error) {
 	cmd := exec.Command("go", args...) //nolint:gosec // G204: args are the literal `go list` invocations in scanModules, never external input
 	cmd.Dir = root
+	// Pin the target platform so the result does not depend on the host; see
+	// auditPlatforms. CGO is off because a cross-GOOS list cannot use the host
+	// C toolchain, and the shipped binary is built with CGO_ENABLED=0 anyway.
+	cmd.Env = append(os.Environ(), "GOOS="+p.GOOS, "GOARCH="+p.GOARCH, "CGO_ENABLED=0")
 	cmd.Stderr = os.Stderr
 	out, err := cmd.Output()
 	if err != nil {

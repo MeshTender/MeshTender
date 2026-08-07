@@ -1,0 +1,32 @@
+# ko build configuration — see `mise run image` and .woodpecker/build.yaml.
+#
+# MeshTender is published as a reproducible image so that an end user auditing
+# the source can rebuild it themselves and confirm the digest matches what we
+# shipped. That only holds if every input is pinned, so:
+#
+#   - the base image is pinned by DIGEST, not by the :nonroot tag (which moves);
+#   - the Go toolchain is pinned in .config/mise/config.toml and go.mod;
+#   - the ko version is pinned in .config/mise/config.toml.
+#
+# Changing any of those changes the output digest. See "Verifying a build" in
+# README.md for the reproduction steps.
+#
+# ko already defaults to CGO_ENABLED=0 and -trimpath, and it zeroes the layer
+# timestamps, so those are not repeated here.
+
+# gcr.io/distroless/static-debian12:nonroot — the tag is kept alongside the
+# digest for readability only; the digest is what is resolved. This is the
+# multi-platform index digest, so --platform still selects the right variant.
+# Runs as uid 65532 (nonroot) and carries the CA bundle the app needs for
+# outbound TLS.
+defaultBaseImage: gcr.io/distroless/static-debian12:nonroot@sha256:f5b485ea962d9bd1186b2f6b3a061191539b905b82ec395de78cbfae51f20e35
+
+builds:
+  - id: meshtender
+    main: ./cmd/meshtender
+    # Matches the flags the old Dockerfile used: strip the symbol table and
+    # DWARF to keep the image small. Go still emits function names, so panic
+    # tracebacks stay readable.
+    ldflags:
+      - -s
+      - -w

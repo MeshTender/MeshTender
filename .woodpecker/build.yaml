@@ -1,5 +1,23 @@
-# Builds the OCI image and pushes it to the Forgejo registry. Runs only after
-# tests and lint pass, and only on the main branch and on tags (not on PRs).
+# Builds the OCI image with ko and pushes it to the Forgejo registry. Runs only
+# after tests and lint pass, and only on the main branch and on tags (not PRs).
+#
+# There is no Dockerfile. MeshTender is a pure-Go single binary with migrations,
+# templates, and static assets embedded via go:embed, so ko builds it and lays
+# it straight onto the digest-pinned base image from .ko.yaml — no build
+# context, no daemon, no privileged rootless-buildkit sandbox. ko talks to the
+# registry over the HTTP API, authenticating with the same
+# woodpecker-ci-registry secret, mounted at $DOCKER_CONFIG.
+#
+# The image is reproducible: the Go toolchain (the builder image tag), the ko
+# version, and the base image digest are all pinned, and ko zeroes layer
+# timestamps. An auditor can rebuild from a clean checkout of the tagged commit
+# and get the same digest — see "Verifying a build" in README.md.
+#
+# ko is installed with `go install ko@<version>` rather than run from the
+# upstream ko image on purpose: ko compiles the app with whatever Go is on
+# PATH, so the Go version has to be the one we pinned, not whatever the ko
+# image happens to bundle. `go install pkg@version` builds in an isolated
+# module context, so it does not touch go.mod or the licensing audit.
 when:
   - event: push
     branch: main
@@ -10,52 +28,48 @@ depends_on:
   - lint
   - vuln
 
+variables:
+  # Keep the builder image, GOTOOLCHAIN, and the ko version in sync with the
+  # pins in .config/mise/config.toml and the go.mod `go` directive.
+  # TestReleasePinsAreConsistent enforces it. `go install` drops ko in
+  # /go/bin, which is already on PATH in the official golang image.
+  - &golang_image golang:1.26.5
+  - &ko_env
+    DOCKER_CONFIG: /root/.docker
+    KO_DOCKER_REPO: git.leightha.us/ci/jleight/meshtender
+    KO_VERSION: v0.19.1
+    # Refuse to silently download a newer toolchain than the pinned one; the
+    # builder image already carries it, so this is a guard, not a fetch.
+    GOTOOLCHAIN: go1.26.5
+  - &registry_secret
+    kubernetes:
+      secrets:
+        - name: woodpecker-ci-registry
+          key: .dockerconfigjson
+          target:
+            file: /root/.docker/config.json
+
 steps:
   publish:
-    image: moby/buildkit:v0.18.1-rootless
-    environment:
-      DOCKER_CONFIG: /home/user/.docker
-      BUILDKITD_FLAGS: --oci-worker-no-process-sandbox
+    image: *golang_image
+    environment: *ko_env
     commands:
-      - |
-        buildctl-daemonless.sh build \
-          --frontend dockerfile.v0 \
-          --local context=. \
-          --local dockerfile=. \
-          --opt filename=Dockerfile \
-          --output type=image,name=git.leightha.us/ci/jleight/meshtender:${CI_COMMIT_SHA},push=true
-    backend_options: &buildkit
-      kubernetes:
-        securityContext:
-          runAsUser: 1000
-          runAsGroup: 1000
-          seccompProfile:
-            type: Unconfined
-          apparmorProfile:
-            type: Unconfined
-        secrets:
-          - name: woodpecker-ci-registry
-            key: .dockerconfigjson
-            target:
-              file: /home/user/.docker/config.json
+      - go install github.com/google/ko@$KO_VERSION
+      # --bare: publish to exactly $KO_DOCKER_REPO rather than appending a
+      # package-name/hash suffix, matching the tag deploy.yaml expects.
+      - ko build --bare --tags "$CI_COMMIT_SHA" --sbom=spdx ./cmd/meshtender
+    backend_options: *registry_secret
     when:
       - event: push
         branch: main
 
   publish-tag:
-    image: moby/buildkit:v0.18.1-rootless
-    environment:
-      DOCKER_CONFIG: /home/user/.docker
-      BUILDKITD_FLAGS: --oci-worker-no-process-sandbox
+    image: *golang_image
+    environment: *ko_env
     commands:
+      - go install github.com/google/ko@$KO_VERSION
       # On a git tag: strip a leading "v" so v1.2.3 -> 1.2.3.
-      - |
-        buildctl-daemonless.sh build \
-          --frontend dockerfile.v0 \
-          --local context=. \
-          --local dockerfile=. \
-          --opt filename=Dockerfile \
-          --output type=image,name=git.leightha.us/ci/jleight/meshtender:${CI_COMMIT_TAG##v},push=true
-    backend_options: *buildkit
+      - ko build --bare --tags "${CI_COMMIT_TAG##v}" --sbom=spdx ./cmd/meshtender
+    backend_options: *registry_secret
     when:
       - event: tag

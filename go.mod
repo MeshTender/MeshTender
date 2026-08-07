@@ -1,5 +1,10 @@
 module github.com/jleight/meshtender
 
+// The exact toolchain is pinned with GOTOOLCHAIN (see .config/mise/config.toml
+// and .woodpecker/build.yaml) rather than a `toolchain` directive, which Go
+// rejects as redundant when it matches this line. A different compiler version
+// produces a different binary, so keep the three in sync — enforced by
+// TestReleasePinsAreConsistent in internal/licenses.
 go 1.26.5
 
 require (

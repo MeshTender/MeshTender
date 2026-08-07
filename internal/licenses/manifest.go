@@ -46,8 +46,8 @@ const (
 	// rather than vendored as a whole file.
 	KindArtwork Kind = "artwork"
 
-	// KindImage is a container base image referenced by the Dockerfile. We
-	// redistribute it as part of the published image.
+	// KindImage is a container base image referenced by the ko build config
+	// (.ko.yaml). We redistribute it as part of the published image.
 	KindImage Kind = "image"
 
 	// KindService is an external service the app calls at runtime. It ships no
@@ -202,7 +202,7 @@ var Deps = []Dep{
 		SPDX:     "Apache-2.0",
 		Homepage: "https://github.com/GoogleContainerTools/distroless",
 		Kind:     KindImage,
-		Source:   "gcr.io/distroless/static-debian12:nonroot (Dockerfile runtime stage)",
+		Source:   "gcr.io/distroless/static-debian12:nonroot@sha256:f5b485ea962d9bd1186b2f6b3a061191539b905b82ec395de78cbfae51f20e35 (defaultBaseImage in .ko.yaml)",
 		Note:     "Runtime base image, redistributed as part of the published container. The distroless project is Apache-2.0; the image layer also carries Debian-packaged CA certificates and tzdata under their own upstream licenses (Mozilla's CA bundle is MPL-2.0, applying to the certificate data we redistribute unmodified, not to MeshTender).",
 	},
 	{

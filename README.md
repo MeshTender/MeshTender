@@ -149,6 +149,47 @@ MESHTENDER_TEST_DATABASE_URL="postgres://meshtender:meshtender@localhost:5432/po
   go test ./internal/core/ -run TestConfirmRoundTrip -v
 ```
 
+## Building the image
+
+There is no Dockerfile. MeshTender is a pure-Go single binary with migrations, templates, and
+static assets embedded via `go:embed`, so [ko](https://ko.build) compiles it and lays it straight
+onto a base image — no build context and no Docker daemon. The build is configured in `.ko.yaml`.
+
+```sh
+mise run image          # build and print the image digest (pushes nothing)
+mise run image --load   # load into the local Docker daemon so you can run it
+```
+
+## Verifying a build
+
+The published image is **reproducible**: you can rebuild it yourself and confirm you get the same
+digest we shipped, rather than taking our word that the image matches this source. Every build
+input is pinned — the Go toolchain (`GOTOOLCHAIN` in `.config/mise/config.toml`), the ko version,
+and the base image *by digest* rather than by its floating `:nonroot` tag — and ko zeroes the layer
+timestamps. `TestReleasePinsAreConsistent` and `TestBaseImageIsPinnedByDigest`
+(`internal/licenses/reproducible_test.go`) fail the build if any of those pins drift apart.
+
+To reproduce a release:
+
+```sh
+git clone https://github.com/jleight/meshtender && cd meshtender
+git checkout v1.2.3          # the tag you are verifying
+mise install                 # installs the pinned Go and ko
+mise run image
+```
+
+Compare the printed `sha256:…` against the digest of the published image. The registry name is not
+part of the digest, so this works without any access to our registry.
+
+Two things will change the digest, and both are intentional:
+
+- **The checkout must be clean and at the exact commit.** Go stamps the commit SHA, the commit
+  time, and a dirty-tree flag into the binary, so an edited or differently-tagged tree produces a
+  different digest. That is a feature — it binds the image to a specific commit — but it does mean
+  `git status` must be empty before you build.
+- **The platform must match.** `mise run image` targets `linux/amd64` by default; pass
+  `--platform linux/arm64` to verify that variant.
+
 ## Layout
 
 ```

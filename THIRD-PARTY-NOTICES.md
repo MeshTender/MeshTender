@@ -240,7 +240,7 @@ part of the published container; the service is called by the browser at runtime
 ### distroless static-debian12 — Apache-2.0
 
 - Homepage: <https://github.com/GoogleContainerTools/distroless>
-- Source: gcr.io/distroless/static-debian12:nonroot (Dockerfile runtime stage)
+- Source: gcr.io/distroless/static-debian12:nonroot@sha256:f5b485ea962d9bd1186b2f6b3a061191539b905b82ec395de78cbfae51f20e35 (defaultBaseImage in .ko.yaml)
 - Note: Runtime base image, redistributed as part of the published container. The distroless project is Apache-2.0; the image layer also carries Debian-packaged CA certificates and tzdata under their own upstream licenses (Mozilla's CA bundle is MPL-2.0, applying to the certificate data we redistribute unmodified, not to MeshTender).
 
 ### CARTO basemaps
@@ -504,6 +504,11 @@ Not present in the shipped binary or container. Listed for completeness.
   Copyright [yyyy] [name of copyright owner]  
   copyright license to reproduce, prepare Derivative Works of,  
   copyright notice that is included in or attached to the work
+- **github.com/moby/sys/userns** v0.1.0 — Apache-2.0  
+  (c) You must retain, in the Source form of any Derivative Works  
+  Copyright [yyyy] [name of copyright owner]  
+  copyright license to reproduce, prepare Derivative Works of,  
+  copyright notice that is included in or attached to the work
 - **github.com/moby/term** v0.5.2 — Apache-2.0  
   (c) You must retain, in the Source form of any Derivative Works  
   Copyright 2013-2018 Docker, Inc.  
@@ -538,6 +543,11 @@ Not present in the shipped binary or container. Listed for completeness.
   Copyright (c) 2017-2019 Gianluca Arbezzano
 - **github.com/tklauser/go-sysconf** v0.3.16 — BSD-3-Clause  
   Copyright (c) 2018-2022, Tobias Klauser
+- **github.com/tklauser/numcpus** v0.11.0 — Apache-2.0  
+  (c) You must retain, in the Source form of any Derivative Works  
+  Copyright [yyyy] [name of copyright owner]  
+  copyright license to reproduce, prepare Derivative Works of,  
+  copyright notice that is included in or attached to the work
 - **go.opentelemetry.io/auto/sdk** v1.2.1 — Apache-2.0  
   (c) You must retain, in the Source form of any Derivative Works  
   Copyright [yyyy] [name of copyright owner]  

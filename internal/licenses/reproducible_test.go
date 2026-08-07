@@ -1,0 +1,144 @@
+package licenses
+
+import (
+	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
+	"testing"
+)
+
+// The published image is meant to be reproducible: an end user auditing the
+// source should be able to rebuild from a clean checkout of a tagged commit
+// and get the digest we published. That only holds while every build input
+// stays pinned and the pins agree with each other, and those pins live in four
+// separate files that nothing else forces to move together. These tests are
+// what stops one of them drifting.
+//
+// They live in this package because it already owns "what we ship and under
+// what terms" — the base image is a manifest entry here, and reproducibility is
+// the same auditability story as the licensing gate. They read only committed
+// files, so they need no network and no module cache.
+//
+// Deliberately regex rather than a YAML/TOML parser: gopkg.in/yaml.v3 is only
+// an indirect dependency today, and promoting it to a direct one to read four
+// scalars would add an entry to THIRD-PARTY-NOTICES.md for no real gain.
+
+// digestRE matches the "@sha256:<64 hex>" suffix of a pinned image reference.
+var digestRE = regexp.MustCompile(`@sha256:([0-9a-f]{64})\b`)
+
+func readRepoFile(t *testing.T, rel string) string {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join(repoRoot(t), rel))
+	if err != nil {
+		t.Fatalf("read %s: %v", rel, err)
+	}
+	return string(b)
+}
+
+// findSubmatch pulls the first capture group of pattern out of s, failing the
+// test with a readable message when the line it expects has moved or changed
+// shape — a silent "" would make the comparison tests pass vacuously.
+func findSubmatch(t *testing.T, s, rel, pattern string) string {
+	t.Helper()
+	m := regexp.MustCompile(pattern).FindStringSubmatch(s)
+	if m == nil {
+		t.Fatalf("%s: found no match for %q — did the file's layout change?", rel, pattern)
+	}
+	return m[1]
+}
+
+// TestBaseImageIsPinnedByDigest guards the pin that is easiest to lose: it is
+// tempting to write the readable ":nonroot" tag, but that tag moves whenever
+// distroless rebuilds, which silently makes every later build unreproducible
+// and swaps the base out from under the licensing audit.
+func TestBaseImageIsPinnedByDigest(t *testing.T) {
+	ko := readRepoFile(t, ".ko.yaml")
+
+	base := findSubmatch(t, ko, ".ko.yaml", `(?m)^defaultBaseImage:\s*(\S+)\s*$`)
+	m := digestRE.FindStringSubmatch(base)
+	if m == nil {
+		t.Fatalf(".ko.yaml: defaultBaseImage %q is not pinned by digest; a floating tag makes the build unreproducible", base)
+	}
+
+	// The same image is declared in the licensing manifest, which is what
+	// THIRD-PARTY-NOTICES.md is generated from. If the two disagree, the
+	// notices describe a base image we do not actually ship.
+	var source string
+	for _, d := range Deps {
+		if d.Kind == KindImage {
+			source = d.Source
+			break
+		}
+	}
+	if source == "" {
+		t.Fatal("no KindImage entry in Deps — the base image must stay declared in the manifest")
+	}
+	dm := digestRE.FindStringSubmatch(source)
+	if dm == nil {
+		t.Fatalf("manifest base image Source %q records no digest", source)
+	}
+	if dm[1] != m[1] {
+		t.Errorf("base image digest differs:\n  .ko.yaml:  %s\n  manifest:  %s", m[1], dm[1])
+	}
+}
+
+// TestReleasePinsAreConsistent checks that the Go toolchain and ko versions
+// agree everywhere they are written down. The compiler version changes the
+// binary, so a builder image that has drifted from the local pin means CI and a
+// developer produce different digests from the same commit.
+func TestReleasePinsAreConsistent(t *testing.T) {
+	mise := readRepoFile(t, ".config/mise/config.toml")
+
+	goPin := findSubmatch(t, mise, ".config/mise/config.toml", `(?m)^go\s*=\s*"([^"]+)"`)
+	if strings.Contains(goPin, "latest") {
+		t.Fatalf("mise pins go = %q; it must be an exact version for reproducible builds", goPin)
+	}
+
+	gomod := readRepoFile(t, "go.mod")
+	goDirective := findSubmatch(t, gomod, "go.mod", `(?m)^go (\S+)\s*$`)
+	if goDirective != goPin {
+		t.Errorf("Go version differs: go.mod go %s, mise go = %q", goDirective, goPin)
+	}
+
+	// GOTOOLCHAIN is what actually forces the exact compiler; the go.mod `go`
+	// line alone is only a minimum, so a developer on a newer Go would
+	// otherwise build a different binary from the same commit.
+	miseToolchain := findSubmatch(t, mise, ".config/mise/config.toml", `(?m)^GOTOOLCHAIN\s*=\s*"go([^"]+)"`)
+	if miseToolchain != goPin {
+		t.Errorf("mise GOTOOLCHAIN is go%s, want go%s", miseToolchain, goPin)
+	}
+
+	// Every Woodpecker step that compiles Go must use the same toolchain.
+	wantImage := "golang:" + goPin
+	entries, err := os.ReadDir(filepath.Join(repoRoot(t), ".woodpecker"))
+	if err != nil {
+		t.Fatalf("read .woodpecker: %v", err)
+	}
+	golangImageRE := regexp.MustCompile(`golang:[0-9][^\s"']*`)
+	checked := 0
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".yaml") {
+			continue
+		}
+		body := readRepoFile(t, filepath.Join(".woodpecker", e.Name()))
+		for _, got := range golangImageRE.FindAllString(body, -1) {
+			checked++
+			if got != wantImage {
+				t.Errorf(".woodpecker/%s: uses %s, want %s", e.Name(), got, wantImage)
+			}
+		}
+	}
+	if checked == 0 {
+		t.Error("found no golang:<version> builder image in .woodpecker — has the CI layout changed?")
+	}
+
+	// ko itself is a build input: a different ko can lay out layers
+	// differently, so its version is pinned in both places too.
+	koPin := findSubmatch(t, mise, ".config/mise/config.toml", `(?m)^"aqua:ko-build/ko"\s*=\s*"([^"]+)"`)
+	build := readRepoFile(t, ".woodpecker/build.yaml")
+	koCI := findSubmatch(t, build, ".woodpecker/build.yaml", `(?m)^\s*KO_VERSION:\s*v?(\S+)\s*$`)
+	if koCI != koPin {
+		t.Errorf("ko version differs: mise %q, .woodpecker/build.yaml %q", koPin, koCI)
+	}
+}
