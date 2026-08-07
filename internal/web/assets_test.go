@@ -18,7 +18,7 @@ var fingerprintedRe = regexp.MustCompile(`^/static/ui\.[0-9a-f]{8}\.js$`)
 func TestAssetURLFingerprints(t *testing.T) {
 	t.Parallel()
 
-	got := assets.URL("/static/ui.js")
+	got := assets().URL("/static/ui.js")
 	if !fingerprintedRe.MatchString(got) {
 		t.Fatalf("asset URL not fingerprinted: got %q, want /static/ui.<8hex>.js", got)
 	}
@@ -27,12 +27,12 @@ func TestAssetURLFingerprints(t *testing.T) {
 	}
 
 	// Unknown assets pass through unchanged so a stray reference still resolves.
-	if got := assets.URL("/static/does-not-exist.js"); got != "/static/does-not-exist.js" {
+	if got := assets().URL("/static/does-not-exist.js"); got != "/static/does-not-exist.js" {
 		t.Fatalf("unknown asset should pass through, got %q", got)
 	}
 
 	// Extensions with a dotted stem keep the hash before the final extension.
-	if got := assets.URL("/static/tabler.min.css"); !regexp.MustCompile(`^/static/tabler\.min\.[0-9a-f]{8}\.css$`).MatchString(got) {
+	if got := assets().URL("/static/tabler.min.css"); !regexp.MustCompile(`^/static/tabler\.min\.[0-9a-f]{8}\.css$`).MatchString(got) {
 		t.Fatalf("dotted-stem asset mis-fingerprinted: %q", got)
 	}
 }
@@ -41,7 +41,7 @@ func TestAssetURLFingerprints(t *testing.T) {
 // StripPrefix + handler path.
 func staticRouter() http.Handler {
 	r := chi.NewRouter()
-	r.Handle("/static/*", http.StripPrefix("/static/", http.HandlerFunc(assets.serveHTTP)))
+	r.Handle("/static/*", http.StripPrefix("/static/", http.HandlerFunc(assets().serveHTTP)))
 	return r
 }
 
@@ -55,7 +55,7 @@ func TestStaticFingerprintedImmutable(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	srv.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, assets.URL("/static/ui.js"), nil))
+	srv.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, assets().URL("/static/ui.js"), nil))
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("fingerprinted asset: status %d, want 200", rec.Code)
@@ -77,7 +77,7 @@ func TestStaticServesBrotli(t *testing.T) {
 		t.Fatalf("read embedded asset: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, assets.URL("/static/tabler.min.css"), nil)
+	req := httptest.NewRequest(http.MethodGet, assets().URL("/static/tabler.min.css"), nil)
 	req.Header.Set("Accept-Encoding", "gzip, deflate, br")
 	rec := httptest.NewRecorder()
 	srv.ServeHTTP(rec, req)
@@ -112,7 +112,7 @@ func TestStaticServesGzipWhenBrotliUnwanted(t *testing.T) {
 		t.Fatalf("read embedded asset: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, assets.URL("/static/ui.js"), nil)
+	req := httptest.NewRequest(http.MethodGet, assets().URL("/static/ui.js"), nil)
 	req.Header.Set("Accept-Encoding", "gzip") // no br
 	rec := httptest.NewRecorder()
 	srv.ServeHTTP(rec, req)
@@ -144,7 +144,7 @@ func TestStaticIdentityStillVaries(t *testing.T) {
 
 	// No Accept-Encoding: serve raw, but still advertise that the resource varies
 	// so shared caches don't hand a compressed copy to a client that can't decode.
-	req := httptest.NewRequest(http.MethodGet, assets.URL("/static/ui.js"), nil)
+	req := httptest.NewRequest(http.MethodGet, assets().URL("/static/ui.js"), nil)
 	rec := httptest.NewRecorder()
 	srv.ServeHTTP(rec, req)
 
@@ -207,5 +207,16 @@ func TestStaticUnfingerprintedStillServed(t *testing.T) {
 	}
 	if cc := rec.Header().Get("Cache-Control"); cc != "" {
 		t.Fatalf("un-fingerprinted asset should not be immutable, got Cache-Control %q", cc)
+	}
+}
+
+// BenchmarkBuildAssetManifest measures what `assets` costs to construct, which
+// is why it is built lazily rather than at package init. Run it with -race to
+// see the number that mattered: the race detector instruments this pure-CPU
+// compression heavily, and as a package-level var it was charged to every test
+// binary that imported this package, not just the ones serving assets.
+func BenchmarkBuildAssetManifest(b *testing.B) {
+	for b.Loop() {
+		buildAssetManifest(staticFS, "static")
 	}
 }

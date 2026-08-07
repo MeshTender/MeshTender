@@ -208,7 +208,7 @@ var templateFuncs = template.FuncMap{
 	"ts": TimeElement,
 	// asset maps a logical static path ("/static/ui.js") to its content-hashed,
 	// immutably-cacheable URL. Use it for every /static/ reference in templates.
-	"asset": assets.URL,
+	"asset": func(l string) string { return assets().URL(l) },
 }
 
 // tsFallbackLayouts maps a display kind to the Go layout used for the server-side
@@ -446,7 +446,13 @@ func limitBody(next http.Handler) http.Handler {
 // row per report.
 func (e *Env) SharedRoutes(r chi.Router) {
 	r.Get("/healthz", e.healthz)
-	r.Handle("/static/*", http.StripPrefix("/static/", http.HandlerFunc(assets.serveHTTP)))
+	// Resolve the manifest here, at registration, rather than inside the
+	// handler. Registration happens during server startup, so the assets are
+	// compressed before the first request exactly as they were when the
+	// manifest was a package-level var — while a test binary that never
+	// registers routes skips the work entirely. See the comment on `assets`.
+	m := assets()
+	r.Handle("/static/*", http.StripPrefix("/static/", http.HandlerFunc(m.serveHTTP)))
 	if e.csp != nil {
 		r.Post(CSPReportPath, e.csp.handleReport)
 	}

@@ -1,62 +1,81 @@
 package main
 
 import (
+	"slices"
 	"sort"
 	"testing"
 )
 
-// TestScanModulesIsHostIndependent is a regression test.
+// probePkg is a single package whose test dependencies differ between Linux and
+// macOS (via testcontainers/gopsutil). Listing one package keeps this test cheap
+// — scanning ./... across the whole matrix costs ~9 `go list` runs per call, and
+// doing that twice dominated the CI test step.
+const probePkg = "./internal/store"
+
+func probeArgs() []string {
+	return []string{"list", "-deps", "-test", "-json", probePkg}
+}
+
+func paths(mods map[string]moduleInfo) []string {
+	out := make([]string, 0, len(mods))
+	for p := range mods {
+		out = append(out, p)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// TestListModulesPinsPlatform is a regression test.
 //
 // `go list -deps` answers for exactly one GOOS/GOARCH, and the module set
 // genuinely differs between them: Linux pulls in moby/sys/userns and
-// tklauser/numcpus, macOS pulls in ebitengine/purego. scanModules used to
+// tklauser/numcpus, macOS pulls in ebitengine/purego. listModules used to
 // inherit the host's platform, so THIRD-PARTY-NOTICES.md generated on a macOS
 // laptop listed 87 modules while the Linux CI runner computed 88 — the drift
 // check failed on every CI run and regenerating locally could not fix it.
 //
-// scanModules now pins GOOS/GOARCH per invocation and unions a fixed matrix, so
-// the host must not matter. Setting GOOS/GOARCH in the environment is what the
-// old code was (wrongly) sensitive to, which is precisely what this asserts is
-// no longer true.
+// Two things have to hold, and checking only one of them is how this would rot:
+// the requested platform must actually take effect, and the host's own
+// GOOS/GOARCH must not leak through.
 //
 // This shells out to `go list`, so it needs a module cache — the same
 // requirement `go test ./...` already has.
-func TestScanModulesIsHostIndependent(t *testing.T) {
+func TestListModulesPinsPlatform(t *testing.T) {
 	root, err := repoRoot()
 	if err != nil {
 		t.Fatalf("repoRoot: %v", err)
 	}
 
-	scanAs := func(goos, goarch string) []string {
+	list := func(p platform) []string {
 		t.Helper()
-		t.Setenv("GOOS", goos)
-		t.Setenv("GOARCH", goarch)
-
-		mods, _, err := scanModules(root)
+		mods, err := listModules(root, p, probeArgs())
 		if err != nil {
-			t.Fatalf("scanModules as %s/%s: %v", goos, goarch, err)
+			t.Fatalf("listModules for %s/%s: %v", p.GOOS, p.GOARCH, err)
 		}
-		paths := make([]string, 0, len(mods))
-		for _, m := range mods {
-			paths = append(paths, m.Path)
+		if len(mods) == 0 {
+			t.Fatalf("listModules for %s/%s found nothing — is the module cache populated?", p.GOOS, p.GOARCH)
 		}
-		sort.Strings(paths)
-		return paths
+		return paths(mods)
 	}
 
-	asLinux := scanAs("linux", "amd64")
-	asDarwin := scanAs("darwin", "arm64")
+	linux := list(platform{GOOS: "linux", GOARCH: "amd64"})
+	darwin := list(platform{GOOS: "darwin", GOARCH: "arm64"})
 
-	if len(asLinux) == 0 {
-		t.Fatal("scanned no modules at all — is the module cache populated?")
+	// Positive control. Two things make these match: listModules ignoring the
+	// platform it was handed (the regression this guards — both lists then come
+	// from the host), or probePkg's dependencies no longer differing by
+	// platform, which would leave the test proving nothing.
+	if slices.Equal(linux, darwin) {
+		t.Fatalf("%s resolved identically for linux/amd64 and darwin/arm64 (%d modules each). "+
+			"Either listModules is not applying the platform it was given, or probePkg no longer "+
+			"has platform-specific dependencies and this test needs re-pointing.", probePkg, len(linux))
 	}
-	if len(asLinux) != len(asDarwin) {
-		t.Fatalf("module count depends on the host platform: linux/amd64 saw %d, darwin/arm64 saw %d", len(asLinux), len(asDarwin))
-	}
-	for i := range asLinux {
-		if asLinux[i] != asDarwin[i] {
-			t.Errorf("module list depends on the host platform: linux/amd64 has %q where darwin/arm64 has %q", asLinux[i], asDarwin[i])
-		}
+
+	// The actual regression: the host must not influence the answer.
+	t.Setenv("GOOS", "darwin")
+	t.Setenv("GOARCH", "arm64")
+	if got := list(platform{GOOS: "linux", GOARCH: "amd64"}); !slices.Equal(got, linux) {
+		t.Errorf("a linux/amd64 listing changed when the host env said darwin/arm64: %d modules vs %d", len(got), len(linux))
 	}
 }
 

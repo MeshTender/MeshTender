@@ -11,6 +11,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/andybalholm/brotli"
 )
@@ -43,10 +44,18 @@ type assetManifest struct {
 	byHashed  map[string]*staticAsset // "ui.<hash>.js" -> asset (fingerprinted requests)
 }
 
-// assets is the process-wide manifest, built from the embedded static FS at
-// package init. The FS is embedded and deterministic, so any failure here is a
+// assets is the process-wide manifest, built from the embedded static FS on
+// first use. The FS is embedded and deterministic, so any failure here is a
 // build/programming error — panic to fail fast at startup (and in tests).
-var assets = buildAssetManifest(staticFS, "static")
+//
+// Built lazily rather than at package init because construction brotli- and
+// gzip-compresses ~1.3MB of static files at their best levels: ~1.5s normally,
+// but ~17s under -race, which instruments every byte of that pure-CPU work. As
+// a package-level var, every test binary importing this package paid it whether
+// or not it ever served an asset — six of them did, dominating the CI test step.
+// Env.SharedRoutes resolves it at registration, so a real server still
+// compresses everything at startup and no request pays the cost.
+var assets = sync.OnceValue(func() *assetManifest { return buildAssetManifest(staticFS, "static") })
 
 func buildAssetManifest(fsys fs.FS, dir string) *assetManifest {
 	sub, err := fs.Sub(fsys, dir)
