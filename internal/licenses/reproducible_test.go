@@ -142,3 +142,65 @@ func TestReleasePinsAreConsistent(t *testing.T) {
 		t.Errorf("ko version differs: mise %q, .woodpecker/build.yaml %q", koPin, koCI)
 	}
 }
+
+// nonGatingWorkflows are the .woodpecker workflows that are deliberately not
+// prerequisites of the build: build and deploy are the thing being gated, and
+// e2e is non-gating on purpose (it skips when no browser container is up, so
+// requiring it would make releases depend on an advisory check).
+var nonGatingWorkflows = map[string]bool{
+	"build":  true,
+	"deploy": true,
+	"e2e":    true,
+}
+
+// TestBuildDependsOnEveryGatingWorkflow catches a whole class of quiet failure:
+// a check that runs, goes red, and is ignored because nothing depends on it.
+// The licensing audit sat in exactly that state — failing on every push while
+// images kept building and deploying, because build.yaml listed only test, lint
+// and vuln. Adding a new check is easy to do without wiring it in, and the
+// symptom is invisible (a red workflow next to a green deploy), so assert the
+// wiring instead of trusting it.
+func TestBuildDependsOnEveryGatingWorkflow(t *testing.T) {
+	root := repoRoot(t)
+	entries, err := os.ReadDir(filepath.Join(root, ".woodpecker"))
+	if err != nil {
+		t.Fatalf("read .woodpecker: %v", err)
+	}
+
+	build := readRepoFile(t, ".woodpecker/build.yaml")
+	// The depends_on block runs to the next top-level key.
+	dependsRE := regexp.MustCompile(`(?ms)^depends_on:\s*\n((?:\s*-\s*\S+\s*\n)+)`)
+	m := dependsRE.FindStringSubmatch(build)
+	if m == nil {
+		t.Fatal(".woodpecker/build.yaml: found no depends_on list")
+	}
+	declared := map[string]bool{}
+	for _, line := range strings.Split(strings.TrimSpace(m[1]), "\n") {
+		declared[strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "-"))] = true
+	}
+
+	found := 0
+	for _, e := range entries {
+		name, ok := strings.CutSuffix(e.Name(), ".yaml")
+		if e.IsDir() || !ok || nonGatingWorkflows[name] {
+			continue
+		}
+		found++
+		if !declared[name] {
+			t.Errorf(".woodpecker/%s.yaml is a check but build.yaml does not depend on it, "+
+				"so it can fail while the image still builds and deploys. Add it to depends_on, "+
+				"or to nonGatingWorkflows with a reason.", name)
+		}
+	}
+	if found == 0 {
+		t.Error("found no gating workflows in .woodpecker — has the CI layout changed?")
+	}
+
+	// A name in depends_on that matches no workflow file is silently ignored by
+	// Woodpecker, which looks like a gate but is not one.
+	for name := range declared {
+		if _, err := os.Stat(filepath.Join(root, ".woodpecker", name+".yaml")); err != nil {
+			t.Errorf("build.yaml depends on %q, which is not a .woodpecker workflow", name)
+		}
+	}
+}

@@ -23,10 +23,19 @@ when:
     branch: main
   - event: tag
 
+# The licensing audit gates the build for the same reason the vuln scan does:
+# a non-permissive dependency is a legal defect in the artifact, so it must not
+# reach the registry. e2e is deliberately absent — it is non-gating.
+#
+# These four all declare `event: [push, pull_request]`, so none of them run on a
+# tag; Woodpecker treats a filtered-out dependency as satisfied, which is why a
+# tag build publishes without re-running them. It is riding on the checks that
+# already passed for that commit on main.
 depends_on:
   - test
   - lint
   - vuln
+  - licenses
 
 variables:
   # Keep the builder image, GOTOOLCHAIN, and the ko version in sync with the
