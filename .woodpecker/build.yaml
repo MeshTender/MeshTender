@@ -109,10 +109,18 @@ steps:
   deploy:
     image: alpine/kubectl:1.35.3
     commands:
-      # No ${...} around shell variables anywhere in this step: Woodpecker does
-      # its own ${VAR} substitution before the shell runs, so "${IMAGE##*@}"
-      # would be replaced with an empty string rather than reaching bash. $(…)
-      # and bare $VAR are untouched, so the digest is cut with a command instead.
+      # Shell variables stay bare ($IMAGE, never brace-wrapped): Woodpecker runs
+      # its own substitution over this file before the shell sees it, and it
+      # replaces a brace-wrapped name with the CI value — empty, for a variable
+      # only the shell knows. $(…) and bare $VAR are passed through untouched, so
+      # the digest is cut with a command rather than a brace expansion.
+      #
+      # That substitution reads the whole file, comments included, and rejects
+      # anything brace-wrapped that isn't a valid variable name — which is why
+      # this comment describes the trap instead of quoting it. A malformed one
+      # fails the pipeline before any step runs, with "unable to parse variable
+      # name" and no indication of where. TestWoodpeckerVariablesAreParseable
+      # catches it locally instead.
       - IMAGE="$(cat image-ref)"
       - DIGEST="$(cut -d@ -f2 image-ref)"
       # Fail loudly rather than deploying with an empty/garbled digest: the app

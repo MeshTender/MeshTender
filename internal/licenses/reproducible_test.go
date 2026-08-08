@@ -273,3 +273,43 @@ func TestImageDigestEnvVarMatchesConfig(t *testing.T) {
 		t.Errorf(".woodpecker/build.yaml does not set %s, the variable internal/config reads", name)
 	}
 }
+
+// TestWoodpeckerVariablesAreParseable catches a failure with an unusually bad
+// signal-to-effort ratio: Woodpecker substitutes variables over the RAW pipeline
+// file — comments included — before parsing any YAML. A brace-wrapped token that
+// isn't a valid variable name kills the whole pipeline with "unable to parse
+// variable name", naming neither the file nor the line, and no step ever runs. A
+// comment that merely *describes* the syntax is enough to trigger it.
+//
+// So: every ${…} in .woodpecker must open with something that could actually be
+// a variable name. Bash operators after the name (${VAR##glob}, ${VAR:-default})
+// are fine — only the name itself is checked.
+func TestWoodpeckerVariablesAreParseable(t *testing.T) {
+	root := repoRoot(t)
+	entries, err := os.ReadDir(filepath.Join(root, ".woodpecker"))
+	if err != nil {
+		t.Fatalf("read .woodpecker: %v", err)
+	}
+
+	braced := regexp.MustCompile(`\$\{([^}]*)\}`)
+	validName := regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*`)
+	checked := 0
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".yaml") {
+			continue
+		}
+		rel := filepath.Join(".woodpecker", e.Name())
+		body := readRepoFile(t, rel)
+		for _, m := range braced.FindAllStringSubmatch(body, -1) {
+			checked++
+			if !validName.MatchString(m[1]) {
+				t.Errorf("%s: %q is not a parseable variable reference. Woodpecker rejects the "+
+					"whole pipeline for this — including in comments, so describe the syntax "+
+					"rather than quoting it.", rel, m[0])
+			}
+		}
+	}
+	if checked == 0 {
+		t.Error("found no ${...} references in .woodpecker — has the CI layout changed?")
+	}
+}
