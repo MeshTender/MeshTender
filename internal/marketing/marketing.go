@@ -43,6 +43,11 @@ func (s *Handlers) Routes() chi.Router {
 	// Static assets and health don't need a session (and static is hit often), so
 	// register them ahead of the session middleware, which does per-request DB work.
 	s.SharedRoutes(r)
+	// Build provenance: public, so a third party can check a running server
+	// against a build they reproduced themselves. Registered here, ahead of the
+	// session middleware, because it reads nothing per-request — the payload is
+	// fixed for the life of the process.
+	r.Get(web.VersionPath, s.VersionJSON)
 	// Branded 404 for unrouted paths, run through the session middleware so the
 	// renderer can read the (host-only) identity for the page chrome.
 	r.NotFound(s.Auth.Sessions.LoadAndSave(s.Auth.ValidateSession(http.HandlerFunc(s.NotFound))).ServeHTTP)

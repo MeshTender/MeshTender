@@ -21,6 +21,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
+	"github.com/jleight/meshtender/internal/buildinfo"
 	"github.com/jleight/meshtender/internal/config"
 	"github.com/jleight/meshtender/internal/identity"
 	"github.com/jleight/meshtender/internal/store"
@@ -56,6 +57,10 @@ type Deps struct {
 	// endpoint and the reporting directives entirely.
 	CSP       *CSPCollector
 	LookupTXT func(name string) ([]string, error)
+	// Build is what this binary was built from, reported by /version and the
+	// admin build page. Assembled once by the assembler (hashing the executable
+	// is not free) and shared, so every surface reports the same thing.
+	Build buildinfo.Info
 }
 
 // Env is the shared environment a surface's Handlers embeds. It carries the
@@ -68,6 +73,8 @@ type Env struct {
 	// LookupTXT resolves DNS TXT records; injectable so domain verification is
 	// testable. Defaults to net.LookupTXT.
 	LookupTXT func(name string) ([]string, error)
+	// Build is what this binary was built from (see Deps.Build).
+	Build buildinfo.Info
 	// csp is the shared violation-report collector, or nil when reporting is off.
 	// Unexported: surfaces only need it to exist, not to reach into it.
 	csp *CSPCollector
@@ -85,7 +92,7 @@ func NewEnv(d Deps, surfaceTemplates fs.FS) (*Env, error) {
 	if lookup == nil {
 		lookup = net.LookupTXT
 	}
-	return &Env{Store: d.Store, Identity: d.Identity, Cfg: d.Cfg, Renderer: r, LookupTXT: lookup, csp: d.CSP}, nil
+	return &Env{Store: d.Store, Identity: d.Identity, Cfg: d.Cfg, Renderer: r, LookupTXT: lookup, Build: d.Build, csp: d.CSP}, nil
 }
 
 // Render delegates to the shared renderer (convenience for handlers via Env).

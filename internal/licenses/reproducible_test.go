@@ -144,13 +144,13 @@ func TestReleasePinsAreConsistent(t *testing.T) {
 }
 
 // nonGatingWorkflows are the .woodpecker workflows that are deliberately not
-// prerequisites of the build: build and deploy are the thing being gated, and
-// e2e is non-gating on purpose (it skips when no browser container is up, so
-// requiring it would make releases depend on an advisory check).
+// prerequisites of the build: build is the thing being gated (and now carries
+// the deploy step too), and e2e is non-gating on purpose (it skips when no
+// browser container is up, so requiring it would make releases depend on an
+// advisory check).
 var nonGatingWorkflows = map[string]bool{
-	"build":  true,
-	"deploy": true,
-	"e2e":    true,
+	"build": true,
+	"e2e":   true,
 }
 
 // TestBuildDependsOnEveryGatingWorkflow catches a whole class of quiet failure:
@@ -202,5 +202,74 @@ func TestBuildDependsOnEveryGatingWorkflow(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(root, ".woodpecker", name+".yaml")); err != nil {
 			t.Errorf("build.yaml depends on %q, which is not a .woodpecker workflow", name)
 		}
+	}
+}
+
+// TestDeployReportsTheImageDigest guards the plumbing behind /version's
+// imageDigest field, which is the value an auditor compares their own rebuild
+// against.
+//
+// It is a chain with no runtime signal when it breaks: ko has to be asked for
+// the published reference (--image-refs), the deploy has to read that file, and
+// it has to pass the digest to the app as MESHTENDER_IMAGE_DIGEST. Drop any link
+// and nothing fails — the field simply stops appearing, and the endpoint quietly
+// answers with less than it claims to. So assert the wiring rather than trust it.
+func TestDeployReportsTheImageDigest(t *testing.T) {
+	// Every check below reads the COMMENT-STRIPPED file. The step documents this
+	// plumbing at length — including quoting the ${...} form that must not appear
+	// — so matching against the prose would let a check pass on its own
+	// explanation while the command it describes was gone.
+	build := stripYAMLComments(readRepoFile(t, ".woodpecker/build.yaml"))
+
+	if !strings.Contains(build, "--image-refs") {
+		t.Error(".woodpecker/build.yaml: ko is not run with --image-refs, so the published " +
+			"digest is never captured and the deploy has nothing to report")
+	}
+	if !strings.Contains(build, "MESHTENDER_IMAGE_DIGEST") {
+		t.Error(".woodpecker/build.yaml: the deploy does not set MESHTENDER_IMAGE_DIGEST, " +
+			"so /version cannot report the digest it is running")
+	}
+	// Deploying by tag would leave the Deployment naming a mutable reference,
+	// and the reported digest could then describe a different artifact than the
+	// one that actually got pulled. The patch is a JSON string inside YAML, so
+	// its quotes are backslash-escaped.
+	if !regexp.MustCompile(`\\?"image\\?":\s*\\?"\$IMAGE\\?"`).MatchString(build) {
+		t.Error(".woodpecker/build.yaml: the deploy no longer sets the image from the " +
+			"digest-bearing reference ko reported")
+	}
+
+	// Woodpecker substitutes ${VAR} itself, before the shell sees it, so a shell
+	// variable written that way silently becomes empty. That would deploy an
+	// image with an empty digest env var — which the app rejects at startup.
+	if regexp.MustCompile(`\$\{(IMAGE|DIGEST)\b`).MatchString(build) {
+		t.Error(".woodpecker/build.yaml: a shell variable is written as ${...}, which " +
+			"Woodpecker expands away before bash runs. Use $VAR or $(...) instead.")
+	}
+}
+
+// stripYAMLComments drops whole-line # comments. Crude on purpose — it is used
+// only to keep prose in .woodpecker files out of checks that look for code.
+func stripYAMLComments(s string) string {
+	var b strings.Builder
+	for _, line := range strings.Split(s, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "#") {
+			continue
+		}
+		b.WriteString(line)
+		b.WriteString("\n")
+	}
+	return b.String()
+}
+
+// TestImageDigestEnvVarMatchesConfig keeps the deploy and the app agreeing on the
+// variable's name. They are two files with no compiler between them, and a
+// mismatch is invisible: the app just never sees a digest.
+func TestImageDigestEnvVarMatchesConfig(t *testing.T) {
+	cfg := readRepoFile(t, "internal/config/config.go")
+	name := findSubmatch(t, cfg, "internal/config/config.go", `os\.Getenv\("(MESHTENDER_IMAGE_DIGEST)"\)`)
+
+	build := stripYAMLComments(readRepoFile(t, ".woodpecker/build.yaml"))
+	if !strings.Contains(build, name) {
+		t.Errorf(".woodpecker/build.yaml does not set %s, the variable internal/config reads", name)
 	}
 }

@@ -1,0 +1,136 @@
+{{define "title"}}Build provenance · MeshTender{{end}}
+{{define "header"}}
+<div class="row g-2 align-items-center">
+  <div class="col">
+    <div class="page-pretitle">Administration</div>
+    <h1 class="page-title fs-1">Build provenance</h1>
+  </div>
+</div>
+{{end}}
+{{define "content"}}
+
+{{if .Reproducible}}
+<div class="alert alert-info" role="alert">
+  <div>
+    This build can be reproduced from source. Anyone can run the steps below and check that they get the same
+    image digest &mdash; without trusting us, and without access to our registry. The same facts are published
+    at <a href="{{.VersionPath}}"><code>{{.VersionPath}}</code></a> on the public site, so an outside auditor
+    can check a running server too.
+  </div>
+</div>
+{{else}}
+<div class="alert alert-warning" role="alert">
+  <div>
+    {{if .Build.Modified}}
+    This binary was built from a <strong>modified working tree</strong>, so the commit below does not describe
+    the source it was actually built from and the digest cannot be reproduced from it.
+    {{else}}
+    This binary carries <strong>no version-control stamps</strong>, so there is no commit to reproduce it from.
+    That is normal for a build run straight from a source tree (<code>go run ./cmd/meshtender</code>).
+    {{end}}
+  </div>
+</div>
+{{end}}
+
+<div class="card">
+  <div class="card-header"><h2 class="card-title">What this binary was built from</h2></div>
+  <div class="card-body">
+    <div class="datagrid">
+      <div class="datagrid-item">
+        <div class="datagrid-title">Commit</div>
+        <div class="datagrid-content font-monospace" style="word-break:break-all">
+          {{if .Build.Commit}}{{.Build.Commit}}{{else}}<span class="text-secondary">not stamped</span>{{end}}
+        </div>
+      </div>
+      <div class="datagrid-item">
+        <div class="datagrid-title">Commit time</div>
+        <div class="datagrid-content font-monospace">
+          {{if .Build.CommitTime}}{{.Build.CommitTime}}{{else}}<span class="text-secondary">not stamped</span>{{end}}
+        </div>
+      </div>
+      <div class="datagrid-item">
+        <div class="datagrid-title">Working tree</div>
+        <div class="datagrid-content">
+          {{if .Build.Modified}}<span class="badge bg-yellow-lt">modified</span>{{else}}<span class="badge bg-success-lt">clean</span>{{end}}
+        </div>
+      </div>
+      <div class="datagrid-item">
+        <div class="datagrid-title">Go toolchain</div>
+        <div class="datagrid-content font-monospace">{{.Build.Go}}</div>
+      </div>
+      <div class="datagrid-item">
+        <div class="datagrid-title">Platform</div>
+        <div class="datagrid-content font-monospace">{{.Build.OS}}/{{.Build.Arch}}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card mt-3">
+  <div class="card-header"><h2 class="card-title">Artifact hashes</h2></div>
+  <div class="card-body">
+    <div class="mb-3">
+      <div class="form-label">Image digest <span class="text-secondary">(reported by the deployment)</span></div>
+      {{if .Build.ImageDigest}}
+      <div class="input-group">
+        <input type="text" class="form-control font-monospace" id="image-digest" aria-label="Image digest" value="{{.Build.ImageDigest}}" readonly>
+        <button type="button" class="btn" data-copy-target="#image-digest">{{template "icon-copy" ""}}Copy</button>
+      </div>
+      <small class="form-hint">Compare this against the digest <code>mise run image</code> prints. A binary can't
+        derive its own image digest, so this value is supplied by the deployment (<code>MESHTENDER_IMAGE_DIGEST</code>),
+        which CI sets from the digest it published.</small>
+      {{else}}
+      <span class="text-secondary">Not reported.</span>
+      <small class="form-hint">Set when the deployment passes <code>MESHTENDER_IMAGE_DIGEST</code>; unset for a run from source.</small>
+      {{end}}
+    </div>
+    <div>
+      <div class="form-label">Executable SHA-256 <span class="text-secondary">(measured here, at runtime)</span></div>
+      {{if .Build.ExecutableSHA256}}
+      <div class="input-group">
+        <input type="text" class="form-control font-monospace" id="exe-hash" aria-label="Executable SHA-256" value="{{.Build.ExecutableSHA256}}" readonly>
+        <button type="button" class="btn" data-copy-target="#exe-hash">{{template "icon-copy" ""}}Copy</button>
+      </div>
+      <small class="form-hint">The only value on this page measured from the running process rather than reported
+        by the pipeline. To check it, extract <code>/ko-app/meshtender</code> from a locally built image and hash it.</small>
+      {{else}}
+      <span class="text-secondary">Unavailable &mdash; the executable could not be read.</span>
+      {{end}}
+    </div>
+  </div>
+</div>
+
+{{if .Reproducible}}
+<div class="card mt-3">
+  <div class="card-header"><h2 class="card-title">Reproduce this build</h2></div>
+  <div class="card-body">
+    <p class="text-secondary">
+      Run these from a clean checkout. Go stamps the commit, its time, and a dirty-tree flag into the binary, so
+      the tree has to be exactly this commit with no local edits or the digest will differ.
+    </p>
+    <div class="mb-2">
+      <div class="input-group">
+        <input type="text" class="form-control font-monospace" id="cmd-checkout" aria-label="Check out this commit" value="{{.Checkout}}" readonly>
+        <button type="button" class="btn" data-copy-target="#cmd-checkout">{{template "icon-copy" ""}}Copy</button>
+      </div>
+    </div>
+    <div class="mb-2">
+      <div class="input-group">
+        <input type="text" class="form-control font-monospace" id="cmd-install" aria-label="Install the pinned toolchain" value="mise install" readonly>
+        <button type="button" class="btn" data-copy-target="#cmd-install">{{template "icon-copy" ""}}Copy</button>
+      </div>
+      <small class="form-hint">Installs the pinned Go toolchain and ko &mdash; a different compiler produces a different binary.</small>
+    </div>
+    <div>
+      <div class="input-group">
+        <input type="text" class="form-control font-monospace" id="cmd-image" aria-label="Rebuild the image" value="{{.ImageCmd}}" readonly>
+        <button type="button" class="btn" data-copy-target="#cmd-image">{{template "icon-copy" ""}}Copy</button>
+      </div>
+      <small class="form-hint">Builds for this deployment's platform and prints a digest. It pushes nothing and needs no registry access.</small>
+    </div>
+  </div>
+</div>
+{{end}}
+
+<a class="back-link mt-3" href="/admin">{{template "icon-arrow-left" "me-1"}}Back to admin</a>
+{{end}}

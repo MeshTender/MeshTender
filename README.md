@@ -77,7 +77,7 @@ passkeys (WebAuthn via `go-webauthn`) with a bcrypt password fallback, sessions 
 optional and used only for recovery (verification + password reset) via Resend; without a
 `MAIL_FROM` the whole feature is hidden, and without an API key messages are logged instead of sent.
 
-**Admin.** Instance capabilities (`cap_manage_users`, `cap_manage_catalog`) — the first registered
+**Admin.** Site-wide capabilities (`cap_manage_users`, `cap_manage_catalog`) — the first registered
 account is bootstrapped with both — plus first-party traffic analytics (no third party, no PII;
 visitors counted by a daily-rotating salted hash), CSP violation reports, a reverse-proxy test page,
 and encrypted export/restore of the server identity.
@@ -135,8 +135,8 @@ mise run dev                         # migrates on boot; serves HTTPS on :8080
 ```
 
 Then open <https://app.leighthaus.dev:8080> (dashboard) or <https://leighthaus.dev:8080> (public
-root). WebSerial requires a secure context, which the mkcert HTTPS provides — a real deployment must
-likewise serve the console pages over HTTPS.
+root). WebSerial requires a secure context, which the mkcert HTTPS provides — the same reason
+meshtender.com is served over HTTPS.
 
 `mise run seed` fills the database with realistic fake data; `mise run reset` truncates everything
 except users with credentials, passkeys, sessions, and the server identity. (Both are `go run
@@ -167,6 +167,7 @@ except users with credentials, passkeys, sessions, and the server identity. (Bot
 | `MESHTENDER_TRUSTED_PROXIES` | proxies whose `X-Forwarded-For`/`X-Real-IP` are trusted when resolving the client IP — comma-separated CIDRs/IPs, or `private` for the RFC1918/link-local/ULA ranges. Loopback is always trusted. Verify with the admin **Reverse proxy test** page. |
 | `MESHTENDER_MAIL_FROM` / `_MAIL_REPLY_TO` | enables the optional recovery-email feature; unset ⇒ no email UI at all |
 | `MESHTENDER_RESEND_API_KEY` | enables real delivery; unset ⇒ messages are logged to stderr instead (the dev default) |
+| `MESHTENDER_IMAGE_DIGEST` | the image digest this server runs as, reported by `/version` (see [Verifying a build](#verifying-a-build)). Set by the deploy; unset when running from source. A malformed value is a startup error |
 
 > **Note:** `MESHTENDER_MASTER_KEY` is coupled to the stored identity — changing it makes the
 > existing `server_identity` row undecryptable. Keep it stable, and keep a copy of the admin
@@ -233,15 +234,46 @@ base image *by digest* rather than by its floating `:nonroot` tag — and ko zer
 `TestReleasePinsAreConsistent` and `TestBaseImageIsPinnedByDigest`
 (`internal/licenses/reproducible_test.go`) fail the build if any of those pins drift apart.
 
-```sh
-git clone https://github.com/jleight/meshtender && cd meshtender
-git checkout v1.2.3          # the tag you are verifying
-mise install                 # installs the pinned Go and ko
-mise run image
+To check what's actually running, start from **`GET /version`** — unauthenticated, because the
+people best placed to check our work are the ones without an account:
+
+```console
+$ curl -s https://meshtender.com/version
+{
+  "commit": "62e30036ee0bfb28f6c1a4a3f5ac5f4a52e4b1c9",
+  "commitTime": "2026-08-06T17:47:49-04:00",
+  "modified": false,
+  "go": "go1.26.5",
+  "os": "linux",
+  "arch": "amd64",
+  "executableSHA256": "9f2c…",
+  "imageDigest": "sha256:a41b…"
+}
 ```
 
-Compare the printed `sha256:…` against the digest of the published image. The registry name is not
-part of the digest, so this works without any access to our registry.
+Then rebuild that commit for that platform and compare digests:
+
+```sh
+git clone https://github.com/jleight/meshtender && cd meshtender
+git checkout 62e30036ee0bfb28f6c1a4a3f5ac5f4a52e4b1c9   # the commit /version reported
+mise install                                            # installs the pinned Go and ko
+mise run image --platform linux/amd64                   # the os/arch /version reported
+```
+
+The printed `sha256:…` should equal `imageDigest`. The registry name is not part of a digest, so
+this works without any access to our registry — you never have to pull anything of ours.
+
+What each field is worth is deliberately different, and worth knowing when you audit:
+
+| Field | Attested by |
+|---|---|
+| `commit`, `commitTime`, `modified`, `go`, `os`, `arch` | The Go toolchain, stamped at compile time. Our code doesn't choose these. |
+| `executableSHA256` | Measured at runtime, by the process itself, over the file it is running from. The only field about the *running* process rather than about a build. To check it, extract `/ko-app/meshtender` from your own build and hash it. |
+| `imageDigest` | Our pipeline. A binary can't derive its own image digest — the digest is computed over the binary — so CI captures it at publish time (`ko build --image-refs`) and the deploy passes it in as `MESHTENDER_IMAGE_DIGEST`, deploying by digest in the same patch. Treat it as a claim to check, not as proof. |
+
+A build from a modified tree reports `"modified": true`, and its `commit` does **not** describe the
+source it was built from — such a build can't be reproduced from that commit, by anyone. Admins see
+the same data plus copy-paste reproduction commands at `/admin/build`.
 
 Two things change the digest, and both are intentional:
 

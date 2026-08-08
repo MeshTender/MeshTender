@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/jleight/meshtender/internal/auth"
+	"github.com/jleight/meshtender/internal/buildinfo"
 	"github.com/jleight/meshtender/internal/config"
 	"github.com/jleight/meshtender/internal/identity"
 	"github.com/jleight/meshtender/internal/marketing"
@@ -108,6 +109,10 @@ func NewServer(st *store.Store, authSvc *auth.Service, idSvc *identity.Service, 
 			return u.Name(), u.CapManageUsers || u.CapManageCatalog, u.Timezone, true
 		},
 		LookupTXT: net.LookupTXT,
+		// Read once here rather than per request: it hashes the executable, and
+		// the answer can't change while the process runs. Sharing one value also
+		// guarantees the public endpoint and the admin page can never disagree.
+		Build: buildinfo.Read(cfg.ImageDigest),
 	}
 
 	coreEnv, err := web.NewEnv(deps, templatesFS)
@@ -272,6 +277,10 @@ func (s *Handlers) appRouter() chi.Router {
 				r.With(s.requireCap(capAny)).Get("/", s.pageAdmin)
 				r.With(s.requireCap(capAny)).Get("/analytics", s.pageAnalytics)
 				r.With(s.requireCap(capAny)).Get("/proxy-test", s.pageProxyTest)
+				// Build provenance. capAny, and the same facts are public at
+				// web.VersionPath — the page adds only the reproduction commands,
+				// so gating it higher would protect nothing.
+				r.With(s.requireCap(capAny)).Get("/build", s.pageBuild)
 				// CSP violation reports. Viewing is capAny, matching traffic analytics
 				// — it's diagnostic data about our own pages. Clearing deletes records,
 				// so it takes capUsers, the higher bar; the page hides the button

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/jleight/meshtender/internal/auth"
+	"github.com/jleight/meshtender/internal/config"
 	"github.com/jleight/meshtender/internal/identity"
 	"github.com/jleight/meshtender/internal/store"
 )
@@ -65,6 +66,14 @@ func splitServerNoMail(t *testing.T) (*store.Store, context.Context, *httptest.S
 
 func splitServerWithMail(t *testing.T, mailEnabled bool) (*store.Store, context.Context, *httptest.Server, hostEnv, *fakeSender) {
 	t.Helper()
+	return splitServerWith(t, mailEnabled, testConfig())
+}
+
+// splitServerWith is the base builder, taking the runtime config so a test can
+// exercise a setting the deployment supplies (e.g. MESHTENDER_IMAGE_DIGEST)
+// rather than only the defaults in testConfig.
+func splitServerWith(t *testing.T, mailEnabled bool, cfg *config.Config) (*store.Store, context.Context, *httptest.Server, hostEnv, *fakeSender) {
+	t.Helper()
 	st, ctx := coreStore(t)
 
 	masterKey := testMasterKey
@@ -79,7 +88,7 @@ func splitServerWithMail(t *testing.T, mailEnabled bool) (*store.Store, context.
 	if err != nil {
 		t.Fatalf("auth: %v", err)
 	}
-	srv, err := NewServer(st, authSvc, idSvc, testConfig())
+	srv, err := NewServer(st, authSvc, idSvc, cfg)
 	if err != nil {
 		t.Fatalf("server: %v", err)
 	}

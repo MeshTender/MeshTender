@@ -7,6 +7,8 @@ import (
 	"net"
 	"os"
 	"strings"
+
+	"github.com/jleight/meshtender/internal/buildinfo"
 )
 
 // Config holds all runtime configuration for the server.
@@ -73,6 +75,13 @@ type Config struct {
 	MailReplyTo  string
 	MailEnabled  bool
 
+	// ImageDigest is the OCI digest of the image this server runs as, reported by
+	// /version so an auditor can rebuild the commit and compare. A binary can't
+	// derive its own image digest (the digest is taken over the binary), so CI
+	// resolves it at publish time and the deployment passes it in via
+	// MESHTENDER_IMAGE_DIGEST. Empty when running from source.
+	ImageDigest string
+
 	// TrustedProxies are CIDR ranges whose X-Forwarded-For / X-Real-IP headers are
 	// trusted when resolving a request's client IP. Loopback is always trusted (a
 	// same-host reverse proxy). The client IP is the rightmost X-Forwarded-For
@@ -115,7 +124,16 @@ func Load() (*Config, error) {
 		ResendAPIKey:   os.Getenv("MESHTENDER_RESEND_API_KEY"),
 		MailFrom:       os.Getenv("MESHTENDER_MAIL_FROM"),
 		MailReplyTo:    os.Getenv("MESHTENDER_MAIL_REPLY_TO"),
+		ImageDigest:    strings.TrimSpace(os.Getenv("MESHTENDER_IMAGE_DIGEST")),
 		TrustedProxies: trustedProxies,
+	}
+
+	// A malformed digest is worse than none: /version would publish it as an
+	// attestation, and an auditor comparing their rebuild against it would read a
+	// typo in a deployment manifest as evidence the running server doesn't match
+	// its source. Fail closed at startup instead.
+	if err := buildinfo.ValidateDigest(c.ImageDigest); err != nil {
+		return nil, fmt.Errorf("MESHTENDER_IMAGE_DIGEST: %w", err)
 	}
 
 	// A configured API key with no From address can never deliver anything, and the
