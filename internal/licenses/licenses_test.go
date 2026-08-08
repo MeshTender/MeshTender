@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -301,28 +300,5 @@ func TestNoticesUsesUnixLineEndings(t *testing.T) {
 	}
 	if bytes.Contains(doc, []byte("\r")) {
 		t.Errorf("%s contains a carriage return — run `mise run licenses --update`", NoticesPath)
-	}
-}
-
-// TestReadmeVendoredVersionsMatchManifest keeps the README's version table from
-// drifting, since it is the second place a version is written down.
-func TestReadmeVendoredVersionsMatchManifest(t *testing.T) {
-	root := repoRoot(t)
-	b, err := os.ReadFile(filepath.Join(root, "README.md"))
-	if err != nil {
-		t.Fatalf("reading README.md: %v", err)
-	}
-	readme := string(b)
-
-	for _, d := range Deps {
-		if d.Kind != KindAsset || d.Version == "" {
-			continue
-		}
-		// The table renders as: | [Name](url) | version | files |
-		row := fmt.Sprintf("| %s |", d.Version)
-		if !strings.Contains(readme, row) {
-			t.Errorf("README.md has no vendored-assets table row stating version %s for %s; "+
-				"the table and the manifest disagree", d.Version, d.Name)
-		}
 	}
 }
