@@ -5,7 +5,31 @@
 {{if .Error}}<div class="alert alert-danger">{{.Error}}</div>{{end}}
 
 <div class="row row-cards">
-  <!-- Left: member list -->
+  {{/* Search/filters come FIRST in the DOM and move to the right of the roster at lg
+       (order-lg-last). Source order governs both the mobile stack and the tab order, so
+       ordering with CSS alone would leave keyboard and screen-reader users traversing
+       every member to reach the control that exists to avoid exactly that. */}}
+  <div class="col-lg-4 col-xl-3 order-lg-last">
+    <div class="card">
+      <div class="card-header"><h2 class="card-title">Find members</h2></div>
+      <div class="card-body">
+        <div class="mb-3">
+          <label class="form-label" for="member-search">Search</label>
+          <input type="search" class="form-control" id="member-search" placeholder="Name or @username" autocomplete="off" aria-label="Search members">
+        </div>
+        <div class="form-label">Role</div>
+        <div class="btn-group-vertical w-100" role="group" aria-label="Filter members">
+          <input type="radio" class="btn-check" name="member-filter" id="mf-all" value="all" autocomplete="off" checked>
+          <label for="mf-all" class="btn">All</label>
+          <input type="radio" class="btn-check" name="member-filter" id="mf-member" value="member" autocomplete="off">
+          <label for="mf-member" class="btn">Members</label>
+          <input type="radio" class="btn-check" name="member-filter" id="mf-admin" value="admin" autocomplete="off">
+          <label for="mf-admin" class="btn">Admins</label>
+        </div>
+      </div>
+    </div>
+  </div>
+  {{/* The roster; at lg it sits left of the filters above. */}}
   <div class="col-lg-8 col-xl-9">
     <div class="card">
       <div class="card-header"><h2 class="card-title">{{len .Members}} member{{if ne (len .Members) 1}}s{{end}}</h2></div>
@@ -30,28 +54,6 @@
         </div>
         {{end}}
         <div class="list-group-item text-secondary member-hidden" id="member-empty">No members match.</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Right: search + filter sidebar -->
-  <div class="col-lg-4 col-xl-3">
-    <div class="card">
-      <div class="card-header"><h2 class="card-title">Find members</h2></div>
-      <div class="card-body">
-        <div class="mb-3">
-          <label class="form-label" for="member-search">Search</label>
-          <input type="search" class="form-control" id="member-search" placeholder="Name or @username" autocomplete="off" aria-label="Search members">
-        </div>
-        <div class="form-label">Role</div>
-        <div class="btn-group-vertical w-100" role="group" aria-label="Filter members">
-          <input type="radio" class="btn-check" name="member-filter" id="mf-all" value="all" autocomplete="off" checked>
-          <label for="mf-all" class="btn">All</label>
-          <input type="radio" class="btn-check" name="member-filter" id="mf-member" value="member" autocomplete="off">
-          <label for="mf-member" class="btn">Members</label>
-          <input type="radio" class="btn-check" name="member-filter" id="mf-admin" value="admin" autocomplete="off">
-          <label for="mf-admin" class="btn">Admins</label>
-        </div>
       </div>
     </div>
   </div>

@@ -17,7 +17,29 @@
 {{if .Error}}<div class="alert alert-danger">{{.Error}}</div>{{end}}
 {{if .Orgs}}
 <div class="row row-cards" data-filter-root>
-  <!-- Left: the org list -->
+  {{/* Search/filters come FIRST in the DOM and move to the right of the list at lg
+       (order-lg-last). Source order governs both the mobile stack and the tab order,
+       so ordering with CSS alone would leave keyboard and screen-reader users
+       traversing every row to reach the control that exists to avoid exactly that. */}}
+  <div class="col-lg-3 order-lg-last">
+    <div class="card">
+      <div class="card-body">
+        <div class="mb-3">
+          <label class="form-label" for="org-search">Search</label>
+          <input type="search" id="org-search" class="form-control" data-filter-search placeholder="Organization name" aria-label="Search your organizations">
+        </div>
+        <div>
+          <label class="form-label" for="org-role">Your role</label>
+          <select id="org-role" class="form-select" data-filter-key="role" aria-label="Filter by your role">
+            <option value="">Any role</option>
+            <option value="admin">Admin</option>
+            <option value="member">Member</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+  {{/* The list itself; at lg it sits left of the filters above. */}}
   <div class="col-lg-9">
     <div class="card">
       <div class="list-group list-group-flush">
@@ -34,26 +56,6 @@
         {{end}}
       </div>
       <div class="card-body text-secondary" data-filter-empty hidden>No organizations match your filters.</div>
-    </div>
-  </div>
-
-  <!-- Right: search + filter -->
-  <div class="col-lg-3">
-    <div class="card">
-      <div class="card-body">
-        <div class="mb-3">
-          <label class="form-label" for="org-search">Search</label>
-          <input type="search" id="org-search" class="form-control" data-filter-search placeholder="Organization name" aria-label="Search your organizations">
-        </div>
-        <div>
-          <label class="form-label" for="org-role">Your role</label>
-          <select id="org-role" class="form-select" data-filter-key="role" aria-label="Filter by your role">
-            <option value="">Any role</option>
-            <option value="admin">Admin</option>
-            <option value="member">Member</option>
-          </select>
-        </div>
-      </div>
     </div>
   </div>
 </div>

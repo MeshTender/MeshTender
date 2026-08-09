@@ -9,6 +9,31 @@
 {{end}}
 {{define "content"}}
 <div class="row row-cards">
+  {{/* The page nav comes FIRST in the DOM and moves to the right of the prose at lg
+       (order-lg-last). A table of contents is navigation: stacked below the content on a
+       phone it could only be reached by scrolling past everything it exists to skip. */}}
+  <div class="col-lg-4 order-lg-last">
+    <div class="card">
+      <div class="card-header"><h2 class="card-title">On this page</h2></div>
+      <div class="list-group list-group-flush">
+        <a class="list-group-item list-group-item-action" href="#setperm">Granting admin (setperm)</a>
+        <a class="list-group-item list-group-item-action" href="#add">Adding a repeater</a>
+        <a class="list-group-item list-group-item-action" href="#kiss">What's a KISS modem?</a>
+        <a class="list-group-item list-group-item-action" href="#config">Organizations</a>
+        <a class="list-group-item list-group-item-action" href="#sharing">Sharing &amp; stewards</a>
+      </div>
+    </div>
+    {{if .ServerKey}}
+    <div class="card mt-3">
+      <div class="card-header"><h2 class="card-title">MeshTender's key</h2></div>
+      <div class="card-body">
+        <div class="form-label">MeshTender server public key</div>
+        <code class="pk d-block">{{.ServerKey}}</code>
+      </div>
+    </div>
+    {{end}}
+  </div>
+
   <div class="col-lg-8">
 
     <div class="card">
@@ -73,28 +98,6 @@
       </div>
     </div>
 
-  </div>
-
-  <div class="col-lg-4">
-    <div class="card">
-      <div class="card-header"><h2 class="card-title">On this page</h2></div>
-      <div class="list-group list-group-flush">
-        <a class="list-group-item list-group-item-action" href="#setperm">Granting admin (setperm)</a>
-        <a class="list-group-item list-group-item-action" href="#add">Adding a repeater</a>
-        <a class="list-group-item list-group-item-action" href="#kiss">What's a KISS modem?</a>
-        <a class="list-group-item list-group-item-action" href="#config">Organizations</a>
-        <a class="list-group-item list-group-item-action" href="#sharing">Sharing &amp; stewards</a>
-      </div>
-    </div>
-    {{if .ServerKey}}
-    <div class="card mt-3">
-      <div class="card-header"><h2 class="card-title">MeshTender's key</h2></div>
-      <div class="card-body">
-        <div class="form-label">MeshTender server public key</div>
-        <code class="pk d-block">{{.ServerKey}}</code>
-      </div>
-    </div>
-    {{end}}
   </div>
 </div>
 {{end}}
