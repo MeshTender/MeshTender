@@ -130,10 +130,18 @@ markup for it. The one that has already bitten us:
 ### 5. Third-party licensing is a gate — permissive only
 We ship a binary and an image, so every dependency has to be one whose license
 we can actually comply with. Dependencies stay permissive — copyleft terms
-(GPL, LGPL, AGPL, MPL, SSPL) would reach back and constrain how MeshTender
-itself may be licensed and distributed. The allowed set is `AllowedSPDX` in
+(GPL, LGPL, AGPL, MPL, SSPL) are out. MeshTender is *itself* AGPL-3.0
+(`LICENSE`), but licensing copyleft out doesn't oblige us to accept copyleft in:
+a GPL/AGPL dependency would end the sole copyright holder's ability to relicense,
+and LGPL/MPL attach per-file obligations that fit a statically linked, fully
+embedded Go binary badly. The reasoning is spelled out at `AllowedSPDX` in
 `internal/licenses/manifest.go`; adding to it is a legal decision, not a build
 fix. This applies to the test tree too.
+
+The MeshTender **name and marks are reserved** and excluded from the AGPL grant
+(`TRADEMARKS.md`, permitted by AGPLv3 §7(c)/(e)). The two brand artwork files stay
+committed — the reproducible-build check requires every image input to be public —
+so don't "fix" that by moving them out.
 
 - `mise run licenses` scans the Go module graph (binary + test + `browser` tag)
   with `google/licensecheck` **and** the non-Go manifest, then verifies

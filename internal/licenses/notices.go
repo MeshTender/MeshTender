@@ -200,8 +200,9 @@ func Notices(goSection string) (string, error) {
 	var b strings.Builder
 	b.WriteString("# Third-Party Notices\n\n")
 	b.WriteString("This file covers the third-party software MeshTender depends on, all of\n")
-	b.WriteString("which is permissively licensed. It makes no statement about MeshTender's\n")
-	b.WriteString("own license.\n\n")
+	b.WriteString("which is permissively licensed. MeshTender's own license is the GNU\n")
+	b.WriteString("Affero General Public License v3.0 (see LICENSE); its name and marks are\n")
+	b.WriteString("reserved (see TRADEMARKS.md).\n\n")
 	b.WriteString("**This file is generated. Do not edit it by hand** — run `mise run licenses --update`.\n")
 	b.WriteString("Front-end and artwork entries come from `internal/licenses/manifest.go`; the Go\n")
 	b.WriteString("module list is scanned from the module graph.\n\n")

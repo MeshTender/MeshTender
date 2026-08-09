@@ -1,8 +1,9 @@
 # Third-Party Notices
 
 This file covers the third-party software MeshTender depends on, all of
-which is permissively licensed. It makes no statement about MeshTender's
-own license.
+which is permissively licensed. MeshTender's own license is the GNU
+Affero General Public License v3.0 (see LICENSE); its name and marks are
+reserved (see TRADEMARKS.md).
 
 **This file is generated. Do not edit it by hand** — run `mise run licenses --update`.
 Front-end and artwork entries come from `internal/licenses/manifest.go`; the Go

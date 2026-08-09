@@ -234,10 +234,23 @@ var FirstPartyStatic = []string{
 }
 
 // AllowedSPDX is the set of licenses a dependency may carry. Everything here is
-// permissive: copyleft terms (GPL, LGPL, AGPL, MPL, SSPL) would reach back and
-// constrain how MeshTender itself may be licensed and distributed, so a
-// copyleft dependency is a licensing conflict rather than a preference. Adding
-// to this list is a legal decision, not a build fix.
+// permissive, and it stays that way even though MeshTender is itself AGPL-3.0:
+// licensing copyleft OUT does not oblige us to accept copyleft IN, and the two
+// reasons to keep the inbound side permissive both still hold.
+//
+// First, relicensing latitude. The copyright in MeshTender is held by one person,
+// who can therefore release it under different or additional terms later (a
+// dual-license, say). A GPL or AGPL dependency compiled into the binary would end
+// that: the combined work could only ever be distributed under those terms, no
+// matter what the copyright holder wanted.
+//
+// Second, per-file obligations that a single static binary handles badly. LGPL and
+// MPL attach conditions to their own files rather than to the whole work — LGPL
+// wants the user able to relink against a modified version, MPL wants modified
+// covered files published under MPL — and neither is a natural fit for a pure-Go
+// binary with everything go:embed'ed and no dynamic linking.
+//
+// Adding to this list is a legal decision, not a build fix.
 var AllowedSPDX = map[string]bool{
 	"0BSD":         true,
 	"Apache-2.0":   true,
