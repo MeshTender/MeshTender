@@ -31,7 +31,15 @@ swap needs no new markup. The flex row is nested so the [hidden] attribute wins
 <div class="alert alert-info" role="alert" data-testid="location-banner"{{if not (and .Repeater.Confirmed .Repeater.IsAdmin)}} hidden{{end}}>
   <div class="d-flex align-items-center justify-content-between">
     <div class="me-3">This repeater's location isn't known yet.</div>
+    {{/* Fetching transmits "get lat"/"get lon", so it's offered only to someone
+    permitted to run them — the server checks again before sending. The banner
+    still shows either way: an unknown location affects region configuration, so
+    it's worth knowing about even if you can't be the one to fix it. */}}
+    {{if .CanFetchLocation}}
     <button type="button" class="btn btn-sm btn-primary flex-shrink-0" data-fetch-location data-testid="fetch-location">{{template "icon-map-pin" "me-1"}}Fetch location</button>
+    {{else}}
+    <div class="text-secondary flex-shrink-0" data-testid="fetch-location-denied">Reading it needs permission to run <code>get lat</code> and <code>get lon</code>.</div>
+    {{end}}
   </div>
 </div>
 {{end}}

@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -54,14 +55,45 @@ func reportPathOutcome(bridge *wsbridge.Conn, lr *mesh.LoginResponse) {
 	}
 }
 
+// errNoLocationAudit reports a location fetch wired up without its audit hooks.
+var errNoLocationAudit = errors.New("location fetch requires an audit hook")
+
+// locationAudit records the commands a location fetch transmits. Both hooks are
+// required, and fetchAndStoreLocation will not send anything without them: the
+// fetch puts real "get lat"/"get lon" commands on the air against hardware the
+// caller may not own, so it has to leave the same trail in the repeater's command
+// log that typing those commands would.
+type locationAudit struct {
+	// before is called with the exact text about to be transmitted, and reports
+	// whether sending may proceed. Returning false aborts the fetch — a command
+	// that couldn't be recorded must not reach the device.
+	before func(text string) (logID int64, ok bool)
+	// after records the reply against the row before created.
+	after func(logID int64, reply string)
+}
+
 // fetchAndStoreLocation queries the connected repeater for its coordinates
 // ("get lat"/"get lon", each retried) and persists them. It reports progress via
 // bridge.Status and returns the stored coordinates (ok=false if either read
-// failed). Driven by the console's "Fetch location" (getloc) request. Requires
-// admin access (guests can't run the get commands) — callers must gate on that
-// first.
-func (s *Handlers) fetchAndStoreLocation(ctx context.Context, r *http.Request, ex *mesh.Exchanger, bridge *wsbridge.Conn, id int64, debug bool) (lat, lon float64, ok bool) {
+// failed). Driven by the console's "Fetch location" (getloc) request.
+//
+// Authorization is the caller's job and is not optional: these are catalog
+// commands like any other, so the console checks store.CanSendCommand for both
+// before calling (see fetchLocation in console.go). What this function guarantees
+// is the other half — that each send is audited through the supplied hooks first.
+func (s *Handlers) fetchAndStoreLocation(ctx context.Context, r *http.Request, ex *mesh.Exchanger, bridge *wsbridge.Conn, id int64, debug bool, audit locationAudit) (lat, lon float64, ok bool) {
+	if audit.before == nil || audit.after == nil {
+		// A programming error, not a runtime condition: refuse rather than transmit
+		// unlogged commands to someone's repeater.
+		web.LogError(r, "console: location fetch without an audit hook", errNoLocationAudit, "repeater_id", id)
+		_ = bridge.Status("error", "Could not read the location — please try again.")
+		return 0, 0, false
+	}
 	fetchCoord := func(label, cmd string, accept func(text string) bool) (float64, bool) {
+		logID, ok := audit.before(cmd)
+		if !ok {
+			return 0, false
+		}
 		reply, err := ex.CommandAccept(ctx, cmd, accept, func(attempt, max int) {
 			if attempt == 1 {
 				_ = bridge.Status("info", "Fetching "+label+"…")
@@ -72,6 +104,7 @@ func (s *Handlers) fetchAndStoreLocation(ctx context.Context, r *http.Request, e
 		if err != nil {
 			return 0, false
 		}
+		audit.after(logID, reply)
 		return parseLocationFloat(reply)
 	}
 	lat, okLat := fetchCoord("latitude", "get lat", nil)

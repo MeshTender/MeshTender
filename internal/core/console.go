@@ -146,6 +146,44 @@ func (s *Handlers) allowedCommands(ctx context.Context, rep *store.Repeater, use
 	return out
 }
 
+// locationCommandKeys are the catalog commands the console's "Fetch location"
+// action transmits. The button is a shortcut for running these two, not a way
+// around the permission model: it is authorized and audited exactly as though the
+// user had typed them, so a person who may not run "get lat" cannot cause one to
+// be transmitted by clicking instead.
+var locationCommandKeys = [2]string{"get.lat", "get.lon"}
+
+// locationCommands resolves the pair from the catalog. ok is false if either is
+// missing — the catalog is data, so a row can be retired, and a fetch that can't
+// name the commands it sends can't audit them either.
+func locationCommands(catalog []*store.Command) (lat, lon *store.Command, ok bool) {
+	for _, c := range catalog {
+		switch c.Key {
+		case locationCommandKeys[0]:
+			lat = c
+		case locationCommandKeys[1]:
+			lon = c
+		}
+	}
+	return lat, lon, lat != nil && lon != nil
+}
+
+// canFetchLocation reports whether every location command is in the user's
+// allowed set, which is what decides whether the console offers the button. The
+// server checks again before sending (see fetchLocation) — this only keeps the UI
+// from advertising an action that would be refused.
+func canFetchLocation(allowed []*store.Command) bool {
+	have := 0
+	for _, c := range allowed {
+		for _, key := range locationCommandKeys {
+			if c.Key == key {
+				have++
+			}
+		}
+	}
+	return have == len(locationCommandKeys)
+}
+
 func (s *Handlers) pageConsole(w http.ResponseWriter, r *http.Request) {
 	uid := s.Auth.CurrentUserID(r.Context())
 	rep, _, ok := s.requireRepeaterAccess(w, r)
@@ -167,10 +205,11 @@ func (s *Handlers) pageConsole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Render(w, r, "console.html", map[string]any{
-		"Repeater":   rep,
-		"Commands":   allowed,
-		"ShowConfig": len(configOrgs) > 0,
-		"Debug":      r.URL.Query().Get("debug") == "1",
+		"Repeater":         rep,
+		"Commands":         allowed,
+		"CanFetchLocation": canFetchLocation(allowed),
+		"ShowConfig":       len(configOrgs) > 0,
+		"Debug":            r.URL.Query().Get("debug") == "1",
 	})
 }
 
@@ -356,6 +395,47 @@ func (s *Handlers) wsConsole(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = bridge.Status("info", "Connected. Ready for commands.")
 
+	// permitted reports whether this user may send cmd on this repeater, using the
+	// one authorization query the sidebar is also built from. An error is treated as
+	// a refusal: a permission check that didn't run hasn't granted anything.
+	permitted := func(cmd *store.Command, text string) bool {
+		ok, err := s.Store.CanSendCommand(ctx, uid, id, cmd.ID)
+		if err != nil {
+			web.LogError(r, "console: permission check", err, "repeater_id", id, "command_id", cmd.ID)
+			_ = bridge.Status("error", "permission check failed")
+			return false
+		}
+		if !ok {
+			_ = bridge.Status("denied", "Not permitted: "+text)
+		}
+		return ok
+	}
+
+	// logBeforeSend records a command in the audit log BEFORE it is transmitted, and
+	// reports whether sending may proceed. If the log write fails the command must
+	// not go out: an unlogged command on a shared repeater is worse than a refused
+	// one, because the owner can't see it happened. Every path that transmits to the
+	// repeater goes through here — typed commands and the "Fetch location" button
+	// alike — so there is one place that invariant lives.
+	logBeforeSend := func(text string, cmd *store.Command) (int64, bool) {
+		logID, err := s.Store.LogCommand(ctx, id, uid, sessionID, cmd.ID, text)
+		if err != nil {
+			web.LogError(r, "console: log command", err, "repeater_id", id, "command_id", cmd.ID)
+			_ = bridge.Status("error", "Could not record the command — not sending it. Please try again.")
+			return 0, false
+		}
+		return logID, true
+	}
+
+	markReply := func(logID int64, reply string) {
+		if logID == 0 {
+			return
+		}
+		if err := s.Store.MarkCommandReply(ctx, logID, reply); err != nil {
+			web.LogError(r, "console: mark command reply", err, "log_id", logID)
+		}
+	}
+
 	runCommand := func(text string) {
 		idle.Reset(consoleIdleTimeout)
 		if !validCommandText(text) {
@@ -367,24 +447,12 @@ func (s *Handlers) wsConsole(w http.ResponseWriter, r *http.Request) {
 			_ = bridge.Status("denied", "Unknown command: "+text)
 			return
 		}
-		allowed, err := s.Store.CanSendCommand(ctx, uid, id, cmd.ID)
-		if err != nil {
-			web.LogError(r, "console: permission check", err, "repeater_id", id, "command_id", cmd.ID)
-			_ = bridge.Status("error", "permission check failed")
-			return
-		}
-		if !allowed {
-			_ = bridge.Status("denied", "Not permitted: "+text)
+		if !permitted(cmd, text) {
 			return
 		}
 
-		// Audit before executing: if we can't record the command, don't send it to
-		// the device — an unlogged command on a shared repeater is worse than a
-		// refused one.
-		logID, err := s.Store.LogCommand(ctx, id, uid, sessionID, cmd.ID, text)
-		if err != nil {
-			web.LogError(r, "console: log command", err, "repeater_id", id, "command_id", cmd.ID)
-			_ = bridge.Status("error", "Could not record the command — not sending it. Please try again.")
+		logID, ok := logBeforeSend(text, cmd)
+		if !ok {
 			return
 		}
 
@@ -397,11 +465,7 @@ func (s *Handlers) wsConsole(w http.ResponseWriter, r *http.Request) {
 		})
 		switch {
 		case err == nil:
-			if logID != 0 {
-				if err := s.Store.MarkCommandReply(ctx, logID, reply); err != nil {
-					web.LogError(r, "console: mark command reply", err, "log_id", logID)
-				}
-			}
+			markReply(logID, reply)
 			_ = bridge.Status("reply", reply)
 			// A "get lat"/"get lon" the user ran themselves carries the repeater's
 			// current coordinate — capture it so the stored location tracks what the
@@ -412,6 +476,38 @@ func (s *Handlers) wsConsole(w http.ResponseWriter, r *http.Request) {
 			_ = bridge.Status("noreply", "No reply received after several tries — the command may still have run.")
 		default:
 			// context canceled or a build/transmit error
+		}
+	}
+
+	// fetchLocation serves the "Fetch location" button. It reads the repeater's
+	// coordinates by transmitting real "get lat"/"get lon" commands, so it is
+	// authorized and audited exactly as typing them would be — the button saves the
+	// user two round-trips of typing, it does not grant anything extra. Both
+	// commands are required: a caller permitted to read only one coordinate would
+	// otherwise half-fetch a location.
+	fetchLocation := func() {
+		latCmd, lonCmd, ok := locationCommands(catalog)
+		if !ok {
+			_ = bridge.Status("error", "The command catalog has no location commands, so the location can't be read.")
+			return
+		}
+		for _, c := range []*store.Command{latCmd, lonCmd} {
+			if !permitted(c, c.Template) {
+				return
+			}
+		}
+		audit := locationAudit{
+			before: func(text string) (int64, bool) {
+				cmd := latCmd
+				if text == lonCmd.Template {
+					cmd = lonCmd
+				}
+				return logBeforeSend(text, cmd)
+			},
+			after: markReply,
+		}
+		if _, _, ok := s.fetchAndStoreLocation(ctx, r, ex, bridge, id, false, audit); ok {
+			_ = bridge.Status("location", "Location updated from the repeater.")
 		}
 	}
 
@@ -426,9 +522,7 @@ func (s *Handlers) wsConsole(w http.ResponseWriter, r *http.Request) {
 			// concurrently with a command. Emits a "location" status on success so an
 			// open config panel refreshes its region commands.
 			idle.Reset(consoleIdleTimeout)
-			if _, _, ok := s.fetchAndStoreLocation(ctx, r, ex, bridge, id, false); ok {
-				_ = bridge.Status("location", "Location updated from the repeater.")
-			}
+			fetchLocation()
 		}
 	}
 }

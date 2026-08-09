@@ -116,6 +116,48 @@ func TestConsoleFetchesLocation(t *testing.T) {
 		return true
 	}
 
+	// The fetch transmits two real commands, so the repeater's owner must be able to
+	// see them in the command log with the reply the device gave — a location read is
+	// not exempt from the audit trail just because a button triggered it.
+	assertAudited := func() {
+		t.Helper()
+		rows, err := st.Pool().Query(ctx,
+			`SELECT command_text, response_text, user_id FROM command_log
+			 WHERE repeater_id = $1 ORDER BY id`, rep.ID)
+		if err != nil {
+			t.Fatalf("read command log: %v", err)
+		}
+		defer rows.Close()
+		type entry struct {
+			text   string
+			reply  *string
+			userID *int64
+		}
+		var got []entry
+		for rows.Next() {
+			var e entry
+			if err := rows.Scan(&e.text, &e.reply, &e.userID); err != nil {
+				t.Fatalf("scan: %v", err)
+			}
+			got = append(got, e)
+		}
+		wantReplies := map[string]string{"get lat": "> 37.7749", "get lon": "> -122.4194"}
+		if len(got) != 2 {
+			t.Fatalf("command log has %d rows, want 2 (get lat, get lon): %+v", len(got), got)
+		}
+		for i, want := range []string{"get lat", "get lon"} {
+			if got[i].text != want {
+				t.Errorf("log row %d text = %q, want %q", i, got[i].text, want)
+			}
+			if got[i].userID == nil || *got[i].userID != user.ID {
+				t.Errorf("log row %d is not attributed to the user who asked (%d)", i, user.ID)
+			}
+			if got[i].reply == nil || *got[i].reply != wantReplies[want] {
+				t.Errorf("log row %d reply = %v, want %q", i, got[i].reply, wantReplies[want])
+			}
+		}
+	}
+
 	var buf []byte
 	loggedIn := false
 	for {
@@ -178,6 +220,7 @@ func TestConsoleFetchesLocation(t *testing.T) {
 		}
 
 		if stored() {
+			assertAudited()
 			return // success
 		}
 	}
@@ -185,6 +228,7 @@ func TestConsoleFetchesLocation(t *testing.T) {
 	// Socket closed; poll briefly for the stored location.
 	for i := 0; i < 40; i++ {
 		if stored() {
+			assertAudited()
 			return
 		}
 		time.Sleep(25 * time.Millisecond)
