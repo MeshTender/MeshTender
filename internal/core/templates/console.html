@@ -60,7 +60,10 @@ swap needs no new markup. The flex row is nested so the [hidden] attribute wins
       <div class="card-header"><h2 class="card-title">Console</h2></div>
       <div class="card-body">
         <div id="unsupported" class="alert alert-danger" role="alert" hidden>
-          This browser does not support WebSerial. Use Chrome, Edge, or another Chromium-based browser over HTTPS or on localhost.
+          <div>
+            This browser can't connect to USB devices. Use Chrome or Edge, or Firefox 151 or later,
+            on desktop — or Chrome on Android — over HTTPS or on localhost.
+          </div>
         </div>
         <div class="mb-3">
           <label class="form-label" for="path">Path <span class="form-label-description">optional</span></label>
@@ -154,5 +157,6 @@ swap needs no new markup. The flex row is nested so the [hidden] attribute wins
 <script nonce="{{.Nonce}}">
   window.MESHTENDER_WS = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/repeaters/{{.Repeater.PublicID}}/console/ws{{if .Debug}}?debug=1{{end}}";
 </script>
+<script src="{{ asset "/static/serial-port.js" }}"></script>
 <script src="{{ asset "/static/console.js" }}"></script>
 {{end}}

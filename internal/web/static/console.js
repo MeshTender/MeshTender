@@ -6,7 +6,7 @@
 // separate "apply org configuration" script (console-config.js) can send commands
 // and react to session state without owning the socket:
 //   window.MeshConsole.ready          — is the modem connected & the session live?
-//   window.MeshConsole.supported       — does this browser have WebSerial at all?
+//   window.MeshConsole.supported       — can this browser reach a serial device at all?
 //   window.MeshConsole.connect()       — open the modem + session (needs a user gesture)
 //   window.MeshConsole.send(text)      — send a CLI command; returns false if not ready
 //   window.MeshConsole.getLocation()   — ask the server to fetch the repeater's coords
@@ -26,8 +26,8 @@
   // whether a command can be sent right now.
   const api = {
     ready: false,
-    supported: "serial" in navigator,
-    connect() {}, // replaced with the real routine below when WebSerial is present
+    supported: !!(window.MeshSerial && window.MeshSerial.supported),
+    connect() {}, // replaced with the real routine below when a serial transport is present
     send(text) {
       const t = String(text || "").trim();
       if (!t || !api.ready || !ws || ws.readyState !== WebSocket.OPEN) return false;
@@ -57,7 +57,7 @@
     return url;
   }
 
-  if (!("serial" in navigator)) {
+  if (!api.supported) {
     const unsupportedEl = document.getElementById("unsupported");
     if (unsupportedEl) unsupportedEl.hidden = false;
     if (connectBtn) connectBtn.disabled = true;
@@ -125,7 +125,7 @@
     log.innerHTML = "";
     try {
       addLog("info", "Requesting serial port…");
-      port = await navigator.serial.requestPort();
+      port = await MeshSerial.requestPort();
       await port.open({ baudRate: 115200 });
       writer = port.writable.getWriter();
       reader = port.readable.getReader();

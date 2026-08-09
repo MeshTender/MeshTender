@@ -39,7 +39,7 @@
   };
 
   // --- feature detection -------------------------------------------------
-  var hasSerial = "serial" in navigator;
+  var hasSerial = !!(window.MeshSerial && window.MeshSerial.supported);
   var hasEd25519 = !!(window.crypto && window.crypto.subtle);
   if (!hasSerial || !hasEd25519) {
     var u = $("unsupported");
@@ -276,7 +276,7 @@
     var decoder = new TextDecoder();
     try {
       addLog("info", "Requesting serial port…");
-      port = await navigator.serial.requestPort();
+      port = await MeshSerial.requestPort();
       await port.open({ baudRate: 115200 });
       writer = port.writable.getWriter();
       reader = port.readable.getReader();
