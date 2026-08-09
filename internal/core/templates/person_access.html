@@ -10,22 +10,31 @@
 </div>
 <div class="modal-body">
   <form method="post" action="/repeaters/{{.Repeater.PublicID}}/share/{{.Target.ID}}/access" id="person-access-form">
-    <div class="hr-text hr-text-left mt-0 mb-3">Steward</div>
+    {{/* Steward supersedes the per-command grants (store.ListSendableCommandIDs
+         gives a steward every command), so the two are not parallel choices and
+         showing them side by side invited setting both. The switch collapses the
+         grid via data-hide-target; the checkboxes keep submitting, so turning
+         steward back off restores the selection rather than starting from none. */}}
+    <div class="hr-text hr-text-left mt-0 mb-3">Access level</div>
     <label class="form-check form-switch">
-      <input class="form-check-input" type="checkbox" name="steward" value="1" {{if .Steward}}checked{{end}}>
+      <input class="form-check-input" type="checkbox" name="steward" value="1"
+             data-hide-target="#person-commands" {{if .Steward}}checked{{end}}>
       <span class="form-check-label"><strong>Steward — full access</strong></span>
     </label>
-    <p class="form-hint">
+    <p class="form-hint mb-0">
       A steward can run <strong>every</strong> command (including risky ones), just like you, and is listed
-      as a backup maintainer on this repeater's public page.
+      as a backup maintainer on this repeater's public page. Leave it off to grant individual commands
+      instead.
     </p>
 
-    <div class="hr-text hr-text-left mt-5 mb-3">Permissions</div>
-    <p class="text-secondary">
-      Choose which commands {{.Target.Name}} may send. These apply when steward is off — a steward already
-      has every command. Risky commands can take over or brick the node; grant them only with care.
-    </p>
-    {{template "command-grid" .}}
+    <div id="person-commands">
+      <div class="hr-text hr-text-left mt-4 mb-3">Commands</div>
+      <p class="text-secondary">
+        Choose which commands {{.Target.Name}} may send. Risky commands can take over or brick the node;
+        grant them only with care.
+      </p>
+      {{template "command-grid" .}}
+    </div>
   </form>
   <form method="post" action="/repeaters/{{.Repeater.PublicID}}/unshare" id="person-revoke-form">
     <input type="hidden" name="user_id" value="{{.Target.ID}}">

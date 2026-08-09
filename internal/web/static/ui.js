@@ -12,6 +12,14 @@
 //                                    it is (un)checked.
 //   [data-gated]                  — a link/button whose activation is blocked while
 //                                    aria-disabled="true".
+//   [data-hide-target="#sel"]     — a checkbox that hides the target while checked,
+//                                    for a switch that makes a section moot (the
+//                                    steward toggle vs. per-command grants). The
+//                                    target's inputs still submit: hiding says the
+//                                    section doesn't apply right now, not that its
+//                                    values are gone. Synced on load and after an
+//                                    htmx swap, so a fragment rendered with the box
+//                                    already checked starts collapsed.
 //   [data-check-all] /            — a button that checks (all) or unchecks (none)
 //   [data-check-none]               every enabled checkbox within its scope. The
 //                                    scope is the closest [data-check-scope]
@@ -126,9 +134,23 @@
     }
   }
 
+  // A checkbox that hides a section its state makes irrelevant. Inputs inside stay
+  // enabled so they keep submitting — see the data-hide-target note at the top.
+  function syncHideTargets(scope) {
+    var boxes = (scope || document).querySelectorAll("input[type=checkbox][data-hide-target]");
+    for (var i = 0; i < boxes.length; i++) applyHideTarget(boxes[i]);
+  }
+
+  function applyHideTarget(box) {
+    var target = document.querySelector(box.getAttribute("data-hide-target"));
+    if (!target) return;
+    target.hidden = !!box.checked;
+  }
+
   function onReady() {
     formatTimes(document);
     localTodayInputs(document);
+    syncHideTargets(document);
   }
 
   if (document.readyState === "loading") {
@@ -139,6 +161,7 @@
   // htmx swaps in server HTML that may contain <time> elements.
   document.body && document.addEventListener("htmx:afterSwap", function (e) {
     formatTimes(e.target || document);
+    syncHideTargets(e.target || document);
   });
 
   document.addEventListener("submit", function (e) {
@@ -212,6 +235,11 @@
 
     if (el.matches("[data-autosubmit]") && el.form) {
       el.form.submit();
+      return;
+    }
+
+    if (el.matches("input[type=checkbox][data-hide-target]")) {
+      applyHideTarget(el);
       return;
     }
 
