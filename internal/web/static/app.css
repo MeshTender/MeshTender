@@ -232,3 +232,10 @@ code.pubkey {
   border-color: var(--tblr-primary) !important;
   box-shadow: 0 0 0 1px var(--tblr-primary);
 }
+
+/* Footer on the centered auth layout (authbase). footerbody right-packs its two
+   columns, which suits a full-width page but reads as misaligned under a narrow
+   centered card, so center them here instead. */
+.footer-centered .row {
+  justify-content: center;
+}

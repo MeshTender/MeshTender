@@ -36,12 +36,33 @@ func TestVersionJSONReportsTheBuild(t *testing.T) {
 		t.Errorf("Content-Type = %q, want JSON", ct)
 	}
 
-	var got buildinfo.Info
+	var got versionResponse
 	if err := json.NewDecoder(res.Body).Decode(&got); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if got != testBuild() {
-		t.Errorf("reported %+v, want %+v", got, testBuild())
+	if got.Info != testBuild() {
+		t.Errorf("reported %+v, want %+v", got.Info, testBuild())
+	}
+	if got.Source != SourceURL || got.License != License {
+		t.Errorf("reported source/license %q/%q, want %q/%q", got.Source, got.License, SourceURL, License)
+	}
+}
+
+// TestVersionJSONAlwaysOffersSource: the source location and license are the
+// AGPL section 13 offer in machine-readable form, so unlike the build stamps they
+// must be present on every build — including a from-source run with no VCS
+// stamps, where an omitempty slip would leave a verifier with nothing to fetch.
+func TestVersionJSONAlwaysOffersSource(t *testing.T) {
+	t.Parallel()
+	e := &Env{Build: buildinfo.Info{Go: "go1.26.5", OS: "darwin", Arch: "arm64"}}
+	rec := httptest.NewRecorder()
+	e.VersionJSON(rec, httptest.NewRequest(http.MethodGet, VersionPath, nil))
+
+	body := rec.Body.String()
+	for _, want := range []string{`"source":"` + SourceURL + `"`, `"license":"` + License + `"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("body missing %s, got %s", want, body)
+		}
 	}
 }
 

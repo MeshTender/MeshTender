@@ -116,7 +116,9 @@
 
 {{/* footerbody is the one footer used by every layout, so the legal links can't
      go missing on a surface. /privacy and /terms are served by the root host
-     only, hence absolute URLs: the app and auth hosts have no such routes. */}}
+     only, hence absolute URLs: the app and auth hosts have no such routes.
+     The source link is the AGPL section 13 offer — the source of the program
+     you are interacting with, reachable from every page. */}}
 {{define "footerbody"}}
 <div class="row text-center align-items-center flex-row-reverse gy-2">
   <div class="col-12 col-lg-auto">
@@ -127,6 +129,7 @@
       <li class="list-inline-item"><a class="link-secondary" href="{{.RootURL}}/docs">Docs</a></li>
       <li class="list-inline-item"><a class="link-secondary" href="{{.RootURL}}/privacy">Privacy</a></li>
       <li class="list-inline-item"><a class="link-secondary" href="{{.RootURL}}/terms">Terms</a></li>
+      <li class="list-inline-item"><a class="link-secondary" href="{{.SourceURL}}" rel="noopener">Source</a></li>
     </ul>
   </div>
 </div>
@@ -215,7 +218,10 @@
 
 {{/* authbase is a standalone, centered layout for the sign-in / sign-up pages —
      no navbar or page chrome, just a brand logo above the page's content card.
-     Pages opt in with {{define "base"}}{{template "authbase" .}}{{end}}. */}}
+     Pages opt in with {{define "base"}}{{template "authbase" .}}{{end}}.
+     It still carries footerbody: the legal links and the AGPL section 13 source
+     offer are owed on every surface, and someone signing in is as much a user of
+     this server as someone already signed in. */}}
 {{define "authbase"}}<!doctype html>
 <html lang="en" data-bs-theme="dark" data-tz="{{.UserTZ}}">
 <head>
@@ -237,6 +243,7 @@
         </a>
       </div>
       {{template "content" .}}
+      <footer class="footer footer-transparent d-print-none mt-4 footer-centered">{{template "footerbody" .}}</footer>
     </div>
   </div>
 </body>

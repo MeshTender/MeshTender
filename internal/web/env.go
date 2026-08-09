@@ -321,6 +321,10 @@ func (rn *Renderer) render(w http.ResponseWriter, r *http.Request, status int, p
 	data["AppURL"] = originFor(rn.cfg, r, rn.cfg.PrimaryHost)
 	data["AuthURL"] = originFor(rn.cfg, r, rn.cfg.AuthHost)
 	data["RootURL"] = originFor(rn.cfg, r, rn.cfg.RootHost)
+	// SourceURL backs the footer's source link, which is how every page satisfies
+	// the AGPL section 13 obligation to offer this server's source to the people
+	// using it. Injected here rather than per-handler so no page can omit it.
+	data["SourceURL"] = SourceURL
 	// LogoutURL: sign-out is a POST that revokes the login row, so it must target a
 	// host that owns a /logout endpoint AND holds this browser's session. The app
 	// host, auth host, and custom org domains all do (relative "/logout", a

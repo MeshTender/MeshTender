@@ -56,8 +56,9 @@ You must:
    not recolor, trace, or adapt them.
 3. **Publish your source.** AGPL section 13 requires that users interacting with
    your instance over a network be able to get the source it is running, including
-   your modifications. A link to your fork, reachable from the running service, is
-   the usual way to satisfy this.
+   your modifications. Point `SourceURL` in `internal/web/version.go` at your fork:
+   it is what the footer link on every page and the `/version` endpoint report, so
+   leaving it as ours would advertise source you are not running.
 4. **Keep the attribution.** Say somewhere visible that your service is based on
    MeshTender, with a link to <https://github.com/jleight/meshtender>. Copyright
    notices in the source stay as they are (AGPL §5(a)).
