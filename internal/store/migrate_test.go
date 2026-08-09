@@ -21,6 +21,13 @@ import (
 // both tests below "migrate" an already-migrated database, which proves nothing:
 // Provider.Up returns early when nothing is pending and never touches the lock. (That is
 // exactly why an earlier version of these tests passed with the locker removed.)
+// Every testdb.Fresh call in a package MUST pass the same migrate callback: testdb
+// builds its template once per process, so the first caller decides the schema every
+// other test in that package clones. These tests want a bare database, and it is
+// tempting to ask for one by passing a no-op callback — that used to be exactly what
+// they did, and when one of them won the race the whole package cloned an EMPTY
+// template and failed with "relation ... does not exist" all over. So they take the
+// migrated template like everyone else and empty it here instead.
 func emptySchema(t *testing.T, st *Store) {
 	t.Helper()
 	ctx := context.Background()
@@ -68,7 +75,7 @@ func TestMigrateConcurrentlyFromManyConnections(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	dsn := testdb.Fresh(t, func(string) error { return nil })
+	dsn := testdb.Fresh(t, migrateTemplate) // emptied below; see the note on emptySchema
 
 	const replicas = 4
 	stores := make([]*Store, replicas)
@@ -145,7 +152,7 @@ func TestMigrateConcurrentlyFromManyConnections(t *testing.T) {
 func TestMigrateWaitsForTheAdvisoryLock(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	dsn := testdb.Fresh(t, func(string) error { return nil })
+	dsn := testdb.Fresh(t, migrateTemplate) // emptied below; see the note on emptySchema
 
 	st, err := New(ctx, dsn)
 	if err != nil {

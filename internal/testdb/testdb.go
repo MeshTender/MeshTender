@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"reflect"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -45,6 +46,15 @@ var (
 	templateOnce sync.Once
 	templateErr  error
 	templateName string
+	// templateMigrate records which migrate callback built the template, so a second
+	// caller passing a different one is reported instead of silently ignored. The
+	// template is built once per process: without this check, a test that asks for a
+	// DIFFERENT schema gets whatever the first caller created, and if it wins the race
+	// instead, every other test in the package clones ITS schema. That failure lands
+	// nowhere near its cause — an empty template surfaces as "relation ... does not
+	// exist" in unrelated tests, only sometimes, because which parallel test calls
+	// Fresh first is not deterministic.
+	templateMigrate uintptr
 
 	createMu  sync.Mutex // serializes per-test CREATE DATABASE within this process
 	dbCounter atomic.Int64
@@ -90,6 +100,7 @@ func ensureServer(ctx context.Context) error {
 // requires that no sessions are connected to the template).
 func ensureTemplate(ctx context.Context, migrate func(dsn string) error) error {
 	templateOnce.Do(func() {
+		templateMigrate = reflect.ValueOf(migrate).Pointer()
 		templateName = fmt.Sprintf("mt_tmpl_%d", pid)
 		conn, err := pgx.Connect(ctx, adminDSN)
 		if err != nil {
@@ -131,6 +142,13 @@ func ensureTemplate(ctx context.Context, migrate func(dsn string) error) error {
 			templateErr = fmt.Errorf("migrate template: %w", err)
 		}
 	})
+	if templateErr == nil && reflect.ValueOf(migrate).Pointer() != templateMigrate {
+		return fmt.Errorf("the template was already built by a different migrate " +
+			"callback. One template is built per process, so every Fresh call in a package must " +
+			"pass the same one — otherwise the schema a test gets depends on which test ran " +
+			"first. If a test needs a different schema, take the shared template and adjust it " +
+			"inside the test")
+	}
 	return templateErr
 }
 
