@@ -9,7 +9,7 @@ import (
 
 	"github.com/pressly/goose/v3/lock"
 
-	"github.com/jleight/meshtender/internal/testdb"
+	"github.com/MeshTender/MeshTender/internal/testdb"
 )
 
 // emptySchema drops everything in the database behind st, making it genuinely

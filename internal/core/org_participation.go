@@ -6,7 +6,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/jleight/meshtender/internal/store"
+	"github.com/MeshTender/MeshTender/internal/store"
 )
 
 // repeaterOrgContext resolves the {id} repeater (must be owned by the caller) and

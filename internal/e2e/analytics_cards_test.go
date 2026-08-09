@@ -9,7 +9,7 @@ import (
 
 	"github.com/chromedp/chromedp"
 
-	"github.com/jleight/meshtender/internal/store"
+	"github.com/MeshTender/MeshTender/internal/store"
 )
 
 // TestAnalyticsKindCards drives the traffic dashboard in a real browser after

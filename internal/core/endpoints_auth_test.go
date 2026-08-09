@@ -10,7 +10,7 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/jleight/meshtender/internal/store"
+	"github.com/MeshTender/MeshTender/internal/store"
 )
 
 // Black-box coverage for the auth host's non-visual POST endpoints: password

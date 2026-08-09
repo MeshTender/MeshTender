@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jleight/meshtender/internal/buildinfo"
+	"github.com/MeshTender/MeshTender/internal/buildinfo"
 )
 
 func testBuild() buildinfo.Info {

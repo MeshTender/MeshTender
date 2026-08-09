@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jleight/meshtender/internal/web"
+	"github.com/MeshTender/MeshTender/internal/web"
 )
 
 // This file backs the repeater "registry" tabs: site Documentation (public and

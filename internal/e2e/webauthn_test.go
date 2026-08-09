@@ -11,7 +11,7 @@ import (
 	"github.com/chromedp/cdproto/webauthn"
 	"github.com/chromedp/chromedp"
 
-	"github.com/jleight/meshtender/internal/store"
+	"github.com/MeshTender/MeshTender/internal/store"
 )
 
 // virtualAuthenticator enables the WebAuthn CDP domain and installs a virtual

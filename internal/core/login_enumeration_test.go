@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jleight/meshtender/internal/auth"
+	"github.com/MeshTender/MeshTender/internal/auth"
 )
 
 // TestVerifyPasswordSpendsEqualTime is the test that actually guards the fix: it

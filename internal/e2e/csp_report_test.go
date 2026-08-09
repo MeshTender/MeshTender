@@ -10,7 +10,7 @@ import (
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/chromedp"
 
-	"github.com/jleight/meshtender/internal/store"
+	"github.com/MeshTender/MeshTender/internal/store"
 )
 
 // flushCSP drains whatever the collector has queued into the database, the same way

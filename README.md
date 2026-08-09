@@ -257,7 +257,7 @@ $ curl -s https://meshtender.com/version
   "arch": "amd64",
   "executableSHA256": "9f2c…",
   "imageDigest": "sha256:a41b…",
-  "source": "https://github.com/jleight/meshtender",
+  "source": "https://github.com/MeshTender/MeshTender",
   "license": "AGPL-3.0-only"
 }
 ```
@@ -270,7 +270,7 @@ binary, which `commit` then lets you check.
 Then rebuild that commit for that platform and compare digests:
 
 ```sh
-git clone https://github.com/jleight/meshtender && cd meshtender
+git clone https://github.com/MeshTender/MeshTender && cd MeshTender
 git checkout 62e30036ee0bfb28f6c1a4a3f5ac5f4a52e4b1c9   # the commit /version reported
 mise install                                            # installs the pinned Go and ko
 mise run image --platform linux/amd64                   # the os/arch /version reported

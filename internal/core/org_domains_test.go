@@ -3,7 +3,7 @@ package core
 import (
 	"testing"
 
-	"github.com/jleight/meshtender/internal/web"
+	"github.com/MeshTender/MeshTender/internal/web"
 )
 
 func TestNormalizeHostname(t *testing.T) {

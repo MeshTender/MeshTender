@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jleight/meshtender/internal/auth"
-	"github.com/jleight/meshtender/internal/identity"
-	"github.com/jleight/meshtender/internal/store"
-	"github.com/jleight/meshtender/internal/web"
+	"github.com/MeshTender/MeshTender/internal/auth"
+	"github.com/MeshTender/MeshTender/internal/identity"
+	"github.com/MeshTender/MeshTender/internal/store"
+	"github.com/MeshTender/MeshTender/internal/web"
 )
 
 // cspServer stands up the full split-host server AND hands back the *Server, which

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jleight/meshtender/internal/store"
+	"github.com/MeshTender/MeshTender/internal/store"
 )
 
 // jsonPost issues a JSON POST with an explicit Host header and cookies.

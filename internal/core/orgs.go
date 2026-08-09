@@ -8,8 +8,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/jleight/meshtender/internal/store"
-	"github.com/jleight/meshtender/internal/web"
+	"github.com/MeshTender/MeshTender/internal/store"
+	"github.com/MeshTender/MeshTender/internal/web"
 )
 
 // orgID resolves the {id} URL param (a slug) to the internal int64 primary key.

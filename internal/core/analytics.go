@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/jleight/meshtender/internal/analytics"
-	"github.com/jleight/meshtender/internal/store"
+	"github.com/MeshTender/MeshTender/internal/analytics"
+	"github.com/MeshTender/MeshTender/internal/store"
 )
 
 // analyticsBar is one day's column in the traffic charts; heights are percentages

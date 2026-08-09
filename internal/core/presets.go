@@ -1,6 +1,6 @@
 package core
 
-import "github.com/jleight/meshtender/internal/config"
+import "github.com/MeshTender/MeshTender/internal/config"
 
 // RadioPreset is a convenience set of LoRa parameters for a MeshCore region,
 // offered in the add-repeater form. They are starting points — regions vary and

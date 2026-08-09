@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/jleight/meshtender/internal/testdb"
+	"github.com/MeshTender/MeshTender/internal/testdb"
 )
 
 // TestMain gives the package's DB-backed tests process-level setup/teardown of

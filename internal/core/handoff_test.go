@@ -8,10 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jleight/meshtender/internal/auth"
-	"github.com/jleight/meshtender/internal/config"
-	"github.com/jleight/meshtender/internal/identity"
-	"github.com/jleight/meshtender/internal/store"
+	"github.com/MeshTender/MeshTender/internal/auth"
+	"github.com/MeshTender/MeshTender/internal/config"
+	"github.com/MeshTender/MeshTender/internal/identity"
+	"github.com/MeshTender/MeshTender/internal/store"
 )
 
 const (

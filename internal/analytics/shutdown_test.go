@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jleight/meshtender/internal/config"
-	"github.com/jleight/meshtender/internal/store"
-	"github.com/jleight/meshtender/internal/testdb"
+	"github.com/MeshTender/MeshTender/internal/config"
+	"github.com/MeshTender/MeshTender/internal/store"
+	"github.com/MeshTender/MeshTender/internal/testdb"
 )
 
 func analyticsMigrate(dsn string) error {

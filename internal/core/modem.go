@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jleight/meshtender/internal/mesh"
-	"github.com/jleight/meshtender/internal/web"
-	"github.com/jleight/meshtender/internal/wsbridge"
+	"github.com/MeshTender/MeshTender/internal/mesh"
+	"github.com/MeshTender/MeshTender/internal/web"
+	"github.com/MeshTender/MeshTender/internal/wsbridge"
 )
 
 // Packet send tuning for the console's login/command exchanges. perTryReply is

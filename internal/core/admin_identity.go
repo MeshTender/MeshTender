@@ -4,9 +4,9 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/jleight/meshtender/internal/identity"
-	"github.com/jleight/meshtender/internal/store"
-	"github.com/jleight/meshtender/internal/web"
+	"github.com/MeshTender/MeshTender/internal/identity"
+	"github.com/MeshTender/MeshTender/internal/store"
+	"github.com/MeshTender/MeshTender/internal/web"
 )
 
 // The server-identity backup page. The identity is a 32-byte seed sealed under

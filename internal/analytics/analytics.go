@@ -16,9 +16,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jleight/meshtender/internal/config"
-	"github.com/jleight/meshtender/internal/store"
-	"github.com/jleight/meshtender/internal/web"
+	"github.com/MeshTender/MeshTender/internal/config"
+	"github.com/MeshTender/MeshTender/internal/store"
+	"github.com/MeshTender/MeshTender/internal/web"
 )
 
 const (

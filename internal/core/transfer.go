@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/jleight/meshtender/internal/store"
-	"github.com/jleight/meshtender/internal/web"
+	"github.com/MeshTender/MeshTender/internal/store"
+	"github.com/MeshTender/MeshTender/internal/web"
 )
 
 // Ownership transfer hands a repeater to one of its stewards — the co-maintainers

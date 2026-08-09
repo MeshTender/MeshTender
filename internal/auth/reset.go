@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"strings"
 
-	mailer "github.com/jleight/meshtender/internal/mail"
-	"github.com/jleight/meshtender/internal/store"
+	mailer "github.com/MeshTender/MeshTender/internal/mail"
+	"github.com/MeshTender/MeshTender/internal/store"
 )
 
 // ErrResetNotAllowed reports that a redeemed reset token can no longer be used to set

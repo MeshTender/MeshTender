@@ -3,7 +3,7 @@ package core
 import (
 	"net/http"
 
-	"github.com/jleight/meshtender/internal/web"
+	"github.com/MeshTender/MeshTender/internal/web"
 )
 
 // The admin view of build provenance. It renders the same facts as the public

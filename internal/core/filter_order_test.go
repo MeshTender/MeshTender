@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jleight/meshtender/internal/store"
+	"github.com/MeshTender/MeshTender/internal/store"
 )
 
 // TestFilterControlsPrecedeTheList pins audit U2 across every list page that has a

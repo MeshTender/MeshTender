@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jleight/meshtender/internal/store"
+	"github.com/MeshTender/MeshTender/internal/store"
 )
 
 // Black-box coverage for the org-management POST endpoints (create/edit/links/

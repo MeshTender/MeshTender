@@ -21,10 +21,10 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
-	"github.com/jleight/meshtender/internal/buildinfo"
-	"github.com/jleight/meshtender/internal/config"
-	"github.com/jleight/meshtender/internal/identity"
-	"github.com/jleight/meshtender/internal/store"
+	"github.com/MeshTender/MeshTender/internal/buildinfo"
+	"github.com/MeshTender/MeshTender/internal/config"
+	"github.com/MeshTender/MeshTender/internal/identity"
+	"github.com/MeshTender/MeshTender/internal/store"
 )
 
 //go:embed templates/base.html templates/icons.html templates/brand.html templates/org_tabs.html templates/repeater_tabs.html templates/command_grid.html templates/org_access.html templates/org_public.html templates/org_config.html templates/org_repeaters.html templates/error.html

@@ -13,7 +13,7 @@ import (
 
 	"github.com/go-chi/chi/v5/middleware"
 
-	"github.com/jleight/meshtender/internal/config"
+	"github.com/MeshTender/MeshTender/internal/config"
 )
 
 // testEnv builds an Env with a real renderer (shared templates only, no per-surface

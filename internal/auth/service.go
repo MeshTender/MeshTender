@@ -15,8 +15,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/jleight/meshtender/internal/mail"
-	"github.com/jleight/meshtender/internal/store"
+	"github.com/MeshTender/MeshTender/internal/mail"
+	"github.com/MeshTender/MeshTender/internal/store"
 )
 
 const (

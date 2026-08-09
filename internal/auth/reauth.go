@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/jleight/meshtender/internal/web"
+	"github.com/MeshTender/MeshTender/internal/web"
 )
 
 // Re-authentication ("sudo mode"): proving, right now, that the person driving

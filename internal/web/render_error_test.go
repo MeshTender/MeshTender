@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jleight/meshtender/internal/config"
+	"github.com/MeshTender/MeshTender/internal/config"
 )
 
 // TestRenderErrorDoesNotLeak: when a page fails mid-execution, the renderer must

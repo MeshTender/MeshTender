@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jleight/meshtender/internal/geo"
+	"github.com/MeshTender/MeshTender/internal/geo"
 )
 
 // ptr returns a pointer to v, for the optional lat/lon and command-id fields.

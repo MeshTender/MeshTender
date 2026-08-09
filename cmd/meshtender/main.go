@@ -12,15 +12,15 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/jleight/meshtender/internal/analytics"
-	"github.com/jleight/meshtender/internal/auth"
-	"github.com/jleight/meshtender/internal/config"
-	"github.com/jleight/meshtender/internal/core"
-	"github.com/jleight/meshtender/internal/identity"
-	"github.com/jleight/meshtender/internal/mail"
-	"github.com/jleight/meshtender/internal/seed"
-	"github.com/jleight/meshtender/internal/store"
-	"github.com/jleight/meshtender/internal/web"
+	"github.com/MeshTender/MeshTender/internal/analytics"
+	"github.com/MeshTender/MeshTender/internal/auth"
+	"github.com/MeshTender/MeshTender/internal/config"
+	"github.com/MeshTender/MeshTender/internal/core"
+	"github.com/MeshTender/MeshTender/internal/identity"
+	"github.com/MeshTender/MeshTender/internal/mail"
+	"github.com/MeshTender/MeshTender/internal/seed"
+	"github.com/MeshTender/MeshTender/internal/store"
+	"github.com/MeshTender/MeshTender/internal/web"
 )
 
 func main() {

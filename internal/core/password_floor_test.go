@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jleight/meshtender/internal/auth"
+	"github.com/MeshTender/MeshTender/internal/auth"
 )
 
 // TestPasswordFloorAppliesOnlyWhenSetting is the guarantee behind raising the

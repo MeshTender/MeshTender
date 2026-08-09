@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jleight/meshtender/internal/store"
+	"github.com/MeshTender/MeshTender/internal/store"
 )
 
 // configCatalog reuses the resolver test catalog plus a risky command, so the

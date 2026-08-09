@@ -10,7 +10,7 @@ import (
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/chromedp"
 
-	"github.com/jleight/meshtender/internal/store"
+	"github.com/MeshTender/MeshTender/internal/store"
 )
 
 // TestE2EShareOrgLimitsModal drives the share page's per-org "Edit limits" modal:

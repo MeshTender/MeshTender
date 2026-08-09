@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jleight/meshtender/internal/testdb"
+	"github.com/MeshTender/MeshTender/internal/testdb"
 )
 
 // freshDSN returns an isolated test database DSN, optionally with extra query

@@ -11,7 +11,7 @@ import (
 
 	meshcore "github.com/meshcore-go/meshcore-go"
 
-	"github.com/jleight/meshtender/internal/store"
+	"github.com/MeshTender/MeshTender/internal/store"
 )
 
 // TestCleanRepeaterName pins the firmware-derived byte bound: MeshCore stores a

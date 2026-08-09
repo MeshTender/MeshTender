@@ -18,7 +18,7 @@ import (
 
 	"github.com/brianvoe/gofakeit/v7"
 
-	"github.com/jleight/meshtender/internal/store"
+	"github.com/MeshTender/MeshTender/internal/store"
 )
 
 // How much to generate. numOrgs is deliberately above OrgsPageSize (50) so the

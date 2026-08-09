@@ -22,7 +22,7 @@ import (
 func TestFooterSourceLinkOnEverySurface(t *testing.T) {
 	srv := newE2EServer(t)
 
-	const wantHref = "https://github.com/jleight/meshtender"
+	const wantHref = "https://github.com/MeshTender/MeshTender"
 
 	for _, tc := range []struct {
 		name string

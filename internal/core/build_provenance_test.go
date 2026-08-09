@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jleight/meshtender/internal/buildinfo"
-	"github.com/jleight/meshtender/internal/web"
+	"github.com/MeshTender/MeshTender/internal/buildinfo"
+	"github.com/MeshTender/MeshTender/internal/web"
 )
 
 // testDigest is a syntactically valid image digest for the fixture deployments.

@@ -12,7 +12,7 @@ import (
 	"github.com/chromedp/chromedp"
 	meshcore "github.com/meshcore-go/meshcore-go"
 
-	"github.com/jleight/meshtender/internal/store"
+	"github.com/MeshTender/MeshTender/internal/store"
 )
 
 // TestE2EUserPublicLinks renders a public profile in a real browser and checks

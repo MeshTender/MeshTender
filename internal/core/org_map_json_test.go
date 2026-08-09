@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jleight/meshtender/internal/store"
+	"github.com/MeshTender/MeshTender/internal/store"
 )
 
 // mapPoint mirrors the JSON shape the public map endpoint serves (store.MapPoint).

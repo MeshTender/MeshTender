@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jleight/meshtender/internal/store"
+	"github.com/MeshTender/MeshTender/internal/store"
 )
 
 // lines flattens an assembled preview into "kind:text" tokens, so a test can assert

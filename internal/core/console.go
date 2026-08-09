@@ -14,10 +14,10 @@ import (
 	meshcore "github.com/meshcore-go/meshcore-go"
 	"github.com/meshcore-go/meshcore-go/hardware"
 
-	"github.com/jleight/meshtender/internal/mesh"
-	"github.com/jleight/meshtender/internal/store"
-	"github.com/jleight/meshtender/internal/web"
-	"github.com/jleight/meshtender/internal/wsbridge"
+	"github.com/MeshTender/MeshTender/internal/mesh"
+	"github.com/MeshTender/MeshTender/internal/store"
+	"github.com/MeshTender/MeshTender/internal/web"
+	"github.com/MeshTender/MeshTender/internal/wsbridge"
 )
 
 const (

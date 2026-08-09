@@ -31,7 +31,8 @@ import (
 	"strings"
 
 	"github.com/google/licensecheck"
-	"github.com/jleight/meshtender/internal/licenses"
+
+	"github.com/MeshTender/MeshTender/internal/licenses"
 )
 
 // minCoverage mirrors the threshold the package test uses.

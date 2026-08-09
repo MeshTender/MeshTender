@@ -10,8 +10,8 @@ import (
 
 	meshcore "github.com/meshcore-go/meshcore-go"
 
-	"github.com/jleight/meshtender/internal/store"
-	"github.com/jleight/meshtender/internal/web"
+	"github.com/MeshTender/MeshTender/internal/store"
+	"github.com/MeshTender/MeshTender/internal/web"
 )
 
 // The "set up from scratch over USB serial" path of the add-repeater wizard.

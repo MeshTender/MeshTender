@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jleight/meshtender/internal/geo"
-	"github.com/jleight/meshtender/internal/store"
+	"github.com/MeshTender/MeshTender/internal/geo"
+	"github.com/MeshTender/MeshTender/internal/store"
 )
 
 // cmdIDByKey resolves a catalog command's id by its key (test helper, via the

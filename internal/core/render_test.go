@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jleight/meshtender/internal/config"
-	"github.com/jleight/meshtender/internal/web"
+	"github.com/MeshTender/MeshTender/internal/config"
+	"github.com/MeshTender/MeshTender/internal/web"
 )
 
 // TestBuildPagesComposeAndExecute verifies every content page is pre-built with

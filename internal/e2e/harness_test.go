@@ -50,13 +50,13 @@ import (
 	meshcore "github.com/meshcore-go/meshcore-go"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/jleight/meshtender/internal/auth"
-	"github.com/jleight/meshtender/internal/config"
-	"github.com/jleight/meshtender/internal/core"
-	"github.com/jleight/meshtender/internal/identity"
-	mailer "github.com/jleight/meshtender/internal/mail"
-	"github.com/jleight/meshtender/internal/store"
-	"github.com/jleight/meshtender/internal/testdb"
+	"github.com/MeshTender/MeshTender/internal/auth"
+	"github.com/MeshTender/MeshTender/internal/config"
+	"github.com/MeshTender/MeshTender/internal/core"
+	"github.com/MeshTender/MeshTender/internal/identity"
+	mailer "github.com/MeshTender/MeshTender/internal/mail"
+	"github.com/MeshTender/MeshTender/internal/store"
+	"github.com/MeshTender/MeshTender/internal/testdb"
 )
 
 // TestMain manages the shared testdb container/template for the whole package.

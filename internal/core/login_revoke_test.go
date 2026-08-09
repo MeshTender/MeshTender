@@ -6,8 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/jleight/meshtender/internal/auth"
-	"github.com/jleight/meshtender/internal/identity"
+	"github.com/MeshTender/MeshTender/internal/auth"
+	"github.com/MeshTender/MeshTender/internal/identity"
 )
 
 // TestRevokedLoginLogsOut is the cross-host logout guarantee in miniature:

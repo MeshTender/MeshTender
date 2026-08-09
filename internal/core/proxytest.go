@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/jleight/meshtender/internal/web"
+	"github.com/MeshTender/MeshTender/internal/web"
 )
 
 // proxyHeaders are the forwarding-related headers worth surfacing first when

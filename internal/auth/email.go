@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	mailer "github.com/jleight/meshtender/internal/mail"
-	"github.com/jleight/meshtender/internal/store"
+	mailer "github.com/MeshTender/MeshTender/internal/mail"
+	"github.com/MeshTender/MeshTender/internal/store"
 )
 
 // ErrTooManyEmails reports that an account has asked for more messages of one kind

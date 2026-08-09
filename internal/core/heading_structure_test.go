@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jleight/meshtender/internal/store"
+	"github.com/MeshTender/MeshTender/internal/store"
 )
 
 var headingRe = regexp.MustCompile(`(?i)<h([1-6])\b`)

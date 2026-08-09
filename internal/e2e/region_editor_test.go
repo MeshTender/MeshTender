@@ -12,8 +12,8 @@ import (
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/chromedp"
 
-	"github.com/jleight/meshtender/internal/geo"
-	"github.com/jleight/meshtender/internal/store"
+	"github.com/MeshTender/MeshTender/internal/geo"
+	"github.com/MeshTender/MeshTender/internal/store"
 )
 
 // TestE2ERegionModalSave: an admin adds a region from the Configuration page — the

@@ -3,7 +3,7 @@ package core
 import (
 	"testing"
 
-	"github.com/jleight/meshtender/internal/geo"
+	"github.com/MeshTender/MeshTender/internal/geo"
 )
 
 func TestRegionGeofence(t *testing.T) {

@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/jleight/meshtender/internal/testdb"
+	"github.com/MeshTender/MeshTender/internal/testdb"
 )
 
 // TestMain wires testdb's container teardown. The container only starts if a test

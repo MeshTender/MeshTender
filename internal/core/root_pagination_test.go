@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jleight/meshtender/internal/store"
+	"github.com/MeshTender/MeshTender/internal/store"
 )
 
 // TestRootOrgDirectoryLoadMore verifies the directory's htmx "load more": the

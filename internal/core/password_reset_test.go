@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	mailer "github.com/jleight/meshtender/internal/mail"
-	"github.com/jleight/meshtender/internal/store"
+	mailer "github.com/MeshTender/MeshTender/internal/mail"
+	"github.com/MeshTender/MeshTender/internal/store"
 )
 
 // Black-box coverage for the password-reset flow: /forgot and /reset/{token}.

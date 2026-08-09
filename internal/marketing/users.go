@@ -9,9 +9,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	meshcore "github.com/meshcore-go/meshcore-go"
 
-	"github.com/jleight/meshtender/internal/auth"
-	"github.com/jleight/meshtender/internal/store"
-	"github.com/jleight/meshtender/internal/web"
+	"github.com/MeshTender/MeshTender/internal/auth"
+	"github.com/MeshTender/MeshTender/internal/store"
+	"github.com/MeshTender/MeshTender/internal/web"
 )
 
 // linkView is one row in the public profile's links list. It embeds the stored

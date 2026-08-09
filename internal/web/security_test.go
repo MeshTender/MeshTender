@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jleight/meshtender/internal/config"
+	"github.com/MeshTender/MeshTender/internal/config"
 )
 
 func TestSecurityHeadersCSPNonce(t *testing.T) {

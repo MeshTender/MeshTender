@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jleight/meshtender/internal/store"
+	"github.com/MeshTender/MeshTender/internal/store"
 )
 
 // TestDeleteAccountPageShowsConsequences: the confirm page has to state what

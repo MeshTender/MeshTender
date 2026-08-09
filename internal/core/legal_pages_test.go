@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jleight/meshtender/internal/analytics"
-	"github.com/jleight/meshtender/internal/store"
+	"github.com/MeshTender/MeshTender/internal/analytics"
+	"github.com/MeshTender/MeshTender/internal/store"
 )
 
 // fetchPage GETs a path on a host and returns its body, failing on non-200.

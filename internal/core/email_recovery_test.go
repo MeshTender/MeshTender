@@ -14,7 +14,7 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
-	mailer "github.com/jleight/meshtender/internal/mail"
+	mailer "github.com/MeshTender/MeshTender/internal/mail"
 )
 
 // Black-box coverage for the optional account email: setting it, confirming it, and

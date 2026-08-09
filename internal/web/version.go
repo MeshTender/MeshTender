@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/jleight/meshtender/internal/buildinfo"
+	"github.com/MeshTender/MeshTender/internal/buildinfo"
 )
 
 // VersionPath is the public build-provenance endpoint. It lives on the root
@@ -27,7 +27,7 @@ const VersionPath = "/version"
 // let a modified deployment keep advertising upstream. Forks: edit this, and see
 // TRADEMARKS.md for what else has to change.
 const (
-	SourceURL = "https://github.com/jleight/meshtender"
+	SourceURL = "https://github.com/MeshTender/MeshTender"
 	License   = "AGPL-3.0-only"
 )
 

@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jleight/meshtender/internal/auth"
-	"github.com/jleight/meshtender/internal/config"
-	"github.com/jleight/meshtender/internal/store"
-	"github.com/jleight/meshtender/internal/testdb"
+	"github.com/MeshTender/MeshTender/internal/auth"
+	"github.com/MeshTender/MeshTender/internal/config"
+	"github.com/MeshTender/MeshTender/internal/store"
+	"github.com/MeshTender/MeshTender/internal/testdb"
 )
 
 // appLogin creates a user and returns it plus a live app-host session cookie,

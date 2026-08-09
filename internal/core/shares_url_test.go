@@ -4,8 +4,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/jleight/meshtender/internal/config"
-	"github.com/jleight/meshtender/internal/web"
+	"github.com/MeshTender/MeshTender/internal/config"
+	"github.com/MeshTender/MeshTender/internal/web"
 )
 
 // TestAbsoluteURLIgnoresForwardedProto: the share-link base URL takes its scheme

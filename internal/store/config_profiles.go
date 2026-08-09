@@ -8,7 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"github.com/jleight/meshtender/internal/geo"
+	"github.com/MeshTender/MeshTender/internal/geo"
 )
 
 // An org's configuration is split into two independent parts (see

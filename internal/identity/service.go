@@ -8,7 +8,7 @@ import (
 
 	meshcore "github.com/meshcore-go/meshcore-go"
 
-	"github.com/jleight/meshtender/internal/store"
+	"github.com/MeshTender/MeshTender/internal/store"
 )
 
 // Service holds the loaded server-wide MeshCore identity.

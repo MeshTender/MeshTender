@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jleight/meshtender/internal/store"
-	"github.com/jleight/meshtender/internal/web"
+	"github.com/MeshTender/MeshTender/internal/store"
+	"github.com/MeshTender/MeshTender/internal/web"
 )
 
 // pageOrgs is the public organization directory. It renders anonymously — the

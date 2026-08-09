@@ -60,7 +60,7 @@ You must:
    it is what the footer link on every page and the `/version` endpoint report, so
    leaving it as ours would advertise source you are not running.
 4. **Keep the attribution.** Say somewhere visible that your service is based on
-   MeshTender, with a link to <https://github.com/jleight/meshtender>. Copyright
+   MeshTender, with a link to <https://github.com/MeshTender/MeshTender>. Copyright
    notices in the source stay as they are (AGPL §5(a)).
 
 You may not imply that your instance is run, endorsed, reviewed, or supported by
@@ -77,7 +77,7 @@ the MeshTender project or its maintainer.
 ## Contact
 
 For anything this file does not cover, including permission to use the name or
-mark, ask first: <https://github.com/jleight/meshtender/issues>.
+mark, ask first: <https://github.com/MeshTender/MeshTender/issues>.
 
 Copyright © 2026 Jonathon Leight. All rights in the MeshTender name and marks are
 reserved.

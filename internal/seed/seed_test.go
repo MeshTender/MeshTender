@@ -7,8 +7,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/jleight/meshtender/internal/store"
-	"github.com/jleight/meshtender/internal/testdb"
+	"github.com/MeshTender/MeshTender/internal/store"
+	"github.com/MeshTender/MeshTender/internal/testdb"
 )
 
 func TestMain(m *testing.M) { os.Exit(testdb.RunMain(m)) }

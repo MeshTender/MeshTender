@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jleight/meshtender/internal/testdb"
+	"github.com/MeshTender/MeshTender/internal/testdb"
 )
 
 // orgTestStore returns a Store backed by a fresh, throwaway database cloned from

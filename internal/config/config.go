@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/jleight/meshtender/internal/buildinfo"
+	"github.com/MeshTender/MeshTender/internal/buildinfo"
 )
 
 // Config holds all runtime configuration for the server.

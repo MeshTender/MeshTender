@@ -1,4 +1,4 @@
-module github.com/jleight/meshtender
+module github.com/MeshTender/MeshTender
 
 // The exact toolchain is pinned with GOTOOLCHAIN (see .config/mise/config.toml
 // and .woodpecker/build.yaml) rather than a `toolchain` directive, which Go

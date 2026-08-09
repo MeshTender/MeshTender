@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jleight/meshtender/internal/store"
+	"github.com/MeshTender/MeshTender/internal/store"
 )
 
 // cmd builds a catalog entry; resolveCommand only reads Template and Arity, and
