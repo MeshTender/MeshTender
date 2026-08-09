@@ -61,8 +61,6 @@ func TestHandlerSkips(t *testing.T) {
 		{"/healthz", "Mozilla/5.0"},
 		{"/static/app.css", "Mozilla/5.0"},
 		{"/repeaters/abc/ws", "Mozilla/5.0"},
-		{"/dashboard", "Googlebot/2.1"}, // bot UA
-		{"/dashboard", ""},              // empty UA
 	}
 	for _, c := range cases {
 		req := httptest.NewRequest(http.MethodGet, "http://app.x"+c.path, nil)
@@ -75,6 +73,70 @@ func TestHandlerSkips(t *testing.T) {
 			t.Fatalf("path %q ua %q should be skipped, got %+v", c.path, c.ua, e)
 		default:
 		}
+	}
+}
+
+// TestHandlerRecordsKind covers the whole point of the kind column: scanners and
+// crawlers reach the store rather than being dropped at the door, but under a
+// kind the dashboard can hold apart from real visits.
+func TestHandlerRecordsKind(t *testing.T) {
+	cases := []struct {
+		name, path, ua string
+		status         int
+		want           string
+	}{
+		{"visit", "/dashboard", "Mozilla/5.0", http.StatusOK, KindVisit},
+		{"probe", "/wp-login.php", "Mozilla/5.0", http.StatusNotFound, KindProbe},
+		{"bot", "/orgs", "Googlebot/2.1", http.StatusOK, KindBot},
+		{"empty ua is a bot", "/orgs", "", http.StatusOK, KindBot},
+		{"broken link", "/orgs/gone", "Mozilla/5.0", http.StatusNotFound, KindNotFound},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			rec := testRecorder()
+			h := rec.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(c.status)
+			}))
+			req := httptest.NewRequest(http.MethodGet, "http://app.x"+c.path, nil)
+			if c.ua != "" {
+				req.Header.Set("User-Agent", c.ua)
+			}
+			h.ServeHTTP(httptest.NewRecorder(), req)
+
+			select {
+			case e := <-rec.ch:
+				if e.Kind != c.want {
+					t.Fatalf("kind = %q, want %q (event %+v)", e.Kind, c.want, e)
+				}
+			default:
+				t.Fatalf("%s was dropped; it should be recorded as %q", c.name, c.want)
+			}
+		})
+	}
+}
+
+// TestKindUsesRedactedPath: classification runs on the path as stored, so a
+// secret in the URL can't reach the classifier's signature lists either.
+func TestKindUsesRedactedPath(t *testing.T) {
+	rec := testRecorder()
+	h := rec.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "nope", http.StatusNotFound)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "http://app.x/invite/S3cr3tShareToken.php", nil)
+	req.Header.Set("User-Agent", "Mozilla/5.0")
+	h.ServeHTTP(httptest.NewRecorder(), req)
+
+	select {
+	case e := <-rec.ch:
+		if e.Path != "/invite/:token" {
+			t.Fatalf("recorded path = %q, want the token redacted", e.Path)
+		}
+		if e.Kind != KindNotFound {
+			t.Fatalf("kind = %q, want %q — the .php was in the redacted-away token", e.Kind, KindNotFound)
+		}
+	default:
+		t.Fatal("expected an event to be enqueued")
 	}
 }
 

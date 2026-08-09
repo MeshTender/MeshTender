@@ -72,8 +72,10 @@
           the HTTP method, the response status, and a <em>visitor hash</em>. The hash is a salted
           SHA-256 of the day plus your IP address and user agent — it rotates every day, so the same
           visitor counts once per day and cannot be followed from one day to the next.
-          <strong>Your IP address is never written down</strong>, only mixed into that day's hash. Bot
-          traffic is skipped. This runs entirely on our own server; no analytics provider is involved.
+          <strong>Your IP address is never written down</strong>, only mixed into that day's hash.
+          Crawlers and vulnerability scanners are recorded the same way but counted separately, so
+          they don't inflate the visitor figures. This runs entirely on our own server; no analytics
+          provider is involved.
         </p>
 
         <h3>Diagnostics</h3>

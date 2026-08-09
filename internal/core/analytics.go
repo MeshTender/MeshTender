@@ -3,6 +3,9 @@ package core
 import (
 	"net/http"
 	"time"
+
+	"github.com/jleight/meshtender/internal/analytics"
+	"github.com/jleight/meshtender/internal/store"
 )
 
 // analyticsBar is one day's column in the traffic charts; heights are percentages
@@ -33,30 +36,52 @@ func (s *Handlers) pageAnalytics(w http.ResponseWriter, r *http.Request) {
 		days = 90
 	}
 
-	daily, err := s.Store.AnalyticsDaily(r.Context(), days)
+	// Everything on the main dashboard reads the "visit" kind only. Scanners and
+	// crawlers are recorded too (see internal/analytics classify), but they'd
+	// dwarf the real numbers here — they get their own cards below.
+	daily, err := s.Store.AnalyticsDaily(r.Context(), days, analytics.KindVisit)
 	if err != nil {
 		s.ServerError(w, r, "could not load analytics", err)
 		return
 	}
-	surfaces, err := s.Store.AnalyticsBySurface(r.Context(), days)
+	surfaces, err := s.Store.AnalyticsBySurface(r.Context(), days, analytics.KindVisit)
 	if err != nil {
 		s.ServerError(w, r, "could not load analytics", err)
 		return
 	}
-	paths, err := s.Store.AnalyticsTopPaths(r.Context(), days, 20)
+	paths, err := s.Store.AnalyticsTopPaths(r.Context(), days, analytics.KindVisit, 20)
 	if err != nil {
 		s.ServerError(w, r, "could not load analytics", err)
 		return
 	}
-	hosts, err := s.Store.AnalyticsTopHosts(r.Context(), days, 15)
+	hosts, err := s.Store.AnalyticsTopHosts(r.Context(), days, analytics.KindVisit, 15)
 	if err != nil {
 		s.ServerError(w, r, "could not load analytics", err)
 		return
 	}
-	visitors, err := s.Store.AnalyticsTopVisitors(r.Context(), days, 15)
+	visitors, err := s.Store.AnalyticsTopVisitors(r.Context(), days, analytics.KindVisit, 15)
 	if err != nil {
 		s.ServerError(w, r, "could not load analytics", err)
 		return
+	}
+	kinds, err := s.Store.AnalyticsKindSummary(r.Context(), days)
+	if err != nil {
+		s.ServerError(w, r, "could not load analytics", err)
+		return
+	}
+	probePaths, err := s.Store.AnalyticsTopPaths(r.Context(), days, analytics.KindProbe, 10)
+	if err != nil {
+		s.ServerError(w, r, "could not load analytics", err)
+		return
+	}
+	botPaths, err := s.Store.AnalyticsTopPaths(r.Context(), days, analytics.KindBot, 10)
+	if err != nil {
+		s.ServerError(w, r, "could not load analytics", err)
+		return
+	}
+	byKind := make(map[string]store.KindStat, len(kinds))
+	for _, k := range kinds {
+		byKind[k.Kind] = k
 	}
 
 	var maxReq, maxVis, totalReq int64
@@ -101,16 +126,7 @@ func (s *Handlers) pageAnalytics(w http.ResponseWriter, r *http.Request) {
 		surfaceRows = append(surfaceRows, analyticsRow{Label: x.Surface, Value: x.Requests, W: barPct(x.Requests, maxSurface)})
 	}
 
-	var maxHits int64
-	for _, p := range paths {
-		if p.Hits > maxHits {
-			maxHits = p.Hits
-		}
-	}
-	pathRows := make([]analyticsRow, 0, len(paths))
-	for _, p := range paths {
-		pathRows = append(pathRows, analyticsRow{Label: p.Path, Value: p.Hits, W: barPct(p.Hits, maxHits)})
-	}
+	pathRows := toPathRows(paths)
 
 	var maxHostReq int64
 	for _, h := range hosts {
@@ -145,6 +161,7 @@ func (s *Handlers) pageAnalytics(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	probes, bots := byKind[analytics.KindProbe], byKind[analytics.KindBot]
 	s.Render(w, r, "analytics.html", map[string]any{
 		"Days":     days,
 		"Bars":     bars,
@@ -155,8 +172,34 @@ func (s *Handlers) pageAnalytics(w http.ResponseWriter, r *http.Request) {
 		"TotalReq": totalReq,
 		"TodayReq": todayReq,
 		"TodayVis": todayVis,
-		"HasData":  len(daily) > 0,
+		// Scanner and crawler traffic, held apart from the figures above so a
+		// wordlist replay can't read as an audience.
+		"ProbeReq":     probes.Requests,
+		"ProbeSources": probes.Sources,
+		"ProbePaths":   toPathRows(probePaths),
+		"BotReq":       bots.Requests,
+		"BotSources":   bots.Sources,
+		"BotPaths":     toPathRows(botPaths),
+		// 404s with no attack signature — broken links worth fixing. Filtered out
+		// of every figure above, so without this they'd be invisible entirely.
+		"NotFoundReq": byKind[analytics.KindNotFound].Requests,
+		"HasData":     len(daily) > 0 || len(kinds) > 0,
 	})
+}
+
+// toPathRows scales a set of path counts into labeled bars.
+func toPathRows(paths []store.PathStat) []analyticsRow {
+	var max int64
+	for _, p := range paths {
+		if p.Hits > max {
+			max = p.Hits
+		}
+	}
+	rows := make([]analyticsRow, 0, len(paths))
+	for _, p := range paths {
+		rows = append(rows, analyticsRow{Label: p.Path, Value: p.Hits, W: barPct(p.Hits, max)})
+	}
+	return rows
 }
 
 // visitorRow is one (daily-rotating) visitor hash for the "traffic by user" table.

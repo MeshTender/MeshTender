@@ -16,6 +16,7 @@ type AnalyticsEvent struct {
 	Path    string
 	Method  string
 	Status  int
+	Kind    string // "visit" | "probe" | "notfound" | "bot" — see internal/analytics
 	Visitor string
 }
 
@@ -26,11 +27,11 @@ func (s *Store) InsertAnalyticsEvents(ctx context.Context, evs []AnalyticsEvent)
 	}
 	rows := make([][]any, len(evs))
 	for i, e := range evs {
-		rows[i] = []any{e.Ts, e.Surface, e.Host, e.Path, e.Method, e.Status, e.Visitor}
+		rows[i] = []any{e.Ts, e.Surface, e.Host, e.Path, e.Method, e.Status, e.Kind, e.Visitor}
 	}
 	_, err := s.pool.CopyFrom(ctx,
 		pgx.Identifier{"analytics_events"},
-		[]string{"ts", "surface", "host", "path", "method", "status", "visitor"},
+		[]string{"ts", "surface", "host", "path", "method", "status", "kind", "visitor"},
 		pgx.CopyFromRows(rows))
 	if err != nil {
 		return fmt.Errorf("insert analytics events: %w", err)
@@ -45,20 +46,20 @@ func (s *Store) RollupAnalytics(ctx context.Context) error {
 	return s.inTx(ctx, func(tx pgx.Tx) error {
 		stmts := []string{
 			`DELETE FROM analytics_daily WHERE day >= (now() - interval '1 day')::date`,
-			`INSERT INTO analytics_daily (day, requests, visitors)
-			 SELECT ts::date, count(*), count(DISTINCT visitor)
+			`INSERT INTO analytics_daily (day, kind, requests, visitors)
+			 SELECT ts::date, kind, count(*), count(DISTINCT visitor)
 			 FROM analytics_events WHERE ts >= (now() - interval '1 day')::date
-			 GROUP BY ts::date`,
+			 GROUP BY ts::date, kind`,
 			`DELETE FROM analytics_daily_surface WHERE day >= (now() - interval '1 day')::date`,
-			`INSERT INTO analytics_daily_surface (day, surface, requests)
-			 SELECT ts::date, surface, count(*)
+			`INSERT INTO analytics_daily_surface (day, kind, surface, requests)
+			 SELECT ts::date, kind, surface, count(*)
 			 FROM analytics_events WHERE ts >= (now() - interval '1 day')::date
-			 GROUP BY ts::date, surface`,
+			 GROUP BY ts::date, kind, surface`,
 			`DELETE FROM analytics_daily_path WHERE day >= (now() - interval '1 day')::date`,
-			`INSERT INTO analytics_daily_path (day, path, hits)
-			 SELECT ts::date, path, count(*)
+			`INSERT INTO analytics_daily_path (day, kind, path, hits)
+			 SELECT ts::date, kind, path, count(*)
 			 FROM analytics_events WHERE ts >= (now() - interval '1 day')::date
-			 GROUP BY ts::date, path`,
+			 GROUP BY ts::date, kind, path`,
 		}
 		for _, q := range stmts {
 			if _, err := tx.Exec(ctx, q); err != nil {
@@ -116,13 +117,39 @@ type VisitorStat struct {
 	Requests int64
 }
 
-// AnalyticsTopHosts returns the busiest request hosts over the last `days` days,
-// read live from the raw events so the breakdown reflects current traffic.
-func (s *Store) AnalyticsTopHosts(ctx context.Context, days, limit int) ([]HostStat, error) {
+// KindStat is request volume and distinct sources for one event kind.
+type KindStat struct {
+	Kind     string
+	Requests int64
+	Sources  int64
+}
+
+// AnalyticsKindSummary returns per-kind totals over the last `days` days. It
+// reads raw events rather than the rollups so "sources" is a true distinct count
+// across the window — summing the daily rollup's visitor counts would instead
+// count a scanner that runs every day once per day.
+func (s *Store) AnalyticsKindSummary(ctx context.Context, days int) ([]KindStat, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT kind, count(*), count(DISTINCT visitor) FROM analytics_events
+		WHERE ts >= now() - ($1::int * interval '1 day')
+		GROUP BY kind ORDER BY count(*) DESC`, days)
+	if err != nil {
+		return nil, fmt.Errorf("analytics kind summary: %w", err)
+	}
+	return collectRows(rows, func(r pgx.Row) (KindStat, error) {
+		var k KindStat
+		return k, r.Scan(&k.Kind, &k.Requests, &k.Sources)
+	})
+}
+
+// AnalyticsTopHosts returns the busiest request hosts of one kind over the last
+// `days` days, read live from the raw events so the breakdown reflects current
+// traffic.
+func (s *Store) AnalyticsTopHosts(ctx context.Context, days int, kind string, limit int) ([]HostStat, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT host, count(*) FROM analytics_events
-		WHERE ts >= now() - ($1::int * interval '1 day')
-		GROUP BY host ORDER BY count(*) DESC LIMIT $2`, days, limit)
+		WHERE ts >= now() - ($1::int * interval '1 day') AND kind = $2
+		GROUP BY host ORDER BY count(*) DESC LIMIT $3`, days, kind, limit)
 	if err != nil {
 		return nil, fmt.Errorf("analytics top hosts: %w", err)
 	}
@@ -132,18 +159,20 @@ func (s *Store) AnalyticsTopHosts(ctx context.Context, days, limit int) ([]HostS
 	})
 }
 
-// AnalyticsTopVisitors returns the busiest visitor hashes over the last `days`
-// days, with the surface and most-recent path each was seen on. Hashes rotate
-// daily, so a heavy daily user appears once per day, not once overall.
-func (s *Store) AnalyticsTopVisitors(ctx context.Context, days, limit int) ([]VisitorStat, error) {
+// AnalyticsTopVisitors returns the busiest visitor hashes of one kind over the
+// last `days` days, with the surface and most-recent path each was seen on.
+// Hashes rotate daily, so a heavy daily user appears once per day, not once
+// overall. Filtering by kind is what keeps a scanner replaying a wordlist out of
+// the visitor list — it can outweigh every real reader combined.
+func (s *Store) AnalyticsTopVisitors(ctx context.Context, days int, kind string, limit int) ([]VisitorStat, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT e.visitor, count(*) AS n,
 		       (array_agg(e.surface ORDER BY e.ts DESC))[1] AS surface,
 		       max(e.ts) AS last_seen,
 		       (array_agg(e.path ORDER BY e.ts DESC))[1] AS last_path
 		FROM analytics_events e
-		WHERE e.ts >= now() - ($1::int * interval '1 day')
-		GROUP BY e.visitor ORDER BY n DESC LIMIT $2`, days, limit)
+		WHERE e.ts >= now() - ($1::int * interval '1 day') AND e.kind = $2
+		GROUP BY e.visitor ORDER BY n DESC LIMIT $3`, days, kind, limit)
 	if err != nil {
 		return nil, fmt.Errorf("analytics top visitors: %w", err)
 	}
@@ -153,11 +182,12 @@ func (s *Store) AnalyticsTopVisitors(ctx context.Context, days, limit int) ([]Vi
 	})
 }
 
-// AnalyticsDaily returns the last `days` days of totals, oldest first.
-func (s *Store) AnalyticsDaily(ctx context.Context, days int) ([]DayStat, error) {
+// AnalyticsDaily returns the last `days` days of totals for one kind, oldest
+// first.
+func (s *Store) AnalyticsDaily(ctx context.Context, days int, kind string) ([]DayStat, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT day, requests, visitors FROM analytics_daily
-		WHERE day >= (now()::date - $1::int) ORDER BY day`, days)
+		WHERE day >= (now()::date - $1::int) AND kind = $2 ORDER BY day`, days, kind)
 	if err != nil {
 		return nil, fmt.Errorf("analytics daily: %w", err)
 	}
@@ -167,11 +197,13 @@ func (s *Store) AnalyticsDaily(ctx context.Context, days int) ([]DayStat, error)
 	})
 }
 
-// AnalyticsBySurface returns request volume per surface over the last `days` days.
-func (s *Store) AnalyticsBySurface(ctx context.Context, days int) ([]SurfaceStat, error) {
+// AnalyticsBySurface returns request volume per surface for one kind over the
+// last `days` days.
+func (s *Store) AnalyticsBySurface(ctx context.Context, days int, kind string) ([]SurfaceStat, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT surface, sum(requests) FROM analytics_daily_surface
-		WHERE day >= (now()::date - $1::int) GROUP BY surface ORDER BY sum(requests) DESC`, days)
+		WHERE day >= (now()::date - $1::int) AND kind = $2
+		GROUP BY surface ORDER BY sum(requests) DESC`, days, kind)
 	if err != nil {
 		return nil, fmt.Errorf("analytics by surface: %w", err)
 	}
@@ -181,11 +213,14 @@ func (s *Store) AnalyticsBySurface(ctx context.Context, days int) ([]SurfaceStat
 	})
 }
 
-// AnalyticsTopPaths returns the busiest paths over the last `days` days.
-func (s *Store) AnalyticsTopPaths(ctx context.Context, days, limit int) ([]PathStat, error) {
+// AnalyticsTopPaths returns the busiest paths of one kind over the last `days`
+// days — the pages people read for "visit", the wordlist being replayed for
+// "probe".
+func (s *Store) AnalyticsTopPaths(ctx context.Context, days int, kind string, limit int) ([]PathStat, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT path, sum(hits) FROM analytics_daily_path
-		WHERE day >= (now()::date - $1::int) GROUP BY path ORDER BY sum(hits) DESC LIMIT $2`, days, limit)
+		WHERE day >= (now()::date - $1::int) AND kind = $2
+		GROUP BY path ORDER BY sum(hits) DESC LIMIT $3`, days, kind, limit)
 	if err != nil {
 		return nil, fmt.Errorf("analytics top paths: %w", err)
 	}

@@ -43,6 +43,13 @@
   </div>
 </div>
 
+<div class="alert alert-info mt-3" role="alert">
+  <div>
+    Everything above counts <strong>real visits only</strong>. Vulnerability scanners, crawlers, and
+    404s are recorded too, but kept out of these figures — they're broken out below.
+  </div>
+</div>
+
 <!-- Charts -->
 <div class="row row-cards mt-1">
   <div class="col-lg-6">
@@ -120,6 +127,69 @@
         {{else}}<div class="text-secondary">No data.</div>{{end}}
       </div>
     </div>
+  </div>
+</div>
+
+<!-- Traffic held apart from the figures above -->
+<div class="row row-cards mt-1">
+  <div class="col-lg-6">
+    <div class="card" data-testid="probe-card">
+      <div class="card-header">
+        <div>
+          <h2 class="card-title">Probes &amp; scanners</h2>
+          <div class="card-subtitle">Requests for things we don't serve — other stacks' admin panels,
+            credential files, known exploit paths.</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="row mb-3">
+          <div class="col-6">
+            <div class="h1 mb-0" data-testid="probe-requests">{{.ProbeReq}}</div>
+            <div class="text-secondary">Requests · last {{.Days}}d</div>
+          </div>
+          <div class="col-6">
+            <div class="h1 mb-0">{{.ProbeSources}}</div>
+            <div class="text-secondary">Distinct sources</div>
+          </div>
+        </div>
+        {{if .ProbePaths}}{{range .ProbePaths}}{{template "value-bar" .}}{{end}}
+        {{else}}<div class="text-secondary">Nothing probed in this window.</div>{{end}}
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card" data-testid="bot-card">
+      <div class="card-header">
+        <div>
+          <h2 class="card-title">Bots &amp; crawlers</h2>
+          <div class="card-subtitle">Clients that identify themselves as automated: search engines,
+            uptime monitors, link previewers.</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="row mb-3">
+          <div class="col-6">
+            <div class="h1 mb-0" data-testid="bot-requests">{{.BotReq}}</div>
+            <div class="text-secondary">Requests · last {{.Days}}d</div>
+          </div>
+          <div class="col-6">
+            <div class="h1 mb-0">{{.BotSources}}</div>
+            <div class="text-secondary">Distinct sources</div>
+          </div>
+        </div>
+        {{if .BotPaths}}{{range .BotPaths}}{{template "value-bar" .}}{{end}}
+        {{else}}<div class="text-secondary">No crawler traffic in this window. Bots are only recorded
+          from the point this was deployed.</div>{{end}}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card card-sm mt-1">
+  <div class="card-body">
+    <div class="h1 mb-0" data-testid="notfound-requests">{{.NotFoundReq}}</div>
+    <div class="text-secondary">404s with no attack signature · last {{.Days}}d — broken links worth fixing,
+      counted nowhere above.</div>
   </div>
 </div>
 {{end}}

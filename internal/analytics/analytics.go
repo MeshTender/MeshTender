@@ -132,13 +132,15 @@ func (rec *Recorder) Handler(next http.Handler) http.Handler {
 // buffer is full the event is dropped rather than slowing the response.
 func (rec *Recorder) record(r *http.Request, status int) {
 	host := web.HostWithoutPort(r.Host)
+	path := web.RedactPath(r.URL.Path)
 	ev := store.AnalyticsEvent{
 		Ts:      time.Now(),
 		Surface: rec.surface(host),
 		Host:    host,
-		Path:    web.RedactPath(r.URL.Path),
+		Path:    path,
 		Method:  r.Method,
 		Status:  status,
+		Kind:    classify(path, status, r.UserAgent()),
 		Visitor: rec.visitor(r),
 	}
 	select {
@@ -174,8 +176,10 @@ func (rec *Recorder) visitor(r *http.Request) string {
 	return hex.EncodeToString(h.Sum(nil)[:8])
 }
 
-// skip drops health checks, static assets, websockets, preflight/HEAD, and bots —
-// "people visiting", not infrastructure noise.
+// skip drops health checks, static assets, websockets, and preflight/HEAD —
+// infrastructure that isn't a request for a page. Bots and scanners are no
+// longer dropped here: they're recorded under their own kind (see classify) so
+// their volume is visible without being counted as visits.
 func skip(r *http.Request) bool {
 	if r.Method == http.MethodOptions || r.Method == http.MethodHead {
 		return true
@@ -191,19 +195,6 @@ func skip(r *http.Request) bool {
 		strings.HasPrefix(p, "/static/"),
 		strings.HasSuffix(p, "/ws"):
 		return true
-	}
-	return isBot(r.UserAgent())
-}
-
-func isBot(ua string) bool {
-	ua = strings.ToLower(ua)
-	if ua == "" {
-		return true
-	}
-	for _, s := range []string{"bot", "crawl", "spider", "slurp", "headless", "preview", "monitor"} {
-		if strings.Contains(ua, s) {
-			return true
-		}
 	}
 	return false
 }
