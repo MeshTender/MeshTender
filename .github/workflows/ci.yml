@@ -229,11 +229,25 @@ jobs:
           # across jobs and runs. Every job below compiles the same module, so this
           # is the difference between each one starting cold and starting warm.
           cache-dependency-path: go.sum
-      # ko is installed with `go install` rather than run from its own image so it
-      # compiles with the Go version pinned above, not whatever an image bundles.
-      # `go install pkg@version` builds in an isolated module context, so it does
-      # not touch go.mod or the licensing audit.
-      - run: go install github.com/google/ko@${{ env.KO_VERSION }}
+      # The official release binary, which is the same artifact mise installs locally
+      # (its aqua backend downloads the release, it does not build ko either) — so CI
+      # and a developer now run byte-identical ko. Compiling it from source here cost
+      # ~50s per publish and bought nothing: what affects the image is ko's VERSION,
+      # which decides layer layout, plus the Go on PATH that ko invokes to build the
+      # app. The Go that built ko itself never touches the artifact.
+      - uses: ko-build/setup-ko@v0.10
+        with:
+          version: ${{ env.KO_VERSION }}
+      # An unresolved version input would leave setup-ko installing something other
+      # than the pin, silently — and an unpinned ko is an unreproducible image. Fail
+      # here instead, where the message says so.
+      - run: |
+          if ! ko version | grep -q "${KO_VERSION#v}"; then
+            echo "ko is $(ko version), want ${KO_VERSION#v} — the pinned version did not install" >&2
+            exit 1
+          fi
+      # setup-ko only logs in when KO_DOCKER_REPO is unset, and it is set above, so
+      # authenticate explicitly.
       - run: echo "${{ secrets.GITHUB_TOKEN }}" | ko login ghcr.io --username ${{ github.actor }} --password-stdin
 
       - name: Build and push
