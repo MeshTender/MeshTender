@@ -32,9 +32,9 @@ func TestE2EUserPublicLinks(t *testing.T) {
 	meshKey := id.String()
 	err = srv.store.ReplaceUserLinks(srv.ctx, u.ID, []store.UserLink{
 		{Platform: store.EmailPlatform, URL: "person@example.com", IsPrimary: true},
-		{Platform: store.SignalPlatform, URL: "jleight.07"},
-		{Platform: "discord", URL: "xerofait"},
-		{Platform: "github", URL: "https://github.com/jleight"},
+		{Platform: store.SignalPlatform, URL: "riverbend.07"},
+		{Platform: "discord", URL: "quietfern"},
+		{Platform: "github", URL: "https://github.com/mossline"},
 		{Platform: store.MeshCorePlatform, Label: "Base Node", URL: meshKey},
 	})
 	if err != nil {
@@ -76,13 +76,13 @@ func TestE2EUserPublicLinks(t *testing.T) {
 		t.Errorf("email row still shows the %q label; list text:\n%s", "Email", listText)
 	}
 	// Text handles appear (once each — the old duplicate mono line is gone).
-	for _, want := range []string{"jleight.07", "xerofait", "@jleight", "Base Node"} {
+	for _, want := range []string{"riverbend.07", "quietfern", "@mossline", "Base Node"} {
 		if !strings.Contains(listText, want) {
 			t.Errorf("missing %q in links list; text:\n%s", want, listText)
 		}
 	}
-	if strings.Count(listText, "jleight.07") != 1 {
-		t.Errorf("signal handle should appear exactly once, got %d; text:\n%s", strings.Count(listText, "jleight.07"), listText)
+	if strings.Count(listText, "riverbend.07") != 1 {
+		t.Errorf("signal handle should appear exactly once, got %d; text:\n%s", strings.Count(listText, "riverbend.07"), listText)
 	}
 	// The expanded MeshCore row reveals the key and a QR image.
 	if !strings.Contains(meshCodeText, meshKey) {

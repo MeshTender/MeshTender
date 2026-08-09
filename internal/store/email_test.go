@@ -265,7 +265,7 @@ func TestFindUsersByVerifiedEmailFanout(t *testing.T) {
 	t.Parallel()
 	st, ctx := emailTestStore(t)
 	const addr = "jon@example.test"
-	mkUser(t, st, ctx, "jleight", addr, true, true)
+	mkUser(t, st, ctx, "birchline", addr, true, true)
 	mkUser(t, st, ctx, "meshtender-ops", addr, true, true)
 	mkUser(t, st, ctx, "someone-else", "other@example.test", true, true)
 
@@ -276,7 +276,7 @@ func TestFindUsersByVerifiedEmailFanout(t *testing.T) {
 	if len(found) != 2 {
 		t.Fatalf("found %d accounts, want 2", len(found))
 	}
-	if found[0].Username != "jleight" || found[1].Username != "meshtender-ops" {
+	if found[0].Username != "birchline" || found[1].Username != "meshtender-ops" {
 		t.Errorf("usernames = %q/%q", found[0].Username, found[1].Username)
 	}
 }
