@@ -239,3 +239,29 @@ code.pubkey {
 .footer-centered .row {
   justify-content: center;
 }
+
+/* Undo Tabler's scrollbar compensation, which shifts the whole page sideways.
+   @media (min-width:992px) it sets `:root { margin-left: calc(100vw - 100%) }` —
+   100vw includes the scrollbar, 100% doesn't, so a page long enough to scroll gets a
+   left margin the width of the scrollbar. The intent is to stop layout shifting when
+   a scrollbar appears, but the result is that every scrollable page sits ~15px right
+   of the window with an unpainted strip down the left edge, navbar included (it was
+   visible on the org Repeaters and Configuration tabs, and absent on the shorter Home
+   and Members tabs, which is what made it look page-specific).
+
+   scrollbar-gutter reserves the space on the correct side instead: no shift when the
+   scrollbar appears, no gutter on the left. Where it isn't supported the declaration
+   is ignored, which lands on the plain browser behavior rather than back on the
+   sideways shift. Overlay scrollbars (macOS, mobile) take no space at all, so the
+   gutter is a no-op there.
+
+   Overriding here rather than editing tabler.min.css keeps that file byte-identical
+   to the audited upstream artifact (internal/licenses pins its hash). */
+:root {
+  scrollbar-gutter: stable;
+}
+@media (min-width: 992px) {
+  :root {
+    margin-left: 0;
+  }
+}
