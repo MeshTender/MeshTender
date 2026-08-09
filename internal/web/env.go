@@ -27,7 +27,7 @@ import (
 	"github.com/jleight/meshtender/internal/store"
 )
 
-//go:embed templates/base.html templates/icons.html templates/org_tabs.html templates/repeater_tabs.html templates/command_grid.html templates/org_access.html templates/org_public.html templates/org_config.html templates/org_repeaters.html templates/error.html
+//go:embed templates/base.html templates/icons.html templates/brand.html templates/org_tabs.html templates/repeater_tabs.html templates/command_grid.html templates/org_access.html templates/org_public.html templates/org_config.html templates/org_repeaters.html templates/error.html
 var sharedTemplatesFS embed.FS
 
 // sharedPages are full content pages (not just layout partials) that more than
@@ -196,7 +196,8 @@ type Renderer struct {
 // public topbar without each handler passing a Layout key.
 func (e *Env) SetDefaultLayout(name string) { e.Renderer.defaultLayout = name }
 
-// NewRenderer parses the shared base layout (base.html + icons.html) and composes
+// NewRenderer parses the shared base layout (base.html + icons.html + brand.html,
+// which holds the reserved brand mark — see TRADEMARKS.md) and composes
 // each of the surface's own *.html pages onto it. Each page redefines the
 // content/title/header blocks, so every page gets its own cloned template set.
 // templateFuncs are helpers available to every page template. mhz/khz present
@@ -260,7 +261,7 @@ func TimeElement(t time.Time, kind string) template.HTML {
 }
 
 func NewRenderer(cfg *config.Config, surfaceTemplates fs.FS) (*Renderer, error) {
-	base, err := template.New("").Funcs(templateFuncs).ParseFS(sharedTemplatesFS, "templates/base.html", "templates/icons.html", "templates/org_tabs.html", "templates/repeater_tabs.html", "templates/command_grid.html", "templates/org_access.html")
+	base, err := template.New("").Funcs(templateFuncs).ParseFS(sharedTemplatesFS, "templates/base.html", "templates/icons.html", "templates/brand.html", "templates/org_tabs.html", "templates/repeater_tabs.html", "templates/command_grid.html", "templates/org_access.html")
 	if err != nil {
 		return nil, err
 	}
@@ -270,7 +271,7 @@ func NewRenderer(cfg *config.Config, surfaceTemplates fs.FS) (*Renderer, error) 
 	}
 	// The shared layout/partials are composed in above; skip them if they happen
 	// to live in the surface's template dir.
-	shared := map[string]bool{"templates/base.html": true, "templates/icons.html": true}
+	shared := map[string]bool{"templates/base.html": true, "templates/icons.html": true, "templates/brand.html": true}
 	pages := map[string]*template.Template{}
 	// Compose the cross-surface pages first, then the surface's own pages (a
 	// surface page of the same name would override, but none should collide).

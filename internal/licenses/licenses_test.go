@@ -210,6 +210,14 @@ func TestEveryStaticFileIsAccountedFor(t *testing.T) {
 	for _, name := range FirstPartyStatic {
 		firstParty[name] = true
 	}
+	// Brand artwork is first-party too, but under reserved terms rather than the
+	// AGPL — a third bucket, not an exception to the rule.
+	brand := map[string]bool{}
+	for _, a := range BrandAssets {
+		if dir, name := filepath.Split(a.Path); filepath.Clean(dir) == filepath.Join("internal", "web", "static") {
+			brand[name] = true
+		}
+	}
 
 	entries, err := os.ReadDir(staticDir)
 	if err != nil {
@@ -225,11 +233,13 @@ func TestEveryStaticFileIsAccountedFor(t *testing.T) {
 		case claimed[name] != "":
 			// vendored and declared
 		case firstParty[name]:
-			// ours
+			// ours, under our own license
+		case brand[name]:
+			// ours, under the reserved terms in TRADEMARKS.md
 		default:
-			t.Errorf("internal/web/static/%s is neither declared in internal/licenses/manifest.go "+
-				"nor listed in FirstPartyStatic. If it is third-party, add a manifest entry with its "+
-				"license; if we wrote it, add it to FirstPartyStatic.", name)
+			t.Errorf("internal/web/static/%s is declared nowhere in internal/licenses/manifest.go. "+
+				"If it is third-party, add a Deps entry with its license; if we wrote it, add it to "+
+				"FirstPartyStatic; if it carries the MeshTender name or mark, add it to BrandAssets.", name)
 		}
 	}
 

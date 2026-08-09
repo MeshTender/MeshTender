@@ -192,10 +192,10 @@ var Deps = []Dep{
 		Source:      "https://github.com/tabler/tabler-icons (icon path data, various versions)",
 		LicenseText: "tabler-icons.txt",
 		Files: []File{
-			{Path: "internal/web/templates/icons.html", SHA256: "cb067527ea3b67de4525ff2d44dc7591a19424fb4ae347f8dfcfe0b66bbdedaf", Notice: true},
+			{Path: "internal/web/templates/icons.html", SHA256: "2f23e95b43f6c6bba164f7c470ddc5f69d5376f20b088dc919b74a27dd74e20e", Notice: true},
 		},
 		Modified: "Icon path data copied into Go template definitions rather than vendored as SVG files; the transparent 24x24 guard path upstream emits is dropped.",
-		Note:     "45 of the 46 icons are Tabler Icons; several are renamed locally (antenna<-antenna-bars-5, copy<-squares, list<-list-details, plug<-plug-connected, terminal<-terminal-2, alert<-alert-triangle, brand-signal<-message-circle-2). Version is unpinned because the set was collected across releases. icon-logo is first-party MeshTender artwork, not Tabler's.",
+		Note:     "All 45 icons in icons.html are Tabler Icons; several are renamed locally (antenna<-antenna-bars-5, copy<-squares, list<-list-details, plug<-plug-connected, terminal<-terminal-2, alert<-alert-triangle, brand-signal<-message-circle-2). Version is unpinned because the set was collected across releases.",
 	},
 	{
 		Name:     "distroless static-debian12",
@@ -214,15 +214,57 @@ var Deps = []Dep{
 	},
 }
 
+// BrandAsset is a first-party file carrying the MeshTender name or mark, which
+// TRADEMARKS.md excludes from the AGPL grant covering the rest of the tree.
+//
+// These files are committed rather than injected at deploy time on purpose: the
+// published image is verifiable only if every input to it is public (see
+// "Verifying a build" in README.md), so the trademark boundary has to be legal
+// rather than physical. AGPLv3 section 7 permits exactly that — 7(e) for
+// declining a trademark grant, 7(c) for requiring modified versions be marked as
+// different.
+//
+// Because nothing about a committed SVG announces that it is carved out, the
+// carve-out is only real if the notice stays attached to it. Hence the checks in
+// this package: each file must exist, must still hash to what is declared, and
+// must carry a reservation notice pointing at TRADEMARKS.md.
+type BrandAsset struct {
+	// Path is relative to the repository root.
+	Path string
+
+	// SHA256 pins the artwork as committed. A changed mark means the notice and
+	// TRADEMARKS.md need re-reading, not a hash bump reflexively.
+	SHA256 string
+
+	// What the file is, for the failure message a future reader will see.
+	Desc string
+}
+
+// BrandAssets is every file the trademark carve-out covers. Adding brand artwork
+// means adding it here and to TRADEMARKS.md, which names these paths so a fork
+// knows exactly what to remove.
+var BrandAssets = []BrandAsset{
+	{
+		Path:   "internal/web/templates/brand.html",
+		SHA256: "1ec0ddba1a515e6f46cdff85e5fff82e68373f5fd375a9b6b7cc3e6e04a99df9",
+		Desc:   "the icon-logo brand mark, rendered in the page chrome",
+	},
+	{
+		Path:   "internal/web/static/favicon.svg",
+		SHA256: "5d4f195212e4770844ba077d6c62074be23a51bfaaf9049a0cce22ea4b526a58",
+		Desc:   "the favicon form of the brand mark",
+	},
+}
+
 // FirstPartyStatic lists the files in internal/web/static that we wrote
-// ourselves. Anything in that directory which is neither listed here nor
-// claimed by a Deps entry fails TestEveryStaticFileIsAccountedFor — that check
-// is what stops the next vendored library from slipping in unaudited.
+// ourselves and that ship under MeshTender's own AGPL license. Anything in that
+// directory which is not listed here, claimed by a Deps entry, or listed in
+// BrandAssets fails TestEveryStaticFileIsAccountedFor — that check is what stops
+// the next vendored library from slipping in unaudited.
 var FirstPartyStatic = []string{
 	"app.css",
 	"console-config.js",
 	"console.js",
-	"favicon.svg",
 	"link-editor.js",
 	"listfilter.js",
 	"meshmap.js",
