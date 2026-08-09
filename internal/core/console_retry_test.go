@@ -29,9 +29,18 @@ func TestConsoleLoginRetry(t *testing.T) {
 	st, ctx := coreStore(t)
 
 	masterKey := testMasterKey
-	idSvc, _ := identity.LoadOrCreate(ctx, st, masterKey)
-	authSvc, _ := auth.New(st, st.Pool(), testAuthConfig())
-	srv, _ := NewServer(st, authSvc, idSvc, testConfig())
+	idSvc, err := identity.LoadOrCreate(ctx, st, masterKey)
+	if err != nil {
+		t.Fatalf("identity: %v", err)
+	}
+	authSvc, err := auth.New(st, st.Pool(), testAuthConfig())
+	if err != nil {
+		t.Fatalf("auth service: %v", err)
+	}
+	srv, err := NewServer(st, authSvc, idSvc, testConfig())
+	if err != nil {
+		t.Fatalf("server: %v", err)
+	}
 	ts := httptest.NewServer(srv.Handler())
 	defer ts.Close()
 

@@ -38,7 +38,10 @@ func TestAuthCodes(t *testing.T) {
 	}
 
 	// Empty next defaults to "/".
-	code2, _ := st.CreateAuthCode(ctx, u.ID, loginID, "")
+	code2, err := st.CreateAuthCode(ctx, u.ID, loginID, "")
+	if err != nil {
+		t.Fatalf("create auth code: %v", err)
+	}
 	if _, _, gotNext, _, _ := st.ConsumeAuthCode(ctx, code2); gotNext != "/" {
 		t.Fatalf("empty next = %q, want /", gotNext)
 	}

@@ -77,7 +77,10 @@ func splitServerWith(t *testing.T, mailEnabled bool, cfg *config.Config) (*store
 	st, ctx := coreStore(t)
 
 	masterKey := testMasterKey
-	idSvc, _ := identity.LoadOrCreate(ctx, st, masterKey)
+	idSvc, err := identity.LoadOrCreate(ctx, st, masterKey)
+	if err != nil {
+		t.Fatalf("identity: %v", err)
+	}
 	sender := &fakeSender{}
 	authSvc, err := auth.New(st, st.Pool(), auth.Config{
 		RPID: "localhost", RPDisplayName: "test",
@@ -461,8 +464,14 @@ func TestSessionCallback(t *testing.T) {
 	}
 
 	t.Run("happy path establishes a session", func(t *testing.T) {
-		loginID, _ := st.CreateLogin(ctx, u.ID)
-		code, _ := st.CreateAuthCode(ctx, u.ID, loginID, "/repeaters")
+		loginID, err := st.CreateLogin(ctx, u.ID)
+		if err != nil {
+			t.Fatalf("create login: %v", err)
+		}
+		code, err := st.CreateAuthCode(ctx, u.ID, loginID, "/repeaters")
+		if err != nil {
+			t.Fatalf("create auth code: %v", err)
+		}
 		resp := do(t, ts, appHost, "/session/callback?code="+code+"&state=s1",
 			&http.Cookie{Name: "mt_state", Value: "s1"})
 		defer resp.Body.Close()
@@ -503,7 +512,10 @@ func TestSessionCallback(t *testing.T) {
 	})
 
 	t.Run("state mismatch is rejected", func(t *testing.T) {
-		code, _ := st.CreateAuthCode(ctx, u.ID, "", "/repeaters")
+		code, err := st.CreateAuthCode(ctx, u.ID, "", "/repeaters")
+		if err != nil {
+			t.Fatalf("create auth code: %v", err)
+		}
 		resp := do(t, ts, appHost, "/session/callback?code="+code+"&state=s1",
 			&http.Cookie{Name: "mt_state", Value: "different"})
 		defer resp.Body.Close()

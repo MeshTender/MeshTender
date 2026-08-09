@@ -178,7 +178,10 @@ func TestCSPReportEndpointSurvivesCrossSiteLabel(t *testing.T) {
 		t.Fatalf("status = %d, want 204 — the CSRF layer is discarding violation reports", resp.StatusCode)
 	}
 	flushReports(t, srv)
-	rows, _ := st.ListCSPReports(ctx, "", 10)
+	rows, err := st.ListCSPReports(ctx, "", 10)
+	if err != nil {
+		t.Fatalf("list c s p reports: %v", err)
+	}
 	if len(rows) != 1 {
 		t.Errorf("stored %d rows, want the report recorded", len(rows))
 	}
@@ -336,7 +339,10 @@ func TestAdminCSPClearRequiresUserCapability(t *testing.T) {
 	if resp.StatusCode == http.StatusSeeOther {
 		t.Errorf("clear succeeded without the manage-users capability (status %d)", resp.StatusCode)
 	}
-	rows, _ := st.ListCSPReports(ctx, "", 10)
+	rows, err := st.ListCSPReports(ctx, "", 10)
+	if err != nil {
+		t.Fatalf("list c s p reports: %v", err)
+	}
 	if len(rows) != 1 {
 		t.Fatalf("rows = %d, want the report still present", len(rows))
 	}

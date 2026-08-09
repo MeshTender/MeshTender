@@ -42,8 +42,14 @@ func TestRootOrgPageIdentityAwareCTA(t *testing.T) {
 
 	// Drop a root identity cookie for the member via the beacon (as a fresh
 	// sign-in on the app host would).
-	loginID, _ := st.CreateLogin(ctx, u.ID)
-	code, _ := st.CreateAuthCode(ctx, u.ID, loginID, "/")
+	loginID, err := st.CreateLogin(ctx, u.ID)
+	if err != nil {
+		t.Fatalf("create login: %v", err)
+	}
+	code, err := st.CreateAuthCode(ctx, u.ID, loginID, "/")
+	if err != nil {
+		t.Fatalf("create auth code: %v", err)
+	}
 	beacon := do(t, ts, h.root, "/session/beacon?code="+code)
 	beacon.Body.Close()
 	rootSess := cookieByName(beacon, "meshtender_session")

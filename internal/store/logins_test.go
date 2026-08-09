@@ -37,8 +37,14 @@ func TestLogins(t *testing.T) {
 	}
 
 	// RevokeAllUserLogins kills every active login for the user ("log out everywhere").
-	a, _ := st.CreateLogin(ctx, u.ID)
-	b, _ := st.CreateLogin(ctx, u.ID)
+	a, err := st.CreateLogin(ctx, u.ID)
+	if err != nil {
+		t.Fatalf("create login: %v", err)
+	}
+	b, err := st.CreateLogin(ctx, u.ID)
+	if err != nil {
+		t.Fatalf("create login: %v", err)
+	}
 	if err := st.RevokeAllUserLogins(ctx, u.ID); err != nil {
 		t.Fatalf("revoke all: %v", err)
 	}

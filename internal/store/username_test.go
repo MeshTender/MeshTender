@@ -52,7 +52,10 @@ func TestSetUsername(t *testing.T) {
 		if err := st.SetUsername(ctx, uid, "samename", selfChange(uid), true); err != nil {
 			t.Fatalf("no-op: %v", err)
 		}
-		hist, _ := st.ListUsernameChanges(ctx, uid, 10)
+		hist, err := st.ListUsernameChanges(ctx, uid, 10)
+		if err != nil {
+			t.Fatalf("list username changes: %v", err)
+		}
 		if len(hist) != 0 {
 			t.Fatalf("no-op wrote %d history rows", len(hist))
 		}

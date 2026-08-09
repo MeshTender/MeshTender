@@ -15,7 +15,10 @@ import (
 func TestRootOrgDirectoryLoadMore(t *testing.T) {
 	st, ctx, ts, h := splitServer(t)
 
-	u, _ := st.CreateUser(ctx, "creator", "")
+	u, err := st.CreateUser(ctx, "creator", "")
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
 	for i := 0; i < store.OrgsPageSize+1; i++ { // 51 orgs => one full page + a "show more"
 		if _, err := st.CreateOrg(ctx, fmt.Sprintf("Org %02d", i), u.ID); err != nil {
 			t.Fatalf("create org: %v", err)
@@ -61,7 +64,10 @@ func TestRootOrgDirectoryLoadMore(t *testing.T) {
 func TestOrgPublicRepeatersLoadMore(t *testing.T) {
 	st, ctx, ts, h := splitServer(t)
 
-	u, _ := st.CreateUser(ctx, "ownerp", "")
+	u, err := st.CreateUser(ctx, "ownerp", "")
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
 	org, err := st.CreateOrg(ctx, "Pager Club", u.ID)
 	if err != nil {
 		t.Fatalf("create org: %v", err)

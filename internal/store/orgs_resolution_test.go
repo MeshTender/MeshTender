@@ -263,14 +263,26 @@ func TestListSendableCommandIDsOrgAdmin(t *testing.T) {
 func TestOrgRepeaterAccess(t *testing.T) {
 	t.Parallel()
 	st, ctx := orgTestStore(t)
-	owner, _ := st.CreateUser(ctx, "owner2", "")
-	member, _ := st.CreateUser(ctx, "member2", "")
-	outsider, _ := st.CreateUser(ctx, "outsider2", "")
+	owner, err := st.CreateUser(ctx, "owner2", "")
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	member, err := st.CreateUser(ctx, "member2", "")
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	outsider, err := st.CreateUser(ctx, "outsider2", "")
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
 	rep, err := st.CreateRepeater(ctx, &Repeater{OwnerID: owner.ID, Name: "R", PublicKeyHex: strings.Repeat("b", 64), RadioFreqHz: 1, RadioBwHz: 1, RadioSF: 11, RadioCR: 5})
 	if err != nil {
 		t.Fatal(err)
 	}
-	org, _ := st.CreateOrg(ctx, "Org", owner.ID)
+	org, err := st.CreateOrg(ctx, "Org", owner.ID)
+	if err != nil {
+		t.Fatalf("create org: %v", err)
+	}
 	_ = st.AddOrgMember(ctx, org.ID, member.ID, "member")
 	// The owner's repeater participates in the org automatically.
 

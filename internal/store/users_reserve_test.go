@@ -53,7 +53,10 @@ func TestReserveUserIDAndCreateWithID(t *testing.T) {
 	}
 
 	// A duplicate username is rejected even via the explicit-id path.
-	id3, _ := st.ReserveUserID(ctx)
+	id3, err := st.ReserveUserID(ctx)
+	if err != nil {
+		t.Fatalf("reserve user i d: %v", err)
+	}
 	if _, err := st.CreateUserWithID(ctx, id3, "deferred", ""); !errors.Is(err, ErrDuplicate) {
 		t.Fatalf("duplicate username = %v, want ErrDuplicate", err)
 	}

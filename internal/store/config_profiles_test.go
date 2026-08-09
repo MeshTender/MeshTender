@@ -147,7 +147,10 @@ func TestProfileCRUD(t *testing.T) {
 	if err := st.DeleteProfile(ctx, org.ID, id); err != ErrNotFound {
 		t.Fatalf("re-delete err = %v, want ErrNotFound", err)
 	}
-	remaining, _ := st.ListProfiles(ctx, org.ID)
+	remaining, err := st.ListProfiles(ctx, org.ID)
+	if err != nil {
+		t.Fatalf("list profiles: %v", err)
+	}
 	if len(remaining) != 1 || remaining[0].Name != "Second" {
 		t.Fatalf("after delete, profiles = %+v", remaining)
 	}
@@ -187,11 +190,17 @@ func TestRegionWritesKeepProfiles(t *testing.T) {
 		t.Fatalf("root allow flood = %v (err %v), want false", allow, err)
 	}
 
-	gotR, _ := st.ListRegions(ctx, org.ID)
+	gotR, err := st.ListRegions(ctx, org.ID)
+	if err != nil {
+		t.Fatalf("list regions: %v", err)
+	}
 	if len(gotR) != 2 {
 		t.Fatalf("regions = %d, want 2", len(gotR))
 	}
-	gotP, _ := st.ListProfiles(ctx, org.ID)
+	gotP, err := st.ListProfiles(ctx, org.ID)
+	if err != nil {
+		t.Fatalf("list profiles: %v", err)
+	}
 	if len(gotP) != 1 || gotP[0].Name != "Keep" {
 		t.Fatalf("profiles after region writes = %+v, want [Keep]", gotP)
 	}
@@ -622,20 +631,29 @@ func TestListRepeaterConfigOrgs(t *testing.T) {
 	}
 
 	// A: owner is a member, has profiles → included, with profile names.
-	orgA, _ := st.CreateOrg(ctx, "Alpha", owner.ID)
+	orgA, err := st.CreateOrg(ctx, "Alpha", owner.ID)
+	if err != nil {
+		t.Fatalf("create org: %v", err)
+	}
 	if err := st.ReplaceOrgConfig(ctx, orgA.ID,
 		[]ProfileInput{{Name: "ESP32"}, {Name: "nRF52"}}, nil); err != nil {
 		t.Fatal(err)
 	}
 	// B: owner is a member, region-only config (no profiles) → included, empty profiles.
-	orgB, _ := st.CreateOrg(ctx, "Bravo", owner.ID)
+	orgB, err := st.CreateOrg(ctx, "Bravo", owner.ID)
+	if err != nil {
+		t.Fatalf("create org: %v", err)
+	}
 	if _, err := st.CreateRegion(ctx, orgB.ID, RegionInput{Token: "x", DisplayName: "X", Layer: 1}); err != nil {
 		t.Fatal(err)
 	}
 	// C: owner is a member but the org has NO config → excluded.
 	st.CreateOrg(ctx, "Charlie", owner.ID)
 	// D: owner is a member, org has config, but the repeater is opted out → excluded.
-	orgD, _ := st.CreateOrg(ctx, "Delta", owner.ID)
+	orgD, err := st.CreateOrg(ctx, "Delta", owner.ID)
+	if err != nil {
+		t.Fatalf("create org: %v", err)
+	}
 	if err := st.ReplaceOrgConfig(ctx, orgD.ID, []ProfileInput{{Name: "P"}}, nil); err != nil {
 		t.Fatal(err)
 	}
@@ -643,7 +661,10 @@ func TestListRepeaterConfigOrgs(t *testing.T) {
 		t.Fatal(err)
 	}
 	// E: has config but the repeater's owner is NOT a member → excluded.
-	orgE, _ := st.CreateOrg(ctx, "Echo", stranger.ID)
+	orgE, err := st.CreateOrg(ctx, "Echo", stranger.ID)
+	if err != nil {
+		t.Fatalf("create org: %v", err)
+	}
 	if err := st.ReplaceOrgConfig(ctx, orgE.ID, []ProfileInput{{Name: "P"}}, nil); err != nil {
 		t.Fatal(err)
 	}

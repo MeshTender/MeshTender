@@ -9,7 +9,10 @@ import (
 func TestRepeaterPublicID(t *testing.T) {
 	t.Parallel()
 	st, ctx := orgTestStore(t)
-	owner, _ := st.CreateUser(ctx, "pidowner", "")
+	owner, err := st.CreateUser(ctx, "pidowner", "")
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
 
 	mk := func(key string) *Repeater {
 		rep, err := st.CreateRepeater(ctx, &Repeater{
@@ -42,7 +45,10 @@ func TestRepeaterPublicID(t *testing.T) {
 func TestOrgSlugGeneration(t *testing.T) {
 	t.Parallel()
 	st, ctx := orgTestStore(t)
-	creator, _ := st.CreateUser(ctx, "slugcreator", "")
+	creator, err := st.CreateUser(ctx, "slugcreator", "")
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
 
 	o1, err := st.CreateOrg(ctx, "Buffalo Mesh!", creator.ID)
 	if err != nil {
@@ -102,7 +108,10 @@ func TestValidOrgSlug(t *testing.T) {
 func TestOrgDomains(t *testing.T) {
 	t.Parallel()
 	st, ctx := orgTestStore(t)
-	creator, _ := st.CreateUser(ctx, "domowner", "")
+	creator, err := st.CreateUser(ctx, "domowner", "")
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
 	org, err := st.CreateOrg(ctx, "Domain Org", creator.ID)
 	if err != nil {
 		t.Fatal(err)

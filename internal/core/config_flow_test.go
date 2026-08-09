@@ -156,13 +156,25 @@ func TestOrgConfigProfilesFlow(t *testing.T) {
 	}
 
 	// A non-admin member of a config-less org does NOT see the Configuration tab.
-	plain, _ := st.CreateUser(ctx, "plainmember", "")
-	noCfg, _ := st.CreateOrg(ctx, "NoCfg Org", admin.ID)
+	plain, err := st.CreateUser(ctx, "plainmember", "")
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	noCfg, err := st.CreateOrg(ctx, "NoCfg Org", admin.ID)
+	if err != nil {
+		t.Fatalf("create org: %v", err)
+	}
 	if err := st.AddOrgMember(ctx, noCfg.ID, plain.ID, "member"); err != nil {
 		t.Fatalf("add member: %v", err)
 	}
-	pLogin, _ := st.CreateLogin(ctx, plain.ID)
-	pCode, _ := st.CreateAuthCode(ctx, plain.ID, pLogin, "/")
+	pLogin, err := st.CreateLogin(ctx, plain.ID)
+	if err != nil {
+		t.Fatalf("create login: %v", err)
+	}
+	pCode, err := st.CreateAuthCode(ctx, plain.ID, pLogin, "/")
+	if err != nil {
+		t.Fatalf("create auth code: %v", err)
+	}
 	pcb := do(t, ts, h.app, "/session/callback?code="+pCode+"&state=s1", &http.Cookie{Name: "mt_state", Value: "s1"})
 	pcb.Body.Close()
 	pSess := cookieByName(pcb, "meshtender_session")
@@ -173,7 +185,10 @@ func TestOrgConfigProfilesFlow(t *testing.T) {
 
 	// A config-less org hides the Configuration tab on its public page; the
 	// configured org shows it.
-	empty, _ := st.CreateOrg(ctx, "Empty Org", admin.ID)
+	empty, err := st.CreateOrg(ctx, "Empty Org", admin.ID)
+	if err != nil {
+		t.Fatalf("create org: %v", err)
+	}
 	pub := readBody(t, do(t, ts, h.root, "/orgs/"+empty.Slug))
 	if strings.Contains(pub, "/orgs/"+empty.Slug+"/config") {
 		t.Fatalf("public org page should hide the config tab when there's no config")

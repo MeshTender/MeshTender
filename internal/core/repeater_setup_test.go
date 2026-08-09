@@ -39,9 +39,18 @@ func TestSerialSetupFlow(t *testing.T) {
 	st, ctx, ts, h := splitServer(t)
 
 	// Authenticated admin session (the config_flow_test pattern).
-	admin, _ := st.CreateUser(ctx, "setupadmin", "")
-	loginID, _ := st.CreateLogin(ctx, admin.ID)
-	code, _ := st.CreateAuthCode(ctx, admin.ID, loginID, "/")
+	admin, err := st.CreateUser(ctx, "setupadmin", "")
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	loginID, err := st.CreateLogin(ctx, admin.ID)
+	if err != nil {
+		t.Fatalf("create login: %v", err)
+	}
+	code, err := st.CreateAuthCode(ctx, admin.ID, loginID, "/")
+	if err != nil {
+		t.Fatalf("create auth code: %v", err)
+	}
 	cb := do(t, ts, h.app, "/session/callback?code="+code+"&state=s1", &http.Cookie{Name: "mt_state", Value: "s1"})
 	cb.Body.Close()
 	sess := cookieByName(cb, "meshtender_session")

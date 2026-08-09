@@ -181,7 +181,10 @@ func newE2EServer(t *testing.T) *e2eServer {
 		0x2d, 0x6e, 0x6f, 0x74, 0x2d, 0x75, 0x73, 0x65,
 		0x2d, 0x69, 0x6e, 0x2d, 0x70, 0x72, 0x6f, 0x64,
 	}
-	idSvc, _ := identity.LoadOrCreate(ctx, st, masterKey)
+	idSvc, err := identity.LoadOrCreate(ctx, st, masterKey)
+	if err != nil {
+		t.Fatalf("identity: %v", err)
+	}
 	sender := &captureSender{}
 
 	// Listen up front so the RP origins can include the concrete (dynamic) port.

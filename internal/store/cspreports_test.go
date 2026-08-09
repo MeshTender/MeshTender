@@ -192,7 +192,10 @@ func TestCSPReportsFillMissingSample(t *testing.T) {
 	if err := st.RecordCSPReports(ctx, []CSPReport{withSample}); err != nil {
 		t.Fatalf("record: %v", err)
 	}
-	rows, _ := st.ListCSPReports(ctx, "", 10)
+	rows, err := st.ListCSPReports(ctx, "", 10)
+	if err != nil {
+		t.Fatalf("list c s p reports: %v", err)
+	}
 	if len(rows) != 1 || rows[0].Sample != "eventually useful" {
 		t.Fatalf("rows = %+v, want the sample filled in", rows)
 	}
@@ -329,7 +332,10 @@ func TestPruneCSPReportsDropsStaleViolations(t *testing.T) {
 	if n != 1 {
 		t.Errorf("pruned %d rows, want 1", n)
 	}
-	rows, _ := st.ListCSPReports(ctx, "", 10)
+	rows, err := st.ListCSPReports(ctx, "", 10)
+	if err != nil {
+		t.Fatalf("list c s p reports: %v", err)
+	}
 	if len(rows) != 1 || rows[0].DocumentPath != "/current" {
 		t.Fatalf("rows after prune = %+v, want only /current", rows)
 	}
@@ -355,7 +361,10 @@ func TestClearCSPReports(t *testing.T) {
 	if n != 1 {
 		t.Errorf("cleared %d rows, want 1", n)
 	}
-	rows, _ := st.ListCSPReports(ctx, "", 10)
+	rows, err := st.ListCSPReports(ctx, "", 10)
+	if err != nil {
+		t.Fatalf("list c s p reports: %v", err)
+	}
 	if len(rows) != 1 || rows[0].Source != CSPReportSourcePage {
 		t.Fatalf("rows = %+v, want the page violation retained", rows)
 	}
