@@ -10,8 +10,66 @@ it admin by running `setperm <server_pubkey> 3` on their repeater. Because every
 through that one server identity, MeshTender can mediate *which users* may control a repeater — so
 a repeater can be shared without ever handing out keys, and access can be revoked instantly.
 
-AGPL-3.0, with the name and logo reserved. That combination is deliberate and the reasoning is
-worth reading before you deploy your own copy: [License, and why AGPL](#license-and-why-agpl).
+## Why it holds full admin, and why you shouldn't host your own
+
+MeshTender asks for the strongest access a MeshCore repeater can grant. That's forced by the
+protocol rather than chosen for convenience, and it shapes who should be running the server — and,
+in turn, why this is AGPL rather than the MIT license it would otherwise carry. Worth reading before
+you deploy a copy of your own.
+
+### The permission problem it exists to solve
+
+MeshCore's repeater ACL has four roles — guest (0), read-only (1), read-write (2), admin (3) — but
+only one of them can run commands. A remote CLI command is processed if and only if the sender is
+admin (`if (type == PAYLOAD_TYPE_TXT_MSG && … && client->isAdmin())`, `simple_repeater/MyMesh.cpp`).
+There is no "may set transmit power but not rewrite the region table" role, and guest is available
+to anyone with a blank password. So any tool that runs commands on your repeater on your behalf
+holds **full admin**, because nothing weaker can do anything at all.
+
+MeshTender's whole job is to put the missing permission system on top of that single grant: a
+per-user command allowlist that denies by default, a per-org ceiling the repeater owner opts into,
+an audit log of who ran what and when, and revocation that takes effect immediately without
+touching the hardware. An org can share repeater administration under limits MeshCore itself cannot
+express.
+
+### Why you shouldn't host your own
+
+Those limits are enforced by the server, which means whoever runs the server is *outside* them:
+they hold the key, and every restriction is theirs to lift. That is unavoidable, and it decides
+who should be running it.
+
+If an org's admins host their own instance, then that org's members are back to trusting those
+admins with unrestricted access to their repeaters — the exact situation MeshTender exists to fix,
+now with a UI implying the restrictions are real. The guarantee only holds when whoever runs the
+server isn't a party to the trust question the software is meant to settle — which, for an org's
+own repeaters, its own admins always are. For most MeshCore projects self-hosting is the obviously
+correct answer; here it quietly removes the point of the software.
+
+### Which means trusting me, so here is what that is worth
+
+I'm aware this is a hard sell, and it should be. What I can offer:
+
+- **Distance.** Administering a repeater takes a modem within LoRa range of it. I'm not near your
+  mesh, so the identity key on my server is not usefully exploitable by me except *through this
+  app* — where it is logged.
+- **The audit log.** Every command carries who sent it and when, per repeater, visible to the
+  people who granted access.
+- **Revocation on the hardware.** You granted access on the device with `setperm`, and you can
+  withdraw it there the same way, whatever the server does. See the [docs](https://meshtender.com/docs).
+- **Open source.** The thing above is only checkable if you can read what's running, which is why
+  this repository exists.
+- **Reproducible builds.** Rebuild the commit `/version` reports and confirm the digest matches, so
+  "the source is public" and "the source is what's deployed" are separate, checkable claims. See
+  [Verifying a build](#verifying-a-build).
+
+None of that is proof. Together it's the strongest position I know how to take given a protocol
+with no permissions.
+
+AGPL closes the remaining hole. If someone does run a modified copy as a service, section 13
+requires that its users can get *its* source — so their instance can be audited exactly the way
+this one can, rather than being an unauditable server wearing familiar software's clothes. The
+mechanics of that, and what a fork has to change, are in
+[License, self-hosting, and forking](#license-self-hosting-and-forking).
 
 ## How the hardware control path works
 
@@ -299,67 +357,14 @@ Two things change the digest, and both are intentional:
 - **The platform must match.** `mise run image` targets `linux/amd64`; pass
   `--platform linux/arm64` to verify that variant.
 
-## License, and why AGPL
+## License, self-hosting, and forking
 
 MeshTender is free software under the **GNU AGPL v3.0** ([`LICENSE`](LICENSE)). Its **name and
-logo are not** ([`TRADEMARKS.md`](TRADEMARKS.md)). Both of those follow from the same fact about
-what this app is, so it's worth explaining rather than leaving as a puzzle.
+logo are not** ([`TRADEMARKS.md`](TRADEMARKS.md)). Why that pairing, rather than the MIT license
+this project would otherwise carry, is the argument at the top:
+[Why it holds full admin](#why-it-holds-full-admin-and-why-you-shouldnt-host-your-own).
 
-### The permission problem MeshTender exists to solve
-
-MeshCore's repeater ACL has four roles — guest (0), read-only (1), read-write (2), admin (3) — but
-only one of them can run commands. A remote CLI command is processed if and only if the sender is
-admin (`if (type == PAYLOAD_TYPE_TXT_MSG && … && client->isAdmin())`, `simple_repeater/MyMesh.cpp`).
-There is no "may set transmit power but not rewrite the region table" role, and guest is available
-to anyone with a blank password. So any tool that runs commands on your repeater on your behalf
-holds **full admin**, because nothing weaker can do anything at all.
-
-MeshTender's whole job is to put the missing permission system on top of that single grant: a
-per-user command allowlist that denies by default, a per-org ceiling the repeater owner opts into,
-an audit log of who ran what and when, and revocation that takes effect immediately without
-touching the hardware. An org can share repeater administration under limits MeshCore itself cannot
-express.
-
-### Why that argues for one instance, not many
-
-Those limits are enforced by the server, which means whoever runs the server is *outside* them:
-they hold the key, and every restriction is theirs to lift. That is unavoidable, and it decides
-who should be running it.
-
-If an org's admins host their own instance, then that org's members are back to trusting those
-admins with unrestricted access to their repeaters — the exact situation MeshTender exists to fix,
-now with a UI implying the restrictions are real. The configuration that actually delivers the
-guarantee is one instance run by someone who isn't a party to any org's internal trust question.
-For most MeshCore projects self-hosting is the obviously correct answer; here it quietly removes
-the point of the software.
-
-### Which means trusting me, so here is what that is worth
-
-I'm aware this is a hard sell, and it should be. What I can offer:
-
-- **Distance.** Administering a repeater takes a modem within LoRa range of it. I'm not near your
-  mesh, so the identity key on my server is not usefully exploitable by me except *through this
-  app* — where it is logged.
-- **The audit log.** Every command carries who sent it and when, per repeater, visible to the
-  people who granted access.
-- **Revocation on the hardware.** You granted access on the device with `setperm`, and you can
-  withdraw it there the same way, whatever the server does. See the [docs](https://meshtender.com/docs).
-- **Open source.** The thing above is only checkable if you can read what's running, which is why
-  this repository exists.
-- **Reproducible builds.** Rebuild the commit `/version` reports and confirm the digest matches, so
-  "the source is public" and "the source is what's deployed" are separate, checkable claims. See
-  [Verifying a build](#verifying-a-build).
-
-None of that is proof. Together it's the strongest position I know how to take given a protocol
-with no permissions.
-
-AGPL closes the remaining hole. If someone does run a modified copy as a service, section 13
-requires that its users can get *its* source — so their instance can be audited exactly the way
-this one can, rather than being an unauditable server wearing familiar software's clothes.
-
-### Self-hosting and forking
-
-The license permits it and this file isn't going to pretend otherwise; the paragraphs above are an
+Self-hosting is permitted and this file isn't going to pretend otherwise — the case above is an
 argument, not a restriction. If you run a modified copy, the AGPL asks you to publish your source
 and offer it to your users — `SourceURL` in `internal/web/version.go` is the constant behind the
 footer link and the `/version` field, so point it at your fork. Separately, the MeshTender name and
