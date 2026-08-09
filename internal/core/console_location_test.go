@@ -91,8 +91,8 @@ func TestConsoleFetchesLocation(t *testing.T) {
 	shared, _ := repeater.SharedSecret(serverID)
 
 	_ = ws.Write(rw, websocket.MessageText, []byte(`{"type":"ready"}`))
-	// The console fetches location only on request (unlike the old confirm flow's
-	// eager fetch). Queue the getloc; the console processes it after login.
+	// The console fetches location only on request. Queue the getloc; the console
+	// processes it after login.
 	_ = ws.Write(rw, websocket.MessageText, []byte(`{"type":"getloc"}`))
 
 	// Reply to login (PATH) then to get lat / get lon (TXT_MSG).
@@ -166,9 +166,9 @@ func TestConsoleFetchesLocation(t *testing.T) {
 			break // socket closed; check the DB below
 		}
 		if typ == websocket.MessageText {
-			// Unlike the old confirm flow, the console stays open after fetching
-			// location (it's an interactive session), so it never closes the socket
-			// on its own. It signals success with a "location" status — stop then.
+			// The console is an interactive session: it stays open after fetching the
+			// location and never closes the socket on its own. It signals success with
+			// a "location" status — stop then.
 			var m struct{ State, Message string }
 			if json.Unmarshal(data, &m) == nil && m.State == "location" {
 				break

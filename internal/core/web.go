@@ -32,7 +32,7 @@ type Handlers struct {
 	Auth *auth.Service
 
 	// wsCtx is the base context for WebSocket handlers; cancelling it (on shutdown)
-	// signals active console/confirm sockets to close. wsWG tracks those handlers so
+	// signals active console sockets to close. wsWG tracks those handlers so
 	// shutdown can wait for them — http.Server.Shutdown does not close hijacked
 	// (WebSocket) connections.
 	wsCtx    context.Context

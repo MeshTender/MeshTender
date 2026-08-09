@@ -10,8 +10,8 @@ import (
 	"github.com/chromedp/chromedp"
 )
 
-// TestE2EConsoleConfirmBanner is the browser regression for folding the old
-// confirm page into the console: an unconfirmed repeater shows the "not
+// TestE2EConsoleConfirmBanner covers the console's two state banners, which are
+// the only place confirmation surfaces: an unconfirmed repeater shows the "not
 // confirmed yet" banner, and a confirmed repeater with no known location shows
 // the location prompt with a "Fetch location" button. Both must render under the
 // strict CSP with no violations (the console's inline nonce'd bootstrap plus

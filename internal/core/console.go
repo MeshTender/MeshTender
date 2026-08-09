@@ -268,8 +268,7 @@ func (s *Handlers) wsConsole(w http.ResponseWriter, r *http.Request) {
 	debug := r.URL.Query().Get("debug") == "1"
 	if debug {
 		// Dump every inbound KISS frame as hex so we can see exactly what the modem
-		// reports back (e.g. whether the repeater replies at all). Same aid the
-		// dedicated confirm page used to offer.
+		// reports back (e.g. whether the repeater replies at all).
 		bridge.SetObserver(func(f *hardware.KissFrame) {
 			_ = bridge.Status("debug", fmt.Sprintf("rx frame cmd=0x%02x len=%d data=%x", f.Command, len(f.Data), f.Data))
 		})
@@ -378,9 +377,9 @@ func (s *Handlers) wsConsole(w http.ResponseWriter, r *http.Request) {
 		if userPathSet {
 			reportPathOutcome(bridge, lr)
 		}
-		// A successful login proves we reached the repeater, so treat connecting from
-		// the console as a confirmation (the same as the dedicated confirm flow) — for
-		// guest access too, which records the access level. This is cheap (no extra
+		// A successful login proves we reached the repeater, so connecting the console
+		// IS how a repeater becomes confirmed — for guest access too, which records the
+		// access level. This is cheap (no extra
 		// packets). Fetching the location is deferred to an explicit "getloc" request
 		// so a plain console session doesn't pay for a location round-trip it doesn't
 		// need; the page offers a "Fetch location" button that sends it.
@@ -389,7 +388,8 @@ func (s *Handlers) wsConsole(w http.ResponseWriter, r *http.Request) {
 		} else if lr.IsAdmin {
 			_ = bridge.Status("confirmed", "Repeater confirmed with admin access. ✓")
 		} else {
-			// Guests can't run CLI commands, so warn as the confirm flow did.
+			// Guests can't run CLI commands, so say so rather than leaving the user to
+			// discover it one refused command at a time.
 			_ = bridge.Status("warning", fmt.Sprintf("Repeater reached, but MeshTender only has GUEST access (permissions=%d). Guest is open to anyone with a blank password, so MeshTender can't administer this repeater — re-run `%s` to grant admin.", lr.Permissions, s.Identity.SetPermCommand()))
 		}
 	}

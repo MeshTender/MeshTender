@@ -202,7 +202,7 @@ func run(logger *slog.Logger) error {
 	}
 
 	// Shutdown doesn't close hijacked/WebSocket connections, so close the active
-	// console/confirm sockets and give their handlers time to unwind and stamp
+	// console sockets and give their handlers time to unwind and stamp
 	// their session's ended_at (see core.WSDrainTimeout) before we stop the flusher
 	// and close the pool. Too short and drained sessions stay "in progress" forever.
 	wsCtx, wsCancel := context.WithTimeout(context.Background(), core.WSDrainTimeout)

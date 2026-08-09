@@ -251,7 +251,7 @@ func seedRepeaters(ctx context.Context, st *store.Store, f *gofakeit.Faker, user
 				_ = st.UpdateRepeater(ctx, u.ID, rep.ID, rep.Name, preset.freq, preset.bw, preset.sf, preset.cr, showOnOrg, true)
 			}
 			_ = st.UpdateRepeaterDocs(ctx, u.ID, rep.ID, f.Paragraph(1, 3, 14, " "), f.Paragraph(1, 2, 10, " "))
-			// ~70% confirmed with admin access (perms 3 = admin, per the confirm flow).
+			// ~70% confirmed with admin access (perms 3 = admin).
 			if chance(f, 70) {
 				_ = st.SetRepeaterConfirmed(ctx, rep.ID, u.ID, true, 3)
 			}

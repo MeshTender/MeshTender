@@ -180,7 +180,7 @@ func TestConsoleRoundTrip(t *testing.T) {
 	}
 
 	// Connecting from the console with a successful admin login confirms the
-	// repeater — the same as running the dedicated confirm flow.
+	// repeater: connecting the console is what confirms it.
 	confirmed, err := st.GetRepeaterForUser(ctx, user.ID, rep.ID)
 	must(err, "reload repeater")
 	if !confirmed.Confirmed {
@@ -343,7 +343,7 @@ func TestConsoleGetLatUpdatesLocation(t *testing.T) {
 
 // TestConsoleGuestLoginConfirms: connecting the console to a repeater that only
 // grants GUEST access still records the confirmation (with is_admin=false) and
-// warns the user — the same as the dedicated confirm flow did. It must NOT emit a
+// warns the user. It must NOT emit a
 // "confirmed" (admin) status.
 func TestConsoleGuestLoginConfirms(t *testing.T) {
 	t.Parallel()

@@ -29,7 +29,7 @@
                  aria-label="setperm command with MeshTender's public key" readonly>
           <button type="button" class="btn" data-copy-target="#setperm-cmd">Copy</button>
         </div>
-        <p class="text-secondary small mb-0">The long value is <strong>MeshTender's</strong> public key — not your repeater's. If you see a guest-access warning after confirming a repeater, this is the fix: run the command above, then confirm again.</p>
+        <p class="text-secondary small mb-0">The long value is <strong>MeshTender's</strong> public key — not your repeater's. If you see a guest-access warning when the console connects, this is the fix: run the command above, then connect again.</p>
         {{else}}
         <p class="text-secondary mb-0">Run <code>setperm &lt;MeshTender's public key&gt; 3</code> on your repeater. Sign in and start adding a repeater to see the exact command with the key filled in.</p>
         {{end}}
@@ -42,9 +42,9 @@
         <p>There are two ways in, matching how you reach the repeater:</p>
         <ul class="mb-2">
           <li><strong>Set up a brand-new repeater (USB)</strong> — connect a freshly-flashed repeater over USB serial and MeshTender runs the whole setup for you: identity, radio, region, name, and the admin grant. Best for a repeater that isn't on the mesh yet.</li>
-          <li><strong>Add one that's already on the network (over the air)</strong> — for a repeater you've already configured, MeshTender reaches it over the air through a <a href="#kiss">KISS modem</a> attached to your browser. You grant MeshTender admin with the <a href="#setperm"><code>setperm</code></a> command yourself first, then <em>confirm</em> it here.</li>
+          <li><strong>Add one that's already on the network (over the air)</strong> — for a repeater you've already configured, MeshTender reaches it over the air through a <a href="#kiss">KISS modem</a> attached to your browser. You grant MeshTender admin with the <a href="#setperm"><code>setperm</code></a> command yourself first, then register it here.</li>
         </ul>
-        <p>Confirming does a live login round-trip to prove MeshTender can reach and administer the repeater. If it reports guest access, the <code>setperm</code> grant hasn't been applied yet.</p>
+        <p>A registered repeater shows as <strong>confirmed</strong> once MeshTender has actually reached it. There's nothing to click for that: open the repeater's <strong>console</strong> and connect your modem, and the signed login that opens every session doubles as the proof — it confirms the repeater the first time it replies. If the reply reports guest access, the <code>setperm</code> grant hasn't been applied yet; run it, then connect again.</p>
         <p class="mb-0">Either way, the device must already be running MeshCore's <strong>Repeater</strong> firmware — MeshTender configures repeaters, it doesn't flash them. A MeshCore device runs one firmware at a time (Repeater, a Companion variant, or KISS modem), so switching roles means re-flashing.</p>
       </div>
     </div>

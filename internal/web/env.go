@@ -435,7 +435,7 @@ var compressHTML = middleware.Compress(5, compressibleTypes...)
 // command lists, markdown docs) — so 1 MiB is generous while stopping a client
 // from streaming an arbitrarily large body into memory before per-field limits
 // can apply. WebSocket upgrades carry no request body, so this doesn't affect
-// the console/confirm sockets.
+// the console socket.
 const maxRequestBody = 1 << 20 // 1 MiB
 
 // limitBody caps r.Body so an oversized request fails fast — a read past the
