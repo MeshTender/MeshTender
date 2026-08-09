@@ -71,7 +71,26 @@ type OrgRepeaterInfo struct {
 	OwnerName        string
 	HasLocation      bool
 	Lat, Lon         float64
+
+	// Confirmed and ConfirmedAdmin mirror the repeater's cached access state so the
+	// member list can flag a node that nobody has reached, or one where MeshTender
+	// holds only guest access and therefore cannot run commands. They are populated
+	// by ListOrgRepeaters and left zero by ListPublicRepeaters: an outsider has no
+	// business knowing which of an org's nodes are misconfigured.
+	Confirmed bool
+	// ConfirmedAdmin is nil when the access level has never been determined, which
+	// is not the same as "not admin" — see AccessKnown.
+	ConfirmedAdmin *bool
 }
+
+// AccessKnown reports whether the repeater's access level has been determined, and
+// IsAdmin whether the last confirmation granted admin. Together they let the shared
+// "repstatus" template treat this like a *Repeater, so the org list and the owner's
+// own repeater list render the same badges from one definition.
+func (ri OrgRepeaterInfo) AccessKnown() bool { return ri.ConfirmedAdmin != nil }
+
+// IsAdmin reports whether the last confirmation granted admin access.
+func (ri OrgRepeaterInfo) IsAdmin() bool { return ri.ConfirmedAdmin != nil && *ri.ConfirmedAdmin }
 
 // ExcludeOwnerRepeatersFromOrg opts every repeater the owner currently has out of
 // the org — used when a user joins "with no repeaters". Repeaters added later are
@@ -92,7 +111,7 @@ func (s *Store) ExcludeOwnerRepeatersFromOrg(ctx context.Context, orgID, ownerID
 func (s *Store) ListOrgRepeaters(ctx context.Context, orgID int64) ([]OrgRepeaterInfo, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT r.id, r.public_id, r.name, COALESCE(NULLIF(ou.display_name, ''), ou.username, '?'),
-		       r.latitude, r.longitude
+		       r.latitude, r.longitude, r.confirmed, r.confirmed_admin
 		FROM repeaters r
 		JOIN org_members om ON om.org_id = $1 AND om.user_id = r.owner_id
 		JOIN users ou ON ou.id = r.owner_id
@@ -105,7 +124,8 @@ func (s *Store) ListOrgRepeaters(ctx context.Context, orgID int64) ([]OrgRepeate
 	return collectRows(rows, func(r pgx.Row) (OrgRepeaterInfo, error) {
 		var ri OrgRepeaterInfo
 		var lat, lon *float64
-		err := r.Scan(&ri.RepeaterID, &ri.RepeaterPublicID, &ri.Name, &ri.OwnerName, &lat, &lon)
+		err := r.Scan(&ri.RepeaterID, &ri.RepeaterPublicID, &ri.Name, &ri.OwnerName, &lat, &lon,
+			&ri.Confirmed, &ri.ConfirmedAdmin)
 		setLocation(&ri, lat, lon)
 		return ri, err
 	})

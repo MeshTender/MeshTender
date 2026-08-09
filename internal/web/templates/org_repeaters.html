@@ -8,7 +8,15 @@
 <a class="list-group-item list-group-item-action d-flex align-items-center gap-2" href="/repeaters/{{.RepeaterPublicID}}">
   <span class="text-secondary">{{template "icon-antenna" ""}}</span>
   <div class="flex-fill text-truncate">
-    <span class="fw-bold">{{.Name}}</span>
+    <div class="d-flex align-items-center flex-wrap gap-2">
+      <span class="fw-bold">{{.Name}}</span>
+      {{/* Same badges as the owner's own repeater list, from the one shared
+           definition: a node nobody has reached, or one where MeshTender holds only
+           guest access and so cannot run anything. Members only — the public branch
+           below shows neither, since which of an org's nodes are misconfigured is
+           not an outsider's business. */}}
+      {{template "repstatus" .}}
+    </div>
     <div class="text-secondary small">owner {{.OwnerName}}</div>
   </div>
 </a>
