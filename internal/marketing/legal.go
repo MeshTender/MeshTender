@@ -10,8 +10,9 @@ import "net/http"
 // which third parties see what) because it can be: the implementation is
 // first-party and narrow. Anything stated here is enforced by code elsewhere in
 // the tree, and the retention figures are the same constants the janitor uses —
-// if one changes, change it here too. TestLegalPagesStateRealRetention keeps the
-// two honest about the windows it can check.
+// if one changes, change it here too. TestPrivacyPageStatesRealRetention
+// (internal/core/legal_pages_test.go) keeps the two honest about the windows it
+// can check.
 
 // operatorInfo is who runs this deployment, for the legal pages.
 type operatorInfo struct {
@@ -28,14 +29,18 @@ type operatorInfo struct {
 
 // operator identifies who is responsible for this instance.
 //
-// TODO(operator): fill these in before the public launch. The pages render
-// without them — the affected sentences simply drop out rather than printing a
-// placeholder at a reader — but a privacy policy with no contact route is not
-// much of a promise.
+// A fork running its own deployment must change these: they name who is
+// accountable for the service and where its users' privacy and account questions
+// go, so shipping ours would point your users at us. Every field may be emptied
+// instead — the affected sentences drop out rather than printing a placeholder at
+// a reader — but a privacy policy with no contact route is not much of a promise.
+//
+// Jurisdiction names the law governing the terms, so it has to be a body of law
+// that exists: a state or a country, not a city.
 var operator = operatorInfo{
-	Name:         "",
-	Contact:      "",
-	Jurisdiction: "",
+	Name:         "Jonathon Leight",
+	Contact:      "legal@meshtender.com",
+	Jurisdiction: "the State of New York, United States",
 	Effective:    "31 July 2026",
 }
 
