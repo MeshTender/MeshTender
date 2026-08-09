@@ -96,7 +96,7 @@ harness (`newE2EServer`, `login`, `newRepeater`, `startBrowser`,
 and depends only on exported app APIs, so keep it that way (no reaching into
 package internals). Give elements a stable `data-testid`/class hook rather than
 selecting on Bootstrap layout classes. CI runs these non-gating
-(`.woodpecker/e2e.yaml`); `E2E_DEVTOOLS_URL`/`E2E_BROWSER_HOST` override the
+(the `e2e` job in `.github/workflows/ci.yml`); `E2E_DEVTOOLS_URL`/`E2E_BROWSER_HOST` override the
 addresses there.
 
 **Tabler markup gotchas — the CSS decides the DOM you must write.** A component
@@ -146,7 +146,7 @@ so don't "fix" that by moving them out.
 - `mise run licenses` scans the Go module graph (binary + test + `browser` tag)
   with `google/licensecheck` **and** the non-Go manifest, then verifies
   `THIRD-PARTY-NOTICES.md` is current. `--update` regenerates it. CI gates on it
-  (`.woodpecker/licenses.yaml`).
+  (the `licenses` job in `.github/workflows/ci.yml`).
 - Anything third-party that Go tooling can't see — vendored front-end files,
   bundled code, icon artwork, the base image, external services — lives in
   `internal/licenses/manifest.go` with its version, SHA-256, upstream source, and
@@ -159,10 +159,18 @@ so don't "fix" that by moving them out.
   not just the license name) and refresh the manifest hash.
 
 ### 6. CI is the gate, not the first line
-Woodpecker (`.woodpecker/`): `test` + `lint` + `vuln` (govulncheck) must pass
-before `build`; `deploy` follows `build` on `main`. A reachable CVE blocks the
-build. Catch problems locally first; if CI catches something you didn't, close the
-local-testing gap.
+GitHub Actions (`.github/workflows/ci.yml`), one workflow whose jobs are the
+pipeline: `lint` + `test` + `vuln` (govulncheck) + `licenses` must pass before
+`publish` pushes an image to GHCR. A reachable CVE blocks the publish. `e2e` runs
+non-gating. **Deployment is not here** — a separate infrastructure repository
+resolves the published tag to a digest and rolls it out, so what this repo owes it
+is the digest (see `TestPublishExportsTheImageDigest`).
+
+Adding a check means adding a job AND listing it in `publish`'s `needs`; the pin and
+gating invariants are enforced by `internal/licenses/reproducible_test.go`, which
+also forbids a literal `go-version` (workflows read `go.mod`) and a loose
+`GOTOOLCHAIN`. Catch problems locally first; if CI catches something you didn't,
+close the local-testing gap.
 
 ### 7. Git hygiene — stage one batch at a time, don't commit
 This is a single-developer project with no PR workflow. **Stage your changes but do

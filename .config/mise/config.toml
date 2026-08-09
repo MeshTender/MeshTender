@@ -3,7 +3,7 @@
 # byte-for-byte reproducible by an outside auditor, and a different compiler
 # version produces a different binary. Bump this together with GOTOOLCHAIN
 # below, the `go` directive in go.mod, and the builder image in
-# .woodpecker/build.yaml.
+# the publish job in .github/workflows/ci.yml.
 go = "1.26.5"
 "golangci-lint" = "latest"
 pitchfork = "latest"

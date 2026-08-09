@@ -343,7 +343,7 @@ What each field is worth is deliberately different, and worth knowing when you a
 |---|---|
 | `commit`, `commitTime`, `modified`, `go`, `os`, `arch` | The Go toolchain, stamped at compile time. Our code doesn't choose these. |
 | `executableSHA256` | Measured at runtime, by the process itself, over the file it is running from. The only field about the *running* process rather than about a build. To check it, extract `/ko-app/meshtender` from your own build and hash it. |
-| `imageDigest` | Our pipeline. A binary can't derive its own image digest — the digest is computed over the binary — so CI captures it at publish time (`ko build --image-refs`) and the deploy passes it in as `MESHTENDER_IMAGE_DIGEST`, deploying by digest in the same patch. Treat it as a claim to check, not as proof. |
+| `imageDigest` | Our pipeline. A binary can't derive its own image digest — the digest is computed over the binary — so CI captures it at publish time (`ko build --image-refs`) and the deployment passes it back in as `MESHTENDER_IMAGE_DIGEST`, deploying by that digest rather than by a tag. Treat it as a claim to check, not as proof. |
 
 A build from a modified tree reports `"modified": true`, and its `commit` does **not** describe the
 source it was built from — such a build can't be reproduced from that commit, by anyone. Admins see

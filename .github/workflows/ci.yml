@@ -1,0 +1,276 @@
+# The whole pipeline: checks on every push, and on main/tags an image published to
+# GHCR. One file rather than one per check, because the gating relationship IS the
+# pipeline — `publish` names its prerequisites in `needs`, so a check can't go red
+# while an image ships. TestBuildDependsOnEveryGatingJob asserts that wiring.
+#
+# There is no deploy step: deployment lives in a separate infrastructure repository,
+# which resolves the published tag to a digest and rolls it out. What this workflow
+# owes that deployer is the digest itself — see the `publish` job's summary output,
+# and "Verifying a build" in README.md for why the digest (not a tag) is the thing
+# that gets deployed and reported by /version.
+#
+# There is no Dockerfile. MeshTender is a pure-Go binary with migrations, templates,
+# and static assets embedded via go:embed, so ko compiles it and lays it straight
+# onto the digest-pinned base image from .ko.yaml — no build context and no daemon.
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  workflow_dispatch:
+
+# A newer push to the same ref makes an in-flight run pointless. Tags are excluded
+# from cancellation by using the ref itself as the group: two different tags never
+# collide, so a release build always runs to completion.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+# Go's version is read from go.mod rather than written here: it is already pinned
+# exactly (TestReleasePinsAreConsistent enforces that it matches the mise pin), and
+# a second copy in this file is a second thing to forget. GOTOOLCHAIN=local then
+# forbids fetching any other toolchain, so a build can only ever use the pinned one
+# — the compiler version changes the binary, and the published image is meant to be
+# reproducible from a clean checkout.
+env:
+  GOTOOLCHAIN: local
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          # Caches the module cache AND the build cache, keyed on go.sum, shared
+          # across jobs and runs. Every job below compiles the same module, so this
+          # is the difference between each one starting cold and starting warm.
+          cache-dependency-path: go.sum
+      # The action major has to match golangci-lint's major: v6 of the action only
+      # drives golangci-lint v1, and .golangci.yml declares `version: "2"`.
+      # TestLintVersionsAgree pins that relationship down.
+      #
+      # Both versions are pinned rather than "latest": a new release both invalidates
+      # this action's analysis cache and can fail a build with no code change behind
+      # it. Bump deliberately. (mise runs "latest" locally, where a surprise is cheap.)
+      - uses: golangci/golangci-lint-action@v9.3.0
+        with:
+          version: v2.12.2
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      # ONE Postgres for the whole run. internal/testdb clones a migrated template
+      # database per test against whatever server this points at; without it, every
+      # package binary starts its own container via testcontainers, and `go test
+      # ./...` runs packages in parallel — which on a 4-vCPU runner meant ~8 Postgres
+      # containers competing for CPU until connections started failing.
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: meshtender
+          POSTGRES_PASSWORD: meshtender
+          POSTGRES_DB: meshtender_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U meshtender"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # The harness creates and drops only its own mt_tmpl_* / mt_test_* databases
+      # on this server, so pointing at the "postgres" maintenance DB is safe.
+      MESHTENDER_TEST_DATABASE_URL: postgres://meshtender:meshtender@localhost:5432/postgres?sslmode=disable
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          # Caches the module cache AND the build cache, keyed on go.sum, shared
+          # across jobs and runs. Every job below compiles the same module, so this
+          # is the difference between each one starting cold and starting warm.
+          cache-dependency-path: go.sum
+      # No `go vet` here: golangci-lint's standard set includes govet and runs it in
+      # a parallel job, so vetting again would buy a second full analysis pass of the
+      # module and nothing else. It stays in the local pre-push gate (CLAUDE.md).
+      - run: go test -race ./...
+
+  vuln:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          # Caches the module cache AND the build cache, keyed on go.sum, shared
+          # across jobs and runs. Every job below compiles the same module, so this
+          # is the difference between each one starting cold and starting warm.
+          cache-dependency-path: go.sum
+      # Pinned so the compiled tool stays in the build cache between runs; the vuln
+      # database is fetched at run time, so this doesn't stale what it checks against.
+      - run: go install golang.org/x/vuln/cmd/govulncheck@v1.6.0
+      - run: govulncheck ./...
+
+  # The licensing audit gates publishing for the same reason the vuln scan does: a
+  # non-permissive dependency is a legal defect in the artifact, so it must not
+  # reach the registry.
+  licenses:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          # Caches the module cache AND the build cache, keyed on go.sum, shared
+          # across jobs and runs. Every job below compiles the same module, so this
+          # is the difference between each one starting cold and starting warm.
+          cache-dependency-path: go.sum
+      - run: go run ./cmd/licenses
+
+  # Non-gating on purpose (it is absent from publish's `needs`): the browser suite
+  # skips rather than fails when no browser is reachable, so requiring it would make
+  # releases depend on an advisory check.
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      # ONE Postgres for the whole run. internal/testdb clones a migrated template
+      # database per test against whatever server this points at; without it, every
+      # package binary starts its own container via testcontainers, and `go test
+      # ./...` runs packages in parallel — which on a 4-vCPU runner meant ~8 Postgres
+      # containers competing for CPU until connections started failing.
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: meshtender
+          POSTGRES_PASSWORD: meshtender
+          POSTGRES_DB: meshtender_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U meshtender"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      MESHTENDER_TEST_DATABASE_URL: postgres://meshtender:meshtender@localhost:5432/postgres?sslmode=disable
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          # Caches the module cache AND the build cache, keyed on go.sum, shared
+          # across jobs and runs. Every job below compiles the same module, so this
+          # is the difference between each one starting cold and starting warm.
+          cache-dependency-path: go.sum
+      # The browser container is started here rather than as a `services:` entry
+      # because it needs a custom command (socat fronts the debugger, which
+      # headless-shell binds to loopback inside the container) and services accept
+      # only an image plus options. This mirrors `mise run e2e`, which is the local
+      # equivalent — keep the two in step. The task itself isn't reused because it
+      # assumes a developer's .env.
+      - name: Start headless browser
+        run: |
+          docker run -d --rm --name mt-headless -p 9222:9222 \
+            --add-host=host.docker.internal:host-gateway \
+            --entrypoint bash chromedp/headless-shell:latest -c \
+            'socat TCP4-LISTEN:9222,fork TCP4:127.0.0.1:9223 & exec /headless-shell/headless-shell --no-sandbox --use-gl=angle --use-angle=swiftshader --remote-debugging-address=0.0.0.0 --remote-debugging-port=9223 "--host-resolver-rules=MAP *.host.docker.internal host.docker.internal"'
+          # Bounded readiness wait (~20s) so a container that never comes up can't hang.
+          for _ in $(seq 1 40); do
+            curl -sf http://127.0.0.1:9222/json/version >/dev/null 2>&1 && break
+            sleep 0.5
+          done
+      # The harness defaults (127.0.0.1:9222 for the debugger, host.docker.internal
+      # for how the browser reaches the test server) match the container above, so
+      # no E2E_* overrides are needed.
+      - run: go test -tags browser ./internal/e2e/ -timeout 15m
+      - if: always()
+        run: docker rm -f mt-headless
+
+  publish:
+    # Every gating check, and deliberately not e2e. Adding a check job means adding
+    # it here; TestBuildDependsOnEveryGatingJob fails if you forget.
+    needs: [lint, test, vuln, licenses]
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+      # For the provenance attestation below.
+      id-token: write
+      attestations: write
+    env:
+      # Lowercase literal rather than github.repository: GHCR paths must be
+      # lowercase, and this repository's name is mixed case.
+      KO_DOCKER_REPO: ghcr.io/meshtender/meshtender
+      # ko is a build input — a different ko can lay out layers differently — so its
+      # version is pinned here and checked against the mise pin.
+      KO_VERSION: v0.19.1
+    outputs:
+      image: ${{ steps.build.outputs.image }}
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          # Caches the module cache AND the build cache, keyed on go.sum, shared
+          # across jobs and runs. Every job below compiles the same module, so this
+          # is the difference between each one starting cold and starting warm.
+          cache-dependency-path: go.sum
+      # ko is installed with `go install` rather than run from its own image so it
+      # compiles with the Go version pinned above, not whatever an image bundles.
+      # `go install pkg@version` builds in an isolated module context, so it does
+      # not touch go.mod or the licensing audit.
+      - run: go install github.com/google/ko@${{ env.KO_VERSION }}
+      - run: echo "${{ secrets.GITHUB_TOKEN }}" | ko login ghcr.io --username ${{ github.actor }} --password-stdin
+
+      - name: Build and push
+        id: build
+        run: |
+          # --bare publishes to exactly $KO_DOCKER_REPO instead of appending a
+          # package-name/hash suffix. --image-refs records the published reference
+          # INCLUDING its digest, which is the value the deployer needs: a binary
+          # cannot derive its own image digest, so it has to be handed in as
+          # MESHTENDER_IMAGE_DIGEST for /version to report it.
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            # Strip a leading "v" so v1.2.3 -> 1.2.3.
+            tags="${GITHUB_REF_NAME#v},latest"
+          else
+            # The commit SHA is the immutable handle; "main" is the moving tag a
+            # deployer watches, resolving it to a digest before rolling out.
+            tags="${GITHUB_SHA},main"
+          fi
+          ko build --bare --tags "$tags" --image-refs image-ref --sbom=spdx ./cmd/meshtender
+          ref="$(cat image-ref)"
+          echo "image=${ref%@*}" >> "$GITHUB_OUTPUT"
+          echo "digest=${ref#*@}" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Published"
+            echo
+            echo '```'
+            echo "$ref"
+            echo '```'
+            echo
+            echo "Deploy by digest and pass the same digest as \`MESHTENDER_IMAGE_DIGEST\`."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Signed provenance tying this digest to this workflow and commit. The point
+      # of a reproducible build is that an outsider can check our claims; this lets
+      # them check the publisher too, without trusting the registry.
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ steps.build.outputs.image }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true

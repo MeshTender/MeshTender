@@ -15,17 +15,12 @@ import (
 func TestOrgConfigProfilesFlow(t *testing.T) {
 	st, ctx, ts, h := splitServer(t)
 
-	// Sign in via the handoff (the splitServer-proven pattern) and grab the app
-	// session cookie to carry on later requests.
-	admin, _ := st.CreateUser(ctx, "cfgadmin", "")
-	loginID, _ := st.CreateLogin(ctx, admin.ID)
-	code, _ := st.CreateAuthCode(ctx, admin.ID, loginID, "/")
-	cb := do(t, ts, h.app, "/session/callback?code="+code+"&state=s1", &http.Cookie{Name: "mt_state", Value: "s1"})
-	cb.Body.Close()
-	sess := cookieByName(cb, "meshtender_session")
-	if sess == nil {
-		t.Fatal("no app session from callback")
-	}
+	// appLogin creates the user and signs them in through the same handoff this test
+	// used to hand-roll. It checks each step, which matters: the hand-rolled version
+	// discarded CreateUser's error, so a failure there surfaced as a nil-pointer
+	// panic on the next line — a segfault where the actual cause (CI starving the
+	// database) was never printed.
+	admin, sess := appLogin(t, ts, st, ctx, h.app, "cfgadmin")
 
 	org, err := st.CreateOrg(ctx, "Config Org", admin.ID) // creator becomes admin
 	if err != nil {
