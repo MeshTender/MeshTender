@@ -6,12 +6,20 @@
 // window.MeshSerial, backed by whichever transport is actually available:
 //
 //   Web Serial (navigator.serial) — Chrome/Edge on desktop, Firefox 151+ on
-//     desktop. Used verbatim when present; MeshSerial just forwards to it.
+//     desktop. Preferred everywhere EXCEPT Android; MeshSerial just forwards to it.
 //
 //   WebUSB (navigator.usb) — the fallback that makes Android work. Chrome for
-//     Android has had WebUSB for years, while Web Serial only reached Android in
-//     Chrome M149 and its USB half depends on a platform API that shipped to a
+//     Android has had WebUSB since Chrome 61, while Web Serial only reached Android
+//     in Chrome M149 and its USB half depends on a platform API that shipped to a
 //     limited set of devices. So on a phone, WebUSB is the transport that exists.
+//
+// Hence chooseTransport() preferring WebUSB on Android specifically. Feature
+// detection cannot make that call for us: on a current Chrome for Android
+// navigator.serial is present and looks healthy, and the emptiness only shows up
+// as a chooser with no devices in it. There is no enumeration API to pre-check,
+// and requestPort() rejects with NotFoundError for both "user cancelled" and "no
+// devices" — so we cannot even detect it after the fact and retry. Platform is
+// the only signal available, which is why this file sniffs one.
 //
 // The WebUSB path speaks USB CDC-ACM — the standard "USB serial" device class —
 // by claiming the interfaces itself and driving the two class requests that
@@ -39,6 +47,25 @@
 
   const hasWebSerial = typeof navigator !== "undefined" && "serial" in navigator;
   const hasWebUSB = typeof navigator !== "undefined" && "usb" in navigator;
+
+  // isAndroid reads the UA client hint where it exists and falls back to the UA
+  // string. This picks between two transports that both work — it never gates
+  // support — so a wrong answer costs a less-capable transport, not a broken page.
+  function isAndroid() {
+    const hints = navigator.userAgentData;
+    if (hints && typeof hints.platform === "string") return hints.platform === "Android";
+    return /Android/i.test(navigator.userAgent || "");
+  }
+
+  // chooseTransport resolves the preference order once, at load.
+  function chooseTransport() {
+    if (hasWebUSB && isAndroid()) return "webusb";
+    if (hasWebSerial) return "webserial";
+    if (hasWebUSB) return "webusb";
+    return null;
+  }
+
+  const transport = chooseTransport();
 
   // findInterface returns the first interface whose (first alternate) class is
   // `cls`, or null. Called after the configuration is selected, so
@@ -224,22 +251,29 @@
   // requestPort prompts the user to pick a device and returns a port. Must be
   // called from a user gesture, same as navigator.serial.requestPort().
   async function requestPort() {
-    if (hasWebSerial) return navigator.serial.requestPort();
-    // Filtering on the CDC control class keeps the chooser to devices we can
-    // actually drive, rather than listing every USB device attached.
-    const device = await navigator.usb.requestDevice({
-      filters: [{ classCode: CDC_CONTROL_CLASS }],
-    });
-    return new CdcAcmPort(device);
+    if (transport === "webserial") return navigator.serial.requestPort();
+    if (transport === "webusb") {
+      // Filtering on the CDC control class keeps the chooser to devices we can
+      // actually drive, rather than listing every USB device attached. Per the
+      // WebUSB matching algorithm a classCode filter is compared against each
+      // interface as well as the device descriptor, so this still matches the
+      // usual native-USB board, which declares class 0xEF (IAD) at device level
+      // and CDC only on its interfaces.
+      const device = await navigator.usb.requestDevice({
+        filters: [{ classCode: CDC_CONTROL_CLASS }],
+      });
+      return new CdcAcmPort(device);
+    }
+    throw new Error("This browser can't connect to USB devices.");
   }
 
   window.MeshSerial = {
     // supported answers "can we even ask for a port here?" — not "will this
     // particular board work", which is only knowable once one is chosen.
-    supported: hasWebSerial || hasWebUSB,
+    supported: transport !== null,
     // transport lets callers tailor their messaging: the ways this fails differ
     // between the two (no port vs. a device we can't drive).
-    transport: hasWebSerial ? "webserial" : (hasWebUSB ? "webusb" : null),
+    transport: transport,
     requestPort: requestPort,
   };
 })();
