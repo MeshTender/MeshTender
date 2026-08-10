@@ -70,12 +70,18 @@ func (e *Env) formAction(r *http.Request) string {
 }
 
 // permissionsPolicy denies powerful browser features we don't use and explicitly
-// allows the two we do: WebSerial (the KISS modem on the confirm/console pages)
-// and WebAuthn (passkeys). Unknown tokens are ignored by browsers that don't
-// implement them.
-const permissionsPolicy = "serial=(self), " +
+// allows the three we do: WebSerial and WebUSB (both reach the KISS modem on the
+// confirm/console pages — see serial-port.js, which falls back to WebUSB where
+// WebSerial is absent, notably Android) and WebAuthn (passkeys). Unknown tokens
+// are ignored by browsers that don't implement them.
+//
+// usb was denied here until WebUSB became a real transport, and flipping it back
+// to () would silently break Android: the failure is a SecurityError from
+// requestDevice, not a CSP violation, so neither the CSP report endpoint nor the
+// e2e harness would notice.
+const permissionsPolicy = "serial=(self), usb=(self), " +
 	"publickey-credentials-get=(self), publickey-credentials-create=(self), " +
-	"geolocation=(), camera=(), microphone=(), payment=(), usb=()"
+	"geolocation=(), camera=(), microphone=(), payment=()"
 
 // securityHeaders sets a strict Content-Security-Policy (with a fresh per-request
 // script nonce, also exposed via the context for templates) plus companion

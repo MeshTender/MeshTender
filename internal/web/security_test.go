@@ -44,8 +44,12 @@ func TestSecurityHeadersCSPNonce(t *testing.T) {
 	}
 	// Permissions-Policy must keep the features we actually use.
 	pp := rec1.Header().Get("Permissions-Policy")
-	if !strings.Contains(pp, "serial=(self)") || !strings.Contains(pp, "publickey-credentials-get=(self)") {
-		t.Errorf("Permissions-Policy doesn't allow serial/webauthn: %q", pp)
+	// usb=(self) matters as much as serial: it is the only transport that reaches
+	// a device on Android, and denying it fails as a SecurityError from
+	// requestDevice — invisible to the CSP report endpoint and the e2e harness.
+	if !strings.Contains(pp, "serial=(self)") || !strings.Contains(pp, "usb=(self)") ||
+		!strings.Contains(pp, "publickey-credentials-get=(self)") {
+		t.Errorf("Permissions-Policy doesn't allow serial/usb/webauthn: %q", pp)
 	}
 	if seen[0] == "" || seen[1] == "" || seen[0] == seen[1] {
 		t.Errorf("nonce not fresh per request: %q, %q", seen[0], seen[1])
