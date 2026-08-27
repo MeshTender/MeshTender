@@ -44,8 +44,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
         with:
           go-version-file: go.mod
           # Caches the module cache AND the build cache, keyed on go.sum, shared
@@ -61,7 +61,7 @@ jobs:
       # it. Bump deliberately. (mise runs "latest" locally, where a surprise is cheap.)
       - uses: golangci/golangci-lint-action@v9.3.0
         with:
-          version: v2.12.2
+          version: v2.13.1
 
   test:
     runs-on: ubuntu-latest
@@ -90,8 +90,8 @@ jobs:
       # on this server, so pointing at the "postgres" maintenance DB is safe.
       MESHTENDER_TEST_DATABASE_URL: postgres://meshtender:meshtender@localhost:5432/postgres?sslmode=disable
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
         with:
           go-version-file: go.mod
           # Caches the module cache AND the build cache, keyed on go.sum, shared
@@ -107,8 +107,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
         with:
           go-version-file: go.mod
           # Caches the module cache AND the build cache, keyed on go.sum, shared
@@ -117,7 +117,7 @@ jobs:
           cache-dependency-path: go.sum
       # Pinned so the compiled tool stays in the build cache between runs; the vuln
       # database is fetched at run time, so this doesn't stale what it checks against.
-      - run: go install golang.org/x/vuln/cmd/govulncheck@v1.6.0
+      - run: go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
       - run: govulncheck ./...
 
   # The licensing audit gates publishing for the same reason the vuln scan does: a
@@ -127,8 +127,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
         with:
           go-version-file: go.mod
           # Caches the module cache AND the build cache, keyed on go.sum, shared
@@ -165,8 +165,8 @@ jobs:
     env:
       MESHTENDER_TEST_DATABASE_URL: postgres://meshtender:meshtender@localhost:5432/postgres?sslmode=disable
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
         with:
           go-version-file: go.mod
           # Caches the module cache AND the build cache, keyed on go.sum, shared
@@ -221,8 +221,8 @@ jobs:
       image: ${{ steps.build.outputs.image }}
       digest: ${{ steps.build.outputs.digest }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
         with:
           go-version-file: go.mod
           # Caches the module cache AND the build cache, keyed on go.sum, shared
@@ -283,7 +283,7 @@ jobs:
       # Signed provenance tying this digest to this workflow and commit. The point
       # of a reproducible build is that an outsider can check our claims; this lets
       # them check the publisher too, without trusting the registry.
-      - uses: actions/attest-build-provenance@v2
+      - uses: actions/attest-build-provenance@v4.2.2
         with:
           subject-name: ${{ steps.build.outputs.image }}
           subject-digest: ${{ steps.build.outputs.digest }}

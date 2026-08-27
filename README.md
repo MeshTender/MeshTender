@@ -148,7 +148,7 @@ and encrypted export/restore of the server identity.
 Go single binary, server-rendered `html/template` + htmx, PostgreSQL. No SPA, no bundler, no asset
 build step — migrations, templates, and static assets are all `go:embed`ed.
 
-- Go 1.26.7 (pinned exactly — see "Verifying a build"), [meshcore-go](https://github.com/meshcore-go/meshcore-go)
+- Go 1.27.0 (pinned exactly — see "Verifying a build"), [meshcore-go](https://github.com/meshcore-go/meshcore-go)
   for the MeshCore protocol/crypto
 - Postgres via `pgx` with raw SQL (no ORM) and goose migrations; `chi` router; `coder/websocket`
 - Hand-written JS only where the platform demands it (WebSerial, Leaflet maps, small delegated
