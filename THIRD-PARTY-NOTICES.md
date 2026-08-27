@@ -423,12 +423,12 @@ Not present in the shipped binary or container. Listed for completeness.
   Copyright 2015 Docker, Inc.  
   copyright license to reproduce, prepare Derivative Works of,  
   copyright notice that is included in or attached to the work
-- **github.com/ebitengine/purego** v0.10.0 — Apache-2.0  
+- **github.com/ebitengine/purego** v0.10.1 — Apache-2.0  
   (c) You must retain, in the Source form of any Derivative Works  
   Copyright {yyyy} {name of copyright owner}  
   copyright license to reproduce, prepare Derivative Works of,  
   copyright notice that is included in or attached to the work
-- **github.com/felixge/httpsnoop** v1.0.4 — MIT  
+- **github.com/felixge/httpsnoop** v1.1.0 — MIT  
   Copyright (c) 2016 Felix Geisendörfer (felix@debuggable.com)
 - **github.com/go-json-experiment/json** v0.0.0-20260214004413-d219187c3433 — BSD-3-Clause  
   Copyright (c) 2020 The Go Authors. All rights reserved.  
@@ -452,7 +452,7 @@ Not present in the shipped binary or container. Listed for completeness.
 - **github.com/google/licensecheck** v0.3.1 — BSD-3-Clause  
   Copyright (c) 2019 The Go Authors. All rights reserved.  
   copyright notice, this list of conditions and the following disclaimer
-- **github.com/klauspost/compress** v1.18.5 — Apache-2.0  
+- **github.com/klauspost/compress** v1.18.7 — Apache-2.0  
   (c) You must retain, in the Source form of any Derivative Works  
   Copyright (c) 2011 The Snappy-Go Authors. All rights reserved.  
   Copyright (c) 2012 The Go Authors. All rights reserved.  
@@ -474,7 +474,7 @@ Not present in the shipped binary or container. Listed for completeness.
   Copyright [yyyy] [name of copyright owner]  
   copyright license to reproduce, prepare Derivative Works of,  
   copyright notice that is included in or attached to the work
-- **github.com/moby/go-archive** v0.2.0 — Apache-2.0  
+- **github.com/moby/go-archive** v0.3.3 — Apache-2.0  
   (c) You must retain, in the Source form of any Derivative Works  
   Copyright [yyyy] [name of copyright owner]  
   copyright license to reproduce, prepare Derivative Works of,  
@@ -495,12 +495,12 @@ Not present in the shipped binary or container. Listed for completeness.
   Copyright 2013-2018 Docker, Inc.  
   copyright license to reproduce, prepare Derivative Works of,  
   copyright notice that is included in or attached to the work
-- **github.com/moby/sys/sequential** v0.6.0 — Apache-2.0  
+- **github.com/moby/sys/sequential** v0.7.0 — Apache-2.0  
   (c) You must retain, in the Source form of any Derivative Works  
   Copyright [yyyy] [name of copyright owner]  
   copyright license to reproduce, prepare Derivative Works of,  
   copyright notice that is included in or attached to the work
-- **github.com/moby/sys/user** v0.4.0 — Apache-2.0  
+- **github.com/moby/sys/user** v0.4.1 — Apache-2.0  
   (c) You must retain, in the Source form of any Derivative Works  
   Copyright [yyyy] [name of copyright owner]  
   copyright license to reproduce, prepare Derivative Works of,  
@@ -530,7 +530,7 @@ Not present in the shipped binary or container. Listed for completeness.
   copyright notice that is included in or attached to the work
 - **github.com/pmezard/go-difflib** v1.0.0 — BSD-3-Clause  
   Copyright (c) 2013, Patrick Mezard
-- **github.com/shirou/gopsutil/v4** v4.26.5 — BSD-3-Clause  
+- **github.com/shirou/gopsutil/v4** v4.26.6 — BSD-3-Clause  
   Copyright (c) 2009 The Go Authors. All rights reserved.  
   Copyright (c) 2014, WAKAYAMA Shirou  
   copyright notice, this list of conditions and the following disclaimer
@@ -538,13 +538,13 @@ Not present in the shipped binary or container. Listed for completeness.
   Copyright (c) 2014 Simon Eskildsen
 - **github.com/stretchr/testify** v1.11.1 — MIT  
   Copyright (c) 2012-2020 Mat Ryer, Tyler Bunnell and contributors.
-- **github.com/testcontainers/testcontainers-go** v0.43.0 — MIT  
+- **github.com/testcontainers/testcontainers-go** v0.44.0 — MIT  
   Copyright (c) 2017-2019 Gianluca Arbezzano
-- **github.com/testcontainers/testcontainers-go/modules/postgres** v0.43.0 — MIT  
+- **github.com/testcontainers/testcontainers-go/modules/postgres** v0.44.0 — MIT  
   Copyright (c) 2017-2019 Gianluca Arbezzano
-- **github.com/tklauser/go-sysconf** v0.3.16 — BSD-3-Clause  
+- **github.com/tklauser/go-sysconf** v0.4.0 — BSD-3-Clause  
   Copyright (c) 2018-2022, Tobias Klauser
-- **github.com/tklauser/numcpus** v0.11.0 — Apache-2.0  
+- **github.com/tklauser/numcpus** v0.12.0 — Apache-2.0  
   (c) You must retain, in the Source form of any Derivative Works  
   Copyright [yyyy] [name of copyright owner]  
   copyright license to reproduce, prepare Derivative Works of,  
@@ -554,28 +554,28 @@ Not present in the shipped binary or container. Listed for completeness.
   Copyright [yyyy] [name of copyright owner]  
   copyright license to reproduce, prepare Derivative Works of,  
   copyright notice that is included in or attached to the work
-- **go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp** v0.68.0 — Apache-2.0  
+- **go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp** v0.69.0 — Apache-2.0  
   (c) You must retain, in the Source form of any Derivative Works  
   Copyright 2009 The Go Authors.  
   Copyright [yyyy] [name of copyright owner]  
   copyright license to reproduce, prepare Derivative Works of,  
   copyright notice that is included in or attached to the work  
   copyright notice, this list of conditions and the following disclaimer
-- **go.opentelemetry.io/otel** v1.43.0 — Apache-2.0  
+- **go.opentelemetry.io/otel** v1.44.0 — Apache-2.0  
   (c) You must retain, in the Source form of any Derivative Works  
   Copyright 2009 The Go Authors.  
   Copyright [yyyy] [name of copyright owner]  
   copyright license to reproduce, prepare Derivative Works of,  
   copyright notice that is included in or attached to the work  
   copyright notice, this list of conditions and the following disclaimer
-- **go.opentelemetry.io/otel/metric** v1.43.0 — Apache-2.0  
+- **go.opentelemetry.io/otel/metric** v1.44.0 — Apache-2.0  
   (c) You must retain, in the Source form of any Derivative Works  
   Copyright 2009 The Go Authors.  
   Copyright [yyyy] [name of copyright owner]  
   copyright license to reproduce, prepare Derivative Works of,  
   copyright notice that is included in or attached to the work  
   copyright notice, this list of conditions and the following disclaimer
-- **go.opentelemetry.io/otel/trace** v1.43.0 — Apache-2.0  
+- **go.opentelemetry.io/otel/trace** v1.44.0 — Apache-2.0  
   (c) You must retain, in the Source form of any Derivative Works  
   Copyright 2009 The Go Authors.  
   Copyright [yyyy] [name of copyright owner]  
