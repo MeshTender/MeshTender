@@ -160,7 +160,9 @@ The strict CSP forbids external scripts/styles (`*-src 'self'`), so every third-
 library is **self-hosted** in `internal/web/static/` and embedded into the binary. They're served
 content-hash fingerprinted with a one-year `immutable` Cache-Control and pre-compressed (gzip +
 brotli) by the asset manifest in `internal/web/assets.go`. The only external resource anywhere is
-CARTO map tiles, allowlisted in `img-src`.
+CARTO map tiles, allowlisted in `img-src`. Those tiles take a CARTO API key
+(`MESHTENDER_CARTO_KEY`), sent as `?key=` on each tile request; without it CARTO watermark the
+tiles. The browser fetches tiles directly, so the key is served in the page.
 
 Which libraries, at which versions, from which upstream artifact, is recorded once in
 `internal/licenses/manifest.go` — with a SHA-256 per file — and rendered into

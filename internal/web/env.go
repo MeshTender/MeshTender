@@ -346,6 +346,11 @@ func (rn *Renderer) render(w http.ResponseWriter, r *http.Request, status int, p
 	}
 	// Per-request CSP nonce for inline <script nonce="{{.Nonce}}"> blocks.
 	data["Nonce"] = NonceFromContext(r.Context())
+	// CartoKey is the CARTO basemap API key, exposed by the base layout as
+	// <html data-carto-key> for basemap.js. Injected here rather than by the map
+	// handlers because maps appear on pages across all three surfaces, and a page
+	// that forgot it would show broken tiles rather than fail anywhere visible.
+	data["CartoKey"] = rn.cfg.CartoKey
 	t, ok := rn.pages[page]
 	if !ok {
 		slog.Error("render: unknown page",

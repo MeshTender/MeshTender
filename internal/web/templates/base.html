@@ -1,5 +1,5 @@
 {{define "base"}}<!doctype html>
-<html lang="en" data-bs-theme="dark" data-tz="{{.UserTZ}}">
+<html lang="en" data-bs-theme="dark" data-tz="{{.UserTZ}}" data-carto-key="{{.CartoKey}}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -180,7 +180,7 @@
      the standard page chrome (header block, content, footer). The marketing
      surface defaults to this so every root page matches the rest of the site. */}}
 {{define "rootbase"}}<!doctype html>
-<html lang="en" data-bs-theme="dark" data-tz="{{.UserTZ}}">
+<html lang="en" data-bs-theme="dark" data-tz="{{.UserTZ}}" data-carto-key="{{.CartoKey}}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -223,7 +223,7 @@
      offer are owed on every surface, and someone signing in is as much a user of
      this server as someone already signed in. */}}
 {{define "authbase"}}<!doctype html>
-<html lang="en" data-bs-theme="dark" data-tz="{{.UserTZ}}">
+<html lang="en" data-bs-theme="dark" data-tz="{{.UserTZ}}" data-carto-key="{{.CartoKey}}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -253,7 +253,7 @@
      sign-in / sign-up actions, the page content, and a simple footer. Pages opt
      in via the "Layout":"landingbase" render key. */}}
 {{define "landingbase"}}<!doctype html>
-<html lang="en" data-bs-theme="dark" data-tz="{{.UserTZ}}">
+<html lang="en" data-bs-theme="dark" data-tz="{{.UserTZ}}" data-carto-key="{{.CartoKey}}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">

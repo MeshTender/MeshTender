@@ -209,8 +209,8 @@ var Deps = []Dep{
 		Name:     "CARTO basemaps",
 		Homepage: "https://carto.com",
 		Kind:     KindService,
-		Source:   "https://{s}.basemaps.cartocdn.com (allowlisted in the CSP img-src)",
-		Note:     "Raster map tiles fetched by the browser at runtime; no code is redistributed, so no license applies. Attribution (\"(c) OpenStreetMap (c) CARTO\") is rendered by meshmap.js and regionmap.js. Terms of use are CARTO's and are not verified by any test here — re-read them before relying on unauthenticated basemap access, especially for a commercially licensed deployment.",
+		Source:   "https://{s}.basemaps.cartocdn.com (allowlisted in the CSP img-src), keyed with MESHTENDER_CARTO_KEY",
+		Note:     "Raster map tiles fetched by the browser at runtime; no code is redistributed, so no license applies. Attribution (\"(c) OpenStreetMap (c) CARTO\") is rendered by basemap.js. Requests carry an API key (MESHTENDER_CARTO_KEY, per deployment); CARTO watermark tiles served without one. CARTO have said these raster tiles are deprecated in favour of vector tiles, which Leaflet cannot render. Terms of use are CARTO's and are not verified by any test.",
 	},
 }
 
@@ -263,6 +263,7 @@ var BrandAssets = []BrandAsset{
 // the next vendored library from slipping in unaudited.
 var FirstPartyStatic = []string{
 	"app.css",
+	"basemap.js",
 	"console-config.js",
 	"console.js",
 	"link-editor.js",

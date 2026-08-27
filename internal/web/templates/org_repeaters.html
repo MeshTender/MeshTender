@@ -77,6 +77,7 @@
         <div id="map" style="height:300px" role="region" aria-label="Map of organization repeater locations"></div>
         <script src="{{ asset "/static/leaflet.js" }}"></script>
         <script src="{{ asset "/static/leaflet.markercluster.js" }}"></script>
+        <script src="{{ asset "/static/basemap.js" }}"></script>
         <script src="{{ asset "/static/meshmap.js" }}"></script>
         <script nonce="{{.Nonce}}">
           {{if .MapURL}}meshMapFromURL('map', {{.MapURL}});{{else}}meshMap('map', [

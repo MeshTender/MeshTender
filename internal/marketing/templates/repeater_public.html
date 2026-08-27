@@ -67,6 +67,7 @@
         <link rel="stylesheet" href="{{ asset "/static/leaflet.css" }}">
         <div id="map" style="height:240px" role="region" aria-label="Map of this repeater's location"></div>
         <script src="{{ asset "/static/leaflet.js" }}"></script>
+        <script src="{{ asset "/static/basemap.js" }}"></script>
         <script src="{{ asset "/static/meshmap.js" }}"></script>
         <script nonce="{{.Nonce}}">
           meshMap('map', [{name: {{.Repeater.Name}}, lat: {{.Repeater.Latitude}}, lon: {{.Repeater.Longitude}}}]);

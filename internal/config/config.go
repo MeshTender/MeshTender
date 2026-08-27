@@ -75,6 +75,13 @@ type Config struct {
 	MailReplyTo  string
 	MailEnabled  bool
 
+	// CartoKey is CARTO's API key for the basemap tiles, sent as ?key= on each tile
+	// request. Without it CARTO watermark the tiles they serve. The browser fetches
+	// tiles directly, so the key is served in the page.
+	//
+	// Empty is a valid state: the tile URL omits the key parameter.
+	CartoKey string
+
 	// ImageDigest is the OCI digest of the image this server runs as, reported by
 	// /version so an auditor can rebuild the commit and compare. A binary can't
 	// derive its own image digest (the digest is taken over the binary), so CI
@@ -124,6 +131,7 @@ func Load() (*Config, error) {
 		ResendAPIKey:   os.Getenv("MESHTENDER_RESEND_API_KEY"),
 		MailFrom:       os.Getenv("MESHTENDER_MAIL_FROM"),
 		MailReplyTo:    os.Getenv("MESHTENDER_MAIL_REPLY_TO"),
+		CartoKey:       strings.TrimSpace(os.Getenv("MESHTENDER_CARTO_KEY")),
 		ImageDigest:    strings.TrimSpace(os.Getenv("MESHTENDER_IMAGE_DIGEST")),
 		TrustedProxies: trustedProxies,
 	}

@@ -23,39 +23,6 @@
   var FIT_PADDING = [24, 24];
   var PRIMARY_CONTEXT = 0.08;
 
-  // baseLayers adds the dark (default) and a light basemap with a layers control to
-  // toggle between them, remembering the choice in localStorage (shared with
-  // meshmap.js's meshBaseLayers, so the preference carries across maps). Left
-  // expanded — Leaflet's collapsed toggle needs an icon asset we don't bundle.
-  function baseLayers(map) {
-    var attribution = "&copy; OpenStreetMap &copy; CARTO";
-    var dark = L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-      maxZoom: 19,
-      subdomains: "abcd",
-      attribution: attribution,
-    });
-    var light = L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
-      maxZoom: 19,
-      subdomains: "abcd",
-      attribution: attribution,
-    });
-    var pref = null;
-    try {
-      pref = localStorage.getItem("mt_map_base");
-    } catch (e) {
-      /* storage unavailable */
-    }
-    (pref === "light" ? light : dark).addTo(map);
-    L.control.layers({ Dark: dark, Light: light }, null, { position: "topright", collapsed: false }).addTo(map);
-    map.on("baselayerchange", function (e) {
-      try {
-        localStorage.setItem("mt_map_base", e.name === "Light" ? "light" : "dark");
-      } catch (e) {
-        /* ignore */
-      }
-    });
-  }
-
   // editableStyle is the one shape the current page can modify: drawn prominently so
   // it always reads which polygon the tools will act on.
   function editableStyle(color) {
@@ -136,7 +103,7 @@
     if (!input) return;
     var statusEl = opts.status ? document.getElementById(opts.status) : null;
     var map = L.map(mapId);
-    baseLayers(map);
+    meshBaseLayers(map);
 
     // Geoman toolbar: only the tools that make sense for an area geofence. Drawing
     // is enabled only while there's no shape — one region, one polygon, so a second
@@ -235,7 +202,7 @@
   window.regionMapView = function (mapId, opts) {
     opts = opts || {};
     var map = L.map(mapId, { scrollWheelZoom: false });
-    baseLayers(map);
+    meshBaseLayers(map);
 
     // Region outlines go on first so the picked-location marker stays on top. They
     // are non-interactive (see outlineStyle), so a click still reaches the map and
