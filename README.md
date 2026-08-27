@@ -215,6 +215,7 @@ except users with credentials, passkeys, sessions, and the server identity. (Bot
 | `mise run e2e` | browser tests in a throwaway headless-shell container (`--run <regex>` to filter) |
 | `mise run licenses` | audit dependency licenses (`--update` rewrites `THIRD-PARTY-NOTICES.md`) |
 | `mise run image` | build the OCI image with ko and print its digest (`--load` to run it locally) |
+| `mise run verify` | compare the commit meshtender.com is running against the local checkout |
 
 ### Configuration (env)
 

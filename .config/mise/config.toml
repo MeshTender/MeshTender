@@ -7,7 +7,7 @@
 go = "1.27.0"
 "golangci-lint" = "latest"
 pitchfork = "latest"
-# Builds the OCI image (see .ko.yaml). Pinned for the same reason as Go.
+jq = "latest"
 "aqua:ko-build/ko" = "0.19.1"
 
 [env]
@@ -62,6 +62,22 @@ usage = '''
 flag "-u --update" help="Rewrite THIRD-PARTY-NOTICES.md instead of only checking it"
 '''
 run = 'go run ./cmd/licenses ${usage_update:+--update}'
+
+# Compares the commit meshtender.com is running (from its public /version
+# endpoint) with the commit checked out here, so you can tell at a glance
+# whether this working directory is the deployed source. Exits non-zero if they
+# differ, or if the deployed build reports no commit.
+[tasks.verify]
+run = """
+set -eu
+deployed=$(curl -fsS https://meshtender.com/version | jq -r '.commit // empty')
+[ -n "$deployed" ] || { echo "meshtender.com reports no commit"; exit 1; }
+local=$(git rev-parse HEAD)
+echo "deployed: $deployed"
+echo "local:    $local$(git diff --quiet HEAD || echo ' (uncommitted changes)')"
+[ "$deployed" = "$local" ] || { echo "MISMATCH"; exit 1; }
+echo "match"
+"""
 
 [tasks.seed]
 run = "go run ./cmd/meshtender --seed"
