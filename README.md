@@ -10,7 +10,7 @@ it admin by running `setperm <server_pubkey> 3` on their repeater. Because every
 through that one server identity, MeshTender can mediate *which users* may control a repeater — so
 a repeater can be shared without ever handing out keys, and access can be revoked instantly.
 
-## Why it holds full admin, and why you shouldn't host your own
+## Why it holds full admin, and who should run it
 
 MeshTender asks for the strongest access a MeshCore repeater can grant. That's forced by the
 protocol rather than chosen for convenience, and it shapes who should be running the server — and,
@@ -43,33 +43,61 @@ admins with unrestricted access to their repeaters — the exact situation MeshT
 now with a UI implying the restrictions are real. The guarantee only holds when whoever runs the
 server isn't a party to the trust question the software is meant to settle — which, for an org's
 own repeaters, its own admins always are. For most MeshCore projects self-hosting is the obviously
-correct answer; here it quietly removes the point of the software.
+correct answer; here it quietly puts the org's members back where they started.
 
 ### Which means trusting me, so here is what that is worth
 
-I'm aware this is a hard sell, and it should be. What I can offer:
+I'm aware this is a hard sell, and it should be. Two things you have to take on trust:
 
-- **Distance.** Administering a repeater takes a modem within LoRa range of it. I'm not near your
-  mesh, so the identity key on my server is not usefully exploitable by me except *through this
-  app* — where it is logged.
-- **The audit log.** Every command carries who sent it and when, per repeater, visible to the
-  people who granted access.
+- **Distance.** Administering a repeater takes a modem within reach of the mesh it sits on, not of
+  the repeater itself; commands route hop by hop to get there. I'm not on your mesh, so to touch
+  your repeaters outside this app I'd have to travel to it, or hand my key to someone already
+  there. That raises the cost; it isn't a guarantee. The repeater keeps no record that could tell
+  either one from an ordinary command, and I can't prove to you that I haven't.
+- **The audit log.** Every command the app sends carries who sent it and when, per repeater, visible
+  to the people who granted access. I generate it, so on its own it is only as good as my word —
+  though its *completeness* is checkable from outside, which is the next section.
+
+And one thing the source can't tell you either way. Reading the code constrains what the server does
+*through the app*; none of it constrains what the person holding the key does outside it. The
+identity is an ordinary MeshCore keypair: whoever operates the server can copy it out — there's an
+encrypted export in the admin UI, and failing that, the database — and drive a modem with it
+directly. Nothing like that reaches an audit log, because it never touched the app. The source tells
+you what the server would do. It tells you nothing about a key that has already left it.
+
+None of that is proof, and I can't make it proof.
+
+### What you can check without trusting me
+
+- **Reproducible builds.** Rebuild the commit `/version` reports and confirm the digest matches.
+  "The source is public" and "the source is what's deployed" are separate claims, and this is the
+  one that tests the second. AGPL-3.0 is what extends the check past my instance: section 13 means
+  anyone running a modified copy as a service owes its users *its* source, so a fork can be checked
+  the same way rather than being an unauditable server wearing familiar software's clothes. An
+  operator who won't produce source, or whose source doesn't build to what's running, has answered
+  the question for you. No license reaches a key that has already been copied out — but this part
+  is checkable, and it is checkable against anyone, not just me. See
+  [Verifying a build](#verifying-a-build) and
+  [License, self-hosting, and forking](#license-self-hosting-and-forking).
+- **Observed traffic.** Command traffic is encrypted, so an observer node can't read what was sent,
+  and the only sender identifier in the clear is a one-byte prefix of the public key — the same
+  for any device holding it. What an observer *can* do is count. One in range of your repeater hears
+  every command packet addressed to it, and those should correspond one-to-one with entries in the
+  audit log above. That catches a command I didn't log. It doesn't catch one I logged as something
+  else, and it's only as good as the observer's coverage — but most meshes already run several,
+  and they aren't mine to tamper with.
 - **Revocation on the hardware.** You granted access on the device with `setperm`, and you can
-  withdraw it there the same way, whatever the server does. See the [docs](https://meshtender.com/docs).
-- **Open source.** The thing above is only checkable if you can read what's running, which is why
-  this repository exists.
-- **Reproducible builds.** Rebuild the commit `/version` reports and confirm the digest matches, so
-  "the source is public" and "the source is what's deployed" are separate, checkable claims. See
-  [Verifying a build](#verifying-a-build).
+  withdraw it there the same way, whatever the server does or doesn't do. This one needs nothing
+  from me at all. See the [docs](https://meshtender.com/docs).
 
-None of that is proof. Together it's the strongest position I know how to take given a protocol
-with no permissions.
+### Where that leaves us
 
-AGPL closes the remaining hole. If someone does run a modified copy as a service, section 13
-requires that its users can get *its* source — so their instance can be audited exactly the way
-this one can, rather than being an unauditable server wearing familiar software's clothes. The
-mechanics of that, and what a fork has to change, are in
-[License, self-hosting, and forking](#license-self-hosting-and-forking).
+That brings it back to where you'd host it. Distance is the strongest control on out-of-band use of
+the key, and it is precisely the one self-hosting removes: an org's own admins are, by definition,
+on the org's own mesh. So hosting locally hands the key to exactly the people MeshTender exists to
+constrain, who then no longer have to lift the restrictions to escape them: a key anywhere on the
+mesh works without touching the app at all, and leaves nothing behind that the app could show
+anyone.
 
 ## How the hardware control path works
 
