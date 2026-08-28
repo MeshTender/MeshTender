@@ -113,7 +113,8 @@ func writeDep(b *strings.Builder, d Dep, withText bool) error {
 }
 
 // normalizeEOL rewrites CRLF to LF. Some upstream license files ship with
-// Windows line endings (Leaflet's does), and Dep.Text deliberately returns them
+// Windows line endings (Leaflet's did, back when we vendored it), and Dep.Text
+// deliberately returns them
 // verbatim so the SPDX check reads exactly what upstream published. Writing
 // those bytes straight into the Markdown, though, leaves the generated file
 // with mixed line endings — which any editor or `git add` with autocrlf will

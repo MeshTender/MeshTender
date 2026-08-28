@@ -107,19 +107,20 @@ func TestE2EConfigMapShowsRegionsAndPicksLocation(t *testing.T) {
 
 	// Signed out, on the public root host.
 	cfgURL := srv.rootURL + "/orgs/" + org.Slug + "/config"
-	var polygons, rows int
+	var counts sourceCounts
+	var rows int
 	if err := chromedp.Run(bctx,
 		network.Enable(),
 		cdplog.Enable(),
 		chromedp.Navigate(cfgURL),
-		chromedp.WaitVisible(`#region-map .leaflet-overlay-pane path`, chromedp.ByQuery),
-		chromedp.Evaluate(`document.querySelectorAll('#region-map .leaflet-overlay-pane path').length`, &polygons),
+		mapReady("region-map", "regions-fill"),
+		mapEval("region-map", countIn("regions"), &counts),
 		chromedp.Evaluate(`document.querySelectorAll('[data-testid="config-region-row"]').length`, &rows),
 	); err != nil {
 		t.Fatalf("browser run against %s: %v", cfgURL, err)
 	}
-	if polygons != 3 {
-		t.Errorf("drew %d polygons, want 3 (one per shaped region)", polygons)
+	if counts.Features != 3 {
+		t.Errorf("drew %d polygons, want 3 (one per shaped region)", counts.Features)
 	}
 	if rows != 3 {
 		t.Errorf("legend has %d rows, want 3", rows)
@@ -347,14 +348,12 @@ func TestE2ERegionAreaDraftEnablesDrawing(t *testing.T) {
 	bctx, cancel, watch := startBrowser(t)
 	defer cancel()
 
-	// Geoman marks a disabled toolbar button on the anchor wrapping the icon, with
-	// both .pm-disabled and aria-disabled="true" (see _updateDisabled in
-	// leaflet-geoman.js). Reading aria-disabled keeps the assertion unambiguous.
+	// Terra Draw ships no UI, so the toolbar is ours (DrawControl in regionmap.js)
+	// and a disabled tool is a plain disabled <button>.
+	drawButton := `[data-testid="region-draw-polygon"]`
 	drawDisabled := `(function () {
-		var icon = document.querySelector('.leaflet-pm-icon-polygon');
-		if (!icon) return 'missing';
-		var btn = icon.closest('a');
-		return btn ? btn.getAttribute('aria-disabled') : 'no-anchor';
+		var btn = document.querySelector('` + drawButton + `');
+		return btn ? String(btn.disabled) : 'missing';
 	})()`
 	areaURL := func(rid int64) string {
 		return srv.appURL + "/orgs/" + org.Slug + "/config/regions/" + strconv.FormatInt(rid, 10) + "/area"
@@ -368,7 +367,8 @@ func TestE2ERegionAreaDraftEnablesDrawing(t *testing.T) {
 		cdplog.Enable(),
 		setSessionCookie(cookie),
 		chromedp.Navigate(areaURL(draft)),
-		chromedp.WaitVisible(`.leaflet-pm-icon-polygon`, chromedp.ByQuery),
+		mapReady("region-map", "siblings-fill"),
+		chromedp.WaitVisible(drawButton, chromedp.ByQuery),
 		chromedp.Text(`#region-area-status`, &draftStatus, chromedp.ByQuery),
 		chromedp.Evaluate(drawDisabled, &draftDrawDisabled),
 	); err != nil {
@@ -386,7 +386,11 @@ func TestE2ERegionAreaDraftEnablesDrawing(t *testing.T) {
 	var shapedDrawDisabled string
 	if err := chromedp.Run(bctx,
 		chromedp.Navigate(areaURL(shaped)),
-		chromedp.WaitVisible(`#region-map .leaflet-overlay-pane path`, chromedp.ByQuery),
+		mapReady("region-map", "siblings-fill"),
+		chromedp.Poll(`(function () {
+			var e = window.MESHTENDER_MAPS["region-map"];
+			return !!(e && e.draw && e.draw.getSnapshot().length);
+		})()`, nil, chromedp.WithPollingTimeout(30*time.Second)),
 		chromedp.Evaluate(drawDisabled, &shapedDrawDisabled),
 	); err != nil {
 		t.Fatalf("browser run against the shaped region's area page: %v", err)
@@ -400,7 +404,8 @@ func TestE2ERegionAreaDraftEnablesDrawing(t *testing.T) {
 
 // TestE2ERegionAreaEditor: the area workspace loads the region's shape into the map,
 // draws its siblings as context, and saves the geometry the map produces — proving
-// the Leaflet/Geoman wiring works under the strict CSP (no inline handlers).
+// the MapLibre/Terra Draw wiring works under the strict CSP (no inline handlers,
+// and a worker loaded from a same-origin URL rather than a blob:).
 func TestE2ERegionAreaEditor(t *testing.T) {
 	srv := newE2EServer(t)
 	user, cookie := srv.login(t, "e2ergnarea")
@@ -427,11 +432,14 @@ func TestE2ERegionAreaEditor(t *testing.T) {
 	defer cancel()
 
 	var status, hidden string
-	var paths int
-	// countPaths counts rendered vector layers: this region plus its one sibling. It
-	// is scoped to the overlay pane because Leaflet's attribution control contains a
-	// decorative SVG of its own.
-	countPaths := `document.querySelectorAll('#region-map .leaflet-overlay-pane path').length`
+	var siblings sourceCounts
+	var editable int
+	// The two shapes live in different places now: the read-only sibling is a layer
+	// the page adds, while the one under edit belongs to Terra Draw's own store.
+	countEditable := `(function () {
+		return window.MESHTENDER_MAPS["region-map"].draw.getSnapshot()
+			.filter(function (f) { return f.geometry.type === "Polygon"; }).length;
+	})()`
 	areaURL := srv.appURL + "/orgs/" + org.Slug + "/config/regions/" + strconv.FormatInt(rid, 10) + "/area"
 	if err := chromedp.Run(bctx,
 		network.Enable(),
@@ -439,10 +447,10 @@ func TestE2ERegionAreaEditor(t *testing.T) {
 		setSessionCookie(cookie),
 		chromedp.Navigate(areaURL),
 		// The map initializes and reports the existing area.
-		chromedp.WaitVisible(`#region-map .leaflet-container, #region-map.leaflet-container`, chromedp.ByQuery),
-		chromedp.WaitVisible(`#region-map .leaflet-overlay-pane path`, chromedp.ByQuery),
+		mapReady("region-map", "siblings-fill"),
 		chromedp.Text(`#region-area-status`, &status, chromedp.ByQuery),
-		chromedp.Evaluate(countPaths, &paths),
+		mapEval("region-map", countIn("siblings"), &siblings),
+		chromedp.Evaluate(countEditable, &editable),
 		chromedp.Value(`#region_geojson`, &hidden, chromedp.ByQuery),
 	); err != nil {
 		t.Fatalf("browser run against %s: %v", areaURL, err)
@@ -450,8 +458,11 @@ func TestE2ERegionAreaEditor(t *testing.T) {
 	if status != "Custom area" {
 		t.Errorf("area status = %q, want %q", status, "Custom area")
 	}
-	if paths != 2 {
-		t.Errorf("rendered %d map polygons, want exactly 2 (the region + its sibling)", paths)
+	if siblings.Features != 1 {
+		t.Errorf("drew %d sibling outlines, want exactly 1", siblings.Features)
+	}
+	if editable != 1 {
+		t.Errorf("loaded %d editable polygons, want exactly 1 (the region under edit)", editable)
 	}
 	if !strings.Contains(hidden, "Polygon") {
 		t.Errorf("hidden geofence field = %q, want it to hold the polygon geometry", hidden)
@@ -485,6 +496,360 @@ func TestE2ERegionAreaEditor(t *testing.T) {
 	// The attributes survived a geometry-only save.
 	if z.Token != "buf" || z.DisplayName != "Buffalo" || z.Layer != 3 {
 		t.Errorf("saving the area disturbed the region's attributes: %+v", z)
+	}
+	watch.assertClean(t)
+}
+
+// TestE2ERegionAreaDrawsAPolygon draws an area the way an operator does — press the
+// tool, click the corners on the map, press Enter — and checks the geometry lands in
+// the field the form submits.
+//
+// This is the interaction the migration rebuilt from scratch: Leaflet-Geoman brought
+// its own toolbar and edit handles, while Terra Draw is headless, so the tool
+// buttons, the mode switching and the serialization are all ours (DrawControl and
+// initRegionArea in regionmap.js). None of that is exercised by asserting on a
+// pre-loaded shape, and all of it runs on click handlers the strict CSP would reject
+// if they were ever written inline.
+func TestE2ERegionAreaDrawsAPolygon(t *testing.T) {
+	srv := newE2EServer(t)
+	user, cookie := srv.login(t, "e2ergndraw")
+	org, err := srv.store.CreateOrg(srv.ctx, "Region Draw Org", user.ID)
+	if err != nil {
+		t.Fatalf("create org: %v", err)
+	}
+	// A draft: no area yet, so the draw tools start enabled.
+	rid, err := srv.store.CreateRegion(srv.ctx, org.ID, store.RegionInput{
+		Token: "buf", DisplayName: "Buffalo", Layer: 3, AllowFlood: true,
+	})
+	if err != nil {
+		t.Fatalf("create region: %v", err)
+	}
+
+	bctx, cancel, watch := startBrowser(t)
+	defer cancel()
+
+	// The corners, as offsets inside the map container.
+	corners := []struct{ dx, dy float64 }{{120, 90}, {260, 110}, {200, 220}}
+
+	var rect struct {
+		X float64 `json:"x"`
+		Y float64 `json:"y"`
+	}
+	var status, geojson string
+	areaURL := srv.appURL + "/orgs/" + org.Slug + "/config/regions/" + strconv.FormatInt(rid, 10) + "/area"
+
+	tasks := chromedp.Tasks{
+		network.Enable(),
+		cdplog.Enable(),
+		setSessionCookie(cookie),
+		chromedp.Navigate(areaURL),
+		mapReady("region-map", "siblings-fill"),
+		chromedp.Click(`[data-testid="region-draw-polygon"]`, chromedp.ByQuery),
+		chromedp.Evaluate(`(function () {
+			var r = document.getElementById("region-map").getBoundingClientRect();
+			return { x: r.left, y: r.top };
+		})()`, &rect),
+	}
+	if err := chromedp.Run(bctx, tasks); err != nil {
+		t.Fatalf("browser run against %s: %v", areaURL, err)
+	}
+
+	clicks := chromedp.Tasks{}
+	for _, c := range corners {
+		clicks = append(clicks, chromedp.MouseClickXY(rect.X+c.dx, rect.Y+c.dy))
+	}
+	if err := chromedp.Run(bctx,
+		clicks,
+		// Terra Draw's polygon mode closes the ring on Enter, which is far steadier
+		// than trying to land a click back on the first vertex.
+		chromedp.KeyEvent("\r"),
+		chromedp.Poll(`document.getElementById("region_geojson").value !== ""`, nil,
+			chromedp.WithPollingTimeout(15*time.Second)),
+		chromedp.Text(`#region-area-status`, &status, chromedp.ByQuery),
+		chromedp.Value(`#region_geojson`, &geojson, chromedp.ByQuery),
+	); err != nil {
+		t.Fatalf("drawing the polygon: %v", err)
+	}
+
+	if status != "Custom area" {
+		t.Errorf("status after drawing = %q, want %q", status, "Custom area")
+	}
+	if !strings.Contains(geojson, `"Polygon"`) {
+		t.Errorf("drawn geometry = %q, want a GeoJSON Polygon", geojson)
+	}
+
+	// Saving persists what was drawn, which is the whole point of the workspace.
+	if err := chromedp.Run(bctx,
+		chromedp.Click(`[data-testid="save-area"]`, chromedp.ByQuery),
+		chromedp.WaitVisible(`[data-testid="config-region-row"]`, chromedp.ByQuery),
+	); err != nil {
+		t.Fatalf("saving the drawn area: %v", err)
+	}
+	z, err := srv.store.GetRegion(srv.ctx, org.ID, rid)
+	if err != nil {
+		t.Fatalf("get region: %v", err)
+	}
+	if z.Geofence == nil {
+		t.Fatal("the drawn area did not persist; the region is still a draft")
+	}
+	watch.assertClean(t)
+}
+
+// TestE2ERegionAreaDrawsAConcaveArea is the regression test for a reported bug: an
+// operator drawing a coastline-shaped region — south down the state line, east along
+// the bottom, then farther south around a peninsula — found the tool simply stopped
+// adding points, with no message.
+//
+// The cause was where the self-intersection rule was enforced. Terra Draw runs a
+// mode's `validation` on provisional updates as well as on finish, and a polygon
+// under construction is auto-closed back to its first point. An outline that has gone
+// south then east crosses that closing edge the moment it heads south again — so the
+// intermediate ring is self-intersecting even though the finished shape never is, and
+// the click was rejected silently. Only the finished shape is judged now.
+//
+// The second half asserts the rule still does its job: a genuinely crossed outline is
+// refused, says why, and — the part that matters most — never reaches the field the
+// form submits, so Save cannot persist a geofence with no inside.
+func TestE2ERegionAreaDrawsAConcaveArea(t *testing.T) {
+	srv := newE2EServer(t)
+	user, cookie := srv.login(t, "e2ergnconcave")
+	org, err := srv.store.CreateOrg(srv.ctx, "Concave Org", user.ID)
+	if err != nil {
+		t.Fatalf("create org: %v", err)
+	}
+	rid, err := srv.store.CreateRegion(srv.ctx, org.ID, store.RegionInput{
+		Token: "ny", DisplayName: "New York", Layer: 2, AllowFlood: true,
+	})
+	if err != nil {
+		t.Fatalf("create region: %v", err)
+	}
+
+	bctx, cancel, watch := startBrowser(t)
+	defer cancel()
+
+	// mapOrigin re-reads where the map sits in the viewport. It has to be re-read
+	// after anything that scrolls (clicking a footer button scrolls it into view),
+	// or clicks computed from a stale origin land outside the map entirely.
+	var origin struct {
+		X float64 `json:"x"`
+		Y float64 `json:"y"`
+	}
+	mapOrigin := chromedp.Tasks{
+		chromedp.Evaluate(`(function () {
+			document.getElementById("region-map").scrollIntoView({ block: "start" });
+			return true;
+		})()`, nil),
+		chromedp.Sleep(300 * time.Millisecond),
+		chromedp.Evaluate(`(function () {
+			var r = document.getElementById("region-map").getBoundingClientRect();
+			return { x: r.left, y: r.top };
+		})()`, &origin),
+	}
+	// ringLength is how many coordinates the shape under the cursor currently has.
+	const ringLength = `(function () {
+		var f = window.MESHTENDER_MAPS["region-map"].draw.getSnapshot()
+			.filter(function (x) { return x.geometry.type === "Polygon"; })[0];
+		return f ? f.geometry.coordinates[0].length : 0;
+	})()`
+
+	areaURL := srv.appURL + "/orgs/" + org.Slug + "/config/regions/" + strconv.FormatInt(rid, 10) + "/area"
+	if err := chromedp.Run(bctx,
+		network.Enable(),
+		cdplog.Enable(),
+		setSessionCookie(cookie),
+		chromedp.Navigate(areaURL),
+		mapReady("region-map", "siblings-fill"),
+		chromedp.Click(`[data-testid="region-draw-polygon"]`, chromedp.ByQuery),
+		mapOrigin,
+	); err != nil {
+		t.Fatalf("browser run against %s: %v", areaURL, err)
+	}
+
+	// The concave outline. Corner 4 — heading farther south after going east — is
+	// the one the bug swallowed.
+	concave := []struct{ dx, dy float64 }{
+		{120, 80}, {120, 200}, {330, 200}, {330, 270}, {400, 270}, {400, 120}, {250, 120},
+	}
+	for i, c := range concave {
+		var ring int
+		if err := chromedp.Run(bctx,
+			chromedp.MouseClickXY(origin.X+c.dx, origin.Y+c.dy),
+			chromedp.Sleep(250*time.Millisecond),
+			chromedp.Evaluate(ringLength, &ring),
+		); err != nil {
+			t.Fatalf("corner %d: %v", i+1, err)
+		}
+		// Terra Draw seeds a closed ring from the first click, so the count runs
+		// ahead of the corner number; what matters is that it keeps growing.
+		if want := i + 2; i > 0 && ring < want {
+			t.Fatalf("after corner %d the ring has %d coordinates, want at least %d — "+
+				"the click was rejected, which is the concave-drawing bug", i+1, ring, want)
+		}
+	}
+
+	var status, geojson string
+	if err := chromedp.Run(bctx,
+		chromedp.KeyEvent("\r"),
+		chromedp.Poll(`document.getElementById("region_geojson").value !== ""`, nil,
+			chromedp.WithPollingTimeout(15*time.Second)),
+		chromedp.Text(`#region-area-status`, &status, chromedp.ByQuery),
+		chromedp.Value(`#region_geojson`, &geojson, chromedp.ByQuery),
+	); err != nil {
+		t.Fatalf("finishing the concave outline: %v", err)
+	}
+	if status != "Custom area" {
+		t.Errorf("status = %q, want %q", status, "Custom area")
+	}
+	// Seven corners plus the repeated closing coordinate.
+	if n := strings.Count(geojson, "],["); n != 7 {
+		t.Errorf("drawn ring has %d segments, want 7 — corners were dropped: %s", n, geojson)
+	}
+
+	// Now a genuinely self-intersecting outline: clear, then draw a bowtie.
+	if err := chromedp.Run(bctx,
+		chromedp.Click(`#region-area-clear`, chromedp.ByQuery),
+		mapOrigin,
+	); err != nil {
+		t.Fatalf("clearing before the crossed outline: %v", err)
+	}
+	for _, c := range []struct{ dx, dy float64 }{{120, 80}, {330, 80}, {120, 220}, {330, 220}} {
+		if err := chromedp.Run(bctx,
+			chromedp.MouseClickXY(origin.X+c.dx, origin.Y+c.dy),
+			chromedp.Sleep(250*time.Millisecond),
+		); err != nil {
+			t.Fatalf("crossed outline: %v", err)
+		}
+	}
+	var crossedStatus, crossedValue string
+	if err := chromedp.Run(bctx,
+		chromedp.KeyEvent("\r"),
+		chromedp.Sleep(700*time.Millisecond),
+		chromedp.Text(`#region-area-status`, &crossedStatus, chromedp.ByQuery),
+		chromedp.Value(`#region_geojson`, &crossedValue, chromedp.ByQuery),
+	); err != nil {
+		t.Fatalf("finishing the crossed outline: %v", err)
+	}
+	if crossedValue != "" {
+		t.Errorf("a self-intersecting outline reached the submitted field (%q); Save would "+
+			"persist a geofence with no well-defined inside", crossedValue)
+	}
+	if !strings.Contains(crossedStatus, "cross") {
+		t.Errorf("status after a refused outline = %q, want it to say why the shape was "+
+			"rejected — a silent refusal is the bug this whole test exists for", crossedStatus)
+	}
+	watch.assertClean(t)
+}
+
+// TestE2ERegionAreaVertexSpacing pins both sides of one trade-off.
+//
+// Terra Draw's pointerDistance is the radius, in screen pixels, within which a click
+// counts as "the same point". It is measured against the previous vertex as well as
+// the first, so at its default of 40 no two corners could be placed closer than that
+// — tracing a shoreline or a county line meant zooming far in and stitching. The
+// editor lowers it (POINTER_DISTANCE in regionmap.js).
+//
+// The cost is that closing the ring by clicking the first corner is a smaller target,
+// so both halves are asserted here: fine detail has to be drawable, and closing by
+// click has to keep working. Tightening the constant further without checking the
+// second half would quietly make the outline hard to finish.
+func TestE2ERegionAreaVertexSpacing(t *testing.T) {
+	srv := newE2EServer(t)
+	user, cookie := srv.login(t, "e2ergnspacing")
+	org, err := srv.store.CreateOrg(srv.ctx, "Spacing Org", user.ID)
+	if err != nil {
+		t.Fatalf("create org: %v", err)
+	}
+	rid, err := srv.store.CreateRegion(srv.ctx, org.ID, store.RegionInput{
+		Token: "sp", DisplayName: "Spacing", Layer: 2, AllowFlood: true,
+	})
+	if err != nil {
+		t.Fatalf("create region: %v", err)
+	}
+
+	bctx, cancel, watch := startBrowser(t)
+	defer cancel()
+
+	var origin struct {
+		X float64 `json:"x"`
+		Y float64 `json:"y"`
+	}
+	areaURL := srv.appURL + "/orgs/" + org.Slug + "/config/regions/" + strconv.FormatInt(rid, 10) + "/area"
+	startDrawing := chromedp.Tasks{
+		chromedp.Navigate(areaURL),
+		mapReady("region-map", "siblings-fill"),
+		chromedp.Click(`[data-testid="region-draw-polygon"]`, chromedp.ByQuery),
+		chromedp.Evaluate(`(function () {
+			document.getElementById("region-map").scrollIntoView({ block: "start" });
+			return true;
+		})()`, nil),
+		chromedp.Sleep(300 * time.Millisecond),
+		chromedp.Evaluate(`(function () {
+			var r = document.getElementById("region-map").getBoundingClientRect();
+			return { x: r.left, y: r.top };
+		})()`, &origin),
+	}
+	const ringLength = `(function () {
+		var f = window.MESHTENDER_MAPS["region-map"].draw.getSnapshot()
+			.filter(function (x) { return x.geometry.type === "Polygon"; })[0];
+		return f ? f.geometry.coordinates[0].length : 0;
+	})()`
+
+	// Detail: a staircase whose corners are ~14px apart — well inside the old 40px
+	// floor. Every click must land.
+	const gap = 10.0
+	var ring int
+	if err := chromedp.Run(bctx,
+		network.Enable(),
+		cdplog.Enable(),
+		setSessionCookie(cookie),
+		startDrawing,
+	); err != nil {
+		t.Fatalf("browser run against %s: %v", areaURL, err)
+	}
+	for i := range 5 {
+		if err := chromedp.Run(bctx,
+			chromedp.MouseClickXY(origin.X+150+float64(i)*gap, origin.Y+150+float64(i%2)*gap),
+			chromedp.Sleep(220*time.Millisecond),
+			chromedp.Evaluate(ringLength, &ring),
+		); err != nil {
+			t.Fatalf("close-spaced corner %d: %v", i+1, err)
+		}
+	}
+	// Five placed corners, plus the ring's repeated closing coordinate and the one
+	// tracking the cursor.
+	if ring != 7 {
+		t.Errorf("after five corners ~%.0fpx apart the ring has %d coordinates, want 7 — "+
+			"clicks that close together are being swallowed, so fine detail can't be drawn",
+			gap*1.414, ring)
+	}
+
+	// Closing: a click back on the first corner, slightly off-centre, still finishes.
+	var st struct {
+		Mode   string `json:"mode"`
+		Filled bool   `json:"filled"`
+	}
+	if err := chromedp.Run(bctx,
+		startDrawing,
+		chromedp.MouseClickXY(origin.X+150, origin.Y+150),
+		chromedp.Sleep(200*time.Millisecond),
+		chromedp.MouseClickXY(origin.X+320, origin.Y+150),
+		chromedp.Sleep(200*time.Millisecond),
+		chromedp.MouseClickXY(origin.X+320, origin.Y+300),
+		chromedp.Sleep(200*time.Millisecond),
+		chromedp.MouseClickXY(origin.X+155, origin.Y+155),
+		chromedp.Sleep(600*time.Millisecond),
+		chromedp.Evaluate(`(function () {
+			var e = window.MESHTENDER_MAPS["region-map"];
+			return { mode: e.draw.getMode(),
+			         filled: document.getElementById("region_geojson").value !== "" };
+		})()`, &st),
+	); err != nil {
+		t.Fatalf("closing by click: %v", err)
+	}
+	if st.Mode != "select" || !st.Filled {
+		t.Errorf("clicking back on the first corner left mode=%q filled=%v, want the ring "+
+			"closed and handed to the edit tool — the closing target has become too small",
+			st.Mode, st.Filled)
 	}
 	watch.assertClean(t)
 }

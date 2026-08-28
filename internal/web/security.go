@@ -20,12 +20,25 @@ type nonceCtxKey struct{}
 // a per-request nonce (so inline scripts must be nonce'd and inline on*= handlers
 // are rejected — the guard against injected script). Styles keep 'unsafe-inline'
 // (low XSS risk, and avoids nonce'ing every style= attribute + htmx's indicator
-// style). The only external resource is CARTO map tiles (images).
+// style). The only external resource is the CARTO basemap.
+//
+// That basemap is why connect-src, not img-src, names CARTO: the vector basemaps
+// that replaced their deprecated raster tiles are fetched — the style JSON, the
+// .mvt tiles, the sprite and the glyph PBFs all go out as XHR/fetch, and none of
+// them is an image load. img-src stays 'self' as a result.
+//
+// worker-src is spelled out rather than left to fall through to default-src:
+// MapLibre runs its tile decoding in a worker, and the reason we vendor its CSP
+// build is that the default bundle spawns that worker from a blob: URL, which
+// would mean allowing blob: here. The CSP build loads it from a same-origin URL
+// instead (see basemap.js), so 'self' is enough — don't "fix" a future worker
+// error by adding blob:; check that data-maplibre-worker is reaching the page.
 var cspDirectives = strings.Join([]string{
 	"default-src 'self'",
 	"style-src 'self' 'unsafe-inline'",
-	"img-src 'self' data: https://*.basemaps.cartocdn.com",
-	"connect-src 'self'",
+	"img-src 'self' data:",
+	"connect-src 'self' https://*.basemaps.cartocdn.com",
+	"worker-src 'self'",
 	"font-src 'self' data:",
 	"frame-ancestors 'none'",
 	"base-uri 'self'",

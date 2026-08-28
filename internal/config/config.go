@@ -75,11 +75,13 @@ type Config struct {
 	MailReplyTo  string
 	MailEnabled  bool
 
-	// CartoKey is CARTO's API key for the basemap tiles, sent as ?key= on each tile
-	// request. Without it CARTO watermark the tiles they serve. The browser fetches
-	// tiles directly, so the key is served in the page.
+	// CartoKey is CARTO's API key for the basemap, appended as ?key= to every request
+	// a map style makes — the style JSON, the vector tiles, the sprite and the glyph
+	// PBFs, since the URLs inside a style carry no key of their own. Without it CARTO
+	// watermark what they serve. The browser fetches directly, so the key is served in
+	// the page (see basemap.js).
 	//
-	// Empty is a valid state: the tile URL omits the key parameter.
+	// Empty is a valid state: the key parameter is omitted entirely.
 	CartoKey string
 
 	// ImageDigest is the OCI digest of the image this server runs as, reported by

@@ -38,56 +38,83 @@ AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT
 OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 ```
 
-### Leaflet 1.9.4 — BSD-2-Clause
+### MapLibre GL JS 5.24.0 — BSD-3-Clause
 
-- Homepage: <https://leafletjs.com>
-- Source: https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/
-- File: `internal/web/static/leaflet.js` (sha256 `db49d009c841f5ca34a888c96511ae936fd9f5533e90d8b2c4d57596f4e5641a`)
-- File: `internal/web/static/leaflet.css` (sha256 `498bd934faeb2cb455d6db2d9304d18d5aea69afe43fd2ac933c3f3753724617`)
-- Modified: leaflet.css carries a hand-restored @preserve banner; upstream ships the stylesheet without one. Body is byte-identical to upstream.
+- Homepage: <https://maplibre.org>
+- Source: https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/
+- File: `internal/web/static/maplibre-gl.js` (sha256 `039b46f7a84489bce207f55cf376e1022cf8d213190ff9a93b02554f1785248f`)
+- File: `internal/web/static/maplibre-gl-worker.js` (sha256 `4f64bf26dab4a953ceb06c49a8d6efef32d5015a3f4c872a1f73e13f60ac9dba`)
+- File: `internal/web/static/maplibre-gl.css` (sha256 `3f40ab71b5b3fc985eb7f6b8926e0e8fbec2792852e4f12d8247abf0aabb8a94`)
+- Modified: All three carry hand-extended or hand-restored @preserve banners (upstream's script banner names the license by URL and states no copyright; the stylesheet ships none) and have their trailing sourceMappingURL comment stripped, since the .map files are not vendored. Bodies are byte-identical to upstream.
+- Note: This is the CSP build: maplibre-gl.js is upstream dist/maplibre-gl-csp.js and maplibre-gl-worker.js is dist/maplibre-gl-csp-worker.js. The default bundle spawns its worker from a blob: URL, which the strict CSP forbids; the CSP build takes an explicit same-origin worker URL via maplibregl.setWorkerUrl instead (see basemap.js). Upstream's LICENSE.txt, reproduced whole in the notices, also covers the third-party code MapLibre embeds — mapbox-gl-js v1.13 and earlier (BSD-3-Clause, (c) 2020 Mapbox), glfx.js (MIT) and a portion of d3-color (BSD-3-Clause) — all permissive.
 
 ```
-BSD 2-Clause License
+Copyright (c) 2023, MapLibre contributors
 
-Copyright (c) 2010-2023, Volodymyr Agafonkin
-Copyright (c) 2010-2011, CloudMade
 All rights reserved.
 
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
 
-1. Redistributions of source code must retain the above copyright notice, this
-   list of conditions and the following disclaimer.
+    * Redistributions of source code must retain the above copyright notice,
+      this list of conditions and the following disclaimer.
+    * Redistributions in binary form must reproduce the above copyright notice,
+      this list of conditions and the following disclaimer in the documentation
+      and/or other materials provided with the distribution.
+    * Neither the name of MapLibre GL JS nor the names of its contributors
+      may be used to endorse or promote products derived from this software
+      without specific prior written permission.
 
-2. Redistributions in binary form must reproduce the above copyright notice,
-   this list of conditions and the following disclaimer in the documentation
-   and/or other materials provided with the distribution.
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-```
 
-### Leaflet-Geoman 2.20.0 — MIT
+-------------------------------------------------------------------------------
 
-- Homepage: <https://geoman.io>
-- Source: https://cdn.jsdelivr.net/npm/@geoman-io/leaflet-geoman-free@2.20.0/dist/
-- File: `internal/web/static/leaflet-geoman.js` (sha256 `50bce5ec0c880d7edc912254f645aa77364fd6c29d66ef92296f855b8b615498`)
-- File: `internal/web/static/leaflet-geoman.css` (sha256 `51e45cbdf47dccb437bb34c9aa96b2017957a2471e17f41a72f4ec15a3b8c3f2`)
-- Modified: Both files carry hand-restored banners: the upstream esbuild bundle strips its own. Bodies are byte-identical to leaflet-geoman.min.js and leaflet-geoman.css upstream.
-- Note: This is the free MIT package (@geoman-io/leaflet-geoman-free). Geoman also sells a commercially licensed product — do not upgrade into it.
+Contains code from mapbox-gl-js v1.13 and earlier
 
-```
-MIT License
+Version v1.13 of mapbox-gl-js and earlier are licensed under a BSD-3-Clause license
 
-Copyright (c) 2017 Sumit Kumar
+Copyright (c) 2020, Mapbox
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
+
+* Redistributions of source code must retain the above copyright notice,
+  this list of conditions and the following disclaimer.
+* Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+* Neither the name of Mapbox GL JS nor the names of its contributors
+  may be used to endorse or promote products derived from this software
+  without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+
+-------------------------------------------------------------------------------
+
+Contains code from glfx.js
+
+Copyright (C) 2011 by Evan Wallace
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -96,47 +123,84 @@ to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 copies of the Software, and to permit persons to whom the Software is
 furnished to do so, subject to the following conditions:
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+--------------------------------------------------------------------------------
+
+Contains a portion of d3-color https://github.com/d3/d3-color
+
+Copyright 2010-2016 Mike Bostock
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
+
+* Redistributions of source code must retain the above copyright notice, this
+  list of conditions and the following disclaimer.
+
+* Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+
+* Neither the name of the author nor the names of contributors may be used to
+  endorse or promote products derived from this software without specific prior
+  written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-### Leaflet.markercluster 1.5.3 — MIT
+### Terra Draw 1.32.3 — MIT
 
-- Homepage: <https://github.com/Leaflet/Leaflet.markercluster>
-- Source: https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/
-- File: `internal/web/static/leaflet.markercluster.js` (sha256 `b687c3bd8b9239b1dbe4bc4241c2940426cf15ca8543c73e5d4e31e3346fab25`)
-- File: `internal/web/static/leaflet.markercluster.css` (sha256 `882ea5266422a7ff57e5641f78a7e8464f81b575f0665634808d60ae6f5ed41d`)
-- Modified: The stylesheet is upstream MarkerCluster.css + MarkerCluster.Default.css concatenated, plus a banner; the script is upstream plus a banner. Both bodies are byte-identical to upstream.
+- Homepage: <https://github.com/JamesLMilner/terra-draw>
+- Source: https://cdn.jsdelivr.net/npm/terra-draw@1.32.3/dist/terra-draw.umd.js
+- File: `internal/web/static/terra-draw.js` (sha256 `1d6fcaf87f34ec1515e7f960d39915be83365e1c521bdc10e64e25071df7a18d`)
+- Modified: Hand-restored banner (the upstream UMD bundle ships none) and a stripped trailing sourceMappingURL comment. Body is byte-identical to upstream.
+- Note: Drives polygon drawing and editing on the region area editor, replacing Leaflet-Geoman. Headless by design — it renders shapes into the map and ships no toolbar UI, so the controls are ours (see regionmap.js and config_region_area.html). The npm package ships no LICENSE file; the text here is the one at the root of the monorepo that publishes it, which the adapter shares.
 
 ```
-Copyright 2012 David Leaver
+Copyright 2022 James Milner
 
-Permission is hereby granted, free of charge, to any person obtaining
-a copy of this software and associated documentation files (the
-"Software"), to deal in the Software without restriction, including
-without limitation the rights to use, copy, modify, merge, publish,
-distribute, sublicense, and/or sell copies of the Software, and to
-permit persons to whom the Software is furnished to do so, subject to
-the following conditions:
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
-The above copyright notice and this permission notice shall be
-included in all copies or substantial portions of the Software.
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+### Terra Draw MapLibre GL adapter 1.4.1 — MIT
+
+- Homepage: <https://github.com/JamesLMilner/terra-draw>
+- Source: https://cdn.jsdelivr.net/npm/terra-draw-maplibre-gl-adapter@1.4.1/dist/terra-draw-maplibre-gl-adapter.umd.js
+- File: `internal/web/static/terra-draw-maplibre-gl-adapter.js` (sha256 `ac90d8efe1d367e483e11decdffc421a7150d57686aec016b261f3f32e49bec7`)
+- Modified: Hand-restored banner (the upstream UMD bundle ships none) and a stripped trailing sourceMappingURL comment. Body is byte-identical to upstream.
+- Note: Published from the same monorepo as Terra Draw and under the same root MIT license, which is why the two license texts here are identical.
+
+```
+Copyright 2022 James Milner
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
 ### Tabler 1.4.0 — MIT
@@ -247,8 +311,8 @@ part of the published container; the service is called by the browser at runtime
 ### CARTO basemaps
 
 - Homepage: <https://carto.com>
-- Source: https://{s}.basemaps.cartocdn.com (allowlisted in the CSP img-src), keyed with MESHTENDER_CARTO_KEY
-- Note: Raster map tiles fetched by the browser at runtime; no code is redistributed, so no license applies. Attribution ("(c) OpenStreetMap (c) CARTO") is rendered by basemap.js. Requests carry an API key (MESHTENDER_CARTO_KEY, per deployment); CARTO watermark tiles served without one. CARTO have said these raster tiles are deprecated in favour of vector tiles, which Leaflet cannot render. Terms of use are CARTO's and are not verified by any test.
+- Source: https://*.basemaps.cartocdn.com (allowlisted in the CSP connect-src), keyed with MESHTENDER_CARTO_KEY
+- Note: Vector basemaps (MapLibre GL styles) rendered in the browser at runtime; no code is redistributed, so no license applies. A style pulls four kinds of resource from CARTO — the style JSON, .mvt tiles, a sprite sheet and glyph PBFs — all fetched rather than loaded as images, which is why the CSP allowlists the host in connect-src rather than img-src. Attribution ("(c) OpenStreetMap (c) CARTO") is rendered by basemap.js, and CARTO require it stay visible. Every request carries an API key (MESHTENDER_CARTO_KEY, per deployment) appended by a MapLibre transformRequest, because the URLs inside a style do not carry one. The raster tiles this replaced are deprecated upstream. Terms of use are CARTO's and are not verified by any test.
 
 <!-- END GENERATED: assets -->
 

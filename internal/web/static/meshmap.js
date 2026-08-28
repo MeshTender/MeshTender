@@ -1,8 +1,8 @@
-// meshmap.js — Leaflet maps of repeater points. Basemap layers come from
-// basemap.js (meshBaseLayers), which the page must load first.
+// meshmap.js — MapLibre maps of repeater points. The basemap, the map factory and
+// the framing helper come from basemap.js, which the page must load first.
 
-// meshMap renders a dark-mode Leaflet map of points into the element with the
-// given id. pts is an array of {name, lat, lon}. Does nothing if pts is empty.
+// meshMap renders a map of points into the element with the given id. pts is an
+// array of {name, lat, lon}. Does nothing if pts is empty.
 function meshMap(elId, pts) {
   if (!pts || !pts.length) return;
   renderMeshMap(elId, pts);
@@ -28,42 +28,106 @@ function meshMapFromURL(elId, url) {
 // renderMeshMap draws the given points into the element; shared by meshMap (inline
 // points) and meshMapFromURL (fetched points).
 function renderMeshMap(elId, pts) {
-  // Turn off every Leaflet animation so the map paints once, in its final
-  // position, with no flash on load: zoomAnimation (zoom transitions),
-  // fadeAnimation (tiles fading in), markerZoomAnimation (markers scaling).
-  var map = L.map(elId, {
-    scrollWheelZoom: false,
-    zoomAnimation: false,
-    fadeAnimation: false,
-    markerZoomAnimation: false,
+  var ACCENT = "#4dabf7";
+
+  var features = pts.map(function (p, i) {
+    return {
+      type: "Feature",
+      // A stable feature id: clustering needs one to tell points apart, and it also
+      // means a query against the source counts a point once rather than once per
+      // tile it lands in.
+      id: i,
+      geometry: { type: "Point", coordinates: [p.lon, p.lat] },
+      properties: { name: String(p.name == null ? "" : p.name) },
+    };
   });
-  meshBaseLayers(map);
-  var markers = pts.map(function (p) {
-    return L.circleMarker([p.lat, p.lon], {
-      radius: 7,
-      color: "#4dabf7",
-      weight: 2,
-      fillColor: "#4dabf7",
-      fillOpacity: 0.6,
-    }).bindPopup(p.name);
-  });
-  // Cluster overlapping markers when the plugin is loaded (keeps large maps
-  // responsive); fall back to a plain feature group otherwise. Both expose
-  // getBounds() for the fit below. chunkedLoading keeps the UI responsive while a
-  // large set is added.
-  var group = L.markerClusterGroup
-    ? L.markerClusterGroup({ chunkedLoading: true })
-    : L.featureGroup();
-  markers.forEach(function (m) {
-    group.addLayer(m);
-  });
-  group.addTo(map);
-  // Set the view exactly once, non-animated, so the map paints in its final
-  // position with no fit/zoom flash on load. A lone repeater would otherwise fit
-  // at max zoom, so give it a fixed neighborhood zoom for context instead.
-  if (pts.length === 1) {
-    map.setView([pts[0].lat, pts[0].lon], 15, { animate: false });
-  } else {
-    map.fitBounds(group.getBounds().pad(0.3), { animate: false });
+
+  // Clustering is MapLibre's own (the source does it), which is what retires the
+  // markercluster plugin: co-located repeaters collapse into one counted circle
+  // instead of stacking invisibly on top of each other.
+  function overlays(map) {
+    map.addSource("points", {
+      type: "geojson",
+      data: { type: "FeatureCollection", features: features },
+      cluster: true,
+      clusterRadius: 50,
+      clusterMaxZoom: 16,
+    });
+    map.addLayer({
+      id: "clusters",
+      type: "circle",
+      source: "points",
+      filter: ["has", "point_count"],
+      paint: {
+        // Grow the disc with the count so a big cluster reads as big, but keep the
+        // steps small — these sit on top of the basemap, not over it.
+        "circle-radius": ["step", ["get", "point_count"], 14, 10, 18, 50, 22],
+        "circle-color": ACCENT,
+        "circle-opacity": 0.6,
+        "circle-stroke-width": 2,
+        "circle-stroke-color": ACCENT,
+      },
+    });
+    map.addLayer({
+      id: "cluster-count",
+      type: "symbol",
+      source: "points",
+      filter: ["has", "point_count"],
+      layout: { "text-field": ["get", "point_count_abbreviated"], "text-font": window.meshFont, "text-size": 12 },
+      paint: { "text-color": "#ffffff" },
+    });
+    map.addLayer({
+      id: "points",
+      type: "circle",
+      source: "points",
+      filter: ["!", ["has", "point_count"]],
+      paint: {
+        "circle-radius": 7,
+        "circle-color": ACCENT,
+        "circle-opacity": 0.6,
+        "circle-stroke-width": 2,
+        "circle-stroke-color": ACCENT,
+      },
+    });
   }
+
+  var map = window.meshCreateMap(elId, { scrollZoom: false, overlays: overlays });
+
+  // Clicking a cluster zooms to the point where it splits up, which is the only way
+  // to reach the repeaters inside one.
+  map.on("click", "clusters", function (e) {
+    var f = e.features && e.features[0];
+    if (!f) return;
+    map.getSource("points").getClusterExpansionZoom(f.properties.cluster_id).then(function (zoom) {
+      map.easeTo({ center: f.geometry.coordinates, zoom: zoom });
+    });
+  });
+
+  map.on("click", "points", function (e) {
+    var f = e.features && e.features[0];
+    if (!f) return;
+    // setText, not setHTML: a repeater name is operator-supplied, and this is the
+    // boundary where it would otherwise be parsed as markup.
+    new maplibregl.Popup().setLngLat(f.geometry.coordinates).setText(f.properties.name).addTo(map);
+  });
+
+  ["clusters", "points"].forEach(function (layer) {
+    map.on("mouseenter", layer, function () {
+      map.getCanvas().style.cursor = "pointer";
+    });
+    map.on("mouseleave", layer, function () {
+      map.getCanvas().style.cursor = "";
+    });
+  });
+
+  // Frame once, without animating, so the map paints in its final position with no
+  // fit/zoom flash on load. A lone repeater would otherwise fit at max zoom, so it
+  // gets a fixed neighborhood zoom for context instead.
+  window.meshFrame(
+    map,
+    pts.map(function (p) {
+      return [p.lon, p.lat];
+    }),
+    { padding: 40, pointZoom: 15 },
+  );
 }

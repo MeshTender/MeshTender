@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"testing"
+	"time"
 
 	cdplog "github.com/chromedp/cdproto/log"
 	"github.com/chromedp/cdproto/network"
@@ -16,11 +17,11 @@ import (
 )
 
 // TestE2EOrgPublicMap renders the public org Repeaters map in a real browser and
-// verifies the full Batch 2+3 chain under the strict CSP: the page fetches its
-// points from the cached JSON endpoint (connect-src 'self') and the vendored
-// markercluster plugin clusters co-located markers. A visible cluster proves the
-// fetch succeeded and the plugin loaded; assertClean proves no CSP violation
-// (from the fetch or the new self-hosted assets).
+// verifies the full chain under the strict CSP: the page fetches its points from
+// the cached JSON endpoint (connect-src 'self'), the CARTO vector style loads
+// (connect-src the CARTO host, plus the same-origin MapLibre worker), and the
+// source's own clustering collapses the co-located repeaters. A cluster proves the
+// fetch succeeded and the map is live; assertClean proves no CSP violation.
 func TestE2EOrgPublicMap(t *testing.T) {
 	// Served anonymously by the root (marketing) surface.
 	srv := newE2EServer(t)
@@ -35,7 +36,7 @@ func TestE2EOrgPublicMap(t *testing.T) {
 	}
 
 	// Four repeaters at the *same* coordinates (they can never separate by zoom, so
-	// they always cluster) plus two elsewhere — guarantees a .marker-cluster.
+	// they always cluster) plus two elsewhere — guarantees at least one cluster.
 	locs := []struct{ lat, lon float64 }{
 		{40.0, -75.0}, {40.0, -75.0}, {40.0, -75.0}, {40.0, -75.0},
 		{41.0, -76.0}, {39.0, -74.0},
@@ -58,27 +59,31 @@ func TestE2EOrgPublicMap(t *testing.T) {
 	bctx, cancel, watch := startBrowser(t)
 	defer cancel()
 
+	var counts sourceCounts
 	mapURL := srv.rootURL + "/orgs/" + org.Slug + "/repeaters"
-	var clusterCount, markerCount int
 	if err := chromedp.Run(bctx,
 		network.Enable(),
 		cdplog.Enable(),
 		chromedp.Navigate(mapURL),
-		// The map only paints markers after the fetch to /repeaters.json resolves.
-		chromedp.WaitVisible(`.leaflet-container`, chromedp.ByQuery),
-		chromedp.WaitVisible(`.marker-cluster`, chromedp.ByQuery),
-		chromedp.Evaluate(`document.querySelectorAll('.marker-cluster').length`, &clusterCount),
-		chromedp.Evaluate(`document.querySelectorAll('.leaflet-interactive').length`, &markerCount),
+		// The layer only exists once the points fetch has resolved and the style has
+		// loaded, so this one wait covers both.
+		mapReady("map", "clusters"),
+		// Clustering happens on the worker, so the counts settle a beat after the
+		// layer appears.
+		chromedp.Poll(`(function () {
+			return window.MESHTENDER_MAPS["map"].map
+				.querySourceFeatures("points").length > 0;
+		})()`, nil, chromedp.WithPollingTimeout(30*time.Second)),
+		mapEval("map", countIn("points"), &counts),
 	); err != nil {
 		t.Fatalf("browser run against %s: %v", mapURL, err)
 	}
-
-	if clusterCount == 0 {
-		t.Errorf("no marker cluster rendered; the fetched points did not cluster")
+	if counts.Clusters < 1 {
+		t.Errorf("no marker cluster rendered; the four co-located repeaters should collapse into one")
 	}
-	if markerCount == 0 {
-		t.Errorf("no interactive map markers rendered")
+	if counts.Features+counts.Clusters < 2 {
+		t.Errorf("map rendered %d features and %d clusters, want the outliers drawn alongside the cluster",
+			counts.Features, counts.Clusters)
 	}
-	// The whole point of the exercise: the fetch + vendored assets ran cleanly.
 	watch.assertClean(t)
 }

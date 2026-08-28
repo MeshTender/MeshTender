@@ -225,7 +225,8 @@ Security is a first-class concern; we run a strict CSP and gate CI on vuln scans
   a `<script nonce="{{.Nonce}}">` block or a self-hosted `.js`. `TestTemplatesHaveNoInlineJS`
   enforces this — don't work around it.
 - **Self-host all assets.** No external scripts/styles/fonts (CSP `*-src 'self'`);
-  the only external resource is CARTO map tiles (`img-src`). No SRI needed.
+  the only external resource is the CARTO vector basemap (`connect-src` — style JSON,
+  `.mvt` tiles, sprite and glyphs are all fetched, not image loads). No SRI needed.
 - **html/template autoescapes** — don't defeat it. Reach for `template.HTML`/`JS`/`URL`
   only with server-controlled, non-user data, and comment why.
 - Cookies stay `HttpOnly` + `SameSite=Lax` + `Secure` (gated on TLS). State-changing

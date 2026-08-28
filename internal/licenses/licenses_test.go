@@ -290,7 +290,7 @@ func TestNoticesFileIsCurrent(t *testing.T) {
 }
 
 // TestNoticesUsesUnixLineEndings is a regression test. Leaflet's license file
-// ships with CRLF, and the generator used to copy those bytes straight into the
+// shipped with CRLF, and the generator used to copy those bytes straight into the
 // Markdown. The committed file then got normalized to LF by an editor, so it no
 // longer matched the generator's output and TestNoticesFileIsCurrent failed on
 // every run with no way to fix it by regenerating. A mixed-line-ending

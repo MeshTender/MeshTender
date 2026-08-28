@@ -36,6 +36,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -345,6 +346,58 @@ func expandSection(toggleTestID, wantVisible string) chromedp.Tasks {
 			chromedp.WithPollingTimeout(10*time.Second)),
 		chromedp.WaitVisible(wantVisible, chromedp.ByQuery),
 	}
+}
+
+// ---- maps ---------------------------------------------------------------
+//
+// The maps are MapLibre GL, which paints to a WebGL canvas: there is no per-shape
+// DOM node to select, the way there was with Leaflet's SVG overlay pane. So map
+// assertions go through window.MESHTENDER_MAPS, the registry basemap.js fills in
+// (see its comment) — a deliberate test surface rather than a reach into internals.
+//
+// Note this makes the map tests depend on CARTO being reachable from the browser
+// container: a MapLibre style has to load before any layer can be added to it, so a
+// blocked network shows up here as mapReady timing out.
+
+// mapReady waits until the map in the given container has its style loaded and the
+// page's own layer on it.
+func mapReady(elID, layer string) chromedp.Action {
+	return chromedp.Poll(fmt.Sprintf(`(function () {
+		var e = window.MESHTENDER_MAPS && window.MESHTENDER_MAPS[%q];
+		return !!(e && e.map && e.map.isStyleLoaded() && e.map.getLayer(%q));
+	})()`, elID, layer), nil, chromedp.WithPollingTimeout(30*time.Second))
+}
+
+// mapEval evaluates expr with `map` bound to the named container's MapLibre map.
+func mapEval(elID, expr string, res any) chromedp.Action {
+	return chromedp.Evaluate(fmt.Sprintf(
+		`(function (map) { %s })(window.MESHTENDER_MAPS[%q].map)`, expr, elID), res)
+}
+
+// countSourceFeatures counts the distinct features a source has rendered into the
+// current viewport, separating clusters from individual features.
+//
+// Both sides dedupe on the feature id, because a source query returns a feature
+// once per tile it touches — a region polygon spanning four tiles comes back four
+// times, each clipped to its tile. That is why meshmap.js and regionmap.js give
+// every feature an explicit id.
+const countSourceFeatures = `
+	var seen = {}, clusters = {};
+	map.querySourceFeatures(SOURCE).forEach(function (f) {
+		if (f.properties.cluster) clusters[f.properties.cluster_id] = 1;
+		else seen[f.id] = 1;
+	});
+	return { features: Object.keys(seen).length, clusters: Object.keys(clusters).length };`
+
+// sourceCounts is what countSourceFeatures returns.
+type sourceCounts struct {
+	Features int `json:"features"`
+	Clusters int `json:"clusters"`
+}
+
+// countIn builds the counting expression for one source.
+func countIn(source string) string {
+	return "var SOURCE = " + strconv.Quote(source) + ";" + countSourceFeatures
 }
 
 // newRepeater creates a repeater owned by ownerID with a valid MeshCore key.

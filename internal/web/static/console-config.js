@@ -27,7 +27,7 @@
 
   let data = null; // last config payload
   let rows = []; // per-command row state: { line, runnable, statusEl }
-  let mapView = null; // Leaflet map instance (created lazily when the picker is shown)
+  let mapView = null; // MapLibre map instance (created lazily when the picker is shown)
   let running = false; // a run (single or batch) is in progress
 
   const consoleReady = () => !!(window.MeshConsole && window.MeshConsole.ready);
@@ -163,8 +163,10 @@
         preview: loc.known ? { lat: loc.lat, lon: loc.lon } : undefined,
         onPick: (lat, lon) => saveLocation(lat, lon),
       });
-    } else if (mapView && mapView.invalidateSize) {
-      mapView.invalidateSize();
+    } else if (mapView) {
+      // The map was built while the panel was collapsed, so its container had no
+      // size; MapLibre needs telling once it does.
+      mapView.resize();
     }
   }
 
@@ -416,7 +418,7 @@
   // Load the config the first time the panel is expanded (not before — it's opt-in).
   panel.addEventListener("shown.bs.collapse", () => {
     if (!data) load(false);
-    if (mapView && mapView.invalidateSize) mapView.invalidateSize();
+    if (mapView) mapView.resize();
   });
   document.addEventListener("mesh:ready", () => {
     updateConnectBtn();

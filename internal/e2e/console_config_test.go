@@ -17,7 +17,7 @@ import (
 // the button expands it, the recommended commands (profile base settings + region
 // commands for the repeater's location) render, and — with no modem connected —
 // the Run controls are disabled with a prompt to connect. Also asserts the page
-// (Bootstrap collapse + Leaflet) runs clean under the strict CSP.
+// (Bootstrap collapse + MapLibre) runs clean under the strict CSP.
 func TestE2EConsoleConfigPanel(t *testing.T) {
 	srv := newE2EServer(t)
 	owner, cookie := srv.login(t, "cfg-owner")

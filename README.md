@@ -126,7 +126,7 @@ links, markdown content, a repeater map, and optionally a verified custom domain
 per-region and root flood policy (`region allowf` / `region denyf`). A repeater's coordinates select
 every region whose polygon contains it. The console's "apply organization configuration" flow shows
 the resulting command list — profile steps plus region commands — marking any line the user can't
-run and why. Regions are drawn on a Leaflet/Geoman map editor.
+run and why. Regions are drawn on a MapLibre/Terra Draw map editor.
 
 **Command catalog.** Every repeater CLI command, seeded from the firmware and modeled per-parameter
 (`set.tx`, `set.radio`, …) with feature/operation grouping, a `risky` tag, and per-tier org flags.
@@ -151,7 +151,7 @@ build step — migrations, templates, and static assets are all `go:embed`ed.
 - Go 1.27.0 (pinned exactly — see "Verifying a build"), [meshcore-go](https://github.com/meshcore-go/meshcore-go)
   for the MeshCore protocol/crypto
 - Postgres via `pgx` with raw SQL (no ORM) and goose migrations; `chi` router; `coder/websocket`
-- Hand-written JS only where the platform demands it (WebSerial, Leaflet maps, small delegated
+- Hand-written JS only where the platform demands it (WebSerial, MapLibre maps, small delegated
   handlers in `ui.js`)
 
 ### Vendored front-end assets
@@ -160,9 +160,17 @@ The strict CSP forbids external scripts/styles (`*-src 'self'`), so every third-
 library is **self-hosted** in `internal/web/static/` and embedded into the binary. They're served
 content-hash fingerprinted with a one-year `immutable` Cache-Control and pre-compressed (gzip +
 brotli) by the asset manifest in `internal/web/assets.go`. The only external resource anywhere is
-CARTO map tiles, allowlisted in `img-src`. Those tiles take a CARTO API key
-(`MESHTENDER_CARTO_KEY`), sent as `?key=` on each tile request; without it CARTO watermark the
-tiles. The browser fetches tiles directly, so the key is served in the page.
+the CARTO basemap, allowlisted in `connect-src` — not `img-src`, because the vector basemaps that
+replaced CARTO's deprecated raster tiles are *fetched*: the style JSON, the `.mvt` tiles, the sprite
+and the glyph PBFs all go out as fetch/XHR, and none of them is an image load. They take a CARTO API
+key (`MESHTENDER_CARTO_KEY`), which a MapLibre `transformRequest` appends as `?key=` to every one of
+those requests — the URLs inside a style carry none of their own. The browser fetches them directly,
+so the key is served in the page.
+
+Maps are MapLibre GL, not Leaflet, and for the same reason: a CARTO vector basemap *is* a MapLibre
+style, and Leaflet cannot render one. We vendor MapLibre's **CSP build**, whose worker is loaded from
+an ordinary same-origin URL (passed to the page as `<html data-maplibre-worker>`) instead of the
+`blob:` the default bundle uses — that is what keeps `worker-src` at `'self'`.
 
 Which libraries, at which versions, from which upstream artifact, is recorded once in
 `internal/licenses/manifest.go` — with a SHA-256 per file — and rendered into

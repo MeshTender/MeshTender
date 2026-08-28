@@ -148,9 +148,8 @@ swap needs no new markup. The flex row is nested so the [hidden] attribute wins
 </div>
 
 {{if .ShowConfig}}
-<link rel="stylesheet" href="{{ asset "/static/leaflet.css" }}">
-<script src="{{ asset "/static/leaflet.js" }}"></script>
-<script src="{{ asset "/static/basemap.js" }}"></script>
+{{template "map-styles"}}
+{{template "map-scripts"}}
 <script src="{{ asset "/static/regionmap.js" }}"></script>
 <script src="{{ asset "/static/console-config.js" }}"></script>
 {{end}}

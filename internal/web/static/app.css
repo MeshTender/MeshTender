@@ -173,41 +173,81 @@ code.pubkey {
   border-left: 0;
 }
 
-/* ---------- Leaflet map (dark) ---------- */
+/* ---------- MapLibre map (dark) ---------- */
 #map {
   height: 360px;
   border-radius: var(--tblr-border-radius);
   border: 1px solid var(--tblr-border-color);
 }
-.leaflet-container { background: #14171c; }
-/* Scoped under .leaflet-popup so these beat Leaflet's own defaults, which load
-   after app.css (leaflet.css is pulled in per-page in the map card body). */
-.leaflet-popup .leaflet-popup-content-wrapper,
-.leaflet-popup .leaflet-popup-tip {
+/* Painted behind the WebGL canvas, so it shows while tiles are still in flight
+   rather than a white flash on a dark page. */
+.maplibregl-map { background: #14171c; }
+/* Scoped under .maplibregl-popup so these beat MapLibre's own defaults, which load
+   after app.css (maplibre-gl.css is pulled in per-page in the map card body). */
+.maplibregl-popup .maplibregl-popup-content {
   background: var(--tblr-bg-surface);
   color: var(--tblr-body-color);
   box-shadow: var(--tblr-box-shadow, 0 1px 2px rgba(0, 0, 0, 0.4));
 }
-.leaflet-popup .leaflet-popup-content { color: var(--tblr-body-color); }
-.leaflet-container .leaflet-bar a,
-.leaflet-container .leaflet-control-zoom a {
+.maplibregl-popup-anchor-top .maplibregl-popup-tip { border-bottom-color: var(--tblr-bg-surface); }
+.maplibregl-popup-anchor-bottom .maplibregl-popup-tip { border-top-color: var(--tblr-bg-surface); }
+.maplibregl-popup-anchor-left .maplibregl-popup-tip { border-right-color: var(--tblr-bg-surface); }
+.maplibregl-popup-anchor-right .maplibregl-popup-tip { border-left-color: var(--tblr-bg-surface); }
+.maplibregl-popup-close-button { color: var(--tblr-body-color); }
+
+/* Controls: the zoom buttons, plus our own two button groups (the Dark/Light
+   basemap switch and the region-editor draw tools, both built in JS — see
+   basemap.js and regionmap.js). MapLibre's default control is a white box, which
+   is wrong on every page we render.
+
+   Everything here is scoped under .maplibregl-map purely to win the cascade:
+   maplibre-gl.css is pulled in per-page in the map card body, so it loads *after*
+   app.css and an equally specific rule of ours loses to it. The tell when this is
+   missing is subtle — the buttons we style by state still look right, and only the
+   unpressed ones stay white. */
+.maplibregl-map .maplibregl-ctrl-group {
   background: var(--tblr-bg-surface);
-  color: var(--tblr-body-color);
-  border-bottom-color: var(--tblr-border-color);
-}
-.leaflet-container .leaflet-bar a:hover { background: var(--tblr-bg-surface-secondary); }
-/* Base-layer (Dark/Light) switcher: match the dark UI so the native radios render
-   correctly. On the default white box + dark color-scheme, an unselected radio
-   shows as a black dot; a dark box fixes that, and accent-color tints the selected
-   one. Scoped under .leaflet-container to beat leaflet.css (loaded after app.css). */
-.leaflet-container .leaflet-control-layers {
-  background: var(--tblr-bg-surface);
-  color: var(--tblr-body-color);
-  border-color: var(--tblr-border-color);
   box-shadow: var(--tblr-box-shadow, 0 1px 2px rgba(0, 0, 0, 0.4));
 }
-.leaflet-container .leaflet-control-layers-list label { margin: 0; color: var(--tblr-body-color); }
-.leaflet-container .leaflet-control-layers-selector { accent-color: var(--tblr-primary); }
+.maplibregl-map .maplibregl-ctrl-group button { color: var(--tblr-body-color); }
+/* The zoom glyphs are background-image SVGs with a hard-coded #333 fill — fine on
+   MapLibre's white control, invisible on our dark one, and not restyleable because
+   the color lives inside the data: URI. Inverting the icon is the way to reach it. */
+.maplibregl-map .maplibregl-ctrl-group button .maplibregl-ctrl-icon { filter: invert(1); }
+.maplibregl-map .maplibregl-ctrl-group button + button { border-top-color: var(--tblr-border-color); }
+.maplibregl-map .maplibregl-ctrl-group button:not(:disabled):hover { background: var(--tblr-bg-surface-secondary); }
+/* MapLibre's icon buttons are square and unlabeled; ours carry text, so they need
+   width and horizontal padding or the label is clipped to a 29px box. */
+.maplibregl-map .mesh-basemap-ctrl button,
+.maplibregl-map .mesh-draw-ctrl button {
+  width: auto;
+  min-width: 4.5rem;
+  padding: 0 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1.75rem;
+}
+/* aria-pressed is the state, so it is also what styles the active button — there
+   is no second class to keep in sync. */
+.maplibregl-map .mesh-basemap-ctrl button[aria-pressed="true"],
+.maplibregl-map .mesh-draw-ctrl button[aria-pressed="true"] {
+  background: var(--tblr-primary);
+  color: #fff;
+}
+.maplibregl-map .mesh-draw-ctrl button:disabled { opacity: 0.45; }
+/* The attribution CARTO require stays visible; only its chrome is themed. It sits
+   over the map, not the page, so it is deliberately NOT painted in theme tokens:
+   the same strip has to stay legible over both the near-black Dark Matter basemap
+   and the near-white Voyager one, which a token that only knows the page theme
+   cannot do. A dark scrim with near-white text reads on both. */
+.maplibregl-map .maplibregl-ctrl.maplibregl-ctrl-attrib {
+  /* Both class names, because upstream's own rule is .maplibregl-ctrl.maplibregl-
+     ctrl-attrib — matching only one of them ties on specificity and loses, which
+     shows up as white-on-white text rather than as nothing happening. */
+  background: rgba(0, 0, 0, 0.7);
+  color: #f4f6fa;
+}
+.maplibregl-map .maplibregl-ctrl-attrib a,
+.maplibregl-map .maplibregl-ctrl-attrib a:hover { color: #f4f6fa; }
 
 /* Profile list on the org config page: a long list scrolls inside its card
    instead of pushing the location-preview map off the page. Rows are compact —

@@ -1,5 +1,5 @@
 {{define "base"}}<!doctype html>
-<html lang="en" data-bs-theme="dark" data-tz="{{.UserTZ}}" data-carto-key="{{.CartoKey}}">
+<html lang="en" data-bs-theme="dark" data-tz="{{.UserTZ}}" data-carto-key="{{.CartoKey}}" data-maplibre-worker="{{ asset "/static/maplibre-gl-worker.js" }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -180,7 +180,7 @@
      the standard page chrome (header block, content, footer). The marketing
      surface defaults to this so every root page matches the rest of the site. */}}
 {{define "rootbase"}}<!doctype html>
-<html lang="en" data-bs-theme="dark" data-tz="{{.UserTZ}}" data-carto-key="{{.CartoKey}}">
+<html lang="en" data-bs-theme="dark" data-tz="{{.UserTZ}}" data-carto-key="{{.CartoKey}}" data-maplibre-worker="{{ asset "/static/maplibre-gl-worker.js" }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -223,7 +223,7 @@
      offer are owed on every surface, and someone signing in is as much a user of
      this server as someone already signed in. */}}
 {{define "authbase"}}<!doctype html>
-<html lang="en" data-bs-theme="dark" data-tz="{{.UserTZ}}" data-carto-key="{{.CartoKey}}">
+<html lang="en" data-bs-theme="dark" data-tz="{{.UserTZ}}" data-carto-key="{{.CartoKey}}" data-maplibre-worker="{{ asset "/static/maplibre-gl-worker.js" }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -253,7 +253,7 @@
      sign-in / sign-up actions, the page content, and a simple footer. Pages opt
      in via the "Layout":"landingbase" render key. */}}
 {{define "landingbase"}}<!doctype html>
-<html lang="en" data-bs-theme="dark" data-tz="{{.UserTZ}}" data-carto-key="{{.CartoKey}}">
+<html lang="en" data-bs-theme="dark" data-tz="{{.UserTZ}}" data-carto-key="{{.CartoKey}}" data-maplibre-worker="{{ asset "/static/maplibre-gl-worker.js" }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -296,4 +296,28 @@
   <span class="badge bg-yellow-lt" title="No one has reached this repeater through MeshTender yet">Unconfirmed</span>
 {{- end -}}
 {{- if and .AccessKnown (not .IsAdmin)}}<span class="badge bg-warning-lt">guest only</span>{{end -}}
+{{end}}
+
+{{/* map-styles / map-scripts are the vendored map stack, in one place rather than
+     hand-listed by each of the ten pages that render a map — which is how the
+     Leaflet list they replaced managed to drift. Include map-styles above the map
+     container and map-scripts before the page's own map call.
+
+     Order matters: maplibre-gl.js defines the global the adapter and basemap.js
+     both reach for, and basemap.js defines meshCreateMap, which meshmap.js and
+     regionmap.js build on. terra-draw is only needed where a shape is drawn, so
+     map-draw-scripts is separate — no reason to ship 244KB to a page that just
+     shows dots. */}}
+{{define "map-styles"}}
+<link rel="stylesheet" href="{{ asset "/static/maplibre-gl.css" }}">
+{{end}}
+
+{{define "map-scripts"}}
+<script src="{{ asset "/static/maplibre-gl.js" }}"></script>
+<script src="{{ asset "/static/basemap.js" }}"></script>
+{{end}}
+
+{{define "map-draw-scripts"}}
+<script src="{{ asset "/static/terra-draw.js" }}"></script>
+<script src="{{ asset "/static/terra-draw-maplibre-gl-adapter.js" }}"></script>
 {{end}}
