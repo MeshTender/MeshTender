@@ -224,3 +224,31 @@ func TestResolveCommandRealCatalog(t *testing.T) {
 		}
 	}
 }
+
+// TestResolveFirmware118Commands pins the commands added for MeshCore firmware
+// v1.18.0 (migration 0046) against the real catalog, including that `power` and
+// `gps diag` don't collide with the neighboring powersaving/poweroff/gps tokens.
+// Requires the *_test database.
+func TestResolveFirmware118Commands(t *testing.T) {
+	t.Parallel()
+	cat := loadRealCatalog(t)
+	for _, tc := range []struct{ typed, want string }{
+		{"power", "power"},
+		{"powersaving", "powersaving.status"},
+		{"poweroff", "poweroff"},
+		{"gps diag", "gps.diag"},
+		{"gps", ""},
+		{"get radio.fem.txgain", "get.radio_fem_txgain"},
+		{"set radio.fem.txgain on", "set.radio_fem_txgain"},
+		{"set radio.fem.txgain", ""},
+	} {
+		got := resolveCommand(tc.typed, cat)
+		gk := ""
+		if got != nil {
+			gk = got.Key
+		}
+		if gk != tc.want {
+			t.Errorf("resolveCommand(%q) = %q, want %q", tc.typed, gk, tc.want)
+		}
+	}
+}
