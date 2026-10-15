@@ -5,7 +5,7 @@ module github.com/MeshTender/MeshTender
 // rejects as redundant when it matches this line. A different compiler version
 // produces a different binary, so keep the three in sync — enforced by
 // TestReleasePinsAreConsistent in internal/licenses.
-go 1.27.0
+go 1.27.2
 
 require (
 	github.com/alexedwards/scs/pgxstore v0.0.0-20251002162104-209de6e426de
@@ -27,8 +27,8 @@ require (
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.44.0
 	github.com/yuin/goldmark v1.8.5
-	golang.org/x/crypto v0.55.0
-	golang.org/x/net v0.58.0
+	golang.org/x/crypto v0.57.0
+	golang.org/x/net v0.60.0
 )
 
 require (
@@ -101,7 +101,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.46.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
-	golang.org/x/sync v0.22.0 // indirect
-	golang.org/x/sys v0.47.0 // indirect
-	golang.org/x/text v0.41.0 // indirect
+	golang.org/x/sync v0.23.0 // indirect
+	golang.org/x/sys v0.48.0 // indirect
+	golang.org/x/text v0.42.0 // indirect
 )

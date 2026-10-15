@@ -416,19 +416,19 @@ Redistributed in compiled form. Their notices are reproduced here.
   Copyright (c) 2019 Yusuke Inuzuka
 - **go.uber.org/multierr** v1.11.0 — MIT  
   Copyright (c) 2017-2021 Uber Technologies, Inc.
-- **golang.org/x/crypto** v0.55.0 — BSD-3-Clause  
+- **golang.org/x/crypto** v0.57.0 — BSD-3-Clause  
   Copyright 2009 The Go Authors.  
   copyright notice, this list of conditions and the following disclaimer
-- **golang.org/x/net** v0.58.0 — BSD-3-Clause  
+- **golang.org/x/net** v0.60.0 — BSD-3-Clause  
   Copyright 2009 The Go Authors.  
   copyright notice, this list of conditions and the following disclaimer
-- **golang.org/x/sync** v0.22.0 — BSD-3-Clause  
+- **golang.org/x/sync** v0.23.0 — BSD-3-Clause  
   Copyright 2009 The Go Authors.  
   copyright notice, this list of conditions and the following disclaimer
-- **golang.org/x/sys** v0.47.0 — BSD-3-Clause  
+- **golang.org/x/sys** v0.48.0 — BSD-3-Clause  
   Copyright 2009 The Go Authors.  
   copyright notice, this list of conditions and the following disclaimer
-- **golang.org/x/text** v0.41.0 — BSD-3-Clause  
+- **golang.org/x/text** v0.42.0 — BSD-3-Clause  
   Copyright 2009 The Go Authors.  
   copyright notice, this list of conditions and the following disclaimer
 

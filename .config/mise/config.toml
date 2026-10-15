@@ -4,7 +4,7 @@
 # version produces a different binary. Bump this together with GOTOOLCHAIN
 # below, the `go` directive in go.mod, and the builder image in
 # the publish job in .github/workflows/ci.yml.
-go = "1.27.0"
+go = "1.27.2"
 "golangci-lint" = "latest"
 pitchfork = "latest"
 jq = "latest"
@@ -15,7 +15,7 @@ _.file = ".env"
 # Force the exact compiler, not merely "at least the go.mod version": with
 # GOTOOLCHAIN=auto a developer on a newer Go would build a different binary
 # from the same commit. Keep in sync with the `go` pin above.
-GOTOOLCHAIN = "go1.27.0"
+GOTOOLCHAIN = "go1.27.2"
 
 [bootstrap.repos]
 "ref/MeshCore" = { url = "https://github.com/meshcore-dev/MeshCore.git", ref = "main" }
