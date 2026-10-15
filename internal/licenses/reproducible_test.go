@@ -295,6 +295,27 @@ func stripYAMLComments(s string) string {
 	return b.String()
 }
 
+// TestCheckToolPinsMatchCI keeps the local pre-push gate running the same linter and
+// vuln scanner as CI. Both used to drift: mise ran golangci-lint "latest" while CI
+// pinned an older release, and that older release couldn't read a newer Go patch
+// release's export data — so lint passed locally and failed only on the runner.
+func TestCheckToolPinsMatchCI(t *testing.T) {
+	mise := readRepoFile(t, ".config/mise/config.toml")
+	ci := readRepoFile(t, ciWorkflow)
+
+	lintMise := findSubmatch(t, mise, ".config/mise/config.toml", `(?m)^"golangci-lint"\s*=\s*"([^"]+)"`)
+	lintCI := findSubmatch(t, ci, ciWorkflow, `(?m)^\s*version:\s*v(\d+\.\d+\.\d+)\s*$`)
+	if lintMise != lintCI {
+		t.Errorf("golangci-lint differs: mise %q, %s v%s — pin mise to the same release", lintMise, ciWorkflow, lintCI)
+	}
+
+	vulnMise := findSubmatch(t, mise, ".config/mise/config.toml", `(?m)^"go:golang.org/x/vuln/cmd/govulncheck"\s*=\s*"([^"]+)"`)
+	vulnCI := findSubmatch(t, ci, ciWorkflow, `golang.org/x/vuln/cmd/govulncheck@v(\S+)`)
+	if vulnMise != vulnCI {
+		t.Errorf("govulncheck differs: mise %q, %s v%s — pin mise to the same release", vulnMise, ciWorkflow, vulnCI)
+	}
+}
+
 // TestLintVersionsAgree pins a three-way relationship that has no local signal at
 // all: .golangci.yml declares a config-format major, golangci-lint's major has to
 // match it, and golangci-lint-action's major has to be one that drives that

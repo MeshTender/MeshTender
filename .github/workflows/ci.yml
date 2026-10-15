@@ -58,10 +58,12 @@ jobs:
       #
       # Both versions are pinned rather than "latest": a new release both invalidates
       # this action's analysis cache and can fail a build with no code change behind
-      # it. Bump deliberately. (mise runs "latest" locally, where a surprise is cheap.)
+      # it. Bump deliberately, together with the mise pin — TestCheckToolPinsMatchCI
+      # keeps them equal. A Go bump can force a lint bump: an older golangci-lint
+      # can't read a newer toolchain's export data and fails with typecheck errors.
       - uses: golangci/golangci-lint-action@v9.3.0
         with:
-          version: v2.13.1
+          version: v2.14.0
 
   test:
     runs-on: ubuntu-latest
