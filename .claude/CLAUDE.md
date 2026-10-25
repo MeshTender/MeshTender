@@ -26,7 +26,10 @@ bundler, no build step for assets.
 Run/lint/etc. via mise: `mise run dev` (serves on the configured hosts),
 `mise run lint`, `mise run seed`, `mise run reset`, `mise run e2e`. Dev uses
 `leighthaus.dev` + local mkcert TLS. **The dev server owns :8080 — run your own
-test instance on :8090** and kill only your own PID.
+test instance on :8090** and kill only your own PID. The developer usually runs
+it as the pitchfork daemon `dev` (`.config/pitchfork.toml`), which restarts on
+every source/template change — so edits show up on :8080 within seconds, and
+`pitchfork logs dev` shows build errors. Don't stop or restart it unless asked.
 
 **When a mise task exists for what you're doing, run the task — don't hand-roll
 its command.** The tasks encode the correct setup (env, flags, container

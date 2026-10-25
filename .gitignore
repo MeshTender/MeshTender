@@ -1,4 +1,6 @@
 .env
+# Personal pitchfork overrides (see .config/pitchfork.toml).
+pitchfork.local.toml
 /certs/
 /ref/
 /cmd/meshtender/meshtender

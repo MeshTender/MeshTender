@@ -230,8 +230,14 @@ brew install mkcert && mkcert -install
 mkcert -cert-file ./certs/dev.pem -key-file ./certs/dev-key.pem "*.leighthaus.dev" leighthaus.dev
 
 cp .env.example .env                 # then set MESHTENDER_MASTER_KEY=$(openssl rand -hex 32)
-mise run dev                         # migrates on boot; serves HTTPS on :8080
+pitchfork start dev                  # migrates on boot; serves HTTPS on :8080 in the background
 ```
+
+The dev server runs as a [pitchfork](https://pitchfork.jdx.dev) daemon (`.config/pitchfork.toml`,
+installed by mise). It rebuilds and restarts whenever Go source or an embedded file (templates,
+migrations, static assets) changes, and a save that doesn't compile leaves it waiting for the next
+save rather than down. `pitchfork logs dev --tail` follows it; `pitchfork stop dev` stops it.
+`mise run dev` still runs the same server in the foreground.
 
 Then open <https://app.leighthaus.dev:8080> (dashboard) or <https://leighthaus.dev:8080> (public
 root). WebSerial requires a secure context, which the mkcert HTTPS provides — the same reason
@@ -245,7 +251,7 @@ except users with credentials, passkeys, sessions, and the server identity. (Bot
 
 | Task | What it does |
 |---|---|
-| `mise run dev` | run the server |
+| `mise run dev` | run the server in the foreground (`pitchfork start dev` runs it in the background with auto-restart) |
 | `mise run lint` | `golangci-lint run` (staticcheck + gosec, config in `.golangci.yml`) |
 | `mise run seed` / `reset` | seed fake data / truncate non-account data |
 | `mise run e2e` | browser tests in a throwaway headless-shell container (`--run <regex>` to filter) |

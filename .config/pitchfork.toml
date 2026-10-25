@@ -1,0 +1,16 @@
+[daemons.dev]
+run = 'mise run dev || { echo "dev server exited ($?); waiting for a change to rebuild"; exec sleep 2147483647; }'
+port = 8080
+ready_output = { pattern = "msg=listening|waiting for a change to rebuild", timeout = "3m" }
+watch = [
+  "cmd/**/*.go",
+  "internal/**/*.go",
+  "internal/**/*.html",
+  "internal/**/*.sql",
+  "internal/**/*.txt",
+  "internal/web/static/*",
+  "go.mod",
+  "go.sum",
+  ".env",
+  ".config/mise/config.toml",
+]
