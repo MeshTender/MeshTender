@@ -181,3 +181,155 @@ func TestNetSessionRosterPage(t *testing.T) {
 		}
 	}
 }
+
+// TestNetControlAcknowledgements walks a manual-acknowledgement net from the
+// web: only admins designate net control; only net control (or an admin)
+// acknowledges or logs check-ins by hand; the roster shows each state; and the
+// in-progress roster's htmx poll gets just the roster card.
+func TestNetControlAcknowledgements(t *testing.T) {
+	t.Parallel()
+	st, ctx, ts, h := splitServer(t)
+	admin, adminSess := appLogin(t, ts, st, ctx, h.app, "ackadmin")
+	control, controlSess := appLogin(t, ts, st, ctx, h.app, "ackcontrol")
+	heardUser, err := st.CreateUser(ctx, "ackheard", "Heard Member")
+	if err != nil {
+		t.Fatal(err)
+	}
+	radioless, err := st.CreateUser(ctx, "ackradioless", "Radioless Member")
+	if err != nil {
+		t.Fatal(err)
+	}
+	org, err := st.CreateOrg(ctx, "Ack Org", admin.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, u := range []int64{control.ID, heardUser.ID, radioless.ID} {
+		if err := st.AddOrgMember(ctx, org.ID, u, "member"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	base := "/orgs/" + org.Slug + "/nets"
+
+	// A manual-acknowledgement net created through the form, open right now.
+	now := time.Now().UTC()
+	form := netForm("Ack Net", strconv.Itoa(int(now.Weekday())),
+		time.Date(2000, 1, 1, 0, max(0, now.Hour()*60+now.Minute()-10), 0, 0, time.UTC).Format("15:04"), "120", "UTC")
+	form.Set("ack", "manual")
+	resp := post(t, ts, h.app, base, form, adminSess)
+	netPath := resp.Header.Get("Location")
+	resp.Body.Close()
+	nid, _ := strconv.ParseInt(netPath[strings.LastIndex(netPath, "/")+1:], 10, 64)
+	net, err := st.GetNet(ctx, org.ID, nid)
+	if err != nil || !net.ManualAck {
+		t.Fatalf("net = %+v, %v; want manual acknowledgement", net, err)
+	}
+	cur, err := st.NextNetSession(ctx, nid, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	sessPath := netPath + "/sessions/" + strconv.FormatInt(cur.ID, 10)
+
+	// The heard member's advert during the session.
+	comp, err := st.CreateCompanion(ctx, heardUser.ID, "Heard T1", observetest.NewIdentity(t).String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	at := time.Now().Add(time.Second)
+	if _, err := st.RecordAdvertHeard(ctx, store.AdvertHeard{CompanionID: comp.ID, AdvertTS: uint32(at.Unix()), //nolint:gosec // test clock
+		ObserverPublicKeyHex: strings.Repeat("ab", 32), ReceivedAt: at}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Before designation the member is just a member: no controls, no posting.
+	if body := getBody(t, ts, h.app, sessPath, controlSess); strings.Contains(body, `data-testid="acknowledge"`) || strings.Contains(body, `data-testid="add-checkin"`) {
+		t.Error("a plain member sees net control's controls")
+	}
+	if got := status(t, post(t, ts, h.app, sessPath+"/acks", url.Values{"user_id": {strconv.FormatInt(heardUser.ID, 10)}}, controlSess)); got != http.StatusNotFound {
+		t.Errorf("plain member acknowledging = %d, want 404", got)
+	}
+	if got := status(t, post(t, ts, h.app, netPath+"/controls", url.Values{"user_id": {strconv.FormatInt(control.ID, 10)}}, controlSess)); got != http.StatusNotFound {
+		t.Errorf("member designating net control = %d, want 404", got)
+	}
+	redirectTo(t, post(t, ts, h.app, netPath+"/controls", url.Values{"user_id": {strconv.FormatInt(control.ID, 10)}}, adminSess), netPath)
+	if body := getBody(t, ts, h.app, netPath, adminSess); !strings.Contains(body, "@ackcontrol") {
+		t.Error("net page doesn't list the designated net control")
+	}
+
+	// Net control sees the heard advert awaiting acknowledgement, then
+	// acknowledges it and logs the radioless member by hand.
+	body := getBody(t, ts, h.app, sessPath, controlSess)
+	if !strings.Contains(body, `data-testid="awaiting"`) || !strings.Contains(body, `data-testid="acknowledge"`) {
+		t.Fatal("heard check-in isn't awaiting acknowledgement for net control")
+	}
+	redirectTo(t, post(t, ts, h.app, sessPath+"/acks", url.Values{"user_id": {strconv.FormatInt(heardUser.ID, 10)}}, controlSess), sessPath)
+	redirectTo(t, post(t, ts, h.app, sessPath+"/acks", url.Values{"user_id": {strconv.FormatInt(radioless.ID, 10)}, "note": {"with traffic"}}, controlSess), sessPath)
+
+	body = getBody(t, ts, h.app, sessPath, adminSess)
+	for _, want := range []string{"acknowledged by @ackcontrol", "Radioless Member", "by @ackcontrol", "with traffic", "2 of 2 members checked in"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("roster lacks %q", want)
+		}
+	}
+	if strings.Contains(body, `data-testid="awaiting"`) {
+		t.Error("still awaiting after acknowledgement")
+	}
+
+	// The htmx poll gets just the roster card, no page chrome.
+	req, _ := http.NewRequest(http.MethodGet, ts.URL+sessPath, nil)
+	req.Host = h.app
+	req.Header.Set("HX-Request", "true")
+	req.AddCookie(adminSess)
+	frag, err := ts.Client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fb := readBody(t, frag)
+	if !strings.Contains(fb, `id="roster-card"`) || strings.Contains(fb, "<html") || strings.Contains(fb, `data-testid="add-checkin"`) {
+		t.Errorf("htmx roster response isn't just the card: %.200s", fb)
+	}
+	if !strings.Contains(body, `hx-trigger="every 10s"`) {
+		t.Error("in-progress roster doesn't poll")
+	}
+
+	// Undo the hand-added check-in.
+	redirectTo(t, post(t, ts, h.app, sessPath+"/acks/"+strconv.FormatInt(radioless.ID, 10)+"/delete", nil, controlSess), sessPath)
+	// (Their name is back in the add-a-check-in picker, so look at the roster cell.)
+	if body := getBody(t, ts, h.app, sessPath, adminSess); strings.Contains(body, "<td>Radioless Member</td>") {
+		t.Error("undone hand-added check-in still on the roster")
+	}
+}
+
+// TestAutomaticAcknowledgementShowsNoAwaiting: on a default net an observed
+// advert needs nothing more from net control.
+func TestAutomaticAcknowledgementShowsNoAwaiting(t *testing.T) {
+	t.Parallel()
+	st, ctx, ts, h := splitServer(t)
+	admin, sess := appLogin(t, ts, st, ctx, h.app, "autoadmin")
+	org, err := st.CreateOrg(ctx, "Auto Org", admin.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	net, err := st.CreateNet(ctx, org.ID, store.NetInput{Name: "Auto", Weekday: now.Weekday(), StartMinute: max(0, now.Hour()*60+now.Minute()-10),
+		DurationMinutes: 120, Timezone: "UTC", Active: true}, admin.ID, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cur, err := st.NextNetSession(ctx, net.ID, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	comp, err := st.CreateCompanion(ctx, admin.ID, "Auto T1", observetest.NewIdentity(t).String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	at := time.Now().Add(time.Second)
+	if _, err := st.RecordAdvertHeard(ctx, store.AdvertHeard{CompanionID: comp.ID, AdvertTS: uint32(at.Unix()), //nolint:gosec // test clock
+		ObserverPublicKeyHex: strings.Repeat("ab", 32), ReceivedAt: at}); err != nil {
+		t.Fatal(err)
+	}
+	body := getBody(t, ts, h.app, "/orgs/"+org.Slug+"/nets/"+strconv.FormatInt(net.ID, 10)+"/sessions/"+strconv.FormatInt(cur.ID, 10), sess)
+	if !strings.Contains(body, "on <a") || strings.Contains(body, `data-testid="awaiting"`) || strings.Contains(body, `data-testid="acknowledge"`) {
+		t.Error("automatic net shows a manual-acknowledgement state")
+	}
+}

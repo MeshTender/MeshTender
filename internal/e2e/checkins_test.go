@@ -182,3 +182,68 @@ func TestE2ENetScheduleAndRoster(t *testing.T) {
 	}
 	watch.assertClean(t)
 }
+
+// TestE2ENetControlAcknowledgesAndRosterRefreshes: on a manual-acknowledgement
+// net, net control clicks Acknowledge, and the in-progress roster picks up a
+// check-in that arrives while the page is open (htmx polling, under the CSP).
+func TestE2ENetControlAcknowledgesAndRosterRefreshes(t *testing.T) {
+	srv := newE2EServer(t)
+	user, cookie := srv.login(t, "e2enetcontrol")
+	org, err := srv.store.CreateOrg(srv.ctx, "Ack Org", user.ID)
+	if err != nil {
+		t.Fatalf("create org: %v", err)
+	}
+	now := time.Now().UTC()
+	net, err := srv.store.CreateNet(srv.ctx, org.ID, store.NetInput{Name: "Ack Net", Weekday: now.Weekday(),
+		StartMinute: max(0, now.Hour()*60+now.Minute()-10), DurationMinutes: 120, Timezone: "UTC", Active: true, ManualAck: true}, user.ID, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sess, err := srv.store.NextNetSession(srv.ctx, net.ID, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkIn := func(owner int64, name string) {
+		c, err := srv.store.CreateCompanion(srv.ctx, owner, name, observetest.NewIdentity(t).String())
+		if err != nil {
+			t.Fatal(err)
+		}
+		at := time.Now().Add(time.Second)
+		if _, err := srv.store.RecordAdvertHeard(srv.ctx, store.AdvertHeard{CompanionID: c.ID,
+			ObserverPublicKeyHex: strings.Repeat("ab", 32), ReceivedAt: at, AdvertTS: uint32(at.Unix())}); err != nil { //nolint:gosec // test clock
+			t.Fatal(err)
+		}
+	}
+	checkIn(user.ID, "NC T1")
+
+	bctx, cancel, watch := startBrowser(t)
+	defer cancel()
+	if err := chromedp.Run(bctx,
+		network.Enable(),
+		cdplog.Enable(),
+		setSessionCookie(cookie),
+		chromedp.Navigate(fmt.Sprintf("%s/orgs/%s/nets/%d/sessions/%d", srv.appURL, org.Slug, net.ID, sess.ID)),
+		chromedp.WaitVisible(`[data-testid="acknowledge"]`, chromedp.ByQuery),
+		chromedp.Click(`[data-testid="acknowledge"]`, chromedp.ByQuery),
+		chromedp.WaitVisible(`[data-testid="acked"]`, chromedp.ByQuery),
+	); err != nil {
+		t.Fatalf("acknowledge: %v", err)
+	}
+
+	// Another member checks in while the page sits open.
+	late, err := srv.store.CreateUser(srv.ctx, "e2elatecomer", "Late Comer")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := srv.store.AddOrgMember(srv.ctx, org.ID, late.ID, "member"); err != nil {
+		t.Fatal(err)
+	}
+	checkIn(late.ID, "Late T1")
+	if err := chromedp.Run(bctx,
+		chromedp.Poll(`document.querySelector('[data-testid="roster"]').innerText.includes("Late Comer")`, nil,
+			chromedp.WithPollingTimeout(25*time.Second)),
+	); err != nil {
+		t.Fatalf("roster didn't refresh with the new check-in: %v", err)
+	}
+	watch.assertClean(t)
+}

@@ -61,6 +61,7 @@ func parseNetForm(r *http.Request) (in store.NetInput, msg string) {
 		return in, "Choose the net's time zone."
 	}
 	in.Active = r.FormValue("active") == "1"
+	in.ManualAck = r.FormValue("ack") == "manual"
 	return in, ""
 }
 
@@ -178,11 +179,17 @@ func (s *Handlers) pageOrgNet(w http.ResponseWriter, r *http.Request) {
 		s.ServerError(w, r, "Couldn't load the next session.", err)
 		return
 	}
+	controls, err := s.Store.ListNetControls(ctx, org.ID, net.ID)
+	if err != nil {
+		s.ServerError(w, r, "Couldn't load net control.", err)
+		return
+	}
 	data := map[string]any{
 		"Org":      org,
 		"Nav":      s.orgNav(ctx, org, "nets", isAdmin),
 		"IsAdmin":  isAdmin,
 		"Net":      net,
+		"Controls": controls,
 		"Schedule": netSchedule(net),
 		"Next":     next,
 		"Now":      now,
@@ -195,7 +202,70 @@ func (s *Handlers) pageOrgNet(w http.ResponseWriter, r *http.Request) {
 	if hasMore && len(sessions) > 0 {
 		data["NextBefore"] = web.EncodeCursor(sessions[len(sessions)-1].StartsAt)
 	}
+	if isAdmin {
+		// Candidates for net control: members not already designated. Admins
+		// can act as net control anyway, so they're left out.
+		members, err := s.Store.ListOrgMembers(ctx, org.ID)
+		if err != nil {
+			s.ServerError(w, r, "Couldn't load members.", err)
+			return
+		}
+		designated := map[int64]bool{}
+		for _, c := range controls {
+			designated[c.UserID] = true
+		}
+		var candidates []store.OrgMemberInfo
+		for _, m := range members {
+			if m.Role != "admin" && !designated[m.UserID] {
+				candidates = append(candidates, m)
+			}
+		}
+		data["Candidates"] = candidates
+	}
 	s.Render(w, r, "org_net.html", data)
+}
+
+func netURL(r *http.Request) string { return netsURL(r) + "/" + chi.URLParam(r, "nid") }
+
+func (s *Handlers) handleAddNetControl(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.requireOrgAdmin(w, r)
+	if !ok {
+		return
+	}
+	nid, err1 := strconv.ParseInt(chi.URLParam(r, "nid"), 10, 64)
+	uid, err2 := strconv.ParseInt(r.FormValue("user_id"), 10, 64)
+	if err1 != nil || err2 != nil {
+		web.RedirectErr(w, r, netURL(r), "Choose a member.")
+		return
+	}
+	err := s.Store.AddNetControl(r.Context(), id, nid, uid, s.Auth.CurrentUserID(r.Context()))
+	if errors.Is(err, store.ErrNotFound) {
+		web.RedirectErr(w, r, netURL(r), "That member isn't in this organization.")
+		return
+	}
+	if err != nil {
+		s.ServerError(w, r, "Couldn't add net control.", err)
+		return
+	}
+	http.Redirect(w, r, netURL(r), http.StatusSeeOther) //nolint:gosec // G710: local path
+}
+
+func (s *Handlers) handleRemoveNetControl(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.requireOrgAdmin(w, r)
+	if !ok {
+		return
+	}
+	nid, err1 := strconv.ParseInt(chi.URLParam(r, "nid"), 10, 64)
+	uid, err2 := strconv.ParseInt(chi.URLParam(r, "uid"), 10, 64)
+	if err1 != nil || err2 != nil {
+		s.NotFound(w, r)
+		return
+	}
+	if err := s.Store.RemoveNetControl(r.Context(), id, nid, uid); err != nil {
+		s.ServerError(w, r, "Couldn't remove net control.", err)
+		return
+	}
+	http.Redirect(w, r, netURL(r), http.StatusSeeOther) //nolint:gosec // G710: local path
 }
 
 func (s *Handlers) handleUpdateNet(w http.ResponseWriter, r *http.Request) {
@@ -246,43 +316,74 @@ func (s *Handlers) handleDeleteNet(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, netsURL(r), http.StatusSeeOther) //nolint:gosec // G710: local path
 }
 
-func (s *Handlers) pageNetSession(w http.ResponseWriter, r *http.Request) {
+// netSessionContext is what every session page and action resolves first.
+type netSessionContext struct {
+	org        *store.Org
+	isAdmin    bool
+	net        *store.Net
+	session    *store.NetSession
+	netControl bool // may acknowledge and add check-ins
+}
+
+// loadNetSession resolves the org, net and started session in the URL for a
+// member, and whether they may act as net control (an org admin, or designated
+// for this net). ok is false when a response was written.
+func (s *Handlers) loadNetSession(w http.ResponseWriter, r *http.Request) (netSessionContext, bool) {
 	org, isAdmin, ok := s.orgMemberPage(w, r)
 	if !ok {
-		return
+		return netSessionContext{}, false
 	}
 	net, ok := s.orgNet(w, r, org.ID)
 	if !ok {
-		return
+		return netSessionContext{}, false
 	}
 	ctx := r.Context()
 	sid, err := strconv.ParseInt(chi.URLParam(r, "sid"), 10, 64)
 	if err != nil {
 		s.NotFound(w, r)
-		return
+		return netSessionContext{}, false
 	}
 	sess, err := s.Store.GetNetSession(ctx, org.ID, net.ID, sid)
 	if errors.Is(err, store.ErrNotFound) {
 		s.NotFound(w, r)
-		return
+		return netSessionContext{}, false
 	}
 	if err != nil {
 		s.ServerError(w, r, "Couldn't load the session.", err)
-		return
+		return netSessionContext{}, false
 	}
-	now := time.Now()
-	if sess.StartsAt.After(now) {
-		// A roster for a session that hasn't started would only ever say "not
-		// heard" for everyone.
+	if sess.StartsAt.After(time.Now()) {
+		// A session that hasn't started has nothing to show or acknowledge.
 		s.NotFound(w, r)
+		return netSessionContext{}, false
+	}
+	nc := isAdmin
+	if !nc {
+		if nc, err = s.Store.IsNetControl(ctx, org.ID, net.ID, s.Auth.CurrentUserID(ctx)); err != nil {
+			s.ServerError(w, r, "Couldn't check net control.", err)
+			return netSessionContext{}, false
+		}
+	}
+	return netSessionContext{org: org, isAdmin: isAdmin, net: net, session: sess, netControl: nc}, true
+}
+
+func sessionURL(r *http.Request) string {
+	return netURL(r) + "/sessions/" + chi.URLParam(r, "sid")
+}
+
+func (s *Handlers) pageNetSession(w http.ResponseWriter, r *http.Request) {
+	c, ok := s.loadNetSession(w, r)
+	if !ok {
 		return
 	}
-	roster, err := s.Store.NetSessionRoster(ctx, org.ID, sess)
+	ctx := r.Context()
+	now := time.Now()
+	roster, err := s.Store.NetSessionRoster(ctx, c.org.ID, c.session)
 	if err != nil {
 		s.ServerError(w, r, "Couldn't load the roster.", err)
 		return
 	}
-	observers, err := s.Store.ListOrgObservers(ctx, org.ID)
+	observers, err := s.Store.ListOrgObservers(ctx, c.org.ID)
 	if err != nil {
 		s.ServerError(w, r, "Couldn't load observers.", err)
 		return
@@ -294,20 +395,100 @@ func (s *Handlers) pageNetSession(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	checkedIn := 0
+	in := map[int64]bool{}
 	for _, e := range roster {
 		if e.CheckedIn() {
 			checkedIn++
+			in[e.MemberID] = true
 		}
 	}
-	s.Render(w, r, "net_session.html", map[string]any{
-		"Org":             org,
-		"Nav":             s.orgNav(ctx, org, "nets", isAdmin),
-		"Net":             net,
-		"Session":         sess,
-		"InProgress":      !now.Before(sess.StartsAt) && now.Before(sess.EndsAt),
+	data := map[string]any{
+		"Org":             c.org,
+		"Nav":             s.orgNav(ctx, c.org, "nets", c.isAdmin),
+		"Net":             c.net,
+		"Session":         c.session,
+		"SessionURL":      sessionURL(r),
+		"InProgress":      !now.Before(c.session.StartsAt) && now.Before(c.session.EndsAt),
+		"NetControl":      c.netControl,
 		"Roster":          roster,
 		"CheckedIn":       checkedIn,
 		"Observers":       len(observers),
 		"ObserversOnline": online,
-	})
+		"Error":           r.URL.Query().Get("error"),
+	}
+	if c.netControl {
+		// Who net control can log by hand: any member not yet checked in.
+		members, err := s.Store.ListOrgMembers(ctx, c.org.ID)
+		if err != nil {
+			s.ServerError(w, r, "Couldn't load members.", err)
+			return
+		}
+		var addable []store.OrgMemberInfo
+		for _, m := range members {
+			if !in[m.UserID] {
+				addable = append(addable, m)
+			}
+		}
+		data["Addable"] = addable
+	}
+	// The in-progress roster polls itself (htmx) so net control sees adverts
+	// arrive; that request gets just the roster card.
+	if r.Header.Get("HX-Request") != "" {
+		data["Layout"] = "roster-card"
+	}
+	s.Render(w, r, "net_session.html", data)
+}
+
+// handleAcknowledge records net control acknowledging a member for the session:
+// a heard advert they've replied to, or a check-in logged by hand (with an
+// optional note, e.g. "with traffic").
+func (s *Handlers) handleAcknowledge(w http.ResponseWriter, r *http.Request) {
+	c, ok := s.loadNetSession(w, r)
+	if !ok {
+		return
+	}
+	if !c.netControl {
+		s.NotFound(w, r)
+		return
+	}
+	member, err := strconv.ParseInt(r.FormValue("user_id"), 10, 64)
+	if err != nil {
+		web.RedirectErr(w, r, sessionURL(r), "Choose a member.")
+		return
+	}
+	err = s.Store.AcknowledgeMember(r.Context(), c.org.ID, c.session.ID, member, s.Auth.CurrentUserID(r.Context()),
+		strings.TrimSpace(r.FormValue("note")), time.Now())
+	if errors.Is(err, store.ErrNotFound) {
+		web.RedirectErr(w, r, sessionURL(r), "That member isn't in this organization.")
+		return
+	}
+	if err != nil {
+		s.ServerError(w, r, "Couldn't record the acknowledgement.", err)
+		return
+	}
+	http.Redirect(w, r, sessionURL(r), http.StatusSeeOther) //nolint:gosec // G710: local path
+}
+
+func (s *Handlers) handleRemoveAcknowledge(w http.ResponseWriter, r *http.Request) {
+	c, ok := s.loadNetSession(w, r)
+	if !ok {
+		return
+	}
+	if !c.netControl {
+		s.NotFound(w, r)
+		return
+	}
+	member, err := strconv.ParseInt(chi.URLParam(r, "uid"), 10, 64)
+	if err != nil {
+		s.NotFound(w, r)
+		return
+	}
+	if err := s.Store.RemoveAcknowledgement(r.Context(), c.org.ID, c.session.ID, member); errors.Is(err, store.ErrNotFound) {
+		s.NotFound(w, r)
+		return
+	} else if err != nil {
+		s.ServerError(w, r, "Couldn't undo the acknowledgement.", err)
+		return
+	}
+	http.Redirect(w, r, sessionURL(r), http.StatusSeeOther) //nolint:gosec // G710: local path
 }

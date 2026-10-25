@@ -12,11 +12,46 @@
         <h2 class="card-title mb-1">{{.Net.Name}}{{if not .Net.Active}} <span class="badge bg-secondary-lt">Inactive</span>{{end}}</h2>
         <div class="text-secondary">{{.Schedule}}</div>
         {{if .Net.Description}}<p class="mt-2 mb-0">{{.Net.Description}}</p>{{end}}
+        <div class="text-secondary small mt-1">{{if .Net.ManualAck}}Net control acknowledges each check-in.{{else}}Check-ins are acknowledged as soon as they're heard.{{end}}</div>
         {{with .Next}}
         <div class="mt-3" data-testid="net-next">
           {{if $.Now.Before .StartsAt}}Next session {{ts .StartsAt "datetime"}}
           {{else}}<span class="badge bg-green-lt me-1">In progress</span> until {{ts .EndsAt "time"}} · <a href="/orgs/{{$.Org.Slug}}/nets/{{$.Net.ID}}/sessions/{{.ID}}">Live roster</a>{{end}}
         </div>
+        {{end}}
+      </div>
+    </div>
+
+    <div class="card mb-3" data-testid="net-control">
+      <div class="card-header"><h2 class="card-title">Net control</h2></div>
+      <div class="card-body">
+        <p class="text-secondary small">Net control acknowledges check-ins and can log them by hand. Organization admins can always act as net control.</p>
+        {{if .Controls}}
+        <ul class="list-unstyled mb-0">
+          {{range .Controls}}
+          <li class="d-flex align-items-center gap-2 mb-1">
+            <span>{{.Name}} <span class="text-secondary">@{{.Username}}</span></span>
+            {{if $.IsAdmin}}
+            <form method="post" action="/orgs/{{$.Org.Slug}}/nets/{{$.Net.ID}}/controls/{{.UserID}}/delete" class="m-0 ms-auto" data-confirm="Remove {{.Name}} as net control?">
+              <button type="submit" class="btn btn-sm btn-ghost-danger" aria-label="Remove {{.Name}}">{{template "icon-trash" ""}}</button>
+            </form>
+            {{end}}
+          </li>
+          {{end}}
+        </ul>
+        {{else}}
+        <p class="text-secondary mb-0">No one besides the organization's admins.</p>
+        {{end}}
+        {{if and .IsAdmin .Candidates}}
+        <form method="post" action="/orgs/{{.Org.Slug}}/nets/{{.Net.ID}}/controls" class="row g-2 align-items-end mt-2">
+          <div class="col">
+            <label class="form-label" for="nc-member">Add a member</label>
+            <select id="nc-member" name="user_id" class="form-select">
+              {{range .Candidates}}<option value="{{.UserID}}">{{.Name}} (@{{.Username}})</option>{{end}}
+            </select>
+          </div>
+          <div class="col-auto"><button type="submit" class="btn btn-outline-primary">Add</button></div>
+        </form>
         {{end}}
       </div>
     </div>

@@ -37,6 +37,19 @@
   </select>
   <div class="form-hint">The net keeps its local start time across daylight-saving changes.</div>
 </div>
+<div class="mb-3">
+  <div class="form-label">Acknowledge check-ins</div>
+  <label class="form-check">
+    <input class="form-check-input" type="radio" name="ack" value="auto"{{if not .Form.ManualAck}} checked{{end}}>
+    <span class="form-check-label">Automatically</span>
+    <span class="form-hint mt-0">An advert counts as acknowledged as soon as an observer hears it.</span>
+  </label>
+  <label class="form-check">
+    <input class="form-check-input" type="radio" name="ack" value="manual"{{if .Form.ManualAck}} checked{{end}}>
+    <span class="form-check-label">Manually, by net control</span>
+    <span class="form-hint mt-0">Net control replies on the air, then marks each check-in acknowledged.</span>
+  </label>
+</div>
 <label class="form-check mb-3">
   <input class="form-check-input" type="checkbox" name="active" value="1"{{if .Form.Active}} checked{{end}}>
   <span class="form-check-label">Active</span>

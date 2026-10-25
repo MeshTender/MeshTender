@@ -665,3 +665,123 @@ func TestPruneCheckins(t *testing.T) {
 		t.Fatalf("pruned = %d, %v", n, err)
 	}
 }
+
+// TestNetControlAndAcknowledgements: net control is per net and only for
+// current members; an acknowledgement either confirms a heard advert or, with
+// none heard, logs the check-in by hand — and that member shows on the roster
+// even with no companion at all.
+func TestNetControlAndAcknowledgements(t *testing.T) {
+	t.Parallel()
+	st, ctx := orgTestStore(t)
+	admin := mustUser(t, st, ctx, "ncadmin")
+	control := mustUser(t, st, ctx, "nccontrol")
+	heardMember := mustUser(t, st, ctx, "ncheard")
+	radioless := mustUser(t, st, ctx, "ncradioless")
+	outsider := mustUser(t, st, ctx, "ncoutsider")
+	org := mustOrg(t, st, ctx, "NCOrg", admin)
+	other := mustOrg(t, st, ctx, "NCOther", outsider)
+	for _, u := range []int64{control, heardMember, radioless} {
+		if err := st.AddOrgMember(ctx, org, u, "member"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ny, _ := time.LoadLocation("America/New_York")
+	before := time.Date(2026, 10, 30, 12, 0, 0, 0, ny)
+	in := testNetInput()
+	in.ManualAck = true
+	net, err := st.CreateNet(ctx, org, in, admin, before)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := st.GetNet(ctx, org, net.ID); !got.ManualAck {
+		t.Fatal("manual_ack didn't round-trip")
+	}
+	sess, err := st.NextNetSession(ctx, net.ID, before)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Net control: members only, per net, gone with membership.
+	if err := st.AddNetControl(ctx, org, net.ID, control, admin); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.AddNetControl(ctx, org, net.ID, control, admin); err != nil {
+		t.Fatalf("re-adding: %v", err)
+	}
+	if err := st.AddNetControl(ctx, org, net.ID, outsider, admin); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("non-member: err = %v", err)
+	}
+	if err := st.AddNetControl(ctx, other, net.ID, outsider, outsider); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("another org's net: err = %v", err)
+	}
+	if ok, _ := st.IsNetControl(ctx, org, net.ID, control); !ok {
+		t.Fatal("designated member isn't net control")
+	}
+	if ok, _ := st.IsNetControl(ctx, other, net.ID, control); ok {
+		t.Fatal("net control leaked across orgs")
+	}
+	controls, err := st.ListNetControls(ctx, org, net.ID)
+	if err != nil || len(controls) != 1 || controls[0].Username != "nccontrol" {
+		t.Fatalf("controls = %+v, %v", controls, err)
+	}
+
+	// The heard member's advert, then net control's acknowledgement of it.
+	c := mustCompanion(t, st, ctx, heardMember, "Heard", 1)
+	if _, err := st.pool.Exec(ctx, `UPDATE companions SET created_at = $2 WHERE id = $1`, c.ID, before.Add(-time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	at := sess.StartsAt.Add(5 * time.Minute)
+	heard(t, st, ctx, AdvertHeard{CompanionID: c.ID, ReceivedAt: at})
+
+	roster, _ := st.NetSessionRoster(ctx, org, sess)
+	if len(roster) != 1 || !roster[0].Heard() || roster[0].Acked() {
+		t.Fatalf("before acknowledging: %+v", roster)
+	}
+	if err := st.AcknowledgeMember(ctx, org, sess.ID, heardMember, control, "", at.Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	// A radioless member logged by hand, with a note (truncated to 140).
+	long := strings.Repeat("x", 200)
+	if err := st.AcknowledgeMember(ctx, org, sess.ID, radioless, control, long, at.Add(2*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.AcknowledgeMember(ctx, org, sess.ID, outsider, control, "", at); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("acknowledging a non-member: err = %v", err)
+	}
+	if err := st.AcknowledgeMember(ctx, other, sess.ID, heardMember, control, "", at); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("acknowledging on another org's session: err = %v", err)
+	}
+
+	roster, err = st.NetSessionRoster(ctx, org, sess)
+	if err != nil || len(roster) != 2 {
+		t.Fatalf("roster = %+v, %v", roster, err)
+	}
+	h, r := roster[0], roster[1]
+	if h.MemberName != "ncheard" || !h.Heard() || !h.Acked() || h.AddedByHand() || h.AckedBy != "nccontrol" {
+		t.Errorf("heard + acknowledged = %+v", h)
+	}
+	if r.MemberName != "ncradioless" || r.Heard() || !r.AddedByHand() || !r.CheckedIn() || len([]rune(r.AckNote)) != 140 {
+		t.Errorf("added by hand = %+v", r)
+	}
+	sessions, _, err := st.ListNetSessionsPage(ctx, org, net.ID, sess.EndsAt, nil)
+	if err != nil || sessions[0].CheckedIn != 2 {
+		t.Fatalf("sessions = %+v, %v; the hand-added member counts", sessions, err)
+	}
+
+	// Undo, and removing net control.
+	if err := st.RemoveAcknowledgement(ctx, org, sess.ID, radioless); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.RemoveAcknowledgement(ctx, org, sess.ID, radioless); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("second undo: err = %v", err)
+	}
+	if roster, _ = st.NetSessionRoster(ctx, org, sess); len(roster) != 1 {
+		t.Fatalf("after undo the radioless member should drop off: %+v", roster)
+	}
+	if err := st.RemoveNetControl(ctx, org, net.ID, control); err != nil {
+		t.Fatal(err)
+	}
+	if ok, _ := st.IsNetControl(ctx, org, net.ID, control); ok {
+		t.Fatal("still net control after removal")
+	}
+}

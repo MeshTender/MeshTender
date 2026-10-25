@@ -2,30 +2,97 @@
 {{define "header"}}{{template "org-header" .}}{{end}}
 {{define "content"}}
 {{template "org-tabs" .Nav}}
+{{if .Error}}<div class="alert alert-danger" role="alert"><div>{{.Error}}</div></div>{{end}}
 
 <div class="card mb-3">
   <div class="card-body">
     <div class="page-pretitle"><a href="/orgs/{{.Org.Slug}}/nets/{{.Net.ID}}">{{.Net.Name}}</a></div>
     <h2 class="card-title mb-1">{{ts .Session.StartsAt "datetime"}} – {{ts .Session.EndsAt "time"}}{{if .InProgress}} <span class="badge bg-green-lt">In progress</span>{{end}}</h2>
-    <div class="text-secondary" data-testid="roster-summary">{{.CheckedIn}} of {{len .Roster}} members checked in · {{.ObserversOnline}} of {{.Observers}} observers online now</div>
+    <div class="text-secondary">{{if .Net.ManualAck}}Net control acknowledges each check-in.{{else}}Check-ins are acknowledged as soon as they're heard.{{end}}{{if .NetControl}} You're net control for this net.{{end}}</div>
   </div>
 </div>
 
-<div class="card">
+{{template "roster-card" .}}
+
+{{if and .NetControl .Addable}}
+<div class="card mt-3">
+  <div class="card-body">
+    <h2 class="card-title">Add a check-in</h2>
+    <p class="text-secondary small">For a member MeshTender didn't hear, such as someone who checked in by channel message.</p>
+    <form method="post" action="{{.SessionURL}}/acks" class="row g-2 align-items-end" data-testid="add-checkin">
+      <div class="col-md-4">
+        <label class="form-label" for="add-member">Member</label>
+        <select id="add-member" name="user_id" class="form-select" required>
+          {{range .Addable}}<option value="{{.UserID}}">{{.Name}} (@{{.Username}})</option>{{end}}
+        </select>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label" for="add-note">Note (optional)</label>
+        <input type="text" id="add-note" name="note" class="form-control" maxlength="140" placeholder="with traffic, mobile…">
+      </div>
+      <div class="col-md-2">
+        <button type="submit" class="btn btn-primary w-100">Add</button>
+      </div>
+    </form>
+  </div>
+</div>
+{{end}}
+{{end}}
+
+{{/* roster-card is the roster itself. While the session is in progress it
+     reloads itself every 10 seconds (htmx, same-origin; the handler returns
+     just this card for an HX-Request), so net control sees adverts arrive. The
+     "add a check-in" form lives outside it, so a refresh never clears what net
+     control is typing. */}}
+{{define "roster-card"}}
+<div class="card" id="roster-card" data-testid="roster-card"
+     {{if .InProgress}}hx-get="{{.SessionURL}}" hx-trigger="every 10s" hx-swap="outerHTML"{{end}}>
+  <div class="card-header">
+    <h2 class="card-title" data-testid="roster-summary">{{.CheckedIn}} of {{len .Roster}} members checked in</h2>
+    <div class="card-actions text-secondary small">{{.ObserversOnline}} of {{.Observers}} observers online now</div>
+  </div>
   {{if .Roster}}
   <div class="table-responsive">
     <table class="table card-table table-vcenter" data-testid="roster">
-      <thead><tr><th>Member</th><th>Checked in</th><th title="Repeaters seen relaying the member's best check-in">Spread</th><th>Observers</th></tr></thead>
+      <thead><tr><th>Member</th><th>Checked in</th><th title="Repeaters seen relaying the member's best check-in">Spread</th><th>Observers</th>{{if .NetControl}}<th></th>{{end}}</tr></thead>
       <tbody>
         {{range .Roster}}
         <tr>
           <td>{{.MemberName}}</td>
-          {{if .CheckedIn}}
-          <td>{{ts .FirstHeardAt "time"}} <span class="text-secondary">on <a href="/companions/{{.CompanionPublicID}}">{{.CompanionName}}</a></span>{{if .ZeroHopOnly}} <span class="badge bg-yellow-lt" title="Only heard as a zero-hop advert, which reaches radios in direct range">Zero-hop</span>{{end}}</td>
+          {{if .Heard}}
+          <td>
+            {{ts .HeardAt "time"}} <span class="text-secondary">on <a href="/companions/{{.CompanionPublicID}}">{{.CompanionName}}</a></span>
+            {{if .ZeroHopOnly}}<span class="badge bg-yellow-lt" title="Only heard as a zero-hop advert, which reaches radios in direct range">Zero-hop</span>{{end}}
+            {{if $.Net.ManualAck}}
+              {{if .Acked}}<div class="text-secondary small" data-testid="acked">acknowledged by @{{.AckedBy}}{{if .AckNote}} · {{.AckNote}}{{end}}</div>
+              {{else}}<div><span class="badge bg-orange-lt" data-testid="awaiting">Awaiting acknowledgement</span></div>{{end}}
+            {{end}}
+          </td>
           <td>{{if .Spread}}{{.Spread}} repeater{{if ne .Spread 1}}s{{end}}{{else}}<span class="text-secondary">—</span>{{end}}</td>
           <td>{{.Observers}}</td>
+          {{else if .Acked}}
+          <td data-testid="added-by-hand">
+            {{ts .AckedAt "time"}} <span class="text-secondary">by @{{.AckedBy}}</span>
+            {{if .AckNote}}<div class="text-secondary small">{{.AckNote}}</div>{{end}}
+          </td>
+          <td><span class="text-secondary">—</span></td>
+          <td><span class="text-secondary">—</span></td>
           {{else}}
           <td colspan="3" class="text-secondary">Not heard</td>
+          {{end}}
+          {{if $.NetControl}}
+          <td class="text-end">
+            {{if .Acked}}
+            <form method="post" action="{{$.SessionURL}}/acks/{{.MemberID}}/delete" class="m-0">
+              <button type="submit" class="btn btn-sm btn-ghost-secondary">Undo</button>
+            </form>
+            {{else if and .Heard $.Net.ManualAck}}
+            <form method="post" action="{{$.SessionURL}}/acks" class="m-0">
+              <input type="hidden" name="user_id" value="{{.MemberID}}">
+              <button type="submit" class="btn btn-sm btn-primary" data-testid="acknowledge">Acknowledge</button>
+            </form>
+            {{end}}
+          </td>
           {{end}}
         </tr>
         {{end}}
@@ -35,6 +102,6 @@
   {{else}}
   <div class="card-body text-secondary">No member has a confirmed companion yet. Members register theirs under Companions and send a flood advert.</div>
   {{end}}
-  <div class="card-footer text-secondary small">A member checks in by sending an advert from any of their companions during the session; "on" names the one heard first. Zero-hop check-ins are marked because only nearby observers can hear them. Spread and Observers are from the member's best check-in: how many repeaters were seen relaying the advert and how many observers heard it. Spread is a minimum, since a relay whose copies never reached an observer can't be seen. "Not heard" means no observer heard one, not that the member is absent.</div>
+  <div class="card-footer text-secondary small">A member checks in by sending an advert from any of their companions during the session; "on" names the one heard first. Net control can also add a check-in by hand ("by"). Zero-hop check-ins are marked because only nearby observers can hear them. Spread and Observers are from the member's best check-in: how many repeaters were seen relaying the advert and how many observers heard it. Spread is a minimum, since a relay whose copies never reached an observer can't be seen. "Not heard" means no observer heard one, not that the member is absent.</div>
 </div>
 {{end}}
