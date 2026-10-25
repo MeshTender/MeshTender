@@ -557,14 +557,24 @@ func TestNetLimit(t *testing.T) {
 	}
 }
 
+// TestNetSessionRoster: the roster is by member, not by device. A member
+// checks in with whichever companion they have, so each member appears once,
+// with their earliest check-in (and the companion it came from) and the best
+// counts across all of them.
 func TestNetSessionRoster(t *testing.T) {
 	t.Parallel()
 	st, ctx := orgTestStore(t)
 	admin := mustUser(t, st, ctx, "rosteradmin")
 	member := mustUser(t, st, ctx, "rostermember")
+	quiet := mustUser(t, st, ctx, "rosterquiet")
+	pending := mustUser(t, st, ctx, "rosterpending")
 	outsider := mustUser(t, st, ctx, "rosteroutsider")
 	org := mustOrg(t, st, ctx, "RosterOrg", admin)
-	_ = st.AddOrgMember(ctx, org, member, "member")
+	for _, u := range []int64{member, quiet, pending} {
+		if err := st.AddOrgMember(ctx, org, u, "member"); err != nil {
+			t.Fatal(err)
+		}
+	}
 	ny, _ := time.LoadLocation("America/New_York")
 	before := time.Date(2026, 10, 30, 12, 0, 0, 0, ny)
 	net, err := st.CreateNet(ctx, org, testNetInput(), admin, before)
@@ -577,26 +587,27 @@ func TestNetSessionRoster(t *testing.T) {
 	}
 
 	// Registered (and confirmed) before the net.
-	backdate := func(c *Companion) {
+	confirmed := func(owner int64, name string, key int) *Companion {
+		c := mustCompanion(t, st, ctx, owner, name, key)
 		if _, err := st.pool.Exec(ctx, `UPDATE companions SET created_at = $2 WHERE id = $1`, c.ID, before.Add(-time.Hour)); err != nil {
 			t.Fatal(err)
 		}
 		heard(t, st, ctx, AdvertHeard{CompanionID: c.ID, ReceivedAt: before})
+		return c
 	}
-	flood := mustCompanion(t, st, ctx, member, "Flood", 1)
-	zero := mustCompanion(t, st, ctx, admin, "ZeroHop", 2)
-	late := mustCompanion(t, st, ctx, admin, "Late", 3)
-	absent := mustCompanion(t, st, ctx, member, "Absent", 4)
-	foreign := mustCompanion(t, st, ctx, outsider, "Foreign", 5)
-	for _, c := range []*Companion{flood, zero, late, absent, foreign} {
-		backdate(c)
-	}
+	zero := confirmed(admin, "ZeroHop", 1)
+	late := confirmed(admin, "Late", 2)
+	flood := confirmed(member, "Flood", 3)
+	spare := confirmed(member, "Spare", 4)
+	confirmed(quiet, "Quiet", 5)
+	mustCompanion(t, st, ctx, pending, "Unconfirmed", 6) // never heard: not on the roster
+	foreign := confirmed(outsider, "Foreign", 7)
 
 	at := sess.StartsAt.Add(10 * time.Minute)
-	// Flood: one advert heard by two observers; repeaters 1, 2, 3 on one
-	// route, 9 on another, and a third route through 1 and 9 again. Each
-	// repeater rebroadcasts a flood once, so the spread is the 4 distinct
-	// repeaters, not the 6 path entries.
+	// The member's main device: one advert heard by two observers, repeaters
+	// 1, 2, 3 on one route, 9 on another, and a third route through 1 and 9
+	// again. Each repeater rebroadcasts a flood once, so the spread is the 4
+	// distinct repeaters, not the 6 path entries.
 	ts := uint32(at.Unix()) //nolint:gosec // test clock
 	heard(t, st, ctx, AdvertHeard{CompanionID: flood.ID, AdvertTS: ts, ReceivedAt: at, ObserverPublicKeyHex: testKey(100),
 		Relays: [][]byte{{1}, {2}, {3}}})
@@ -604,11 +615,12 @@ func TestNetSessionRoster(t *testing.T) {
 		Relays: [][]byte{{9}}})
 	heard(t, st, ctx, AdvertHeard{CompanionID: flood.ID, AdvertTS: ts, ReceivedAt: at.Add(2 * time.Second), ObserverPublicKeyHex: testKey(101),
 		Relays: [][]byte{{1}, {9}}})
-	// A second, smaller advert later in the session: the roster shows the best.
-	heard(t, st, ctx, AdvertHeard{CompanionID: flood.ID, ReceivedAt: at.Add(5 * time.Minute), Relays: [][]byte{{7}}})
-	// Zero-hop, earlier than flood.
+	// Their spare device later in the session: still one row, and the best
+	// counts win.
+	heard(t, st, ctx, AdvertHeard{CompanionID: spare.ID, ReceivedAt: at.Add(5 * time.Minute), Relays: [][]byte{{7}}})
+	// The admin: zero-hop, earlier than the member; their other device only at
+	// the very end, outside the half-open window.
 	heard(t, st, ctx, AdvertHeard{CompanionID: zero.ID, ReceivedAt: at.Add(-time.Minute), ZeroHop: true})
-	// Exactly at the end: outside the half-open window.
 	heard(t, st, ctx, AdvertHeard{CompanionID: late.ID, ReceivedAt: sess.EndsAt})
 	heard(t, st, ctx, AdvertHeard{CompanionID: foreign.ID, ReceivedAt: at})
 
@@ -618,25 +630,26 @@ func TestNetSessionRoster(t *testing.T) {
 	}
 	var names []string
 	for _, e := range roster {
-		names = append(names, e.CompanionName)
+		names = append(names, e.MemberName)
 	}
-	if got := strings.Join(names, ","); got != "ZeroHop,Flood,Absent,Late" {
-		t.Fatalf("roster order = %s", got)
+	if got := strings.Join(names, ","); got != "rosteradmin,rostermember,rosterquiet" {
+		t.Fatalf("roster = %s; want one row per member with a confirmed companion, checked-in first", got)
 	}
-	z, f, a := roster[0], roster[1], roster[2]
-	if !z.CheckedIn() || !z.ZeroHopOnly || z.Observers != 1 || z.Spread != 0 {
-		t.Errorf("zero-hop = %+v", z)
+	a, m, q := roster[0], roster[1], roster[2]
+	if !a.CheckedIn() || a.CompanionName != "ZeroHop" || !a.ZeroHopOnly || a.Observers != 1 || a.Spread != 0 {
+		t.Errorf("admin = %+v", a)
 	}
-	if !f.CheckedIn() || f.ZeroHopOnly || f.Observers != 2 || f.Spread != 4 {
-		t.Errorf("flood = %+v", f)
+	if !m.CheckedIn() || m.CompanionName != "Flood" || m.CompanionPublicID != flood.PublicID || m.ZeroHopOnly ||
+		m.Observers != 2 || m.Spread != 4 {
+		t.Errorf("member = %+v; want checked in on Flood (first), best counts across both devices", m)
 	}
-	if a.CheckedIn() || roster[3].CheckedIn() {
-		t.Errorf("absent/late checked in: %+v %+v", a, roster[3])
+	if q.CheckedIn() || q.CompanionName != "" {
+		t.Errorf("quiet member = %+v", q)
 	}
 
 	sessions, _, err := st.ListNetSessionsPage(ctx, org, net.ID, sess.EndsAt, nil)
 	if err != nil || len(sessions) != 1 || sessions[0].CheckedIn != 2 {
-		t.Fatalf("sessions = %+v, %v", sessions, err)
+		t.Fatalf("sessions = %+v, %v; want 2 members checked in (not 3 companions)", sessions, err)
 	}
 }
 

@@ -7,7 +7,7 @@
   <div class="card-body">
     <div class="page-pretitle"><a href="/orgs/{{.Org.Slug}}/nets/{{.Net.ID}}">{{.Net.Name}}</a></div>
     <h2 class="card-title mb-1">{{ts .Session.StartsAt "datetime"}} – {{ts .Session.EndsAt "time"}}{{if .InProgress}} <span class="badge bg-green-lt">In progress</span>{{end}}</h2>
-    <div class="text-secondary" data-testid="roster-summary">{{.CheckedIn}} of {{len .Roster}} member companions checked in · {{.ObserversOnline}} of {{.Observers}} observers online now</div>
+    <div class="text-secondary" data-testid="roster-summary">{{.CheckedIn}} of {{len .Roster}} members checked in · {{.ObserversOnline}} of {{.Observers}} observers online now</div>
   </div>
 </div>
 
@@ -15,14 +15,13 @@
   {{if .Roster}}
   <div class="table-responsive">
     <table class="table card-table table-vcenter" data-testid="roster">
-      <thead><tr><th>Companion</th><th>Member</th><th>Checked in</th><th title="Repeaters seen relaying the member's best check-in">Spread</th><th>Observers</th></tr></thead>
+      <thead><tr><th>Member</th><th>Checked in</th><th title="Repeaters seen relaying the member's best check-in">Spread</th><th>Observers</th></tr></thead>
       <tbody>
         {{range .Roster}}
         <tr>
-          <td><a href="/companions/{{.CompanionPublicID}}">{{.CompanionName}}</a></td>
-          <td>{{.OwnerName}}</td>
+          <td>{{.MemberName}}</td>
           {{if .CheckedIn}}
-          <td>{{ts .FirstHeardAt "time"}}{{if .ZeroHopOnly}} <span class="badge bg-yellow-lt" title="Only heard as a zero-hop advert, which reaches radios in direct range">Zero-hop</span>{{end}}</td>
+          <td>{{ts .FirstHeardAt "time"}} <span class="text-secondary">on <a href="/companions/{{.CompanionPublicID}}">{{.CompanionName}}</a></span>{{if .ZeroHopOnly}} <span class="badge bg-yellow-lt" title="Only heard as a zero-hop advert, which reaches radios in direct range">Zero-hop</span>{{end}}</td>
           <td>{{if .Spread}}{{.Spread}} repeater{{if ne .Spread 1}}s{{end}}{{else}}<span class="text-secondary">—</span>{{end}}</td>
           <td>{{.Observers}}</td>
           {{else}}
@@ -34,8 +33,8 @@
     </table>
   </div>
   {{else}}
-  <div class="card-body text-secondary">No member has a confirmed companion yet.</div>
+  <div class="card-body text-secondary">No member has a confirmed companion yet. Members register theirs under Companions and send a flood advert.</div>
   {{end}}
-  <div class="card-footer text-secondary small">A check-in is any advert from a member's companion heard during the session; zero-hop ones are marked because only nearby observers can hear them. Spread and Observers are from the member's best check-in: how many repeaters were seen relaying the advert and how many observers heard it. Spread is a minimum, since a relay whose copies never reached an observer can't be seen. "Not heard" means no observer heard one, not that the member is absent.</div>
+  <div class="card-footer text-secondary small">A member checks in by sending an advert from any of their companions during the session; "on" names the one heard first. Zero-hop check-ins are marked because only nearby observers can hear them. Spread and Observers are from the member's best check-in: how many repeaters were seen relaying the advert and how many observers heard it. Spread is a minimum, since a relay whose copies never reached an observer can't be seen. "Not heard" means no observer heard one, not that the member is absent.</div>
 </div>
 {{end}}

@@ -249,7 +249,7 @@ func (s *Store) EnsureUpcomingNetSessions(ctx context.Context, now time.Time) er
 	return nil
 }
 
-// NetSession is one occurrence of a net, with how many companions checked in.
+// NetSession is one occurrence of a net, with how many members checked in.
 type NetSession struct {
 	ID        int64
 	NetID     int64
@@ -274,7 +274,8 @@ const rosterCompanions = `
 func (s *Store) ListNetSessionsPage(ctx context.Context, orgID, netID int64, now time.Time, before *time.Time) ([]NetSession, bool, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT ns.id, ns.net_id, ns.starts_at, ns.ends_at,
-		       (SELECT count(DISTINCT k.companion_id) FROM advert_checkins k
+		       (SELECT count(DISTINCT c.owner_id) FROM advert_checkins k
+		        JOIN companions c ON c.id = k.companion_id
 		        WHERE k.companion_id IN (`+rosterCompanions+`)
 		          AND k.first_heard_at >= ns.starts_at AND k.first_heard_at < ns.ends_at)
 		FROM net_sessions ns
@@ -328,16 +329,20 @@ func (s *Store) GetNetSession(ctx context.Context, orgID, netID, sessionID int64
 	return &ns, nil
 }
 
-// RosterEntry is one member companion on a session roster. FirstHeardAt is nil
-// when nothing was heard from it in the window.
+// RosterEntry is one member on a session roster. A member checks in with
+// whichever of their companions they have to hand, so the roster is by person:
+// FirstHeardAt and the companion are from their earliest check-in in the
+// session, and are empty when nothing was heard from any of their companions.
 type RosterEntry struct {
+	MemberName string
+	// CompanionPublicID and CompanionName identify the device the member
+	// checked in on (their earliest check-in in the window).
 	CompanionPublicID string
 	CompanionName     string
-	OwnerName         string
 	FirstHeardAt      *time.Time
-	// Spread and Observers are from the member's best check-in in the session:
-	// the most repeaters seen relaying one of its adverts, and the most
-	// observers that heard one. (Combining across adverts would need the
+	// Spread and Observers are from the member's best check-in in the
+	// session: the most repeaters seen relaying one of their adverts, and the
+	// most observers that heard one. (Combining across adverts would need the
 	// relay sets, which aren't kept.)
 	Spread    int
 	Observers int
@@ -346,35 +351,39 @@ type RosterEntry struct {
 	ZeroHopOnly bool
 }
 
-// CheckedIn reports whether the companion was heard during the session.
+// CheckedIn reports whether the member was heard during the session.
 func (e *RosterEntry) CheckedIn() bool { return e.FirstHeardAt != nil }
 
-// NetSessionRoster returns every member companion for the session's org with
-// what was heard from it during the window: checked-in first (by time heard),
-// then the rest by name. Unpaginated: bounded by the org's members ×
-// MaxCompanionsPerUser, and a roster is read as a whole.
+// NetSessionRoster returns one entry per org member with a confirmed companion,
+// with what was heard from any of their companions during the window:
+// checked-in members first (by time heard), then the rest by name.
+// Unpaginated: bounded by the org's membership, and a roster is read as a whole.
 func (s *Store) NetSessionRoster(ctx context.Context, orgID int64, session *NetSession) ([]RosterEntry, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT c.public_id, c.name, COALESCE(NULLIF(u.display_name, ''), u.username),
+		SELECT COALESCE(NULLIF(u.display_name, ''), u.username),
+		       COALESCE(h.companion_public_id, ''), COALESCE(h.companion_name, ''),
 		       h.first_heard, COALESCE(h.spread, 0), COALESCE(h.observers, 0), COALESCE(h.zero_hop_only, FALSE)
-		FROM companions c
-		JOIN org_members om ON om.org_id = $1 AND om.user_id = c.owner_id
-		JOIN users u ON u.id = c.owner_id
+		FROM users u
+		JOIN org_members om ON om.org_id = $1 AND om.user_id = u.id
 		LEFT JOIN LATERAL (
 			SELECT min(k.first_heard_at) AS first_heard, max(k.spread) AS spread,
-			       max(k.observers) AS observers, bool_and(k.zero_hop) AS zero_hop_only
-			FROM advert_checkins k
-			WHERE k.companion_id = c.id AND k.first_heard_at >= $2 AND k.first_heard_at < $3
+			       max(k.observers) AS observers, bool_and(k.zero_hop) AS zero_hop_only,
+			       (array_agg(c.public_id ORDER BY k.first_heard_at, k.id))[1] AS companion_public_id,
+			       (array_agg(c.name ORDER BY k.first_heard_at, k.id))[1] AS companion_name
+			FROM companions c
+			JOIN advert_checkins k ON k.companion_id = c.id
+			WHERE c.owner_id = u.id AND c.confirmed_at IS NOT NULL
+			  AND k.first_heard_at >= $2 AND k.first_heard_at < $3
 			HAVING count(*) > 0) h ON TRUE
-		WHERE c.confirmed_at IS NOT NULL
-		ORDER BY h.first_heard NULLS LAST, lower(c.name), c.id`,
+		WHERE EXISTS (SELECT 1 FROM companions c WHERE c.owner_id = u.id AND c.confirmed_at IS NOT NULL)
+		ORDER BY h.first_heard NULLS LAST, lower(COALESCE(NULLIF(u.display_name, ''), u.username)), u.id`,
 		orgID, session.StartsAt, session.EndsAt)
 	if err != nil {
 		return nil, fmt.Errorf("net session roster: %w", err)
 	}
 	return collectRows(rows, func(r pgx.Row) (RosterEntry, error) {
 		var e RosterEntry
-		return e, r.Scan(&e.CompanionPublicID, &e.CompanionName, &e.OwnerName,
+		return e, r.Scan(&e.MemberName, &e.CompanionPublicID, &e.CompanionName,
 			&e.FirstHeardAt, &e.Spread, &e.Observers, &e.ZeroHopOnly)
 	})
 }

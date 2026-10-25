@@ -115,7 +115,18 @@ func TestNetSessionRosterPage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	quiet, err := st.CreateCompanion(ctx, admin.ID, "Quiet T2", observetest.NewIdentity(t).String())
+	// The admin's second device: one person, one roster row.
+	if _, err := st.CreateCompanion(ctx, admin.ID, "Spare T3", observetest.NewIdentity(t).String()); err != nil {
+		t.Fatal(err)
+	}
+	quietUser, err := st.CreateUser(ctx, "rosterquiet", "Quiet Member")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.AddOrgMember(ctx, org.ID, quietUser.ID, "member"); err != nil {
+		t.Fatal(err)
+	}
+	quiet, err := st.CreateCompanion(ctx, quietUser.ID, "Quiet T2", observetest.NewIdentity(t).String())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,9 +147,17 @@ func TestNetSessionRosterPage(t *testing.T) {
 
 	path := "/orgs/" + org.Slug + "/nets/" + strconv.FormatInt(net.ID, 10) + "/sessions/" + strconv.FormatInt(cur.ID, 10)
 	body := getBody(t, ts, h.app, path, sess)
-	for _, want := range []string{"Heard T1", "Quiet T2", "Not heard", "In progress", "1 of 2 member companions checked in", ">Spread<", "2 repeaters"} {
+	for _, want := range []string{"rosterpageadmin", "on <a href=\"/companions/" + heard.PublicID + "\">Heard T1</a>",
+		"Quiet Member", "Not heard", "In progress", "1 of 2 members checked in", ">Spread<", "2 repeaters"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("roster lacks %q", want)
+		}
+	}
+	// By member, not device: the quiet member's companion and the admin's
+	// spare aren't rows of their own.
+	for _, absent := range []string{"Quiet T2", "Spare T3"} {
+		if strings.Contains(body, absent) {
+			t.Errorf("roster lists the device %q", absent)
 		}
 	}
 	if !strings.Contains(getBody(t, ts, h.app, "/orgs/"+org.Slug+"/nets/"+strconv.FormatInt(net.ID, 10), sess), "Live roster") {
