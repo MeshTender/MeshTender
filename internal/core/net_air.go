@@ -12,6 +12,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/MeshTender/MeshTender/internal/netair"
 	"github.com/MeshTender/MeshTender/internal/secretbox"
 	"github.com/MeshTender/MeshTender/internal/store"
 	"github.com/MeshTender/MeshTender/internal/web"
@@ -23,10 +24,7 @@ const (
 	// maxChannelName is a channel name's limit in the companion firmware
 	// (ChannelDetails::name is 32 bytes with its terminator).
 	maxChannelName = 31
-	// maxOnAirName keeps the sender name short enough to leave most of a
-	// 160-byte message for the text.
-	maxOnAirName = 32
-	maxLogPrefix = 16
+	maxLogPrefix   = 16
 )
 
 // netAirView is the on-air card's data.
@@ -114,7 +112,7 @@ func parseNetAirForm(r *http.Request, regions []store.Region) (a store.NetAir, k
 		a.ScopeRegionID = &id
 	}
 	a.OnAirName = strings.TrimSpace(r.FormValue("on_air_name"))
-	if len(a.OnAirName) > maxOnAirName || strings.Contains(a.OnAirName, ":") || !plainText(a.OnAirName) {
+	if len(a.OnAirName) > netair.MaxSender || strings.Contains(a.OnAirName, ":") || !plainText(a.OnAirName) {
 		// Receivers split "Sender: text" at the first ": ".
 		return a, nil, "The on-air name can be up to 32 characters, without a colon."
 	}

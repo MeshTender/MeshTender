@@ -8,7 +8,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"unicode/utf8"
 
 	meshcore "github.com/meshcore-go/meshcore-go"
 	"github.com/meshcore-go/meshcore-go/hardware"
@@ -16,7 +15,7 @@ import (
 	"github.com/MeshTender/MeshTender/internal/config"
 	"github.com/MeshTender/MeshTender/internal/ingest"
 	"github.com/MeshTender/MeshTender/internal/mesh"
-	"github.com/MeshTender/MeshTender/internal/secretbox"
+	"github.com/MeshTender/MeshTender/internal/netair"
 	"github.com/MeshTender/MeshTender/internal/store"
 	"github.com/MeshTender/MeshTender/internal/web"
 )
@@ -79,37 +78,6 @@ func (s *Handlers) netModemTiming() netModemTiming {
 		return s.netModem
 	}
 	return defaultNetModemTiming
-}
-
-// netChannel resolves a net's channel, opening a private channel's key.
-func netChannel(air *store.NetAir, masterKey [32]byte) (mesh.Channel, error) {
-	switch air.ChannelKind {
-	case store.ChannelHashtag:
-		return mesh.HashtagChannel(air.ChannelName), nil
-	case store.ChannelPrivate:
-		psk, err := secretbox.Open(masterKey, air.PSKSealed)
-		if err != nil || len(psk) != 16 {
-			return mesh.Channel{}, fmt.Errorf("open channel key: %w", err)
-		}
-		return mesh.PrivateChannel([16]byte(psk)), nil
-	default:
-		return mesh.PublicChannel(), nil
-	}
-}
-
-// onAirSender is the name the net's messages are sent as: the on-air name, or
-// the net's name made safe for it (no colon, which receivers split
-// "Sender: text" on, and short enough to leave room for the text).
-func onAirSender(air *store.NetAir, netName string) string {
-	if air.OnAirName != "" {
-		return air.OnAirName
-	}
-	name := strings.TrimSpace(strings.ReplaceAll(netName, ":", ""))
-	for len(name) > maxOnAirName {
-		_, size := utf8.DecodeLastRuneInString(name)
-		name = name[:len(name)-size]
-	}
-	return name
 }
 
 // ackName is how an acknowledgement names a member: a mention of the
@@ -196,7 +164,7 @@ func (s *Handlers) wsNetModem(w http.ResponseWriter, r *http.Request) {
 		s.ServerError(w, r, "Couldn't load the radio settings.", err)
 		return
 	}
-	ch, err := netChannel(air, s.Cfg.MasterKey)
+	ch, err := netair.Channel(air, s.Cfg.MasterKey)
 	if err != nil {
 		s.ServerError(w, r, "Couldn't open the channel key.", err)
 		return
@@ -246,7 +214,7 @@ func (s *Handlers) wsNetModem(w http.ResponseWriter, r *http.Request) {
 
 	run := &netModemRun{
 		s: s, sess: sess, ctx: sess.Ctx, c: c, air: air, ch: ch, scope: scope,
-		sender: onAirSender(air, c.net.Name), timing: timing,
+		sender: netair.Sender(air, c.net.Name), timing: timing,
 		airtime:  airtimeEstimator(*radio),
 		tx:       make(chan netModemTx, 16),
 		inFlight: map[int64]bool{},
@@ -470,25 +438,9 @@ func (r *netModemRun) receive(rx <-chan []byte) {
 // log prefix, without the prefix — except our own, repeated back to us by the
 // mesh.
 func (r *netModemRun) logMessage(raw []byte, now time.Time) {
-	if r.air.LogPrefix == "" {
-		return
-	}
-	gt, ok := mesh.DecodeGroupText(raw, r.ch)
-	if !ok || gt.Sender == r.sender {
-		return
-	}
-	// The prefix only marks a message for the log; it isn't part of it.
-	body, ok := strings.CutPrefix(gt.Text, r.air.LogPrefix)
-	body = strings.TrimSpace(body)
-	if !ok || body == "" {
-		return
-	}
-	pkt, err := meshcore.PacketFromBytes(raw)
-	if err != nil {
-		return
-	}
-	added, err := r.s.Store.AddNetSessionMessage(r.ctx, r.c.session.ID, pkt.Payload, gt.Sender, body, now)
+	log := netair.Log{SessionID: r.c.session.ID, Channel: r.ch, Prefix: r.air.LogPrefix, Sender: r.sender}
+	sender, body, added, err := log.Record(r.ctx, r.s.Store, raw, now)
 	if err == nil && added {
-		r.status("message", gt.Sender+": "+body)
+		r.status("message", sender+": "+body)
 	}
 }

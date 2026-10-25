@@ -11,11 +11,12 @@ CREATE TABLE net_session_aired (
     PRIMARY KEY (session_id, user_id)
 );
 
--- Channel messages the modem heard on the net's channel that start with the
--- net's log prefix, stored without it. The sender is the name the message
--- claims — channel messages aren't signed. A message repeated by
--- several repeaters is one row: msg_hash is SHA-256 of the packet payload,
--- which repeaters don't change.
+-- Channel messages heard on the net's channel (by net control's modem or the
+-- org's observers) that start with the net's log prefix, stored without it.
+-- The sender is the name the message claims — channel messages aren't
+-- signed. A message heard many times (repeaters, several observers, the
+-- modem) is one row: msg_hash is SHA-256 of the packet payload, which
+-- repeaters don't change.
 CREATE TABLE net_session_messages (
     id         BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     session_id BIGINT NOT NULL REFERENCES net_sessions(id) ON DELETE CASCADE,

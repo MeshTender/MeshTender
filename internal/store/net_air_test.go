@@ -128,9 +128,10 @@ func TestNetSessionMessagesDedupeAndCap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	heard := time.Now()
 	add := func(payload, body string) bool {
 		t.Helper()
-		ok, err := st.AddNetSessionMessage(ctx, sess.ID, []byte(payload), "Bob", body, time.Now())
+		ok, err := st.AddNetSessionMessage(ctx, sess.ID, []byte(payload), "Bob", body, heard)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -141,7 +142,8 @@ func TestNetSessionMessagesDedupeAndCap(t *testing.T) {
 	}
 	if _, err := st.pool.Exec(ctx, `
 		INSERT INTO net_session_messages (session_id, msg_hash, sender, body, heard_at)
-		SELECT $1, int8send(g), 'x', 'news', now() FROM generate_series(1, $2) g`, sess.ID, MaxNetSessionMessages-1); err != nil {
+		SELECT $1, int8send(g), 'x', 'news', $3::timestamptz + interval '1 minute' FROM generate_series(1, $2) g`,
+		sess.ID, MaxNetSessionMessages-1, heard); err != nil {
 		t.Fatal(err)
 	}
 	if add("p2", "news: over the cap") {

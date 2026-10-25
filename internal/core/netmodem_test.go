@@ -52,20 +52,6 @@ func TestAckMessagesPackToTheCap(t *testing.T) {
 	}
 }
 
-func TestOnAirSender(t *testing.T) {
-	t.Parallel()
-	if got := onAirSender(&store.NetAir{OnAirName: "NC"}, "Sunday Net"); got != "NC" {
-		t.Errorf("on-air name: %q", got)
-	}
-	if got := onAirSender(&store.NetAir{}, "Net: Sunday"); got != "Net Sunday" {
-		t.Errorf("colon kept: %q", got)
-	}
-	long := strings.Repeat("é", 40)
-	if got := onAirSender(&store.NetAir{}, long); len(got) > maxOnAirName || !strings.HasPrefix(long, got) {
-		t.Errorf("long name: %q", got)
-	}
-}
-
 // fakeModem plays the user's browser and KISS modem on the other end of the
 // net modem socket: it collects statuses, decodes the frames MeshTender sends
 // the modem, answers each transmission with TX_DONE, and can play packets as

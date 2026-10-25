@@ -3,6 +3,9 @@ package store
 import (
 	"context"
 	"fmt"
+	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // Channel kinds a net can send on (check_in_nets.channel_kind).
@@ -80,4 +83,38 @@ func (s *Store) UpdateNetAir(ctx context.Context, orgID, netID int64, a NetAir, 
 		return ErrNotFound
 	}
 	return nil
+}
+
+// ActiveNetLog is an in-progress session of a net that logs channel messages,
+// with what's needed to hear them.
+type ActiveNetLog struct {
+	OrgID     int64
+	SessionID int64
+	NetName   string
+	Air       NetAir
+}
+
+// ListActiveNetLogs returns every session in progress at now whose net has a
+// log prefix, across all orgs. Sessions start and end on whole minutes, so a
+// caller can reuse the result until the minute changes. Bounded by the nets
+// (MaxNetsPerOrg per org), each finding its session on the (net_id,
+// starts_at) key.
+func (s *Store) ListActiveNetLogs(ctx context.Context, now time.Time) ([]ActiveNetLog, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT n.org_id, ns.id, n.name, n.channel_kind, n.channel_name, n.channel_psk_sealed,
+		       n.on_air_name, n.log_prefix
+		FROM check_in_nets n
+		JOIN LATERAL (
+			SELECT id, ends_at FROM net_sessions
+			WHERE net_id = n.id AND starts_at <= $1
+			ORDER BY starts_at DESC LIMIT 1) ns ON ns.ends_at > $1
+		WHERE n.log_prefix <> ''`, now)
+	if err != nil {
+		return nil, fmt.Errorf("list active net logs: %w", err)
+	}
+	return collectRows(rows, func(r pgx.Row) (ActiveNetLog, error) {
+		var l ActiveNetLog
+		return l, r.Scan(&l.OrgID, &l.SessionID, &l.NetName, &l.Air.ChannelKind, &l.Air.ChannelName,
+			&l.Air.PSKSealed, &l.Air.OnAirName, &l.Air.LogPrefix)
+	})
 }

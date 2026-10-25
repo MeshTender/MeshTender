@@ -1,6 +1,6 @@
 // Package ingest connects to each org's MQTT broker and records verified
 // adverts from registered companions, as heard by the org's registered
-// observers. The Supervisor owns the broker connections (on one elected
+// observers, and the channel messages a running net logs (see netair). The Supervisor owns the broker connections (on one elected
 // replica); the Ingester turns each message into store writes.
 package ingest
 
@@ -11,6 +11,9 @@ import (
 	"sync"
 	"time"
 
+	meshcore "github.com/meshcore-go/meshcore-go"
+
+	"github.com/MeshTender/MeshTender/internal/netair"
 	"github.com/MeshTender/MeshTender/internal/observe"
 	"github.com/MeshTender/MeshTender/internal/store"
 )
@@ -45,10 +48,18 @@ type Message struct {
 // callers can't race it.
 type Ingester struct {
 	Store *store.Store
-	Log   *slog.Logger
+	// MasterKey opens a private net channel's key.
+	MasterKey [32]byte
+	Log       *slog.Logger
 
 	mu      sync.Mutex
 	touched map[touchKey]time.Time
+
+	// The running nets' channel logs by org, as of logsMinute. Sessions start
+	// and end on whole minutes, so the set only changes when the minute does.
+	logsMu     sync.Mutex
+	logsMinute time.Time
+	logs       map[int64][]netair.Log
 }
 
 type touchKey struct {
@@ -111,29 +122,39 @@ func (in *Ingester) touch(ctx context.Context, m Message, observer string) {
 	}
 }
 
-// handlePacket records the packet if it's a verified advert from a registered
-// companion heard by one of the org's observers. The checks run cheapest
-// first: most packets aren't adverts (in-memory decode), most adverts aren't
-// from registered companions (one indexed lookup), and only then is the
-// signature checked.
+// handlePacket records what the org's observers hear that MeshTender cares
+// about: adverts from registered companions, and channel messages a running
+// net logs. The checks run cheapest first: most packets are neither
+// (in-memory decode), and the observer lookup waits until one is.
 func (in *Ingester) handlePacket(ctx context.Context, m Message, observer string) {
 	p, err := observe.ParsePacket(m.Payload)
 	if err != nil {
 		return
 	}
-	adv, companionID, err := RegisteredAdvert(ctx, in.Store, p.Raw)
+	pkt, err := meshcore.PacketFromBytes(p.Raw)
+	if err != nil {
+		return
+	}
+	switch pkt.PayloadType() {
+	case meshcore.PayloadTypeAdvert:
+		in.handleAdvert(ctx, m, observer, p.Raw)
+	case meshcore.PayloadTypeGrpTxt:
+		in.handleChannelMessage(ctx, m, observer, p.Raw)
+	}
+}
+
+// handleAdvert records a verified advert from a registered companion. Most
+// adverts aren't from one (one indexed lookup), and only then is the
+// signature checked.
+func (in *Ingester) handleAdvert(ctx context.Context, m Message, observer string, raw []byte) {
+	adv, companionID, err := RegisteredAdvert(ctx, in.Store, raw)
 	if err != nil {
 		if !errors.Is(err, ErrNotRegistered) {
 			in.Log.Warn("ingest: companion lookup", "err", err)
 		}
 		return
 	}
-	ok, err := in.Store.IsOrgObserver(ctx, m.OrgID, observer)
-	if err != nil {
-		in.Log.Warn("ingest: observer lookup", "err", err)
-		return
-	}
-	if !ok {
+	if !in.isObserver(ctx, m, observer) {
 		return
 	}
 	_, err = RecordAdvert(ctx, in.Store, adv, companionID, observer, m.ReceivedAt)
@@ -145,6 +166,58 @@ func (in *Ingester) handlePacket(ctx context.Context, m Message, observer string
 	case err != nil:
 		in.Log.Warn("ingest: record check-in", "err", err)
 	}
+}
+
+// handleChannelMessage logs a channel message to each of the org's running
+// nets that logs it (netair.Log.Record decides).
+func (in *Ingester) handleChannelMessage(ctx context.Context, m Message, observer string, raw []byte) {
+	logs := in.netLogs(ctx, time.Now())[m.OrgID]
+	if len(logs) == 0 || !in.isObserver(ctx, m, observer) {
+		return
+	}
+	for _, l := range logs {
+		if _, _, _, err := l.Record(ctx, in.Store, raw, m.ReceivedAt); err != nil {
+			in.Log.Warn("ingest: log channel message", "org", m.OrgID, "session", l.SessionID, "err", err)
+		}
+	}
+}
+
+func (in *Ingester) isObserver(ctx context.Context, m Message, observer string) bool {
+	ok, err := in.Store.IsOrgObserver(ctx, m.OrgID, observer)
+	if err != nil {
+		in.Log.Warn("ingest: observer lookup", "err", err)
+		return false
+	}
+	return ok
+}
+
+// netLogs returns the running nets' channel logs by org, reloading them when
+// the minute changes. A failed reload logs nothing — the previous minute's
+// could hold a session that just ended — and retries on the next message.
+func (in *Ingester) netLogs(ctx context.Context, now time.Time) map[int64][]netair.Log {
+	minute := now.Truncate(time.Minute)
+	in.logsMu.Lock()
+	defer in.logsMu.Unlock()
+	if in.logs != nil && in.logsMinute.Equal(minute) {
+		return in.logs
+	}
+	active, err := in.Store.ListActiveNetLogs(ctx, now)
+	if err != nil {
+		in.Log.Warn("ingest: load net logs", "err", err)
+		return nil
+	}
+	logs := make(map[int64][]netair.Log)
+	for _, a := range active {
+		ch, err := netair.Channel(&a.Air, in.MasterKey)
+		if err != nil {
+			in.Log.Warn("ingest: net channel", "org", a.OrgID, "session", a.SessionID, "err", err)
+			continue
+		}
+		logs[a.OrgID] = append(logs[a.OrgID], netair.Log{SessionID: a.SessionID, Channel: ch,
+			Prefix: a.Air.LogPrefix, Sender: netair.Sender(&a.Air, a.NetName)})
+	}
+	in.logs, in.logsMinute = logs, minute
+	return logs
 }
 
 // Errors from RegisteredAdvert and RecordAdvert for adverts that don't count.

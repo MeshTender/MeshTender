@@ -12,6 +12,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/MeshTender/MeshTender/internal/mesh"
+	"github.com/MeshTender/MeshTender/internal/netair"
 	"github.com/MeshTender/MeshTender/internal/store"
 	"github.com/MeshTender/MeshTender/internal/web"
 )
@@ -452,7 +453,7 @@ func (s *Handlers) pageNetSession(w http.ResponseWriter, r *http.Request) {
 			s.ServerError(w, r, "Couldn't load the radio settings.", err)
 			return
 		}
-		sender := onAirSender(air, c.net.Name)
+		sender := netair.Sender(air, c.net.Name)
 		data["Modem"] = map[string]any{
 			"WSPath":  sessionURL(r) + "/modem/ws",
 			"Channel": channelLabel(air),
