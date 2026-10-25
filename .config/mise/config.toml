@@ -26,6 +26,7 @@ auto = true
 
 [tasks.dev]
 run = "go run ./cmd/meshtender"
+env = { MESHTENDER_LIVE_RELOAD = "1" }
 
 [tasks.lint]
 run = "golangci-lint run"

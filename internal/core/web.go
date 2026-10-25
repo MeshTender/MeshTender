@@ -135,7 +135,7 @@ func NewServer(st *store.Store, authSvc *auth.Service, idSvc *identity.Service, 
 	// wrapped by marketing's custom-domain interceptor (it serves verified hosts'
 	// public org pages).
 	appHandler := mkH.CustomDomain(app.appRouter())
-	handler := web.Dispatcher(cfg, authH.Routes(), mkH.Routes(), appHandler)
+	handler := web.WithLiveReload(cfg.LiveReload, web.Dispatcher(cfg, authH.Routes(), mkH.Routes(), appHandler))
 	return &Server{handler: handler, app: app, csp: csp}, nil
 }
 

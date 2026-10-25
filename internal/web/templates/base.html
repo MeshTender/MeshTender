@@ -10,6 +10,7 @@
   <script src="{{ asset "/static/tabler.min.js" }}" defer></script>
   <script src="{{ asset "/static/htmx.min.js" }}" defer></script>
   <script src="{{ asset "/static/ui.js" }}" defer></script>
+  {{template "livereload" .}}
   <script src="{{ asset "/static/listfilter.js" }}" defer></script>
 </head>
 <body>
@@ -119,6 +120,11 @@
      only, hence absolute URLs: the app and auth hosts have no such routes.
      The source link is the AGPL section 13 offer — the source of the program
      you are interacting with, reachable from every page. */}}
+{{/* livereload pulls in the dev server's auto-refresh (web.WithLiveReload). It
+     renders nothing unless MESHTENDER_LIVE_RELOAD is set, which only the dev
+     mise task does. */}}
+{{define "livereload"}}{{if .LiveReload}}<script src="{{ asset "/static/livereload.js" }}" defer></script>{{end}}{{end}}
+
 {{define "footerbody"}}
 <div class="row text-center align-items-center flex-row-reverse gy-2">
   <div class="col-12 col-lg-auto">
@@ -191,6 +197,7 @@
   <script src="{{ asset "/static/tabler.min.js" }}" defer></script>
   <script src="{{ asset "/static/htmx.min.js" }}" defer></script>
   <script src="{{ asset "/static/ui.js" }}" defer></script>
+  {{template "livereload" .}}
   <script src="{{ asset "/static/listfilter.js" }}" defer></script>
 </head>
 <body>
@@ -233,6 +240,7 @@
   <link rel="stylesheet" href="{{ asset "/static/app.css" }}">
   <script src="{{ asset "/static/tabler.min.js" }}" defer></script>
   <script src="{{ asset "/static/ui.js" }}" defer></script>
+  {{template "livereload" .}}
 </head>
 <body class="d-flex flex-column">
   <div class="page page-center">
@@ -263,6 +271,7 @@
   <link rel="stylesheet" href="{{ asset "/static/app.css" }}">
   <script src="{{ asset "/static/tabler.min.js" }}" defer></script>
   <script src="{{ asset "/static/ui.js" }}" defer></script>
+  {{template "livereload" .}}
 </head>
 <body>
   {{template "rootnav" .}}

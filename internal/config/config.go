@@ -53,6 +53,11 @@ type Config struct {
 	// "www." + RootHost when RootHost is set.
 	WWWHost string
 
+	// LiveReload makes every page reload itself when the server restarts, so a
+	// rebuild from the dev watcher shows up without a manual refresh. Dev only:
+	// set by the `dev` mise task (MESHTENDER_LIVE_RELOAD), never in production.
+	LiveReload bool
+
 	// Secure reports whether the deployment is HTTPS (derived from RPOrigins).
 	// Drives cookie Secure/__Host- prefixing and the scheme of cross-host URLs.
 	Secure bool
@@ -136,6 +141,7 @@ func Load() (*Config, error) {
 		CartoKey:       strings.TrimSpace(os.Getenv("MESHTENDER_CARTO_KEY")),
 		ImageDigest:    strings.TrimSpace(os.Getenv("MESHTENDER_IMAGE_DIGEST")),
 		TrustedProxies: trustedProxies,
+		LiveReload:     os.Getenv("MESHTENDER_LIVE_RELOAD") == "1",
 	}
 
 	// A malformed digest is worse than none: /version would publish it as an

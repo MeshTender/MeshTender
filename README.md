@@ -236,7 +236,9 @@ pitchfork start dev                  # migrates on boot; serves HTTPS on :8080 i
 The dev server runs as a [pitchfork](https://pitchfork.jdx.dev) daemon (`.config/pitchfork.toml`,
 installed by mise). It rebuilds and restarts whenever Go source or an embedded file (templates,
 migrations, static assets) changes, and a save that doesn't compile leaves it waiting for the next
-save rather than down. `pitchfork logs dev --tail` follows it; `pitchfork stop dev` stops it.
+save rather than down. Open pages reload themselves once the restarted server answers (the dev
+task sets `MESHTENDER_LIVE_RELOAD=1`; production never serves it). `pitchfork logs dev --tail`
+follows it; `pitchfork stop dev` stops it.
 `mise run dev` still runs the same server in the foreground.
 
 Then open <https://app.leighthaus.dev:8080> (dashboard) or <https://leighthaus.dev:8080> (public

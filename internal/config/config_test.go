@@ -24,6 +24,24 @@ func validEnv(t *testing.T) {
 	t.Setenv("MESHTENDER_RESEND_API_KEY", "")
 	t.Setenv("MESHTENDER_MAIL_FROM", "")
 	t.Setenv("MESHTENDER_MAIL_REPLY_TO", "")
+	// The dev mise task sets this; a test run under mise mustn't inherit it.
+	t.Setenv("MESHTENDER_LIVE_RELOAD", "")
+}
+
+// TestLoadLiveReloadIsOptIn: the dev-only auto-refresh is off unless the dev
+// task turns it on, so a deployment can never serve it by omission.
+func TestLoadLiveReloadIsOptIn(t *testing.T) {
+	validEnv(t)
+	for v, want := range map[string]bool{"": false, "0": false, "true": false, "1": true} {
+		t.Setenv("MESHTENDER_LIVE_RELOAD", v)
+		c, err := Load()
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if c.LiveReload != want {
+			t.Errorf("MESHTENDER_LIVE_RELOAD=%q: LiveReload = %v, want %v", v, c.LiveReload, want)
+		}
+	}
 }
 
 // TestLoadMailDisabledByDefault: with nothing configured there's no from-address, so

@@ -344,6 +344,8 @@ func (rn *Renderer) render(w http.ResponseWriter, r *http.Request, status int, p
 			data["UserTZ"] = tz
 		}
 	}
+	// LiveReload pulls in livereload.js (see WithLiveReload). Dev only.
+	data["LiveReload"] = rn.cfg.LiveReload
 	// Per-request CSP nonce for inline <script nonce="{{.Nonce}}"> blocks.
 	data["Nonce"] = NonceFromContext(r.Context())
 	// CartoKey is the CARTO basemap API key, exposed by the base layout as
