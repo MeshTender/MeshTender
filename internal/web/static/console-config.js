@@ -343,7 +343,7 @@
     const ready = consoleReady();
     if (!supported) {
       connectBtn.disabled = true;
-      connectBtn.title = "This browser doesn't support WebSerial (use Chrome or Edge).";
+      connectBtn.title = "This browser can't connect to USB devices.";
       if (connectLabel) connectLabel.textContent = "Modem unsupported";
     } else if (ready) {
       connectBtn.disabled = true;

@@ -32,6 +32,7 @@
           <li>No advertising, no trackers, no analytics companies, and nothing sold or shared for marketing.</li>
           <li>Traffic statistics are counted without storing your IP address at all.</li>
           <li>An email address is optional, and only used to prove it's yours and to reset a password.</li>
+          <li>Check-ins record when your companion was heard and how widely — never which repeaters carried it, so they don't say where you are.</li>
           <li>You can delete your account yourself, and it really deletes.</li>
         </ul>
       </div>
@@ -55,6 +56,36 @@
           you create or join, and who you've shared a repeater with. Commands you send to a repeater are
           recorded in that repeater's log with the command, the time, the reply, and a snapshot of your
           username as it was at that moment.
+        </p>
+
+        <h3>Companions and check-ins</h3>
+        <p>
+          A companion you register: its public key, the name you give it, and the name it advertises
+          over the air. Each time an advert from it is heard — by an organization's observer or by net
+          control's modem — and its signature checks out, we record a <em>check-in</em>: when it was
+          first heard, whether it was zero-hop, how many observers heard it, and how many repeaters
+          were seen passing it on. <strong>Which repeaters and which observers</strong> are held only
+          long enough to count them and deleted within minutes — kept longer, they would trace roughly
+          where you are. If an advert is turned away because
+          your companion's clock is off, we note when and by how much, so its page can tell you.
+        </p>
+
+        <h3>Nets</h3>
+        <p>
+          For each session of an organization's check-in net: whom net control acknowledged, when, by
+          whom, and any note they added; and when the net's modem acknowledged someone on the air.
+          While a session runs, messages on the net's channel that start with its log prefix are kept
+          in the session's channel log — the sender's name as they typed it, the text, and when it was
+          heard, up to 500 per session. Those come from anyone on that channel, including people with
+          no MeshTender account.
+        </p>
+
+        <h3>Organizations' observers and brokers</h3>
+        <p>
+          An organization's admins can register its MQTT broker (its address, a username, and a
+          password, stored encrypted) and its observers (a name and public key). We keep each
+          observer's last-seen time and the status it reports: software and firmware version, model,
+          battery voltage, and radio noise floor. A net's private channel key is stored encrypted too.
         </p>
 
         <h3>Username changes</h3>
@@ -106,6 +137,11 @@
           A repeater is visible to people you share it with and to organizations you belong to; it appears
           on public pages only if you turn that on for that repeater.
         </p>
+        <p>
+          Your companions — their public keys and names — and their check-ins are visible to you and to
+          the members of organizations you belong to, and nowhere public. So are an organization's net
+          rosters, acknowledgements, and channel logs, to that organization's members.
+        </p>
         <p class="mb-0">
           Profile pages and individual repeater pages ask search engines not to index them. That's a
           request, not a guarantee — anything on a public page should be treated as public.
@@ -134,6 +170,11 @@
             your address leaves our server.
           </li>
           <li>
+            <strong>Your organization's MQTT broker</strong>, if it has registered one. MeshTender
+            connects to it to receive what the organization's observers hear. It only listens — it sends
+            the broker nothing about you.
+          </li>
+          <li>
             <strong>CARTO</strong> serves the map. When a page with a map loads, your browser fetches
             the map data from CARTO directly, so CARTO sees your IP address and which part of the map you
             asked for. Pages without a map involve them not at all.
@@ -156,6 +197,9 @@
       <div class="card-body">
         <ul class="mb-0">
           <li><strong>Your account and what you created</strong> — until you delete the account.</li>
+          <li><strong>Check-ins, and net sessions</strong> with their rosters, acknowledgements and channel logs — one year, then deleted.</li>
+          <li><strong>Which repeaters and observers heard an advert</strong> — a few minutes, only to count them.</li>
+          <li><strong>A companion registration that's never heard</strong> — 24 hours.</li>
           <li><strong>Raw traffic events</strong> — 90 days, then deleted. Daily totals (counts only, with nothing about individuals) are kept.</li>
           <li><strong>Password reset links</strong> — 45 minutes, and one use.</li>
           <li><strong>Email confirmation links</strong> — 24 hours, and one use.</li>
@@ -176,15 +220,20 @@
         </p>
         <p>
           <strong>Deleting your account</strong> removes the account, your profile, your sign-in methods,
-          the repeaters you own along with their documentation and history, your organization
-          memberships, and your access to anything shared with you. Organizations where you're the only
+          the repeaters you own along with their documentation and history, your companions and their
+          check-ins, your net acknowledgements, your organization memberships, and your access to
+          anything shared with you. Organizations where you're the only
           member go too. It happens immediately and cannot be undone.
         </p>
         <p class="mb-0">
-          Two things deliberately survive, with no link back to you: commands you ran on
+          A few things deliberately survive, with no link back to you: commands you ran on
           <em>other people's</em> repeaters stay in those repeaters' logs, and maintenance notes you
           wrote stay in their history — both recorded against the name you had at the time. Removing them
           would tear holes in records that other people rely on to look after shared infrastructure.
+          Channel messages a net logged stay in that session's channel log until it's deleted after a
+          year: they're what the channel heard, under whatever name the sender typed, and were never
+          tied to your account. Check-ins you acknowledged as net control stay on the roster, without
+          your name.
         </p>
       </div>
     </div>
@@ -195,7 +244,8 @@
         <p class="mb-0">
           Traffic is encrypted in transit. Passwords are stored as bcrypt hashes; passkeys leave their
           private half on your device, where we never see it. Cookies are HTTP-only and same-site. The
-          server's own mesh identity is stored encrypted. Pages run under a strict content security
+          server's own mesh identity, organizations' broker passwords, and private net channel keys are
+          stored encrypted. Pages run under a strict content security
           policy with no third-party scripts. None of this makes a breach impossible, and we won't
           pretend otherwise.
         </p>

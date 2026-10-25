@@ -41,7 +41,7 @@ var operator = operatorInfo{
 	Name:         "Jonathon Leight",
 	Contact:      "legal@meshtender.com",
 	Jurisdiction: "the State of New York, United States",
-	Effective:    "31 July 2026",
+	Effective:    "25 October 2026",
 }
 
 // legalData is the shared render payload for both documents.
