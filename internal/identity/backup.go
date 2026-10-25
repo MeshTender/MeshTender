@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	meshcore "github.com/meshcore-go/meshcore-go"
+
+	"github.com/MeshTender/MeshTender/internal/secretbox"
 )
 
 // The identity backup format is a self-describing envelope around the SAME sealed seed
@@ -102,7 +104,7 @@ func (b Backup) Open(masterKey [32]byte) (meshcore.LocalIdentity, error) {
 // restore so both apply the identical check.
 func identityFromSealedSeed(masterKey [32]byte, sealedSeed []byte, wantPubKeyHex string) (meshcore.LocalIdentity, error) {
 	var zero meshcore.LocalIdentity
-	seed, err := open(masterKey, sealedSeed)
+	seed, err := secretbox.Open(masterKey, sealedSeed)
 	if err != nil {
 		// Deliberately vague about which part failed: the common cause is simply the
 		// wrong master key, and GCM gives us no more detail than that anyway.

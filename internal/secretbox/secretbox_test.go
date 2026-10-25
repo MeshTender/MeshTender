@@ -1,4 +1,4 @@
-package identity
+package secretbox
 
 import (
 	"bytes"
@@ -14,7 +14,7 @@ func TestSealOpenRoundTrip(t *testing.T) {
 	}
 	plaintext := []byte("a 32-byte ed25519 seed goes here")
 
-	sealed, err := seal(key, plaintext)
+	sealed, err := Seal(key, plaintext)
 	if err != nil {
 		t.Fatalf("seal: %v", err)
 	}
@@ -22,7 +22,7 @@ func TestSealOpenRoundTrip(t *testing.T) {
 		t.Fatal("sealed blob contains plaintext")
 	}
 
-	got, err := open(key, sealed)
+	got, err := Open(key, sealed)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -37,11 +37,11 @@ func TestOpenWrongKeyFails(t *testing.T) {
 	_, _ = rand.Read(key[:])
 	_, _ = rand.Read(wrong[:])
 
-	sealed, err := seal(key, []byte("secret"))
+	sealed, err := Seal(key, []byte("secret"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := open(wrong, sealed); err == nil {
+	if _, err := Open(wrong, sealed); err == nil {
 		t.Fatal("expected open with wrong key to fail")
 	}
 }
@@ -50,7 +50,7 @@ func TestOpenTooShort(t *testing.T) {
 	t.Parallel()
 	var key [32]byte
 	_, _ = rand.Read(key[:])
-	if _, err := open(key, []byte{0x01, 0x02}); err == nil {
+	if _, err := Open(key, []byte{0x01, 0x02}); err == nil {
 		t.Fatal("expected error on short input")
 	}
 }

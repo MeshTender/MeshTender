@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	meshcore "github.com/meshcore-go/meshcore-go"
+
+	"github.com/MeshTender/MeshTender/internal/secretbox"
 )
 
 // newSealedIdentity produces a fresh identity sealed under key, mimicking what's in
@@ -18,7 +20,7 @@ func newSealedIdentity(t *testing.T, key [32]byte) (pubHex string, sealedSeed []
 		t.Fatalf("generate identity: %v", err)
 	}
 	seed := local.Seed()
-	sealed, err := seal(key, seed[:])
+	sealed, err := secretbox.Seal(key, seed[:])
 	if err != nil {
 		t.Fatalf("seal seed: %v", err)
 	}

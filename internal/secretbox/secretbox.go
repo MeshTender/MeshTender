@@ -1,6 +1,6 @@
-// Package identity manages the single server-wide MeshCore identity: its
-// generation, encryption at rest, and loading on boot.
-package identity
+// Package secretbox encrypts small secrets at rest under the server's master key
+// (MESHTENDER_MASTER_KEY): the server identity seed, and org MQTT broker passwords.
+package secretbox
 
 import (
 	"crypto/aes"
@@ -10,9 +10,9 @@ import (
 	"io"
 )
 
-// seal encrypts plaintext with AES-256-GCM under key, prefixing the random
-// nonce. The result is self-describing: open() reads the nonce back off.
-func seal(key [32]byte, plaintext []byte) ([]byte, error) {
+// Seal encrypts plaintext with AES-256-GCM under key, prefixing the random
+// nonce. The result is self-describing: Open reads the nonce back off.
+func Seal(key [32]byte, plaintext []byte) ([]byte, error) {
 	gcm, err := newGCM(key)
 	if err != nil {
 		return nil, err
@@ -26,8 +26,8 @@ func seal(key [32]byte, plaintext []byte) ([]byte, error) {
 	return gcm.Seal(nonce, nonce, plaintext, nil), nil
 }
 
-// open reverses seal.
-func open(key [32]byte, sealed []byte) ([]byte, error) {
+// Open reverses Seal.
+func Open(key [32]byte, sealed []byte) ([]byte, error) {
 	gcm, err := newGCM(key)
 	if err != nil {
 		return nil, err

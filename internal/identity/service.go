@@ -1,3 +1,5 @@
+// Package identity manages the single server-wide MeshCore identity: its
+// generation, encryption at rest, and loading on boot.
 package identity
 
 import (
@@ -8,6 +10,7 @@ import (
 
 	meshcore "github.com/meshcore-go/meshcore-go"
 
+	"github.com/MeshTender/MeshTender/internal/secretbox"
 	"github.com/MeshTender/MeshTender/internal/store"
 )
 
@@ -43,7 +46,7 @@ func LoadOrCreate(ctx context.Context, st *store.Store, masterKey [32]byte) (*Se
 	pubHex, encSeed, err := st.GetServerIdentity(ctx)
 	switch {
 	case err == nil:
-		seed, err := open(masterKey, encSeed)
+		seed, err := secretbox.Open(masterKey, encSeed)
 		if err != nil {
 			return nil, fmt.Errorf("decrypt server seed: %w", err)
 		}
@@ -72,7 +75,7 @@ func create(ctx context.Context, st *store.Store, masterKey [32]byte) (*Service,
 		return nil, fmt.Errorf("generate identity: %w", err)
 	}
 	seed := local.Seed()
-	sealed, err := seal(masterKey, seed[:])
+	sealed, err := secretbox.Seal(masterKey, seed[:])
 	if err != nil {
 		return nil, fmt.Errorf("seal seed: %w", err)
 	}
