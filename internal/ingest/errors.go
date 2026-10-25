@@ -8,8 +8,7 @@ import (
 	"net"
 	"syscall"
 
-	mqtt "github.com/SukramJ/go-mqtt"
-	"github.com/SukramJ/go-mqtt/protocol"
+	"github.com/eclipse/paho.mqtt.golang/packets"
 )
 
 // Error categories stored in org_mqtt_brokers.last_error and shown to the org.
@@ -32,7 +31,7 @@ const (
 // Category maps a connect/subscribe error to its display category.
 func Category(err error) string {
 	var dnsErr *DNSError
-	var reasonErr *mqtt.ReasonError
+	var wsErr *HandshakeError
 	var certErr *tls.CertificateVerificationError
 	var unknownAuth x509.UnknownAuthorityError
 	var hostErr x509.HostnameError
@@ -45,14 +44,12 @@ func Category(err error) string {
 		return CategoryDNS
 	case errors.Is(err, ErrBlockedAddress):
 		return CategoryBlocked
-	case errors.As(err, &reasonErr):
-		if reasonErr.Packet == "CONNECT" &&
-			(reasonErr.Code == protocol.BadUserNameOrPassword || reasonErr.Code == protocol.NotAuthorized) {
-			return CategoryAuth
-		}
-		if reasonErr.Packet == "CONNECT" {
-			return CategoryRejected
-		}
+	case errors.Is(err, packets.ErrorRefusedBadUsernameOrPassword), errors.Is(err, packets.ErrorRefusedNotAuthorised):
+		return CategoryAuth
+	case errors.Is(err, packets.ErrorRefusedBadProtocolVersion), errors.Is(err, packets.ErrorRefusedIDRejected),
+		errors.Is(err, packets.ErrorRefusedServerUnavailable), errors.As(err, &wsErr):
+		return CategoryRejected
+	case errors.Is(err, ErrSubscribeRejected):
 		return CategorySubscribe
 	case errors.As(err, &certErr), errors.As(err, &unknownAuth), errors.As(err, &hostErr), errors.As(err, &recErr):
 		return CategoryTLS

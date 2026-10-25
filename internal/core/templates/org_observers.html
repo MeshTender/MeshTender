@@ -88,8 +88,8 @@
           <div class="mb-3">
             <label class="form-label" for="broker-url">URL</label>
             <input type="text" id="broker-url" name="url" class="form-control" required
-                   value="{{with .Broker}}{{.URL}}{{end}}" placeholder="tls://mqtt.example.org:8883" autocomplete="off">
-            <div class="form-hint"><code>tcp://</code> or <code>tls://</code>, host and optional port. The host must be on the public internet.</div>
+                   value="{{with .Broker}}{{.URL}}{{end}}" placeholder="wss://mqtt.example.org" autocomplete="off">
+            <div class="form-hint"><code>wss://</code> for a broker behind HTTPS (the usual setup; the path defaults to <code>/mqtt</code>), or <code>tls://</code> / <code>tcp://</code> for raw MQTT. The host must be on the public internet.</div>
           </div>
           <div class="mb-3">
             <label class="form-label" for="broker-user">Username</label>

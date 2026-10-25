@@ -62,33 +62,46 @@ func PublicAddr(addr netip.Addr) bool {
 	return true
 }
 
-// ParseBrokerURL validates an org-entered broker URL: tcp:// or tls://, a host,
-// an optional port, and nothing else (credentials go in their own fields so
-// they can be sealed; a path or query has no meaning to MQTT).
+// Broker URL schemes. Observers usually reach a broker over MQTT-over-WebSocket
+// behind an HTTPS endpoint (wss), which is also the only way through most
+// reverse proxies; raw MQTT (tcp/tls) is for brokers exposed directly.
+var defaultPorts = map[string]string{"tcp": "1883", "tls": "8883", "ws": "80", "wss": "443"}
+
+// defaultWebSocketPath is where Mosquitto, VerneMQ and EMQX serve MQTT over
+// WebSocket unless configured otherwise.
+const defaultWebSocketPath = "/mqtt"
+
+// ParseBrokerURL validates an org-entered broker URL: tcp://, tls://, ws:// or
+// wss://, a host, an optional port, and for WebSocket an optional path.
+// Credentials go in their own fields so the password can be sealed; queries and
+// fragments have no meaning to MQTT.
 func ParseBrokerURL(raw string) (*url.URL, error) {
 	u, err := url.Parse(strings.TrimSpace(raw))
 	if err != nil {
 		return nil, fmt.Errorf("not a URL: %w", err)
 	}
-	if u.Scheme != "tcp" && u.Scheme != "tls" {
-		return nil, errors.New("must start with tcp:// or tls://")
+	if _, ok := defaultPorts[u.Scheme]; !ok {
+		return nil, errors.New("must start with wss://, ws://, tls:// or tcp://")
 	}
 	if u.Hostname() == "" {
 		return nil, errors.New("missing host")
 	}
-	if u.User != nil || (u.Path != "" && u.Path != "/") || u.RawQuery != "" || u.Fragment != "" {
-		return nil, errors.New("only scheme, host and port are allowed")
+	websocket := u.Scheme == "ws" || u.Scheme == "wss"
+	if u.User != nil || u.RawQuery != "" || u.Fragment != "" || (!websocket && u.Path != "" && u.Path != "/") {
+		return nil, errors.New("only scheme, host, port and (for WebSocket) a path are allowed")
 	}
 	return u, nil
 }
 
-// Target is a vetted dial target: the URL to hand the MQTT client (host
-// replaced by the checked IP) and, for TLS, the name to verify the
-// certificate against.
+// Target is a vetted dial target: the checked address to connect to, and the
+// name the org entered, which TLS verifies the certificate against and the
+// WebSocket handshake sends as Host.
 type Target struct {
-	DialURL    string
-	ServerName string
-	TLS        bool
+	Scheme     string
+	Addr       string // checked IP and port
+	ServerName string // hostname as entered
+	Port       string
+	Path       string // WebSocket path; empty for tcp/tls
 }
 
 // ResolveTarget resolves the broker URL's host and returns a Target for its
@@ -120,13 +133,16 @@ func ResolveTarget(ctx context.Context, raw string, r Resolver, allow AddrPolicy
 	}
 	port := u.Port()
 	if port == "" {
-		port = "1883"
-		if u.Scheme == "tls" {
-			port = "8883"
+		port = defaultPorts[u.Scheme]
+	}
+	t := Target{Scheme: u.Scheme, Addr: net.JoinHostPort(addrs[0].Unmap().String(), port), ServerName: host, Port: port}
+	if u.Scheme == "ws" || u.Scheme == "wss" {
+		t.Path = u.Path
+		if t.Path == "" || t.Path == "/" {
+			t.Path = defaultWebSocketPath
 		}
 	}
-	dial := url.URL{Scheme: u.Scheme, Host: net.JoinHostPort(addrs[0].Unmap().String(), port)}
-	return Target{DialURL: dial.String(), ServerName: host, TLS: u.Scheme == "tls"}, nil
+	return t, nil
 }
 
 // DNSError wraps a failed broker lookup so it can be categorized.

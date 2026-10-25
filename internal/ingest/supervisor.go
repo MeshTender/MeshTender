@@ -3,19 +3,15 @@ package ingest
 import (
 	"context"
 	"crypto/sha256"
-	"crypto/tls"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"log/slog"
 	"math/rand/v2"
-	"net"
-	"os"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	mqtt "github.com/SukramJ/go-mqtt"
+	mqtt "github.com/eclipse/paho.mqtt.golang"
 
 	"github.com/MeshTender/MeshTender/internal/secretbox"
 	"github.com/MeshTender/MeshTender/internal/store"
@@ -45,10 +41,10 @@ type Supervisor struct {
 	Store     *store.Store
 	MasterKey [32]byte
 	Log       *slog.Logger
-	// Resolver and Allow vet every dial (see guard.go). Allow is a field only
-	// so tests can reach a broker on loopback; production uses PublicAddr.
-	Resolver Resolver
-	Allow    AddrPolicy
+	// Dialer opens every broker connection through the address guard (see
+	// dial.go). A field so tests can reach a broker on loopback and trust their
+	// own CA; production uses NewDialer.
+	Dialer Dialer
 
 	ReconcileEvery time.Duration
 
@@ -63,8 +59,7 @@ func NewSupervisor(st *store.Store, masterKey [32]byte, log *slog.Logger) *Super
 		Store:          st,
 		MasterKey:      masterKey,
 		Log:            log,
-		Resolver:       net.DefaultResolver,
-		Allow:          PublicAddr,
+		Dialer:         NewDialer(),
 		ReconcileEvery: defaultReconcileEvery,
 	}
 }
@@ -229,42 +224,6 @@ func (s *Supervisor) runBroker(ctx context.Context, b *store.OrgBroker) {
 	}
 }
 
-// Dial connects to the broker with the address guard applied, without
-// subscribing. The caller owns the returned client.
-func Dial(ctx context.Context, b *store.OrgBroker, password string, r Resolver, allow AddrPolicy, log *slog.Logger) (*mqtt.TCPClient, error) {
-	target, err := ResolveTarget(ctx, b.URL, r, allow)
-	if err != nil {
-		return nil, err
-	}
-	cfg := mqtt.TCPConfig{
-		BrokerURL:       target.DialURL,
-		ClientID:        clientID(b.OrgID),
-		Username:        b.Username,
-		Password:        password,
-		ProtocolVersion: mqtt.ProtocolV311,
-		CleanStart:      true,
-		KeepAlive:       30 * time.Second,
-		Logger:          log,
-	}
-	if target.TLS {
-		// The dial goes to the vetted IP; the certificate is still checked
-		// against the name the org entered.
-		cfg.TLSConfig = &tls.Config{ServerName: target.ServerName, MinVersion: tls.VersionTLS12}
-	}
-	client := mqtt.NewTCPClient(cfg)
-	if err := client.Connect(ctx); err != nil {
-		return nil, err
-	}
-	return client, nil
-}
-
-// clientID is unique per connection so MeshTender never takes over another
-// client's session (MQTT disconnects the older holder of a client id).
-func clientID(orgID int64) string {
-	host, _ := os.Hostname()
-	return fmt.Sprintf("meshtender-%d-%s-%08x", orgID, host, rand.Uint32()) //nolint:gosec // not a secret
-}
-
 // session runs one connection until it drops or ctx ends.
 func (s *Supervisor) session(ctx context.Context, b *store.OrgBroker) error {
 	var password string
@@ -276,31 +235,31 @@ func (s *Supervisor) session(ctx context.Context, b *store.OrgBroker) error {
 		}
 		password = string(pt)
 	}
-	client, err := Dial(ctx, b, password, s.Resolver, s.Allow, s.Log)
+	lost := make(chan error, 1)
+	client, err := s.Dialer.Connect(BrokerConfig{OrgID: b.OrgID, URL: b.URL, Username: b.Username, Password: password},
+		func(err error) {
+			select {
+			case lost <- err:
+			default:
+			}
+		})
 	if err != nil {
 		return err
 	}
-	defer func() {
-		dctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		_ = client.Disconnect(dctx)
-		cancel()
-	}()
+	defer client.Disconnect(250) // ms to let an in-flight packet finish
 
-	// The handler runs on the client's read loop, so it only queues; the
+	// Paho calls the handler from its router goroutine, so it only queues; the
 	// session loop below writes last_message_at on a ticker.
 	var lastMsg atomic.Int64
-	handler := func(msg *mqtt.Message) {
+	handler := func(_ mqtt.Client, msg mqtt.Message) {
 		now := time.Now()
 		lastMsg.Store(now.UnixNano())
-		// The payload is only valid during the call; copy before queueing.
-		s.enqueue(Message{OrgID: b.OrgID, Prefix: b.TopicPrefix, Topic: msg.Topic,
-			Payload: append([]byte(nil), msg.Payload...), ReceivedAt: now})
+		s.enqueue(Message{OrgID: b.OrgID, Prefix: b.TopicPrefix, Topic: msg.Topic(),
+			Payload: append([]byte(nil), msg.Payload()...), ReceivedAt: now})
 	}
-	for _, kind := range []string{"packets", "status"} {
-		filter := b.TopicPrefix + "/+/+/" + kind
-		if _, err := client.Subscribe(ctx, filter, mqtt.QoS0, handler); err != nil {
-			return fmt.Errorf("subscribe %s: %w", filter, err)
-		}
+	filters := []string{b.TopicPrefix + "/+/+/packets", b.TopicPrefix + "/+/+/status"}
+	if err := Subscribe(client, filters, handler); err != nil {
+		return err
 	}
 	connected := time.Now()
 	s.recordStatus(b.OrgID, &connected, nil, "")
@@ -313,8 +272,8 @@ func (s *Supervisor) session(ctx context.Context, b *store.OrgBroker) error {
 		select {
 		case <-ctx.Done():
 			return nil
-		case <-client.ConnectionLost():
-			return errors.New("connection lost")
+		case err := <-lost:
+			return fmt.Errorf("connection lost: %w", err)
 		case <-tick.C:
 			if n := lastMsg.Load(); n > written {
 				written = n

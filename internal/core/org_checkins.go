@@ -3,7 +3,6 @@ package core
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"net"
 	"net/http"
 	"regexp"
@@ -28,9 +27,6 @@ import (
 // topicPrefixRE is one MQTT topic level with no wildcards: the ingester
 // subscribes to <prefix>/+/+/packets and parses the prefix as one segment.
 var topicPrefixRE = regexp.MustCompile(`^[A-Za-z0-9_.-]{1,64}$`)
-
-// brokerProbeTimeout bounds the "test connection" button.
-const brokerProbeTimeout = 10 * time.Second
 
 // orgMemberPage loads the org and the viewer's role for a members-only tab,
 // writing a 404 for non-members. ok is false when a response was written.
@@ -186,14 +182,13 @@ func (s *Handlers) handleTestOrgBroker(w http.ResponseWriter, r *http.Request) {
 		}
 		password = string(pt)
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), brokerProbeTimeout)
-	defer cancel()
-	client, err := ingest.Dial(ctx, b, password, net.DefaultResolver, ingest.PublicAddr, slog.Default())
+	// Connect bounds itself (dial, handshakes and CONNACK each time out).
+	client, err := ingest.NewDialer().Connect(ingest.BrokerConfig{OrgID: id, URL: b.URL, Username: b.Username, Password: password}, nil)
 	if err != nil {
 		web.RedirectErr(w, r, observersURL(r), ingest.CategoryMessage(ingest.Category(err)))
 		return
 	}
-	_ = client.Disconnect(ctx)
+	client.Disconnect(250)
 	web.RedirectFlash(w, r, observersURL(r), "ok", "Connected to the broker.")
 }
 

@@ -7,15 +7,17 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"net/netip"
 	"os"
+	"slices"
 	"strings"
 	"syscall"
 	"testing"
 	"time"
 
-	mqtt "github.com/SukramJ/go-mqtt"
-	"github.com/SukramJ/go-mqtt/protocol"
+	"github.com/eclipse/paho.mqtt.golang/packets"
 	meshcore "github.com/meshcore-go/meshcore-go"
 
 	"github.com/MeshTender/MeshTender/internal/observe/observetest"
@@ -257,19 +259,22 @@ func TestResolveTarget(t *testing.T) {
 	}
 	ctx := context.Background()
 
-	got, err := ResolveTarget(ctx, "tls://mqtt.example.org", r, PublicAddr)
-	if err != nil || got.DialURL != "tls://203.0.113.7:8883" || got.ServerName != "mqtt.example.org" || !got.TLS {
-		t.Fatalf("tls = %+v, %v", got, err)
-	}
-	got, err = ResolveTarget(ctx, "tcp://mqtt.example.org:1884", r, PublicAddr)
-	if err != nil || got.DialURL != "tcp://203.0.113.7:1884" {
-		t.Fatalf("tcp = %+v, %v", got, err)
-	}
-	if got, err := ResolveTarget(ctx, "tcp://[2606:4700::1111]", r, PublicAddr); err != nil || got.DialURL != "tcp://[2606:4700::1111]:1883" {
-		t.Fatalf("ipv6 literal = %+v, %v", got, err)
+	for raw, want := range map[string]Target{
+		"tls://mqtt.example.org":      {Scheme: "tls", Addr: "203.0.113.7:8883", ServerName: "mqtt.example.org", Port: "8883"},
+		"tcp://mqtt.example.org:1884": {Scheme: "tcp", Addr: "203.0.113.7:1884", ServerName: "mqtt.example.org", Port: "1884"},
+		"tcp://[2606:4700::1111]":     {Scheme: "tcp", Addr: "[2606:4700::1111]:1883", ServerName: "2606:4700::1111", Port: "1883"},
+		// WebSocket: default port per scheme, path defaults to /mqtt.
+		"wss://mqtt.example.org":           {Scheme: "wss", Addr: "203.0.113.7:443", ServerName: "mqtt.example.org", Port: "443", Path: "/mqtt"},
+		"wss://mqtt.example.org/":          {Scheme: "wss", Addr: "203.0.113.7:443", ServerName: "mqtt.example.org", Port: "443", Path: "/mqtt"},
+		"ws://mqtt.example.org:8080/ws/mq": {Scheme: "ws", Addr: "203.0.113.7:8080", ServerName: "mqtt.example.org", Port: "8080", Path: "/ws/mq"},
+	} {
+		got, err := ResolveTarget(ctx, raw, r, PublicAddr)
+		if err != nil || got != want {
+			t.Errorf("%s = %+v, %v; want %+v", raw, got, err, want)
+		}
 	}
 
-	for _, raw := range []string{"tcp://internal.example", "tcp://mixed.example", "tcp://127.0.0.1:1883", "tcp://[::1]"} {
+	for _, raw := range []string{"tcp://internal.example", "tcp://mixed.example", "tcp://127.0.0.1:1883", "tcp://[::1]", "wss://internal.example/mqtt"} {
 		if _, err := ResolveTarget(ctx, raw, r, PublicAddr); !errors.Is(err, ErrBlockedAddress) {
 			t.Errorf("%s: err = %v, want ErrBlockedAddress", raw, err)
 		}
@@ -278,7 +283,8 @@ func TestResolveTarget(t *testing.T) {
 	if _, err := ResolveTarget(ctx, "tcp://nope.example", r, PublicAddr); !errors.As(err, &dnsErr) {
 		t.Errorf("unknown host: err = %v", err)
 	}
-	for _, raw := range []string{"http://mqtt.example.org", "mqtt.example.org", "tcp://u:p@mqtt.example.org", "tcp://mqtt.example.org/x", "tcp://"} {
+	for _, raw := range []string{"http://mqtt.example.org", "https://mqtt.example.org", "mqtt.example.org", "tcp://u:p@mqtt.example.org",
+		"wss://u:p@mqtt.example.org", "tcp://mqtt.example.org/x", "wss://mqtt.example.org/mqtt?x=1", "tcp://"} {
 		if _, err := ResolveTarget(ctx, raw, r, PublicAddr); err == nil {
 			t.Errorf("%s: want a URL error", raw)
 		}
@@ -289,12 +295,15 @@ func TestCategory(t *testing.T) {
 	t.Parallel()
 	refused := &net.OpError{Op: "dial", Err: os.NewSyscallError("connect", syscall.ECONNREFUSED)}
 	for err, want := range map[error]string{
-		&DNSError{Err: errors.New("x")}:                                                 CategoryDNS,
-		fmt.Errorf("w: %w", ErrBlockedAddress):                                          CategoryBlocked,
-		&mqtt.ReasonError{Packet: "CONNECT", Code: protocol.NotAuthorized}:              CategoryAuth,
-		&mqtt.ReasonError{Packet: "CONNECT", Code: protocol.BadUserNameOrPassword}:      CategoryAuth,
-		&mqtt.ReasonError{Packet: "CONNECT", Code: protocol.ServerUnavailable}:          CategoryRejected,
-		fmt.Errorf("subscribe: %w", &mqtt.ReasonError{Packet: "SUBSCRIBE", Code: 0x80}): CategorySubscribe,
+		&DNSError{Err: errors.New("x")}:        CategoryDNS,
+		fmt.Errorf("w: %w", ErrBlockedAddress): CategoryBlocked,
+		// Paho wraps a failed dial as "<network error> : <cause>".
+		fmt.Errorf("%w : %w", packets.ErrorNetworkError, ErrBlockedAddress): CategoryBlocked,
+		packets.ErrorRefusedNotAuthorised:                                   CategoryAuth,
+		packets.ErrorRefusedBadUsernameOrPassword:                           CategoryAuth,
+		packets.ErrorRefusedServerUnavailable:                               CategoryRejected,
+		&HandshakeError{Status: 404, Err: errors.New("x")}:                  CategoryRejected,
+		fmt.Errorf("%w: meshcore/+/+/packets", ErrSubscribeRejected):        CategorySubscribe,
 		refused:                       CategoryRefused,
 		context.DeadlineExceeded:      CategoryTimeout,
 		errors.New("connection lost"): CategoryConnect,
@@ -310,10 +319,16 @@ func allowAll(netip.Addr) bool { return true }
 
 var testMasterKey = [32]byte{1, 2, 3}
 
-func startSupervisor(t *testing.T, st *store.Store, allow AddrPolicy) {
+// testDialer reaches the fake broker: loopback allowed only when allow is
+// allowAll, and its test CA trusted for wss.
+func testDialer(b *fakeBroker, allow AddrPolicy) Dialer {
+	return Dialer{Resolver: net.DefaultResolver, Allow: allow, RootCAs: b.rootCAs}
+}
+
+func startSupervisor(t *testing.T, st *store.Store, d Dialer) {
 	t.Helper()
 	sup := NewSupervisor(st, testMasterKey, quietLog())
-	sup.Allow = allow
+	sup.Dialer = d
 	sup.ReconcileEvery = 50 * time.Millisecond
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
@@ -350,45 +365,57 @@ func saveBroker(t *testing.T, st *store.Store, ctx context.Context, f *fixture, 
 	}
 }
 
+// TestSupervisorEndToEnd runs the whole path — connect, subscribe, receive an
+// advert, record it, disconnect when disabled — over each transport. wss is the
+// one real deployments use (MQTT over WebSocket behind HTTPS).
 func TestSupervisorEndToEnd(t *testing.T) {
 	t.Parallel()
-	st, ctx := newStore(t)
-	f := newFixture(t, st, ctx)
-	broker := newFakeBroker(t, "s3cret")
-	saveBroker(t, st, ctx, f, broker.url(), "s3cret", true)
-	startSupervisor(t, st, allowAll)
+	for _, transport := range []string{"tcp", "ws", "wss"} {
+		t.Run(transport, func(t *testing.T) {
+			t.Parallel()
+			st, ctx := newStore(t)
+			f := newFixture(t, st, ctx)
+			broker := newFakeBroker(t, "s3cret", transport)
+			saveBroker(t, st, ctx, f, broker.url(), "s3cret", true)
+			startSupervisor(t, st, testDialer(broker, allowAll))
 
-	eventually(t, "both subscriptions", func() bool {
-		filters, _ := broker.snapshot()
-		return len(filters) == 2
-	})
-	filters, users := broker.snapshot()
-	if filters[0] != "meshcore/+/+/packets" || filters[1] != "meshcore/+/+/status" || users[0] != "meshtender" {
-		t.Fatalf("filters=%v users=%v", filters, users)
+			eventually(t, "both subscriptions", func() bool {
+				filters, _, _ := broker.snapshot()
+				return len(filters) == 2
+			})
+			filters, users, paths := broker.snapshot()
+			slices.Sort(filters) // one SUBSCRIBE; Paho orders the filters as it likes
+			if filters[0] != "meshcore/+/+/packets" || filters[1] != "meshcore/+/+/status" || users[0] != "meshtender" {
+				t.Fatalf("filters=%v users=%v", filters, users)
+			}
+			if transport != "tcp" && (len(paths) == 0 || paths[0] != "/mqtt") {
+				t.Errorf("WebSocket paths = %v, want the /mqtt default", paths)
+			}
+			eventually(t, "connected status", func() bool {
+				b, _ := st.GetOrgBroker(ctx, f.org)
+				return b.LastConnectedAt != nil && b.LastError == ""
+			})
+
+			now := time.Now().Add(time.Second)
+			raw := observetest.AdvertPacket(t, f.companion, uint32(now.Unix()), "Owner T1", meshcore.RouteTypeFlood, 1, [][]byte{{0x42}}) //nolint:gosec // test clock
+			m := packetMsg(f.org, f.observer, raw, now)
+			broker.publish(m.Topic, m.Payload)
+			eventually(t, "companion confirmed", func() bool { return f.companionState(t, ctx).Confirmed() })
+
+			// Disabling the broker disconnects it on the next reconcile.
+			saveBroker(t, st, ctx, f, broker.url(), "s3cret", false)
+			eventually(t, "disconnect", func() bool { return broker.live() == 0 })
+		})
 	}
-	eventually(t, "connected status", func() bool {
-		b, _ := st.GetOrgBroker(ctx, f.org)
-		return b.LastConnectedAt != nil && b.LastError == ""
-	})
-
-	now := time.Now().Add(time.Second)
-	raw := observetest.AdvertPacket(t, f.companion, uint32(now.Unix()), "Owner T1", meshcore.RouteTypeFlood, 1, [][]byte{{0x42}}) //nolint:gosec // test clock
-	m := packetMsg(f.org, f.observer, raw, now)
-	broker.publish(m.Topic, m.Payload)
-	eventually(t, "companion confirmed", func() bool { return f.companionState(t, ctx).Confirmed() })
-
-	// Disabling the broker disconnects it on the next reconcile.
-	saveBroker(t, st, ctx, f, broker.url(), "s3cret", false)
-	eventually(t, "disconnect", func() bool { return broker.live() == 0 })
 }
 
 func TestSupervisorReportsAuthFailure(t *testing.T) {
 	t.Parallel()
 	st, ctx := newStore(t)
 	f := newFixture(t, st, ctx)
-	broker := newFakeBroker(t, "right")
+	broker := newFakeBroker(t, "right", "wss")
 	saveBroker(t, st, ctx, f, broker.url(), "wrong", true)
-	startSupervisor(t, st, allowAll)
+	startSupervisor(t, st, testDialer(broker, allowAll))
 	eventually(t, "auth category", func() bool {
 		b, _ := st.GetOrgBroker(ctx, f.org)
 		return b.LastError == CategoryAuth
@@ -399,15 +426,64 @@ func TestSupervisorRefusesPrivateBroker(t *testing.T) {
 	t.Parallel()
 	st, ctx := newStore(t)
 	f := newFixture(t, st, ctx)
-	broker := newFakeBroker(t, "s3cret")
+	broker := newFakeBroker(t, "s3cret", "wss")
 	saveBroker(t, st, ctx, f, broker.url(), "s3cret", true)
-	startSupervisor(t, st, PublicAddr) // production policy: loopback is refused
+	startSupervisor(t, st, testDialer(broker, PublicAddr)) // production policy: loopback is refused
 
 	eventually(t, "blocked category", func() bool {
 		b, _ := st.GetOrgBroker(ctx, f.org)
 		return b.LastError == CategoryBlocked
 	})
-	if _, users := broker.snapshot(); len(users) != 0 {
+	if _, users, _ := broker.snapshot(); len(users) != 0 {
 		t.Fatalf("connected to a loopback broker: %v", users)
+	}
+}
+
+// TestSupervisorReportsRejectedSubscription: an MQTT 3.1.1 broker refuses a
+// subscription inside a successful SUBACK (code 0x80), typically an ACL on the
+// topic prefix. That must surface as "subscribe", not as a healthy connection
+// that never hears anything.
+func TestSupervisorReportsRejectedSubscription(t *testing.T) {
+	t.Parallel()
+	st, ctx := newStore(t)
+	f := newFixture(t, st, ctx)
+	broker := newFakeBroker(t, "s3cret", "ws")
+	broker.rejectSubs = true
+	saveBroker(t, st, ctx, f, broker.url(), "s3cret", true)
+	startSupervisor(t, st, testDialer(broker, allowAll))
+	eventually(t, "subscribe category", func() bool {
+		b, _ := st.GetOrgBroker(ctx, f.org)
+		return b.LastError == CategorySubscribe
+	})
+}
+
+// TestDialerVerifiesTLSAgainstEnteredHost: the dial goes to the vetted IP, but
+// the certificate must still be checked. A wss broker whose certificate the
+// dialer doesn't trust is refused as a TLS failure, not silently accepted.
+func TestDialerVerifiesTLSAgainstEnteredHost(t *testing.T) {
+	t.Parallel()
+	broker := newFakeBroker(t, "s3cret", "wss")
+	untrusting := Dialer{Resolver: net.DefaultResolver, Allow: allowAll} // system roots only
+	_, err := untrusting.Connect(BrokerConfig{OrgID: 1, URL: broker.url(), Username: "meshtender", Password: "s3cret"}, nil)
+	if Category(err) != CategoryTLS {
+		t.Fatalf("err = %v (category %q), want a TLS failure", err, Category(err))
+	}
+	client, err := testDialer(broker, allowAll).Connect(BrokerConfig{OrgID: 1, URL: broker.url(), Username: "meshtender", Password: "s3cret"}, nil)
+	if err != nil {
+		t.Fatalf("trusted CA: %v", err)
+	}
+	client.Disconnect(0)
+}
+
+// TestDialerWebSocketWrongPath: an HTTPS endpoint that doesn't upgrade the
+// path is reported as the broker rejecting the connection.
+func TestDialerWebSocketWrongPath(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.NotFoundHandler())
+	t.Cleanup(srv.Close)
+	d := Dialer{Resolver: net.DefaultResolver, Allow: allowAll}
+	_, err := d.Connect(BrokerConfig{OrgID: 1, URL: "ws://" + srv.Listener.Addr().String() + "/nope"}, nil)
+	if Category(err) != CategoryRejected {
+		t.Fatalf("err = %v (category %q), want rejected", err, Category(err))
 	}
 }

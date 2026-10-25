@@ -2,39 +2,88 @@ package ingest
 
 import (
 	"bufio"
+	"context"
+	"crypto/x509"
 	"encoding/binary"
 	"io"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"sync"
 	"testing"
+
+	"github.com/coder/websocket"
 )
 
 // fakeBroker is just enough of an MQTT 3.1.1 broker to drive the supervisor:
 // it answers CONNECT (checking the password), SUBSCRIBE and PINGREQ, records
-// what the client asked for, and can push PUBLISH frames to it. go-mqtt only
-// ships client-side encoders, and a real broker would be a new dependency or a
-// container, so the handful of server frames are written by hand here.
+// what the client asked for, and can push PUBLISH frames to it. It speaks raw
+// MQTT over TCP, or MQTT over WebSocket (ws, or wss with a test CA). A real
+// broker would be a new dependency or a container, so the handful of server
+// frames are written by hand here.
 type fakeBroker struct {
 	t        *testing.T
-	ln       net.Listener
 	password string
+	// rejectSubs answers every SUBSCRIBE with the 3.1.1 failure code 0x80.
+	rejectSubs bool
+
+	rawURL  string
+	rootCAs *x509.CertPool // for wss: trusts the test server's certificate
 
 	mu      sync.Mutex
 	conns   []net.Conn // live, authenticated connections
 	filters []string
 	users   []string
+	paths   []string // WebSocket request paths
 }
 
-func newFakeBroker(t *testing.T, password string) *fakeBroker {
+// newFakeBroker starts a broker on loopback. transport is "tcp", "ws" or "wss".
+func newFakeBroker(t *testing.T, password, transport string) *fakeBroker {
 	t.Helper()
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
+	b := &fakeBroker{t: t, password: password}
+	if transport == "tcp" {
+		ln, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			t.Fatal(err)
+		}
+		b.rawURL = "tcp://" + ln.Addr().String()
+		go func() {
+			for {
+				c, err := ln.Accept()
+				if err != nil {
+					return
+				}
+				go b.serve(c)
+			}
+		}()
+		t.Cleanup(func() { _ = ln.Close() })
+	} else {
+		srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			c, err := websocket.Accept(w, r, &websocket.AcceptOptions{Subprotocols: []string{"mqtt"}})
+			if err != nil {
+				return
+			}
+			if c.Subprotocol() != "mqtt" {
+				_ = c.Close(websocket.StatusPolicyViolation, "mqtt subprotocol required")
+				return
+			}
+			b.mu.Lock()
+			b.paths = append(b.paths, r.URL.Path)
+			b.mu.Unlock()
+			b.serve(websocket.NetConn(context.Background(), c, websocket.MessageBinary))
+		}))
+		if transport == "wss" {
+			srv.StartTLS()
+			b.rootCAs = x509.NewCertPool()
+			b.rootCAs.AddCert(srv.Certificate())
+		} else {
+			srv.Start()
+		}
+		// No path: the client should default to /mqtt.
+		b.rawURL = transport + "://" + srv.Listener.Addr().String()
+		t.Cleanup(srv.Close)
 	}
-	b := &fakeBroker{t: t, ln: ln, password: password}
-	go b.accept()
 	t.Cleanup(func() {
-		_ = ln.Close()
 		b.mu.Lock()
 		for _, c := range b.conns {
 			_ = c.Close()
@@ -44,17 +93,7 @@ func newFakeBroker(t *testing.T, password string) *fakeBroker {
 	return b
 }
 
-func (b *fakeBroker) url() string { return "tcp://" + b.ln.Addr().String() }
-
-func (b *fakeBroker) accept() {
-	for {
-		c, err := b.ln.Accept()
-		if err != nil {
-			return
-		}
-		go b.serve(c)
-	}
-}
+func (b *fakeBroker) url() string { return b.rawURL }
 
 // readFrame reads one MQTT control packet: the type byte and its body.
 func readFrame(r *bufio.Reader) (byte, []byte, error) {
@@ -173,7 +212,11 @@ func (b *fakeBroker) serve(c net.Conn) {
 				b.mu.Lock()
 				b.filters = append(b.filters, f)
 				b.mu.Unlock()
-				granted = append(granted, 0x00)
+				if b.rejectSubs {
+					granted = append(granted, 0x80)
+				} else {
+					granted = append(granted, 0x00)
+				}
 			}
 			if err := writeFrame(c, 0x90, append(append([]byte{}, id...), granted...)); err != nil {
 				return
@@ -204,8 +247,8 @@ func (b *fakeBroker) live() int {
 	return len(b.conns)
 }
 
-func (b *fakeBroker) snapshot() (filters, users []string) {
+func (b *fakeBroker) snapshot() (filters, users, paths []string) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	return append([]string(nil), b.filters...), append([]string(nil), b.users...)
+	return append([]string(nil), b.filters...), append([]string(nil), b.users...), append([]string(nil), b.paths...)
 }

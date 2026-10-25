@@ -332,8 +332,6 @@ Redistributed in compiled form. Their notices are reproduced here.
 - **filippo.io/edwards25519** v1.2.0 — BSD-3-Clause  
   Copyright (c) 2009 The Go Authors. All rights reserved.  
   copyright notice, this list of conditions and the following disclaimer
-- **github.com/SukramJ/go-mqtt** v1.6.0 — MIT  
-  Copyright (c) 2026 SukramJ
 - **github.com/alexedwards/scs/pgxstore** v0.0.0-20251002162104-209de6e426de — MIT  
   Copyright (c) 2016 Alex Edwards
 - **github.com/alexedwards/scs/v2** v2.9.0 — MIT  
@@ -350,6 +348,8 @@ Redistributed in compiled form. Their notices are reproduced here.
 - **github.com/coder/websocket** v1.8.15 — ISC  
   Copyright (c) 2025 Coder  
   copyright notice and this permission notice appear in all copies.
+- **github.com/eclipse/paho.mqtt.golang** v1.5.1 — BSD-3-Clause  
+  Copyright (c) 2007, Eclipse Foundation, Inc. and its licensors.
 - **github.com/fxamacker/cbor/v2** v2.9.3 — MIT  
   Copyright (c) 2019-present Faye Amacker
 - **github.com/go-chi/chi/v5** v5.3.2 — MIT  
@@ -380,6 +380,8 @@ Redistributed in compiled form. Their notices are reproduced here.
 - **github.com/gorilla/css** v1.0.1 — BSD-3-Clause  
   Copyright (c) 2023 The Gorilla Authors. All rights reserved.  
   copyright notice, this list of conditions and the following disclaimer
+- **github.com/gorilla/websocket** v1.5.3 — BSD-2-Clause  
+  Copyright (c) 2013 The Gorilla WebSocket Authors. All rights reserved.
 - **github.com/jackc/pgpassfile** v1.0.0 — MIT  
   Copyright (c) 2019 Jack Christensen
 - **github.com/jackc/pgservicefile** v0.0.0-20240606120523-5a60cdf6a761 — MIT  
