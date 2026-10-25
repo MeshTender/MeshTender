@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"embed"
+	"fmt"
 	"html/template"
 	"io/fs"
 	"log/slog"
@@ -27,7 +28,7 @@ import (
 	"github.com/MeshTender/MeshTender/internal/store"
 )
 
-//go:embed templates/base.html templates/icons.html templates/brand.html templates/org_tabs.html templates/repeater_tabs.html templates/command_grid.html templates/org_access.html templates/radio_fields.html templates/net_form.html templates/org_public.html templates/org_config.html templates/org_repeaters.html templates/error.html
+//go:embed templates/base.html templates/icons.html templates/brand.html templates/org_tabs.html templates/repeater_tabs.html templates/command_grid.html templates/org_access.html templates/radio_fields.html templates/net_form.html templates/org_config_parts.html templates/org_public.html templates/org_config.html templates/org_repeaters.html templates/error.html
 var sharedTemplatesFS embed.FS
 
 // sharedPages are full content pages (not just layout partials) that more than
@@ -217,6 +218,25 @@ var templateFuncs = template.FuncMap{
 	// asset maps a logical static path ("/static/ui.js") to its content-hashed,
 	// immutably-cacheable URL. Use it for every /static/ reference in templates.
 	"asset": func(l string) string { return assets().URL(l) },
+	// dict builds a map from key/value pairs, to pass several values to a
+	// partial: {{template "x" (dict "Nav" .Nav "Section" "radio")}}.
+	"dict": Dict,
+}
+
+// Dict is the "dict" template func: alternating string keys and values.
+func Dict(pairs ...any) (map[string]any, error) {
+	if len(pairs)%2 != 0 {
+		return nil, fmt.Errorf("dict: odd number of arguments")
+	}
+	m := make(map[string]any, len(pairs)/2)
+	for i := 0; i+1 < len(pairs); i += 2 {
+		k, ok := pairs[i].(string)
+		if !ok {
+			return nil, fmt.Errorf("dict: key %v is not a string", pairs[i])
+		}
+		m[k] = pairs[i+1]
+	}
+	return m, nil
 }
 
 // tsFallbackLayouts maps a display kind to the Go layout used for the server-side
@@ -261,7 +281,7 @@ func TimeElement(t time.Time, kind string) template.HTML {
 }
 
 func NewRenderer(cfg *config.Config, surfaceTemplates fs.FS) (*Renderer, error) {
-	base, err := template.New("").Funcs(templateFuncs).ParseFS(sharedTemplatesFS, "templates/base.html", "templates/icons.html", "templates/brand.html", "templates/org_tabs.html", "templates/repeater_tabs.html", "templates/command_grid.html", "templates/org_access.html", "templates/radio_fields.html", "templates/net_form.html")
+	base, err := template.New("").Funcs(templateFuncs).ParseFS(sharedTemplatesFS, "templates/base.html", "templates/icons.html", "templates/brand.html", "templates/org_tabs.html", "templates/repeater_tabs.html", "templates/command_grid.html", "templates/org_access.html", "templates/radio_fields.html", "templates/net_form.html", "templates/org_config_parts.html")
 	if err != nil {
 		return nil, err
 	}

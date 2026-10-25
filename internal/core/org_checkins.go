@@ -57,46 +57,15 @@ func (s *Handlers) orgNav(ctx context.Context, org *store.Org, active string, is
 		IsMember: true, IsAdmin: isAdmin, Manage: true})
 }
 
-func (s *Handlers) pageOrgObservers(w http.ResponseWriter, r *http.Request) {
-	org, isAdmin, ok := s.orgMemberPage(w, r)
-	if !ok {
-		return
-	}
-	ctx := r.Context()
-	broker, err := s.Store.GetOrgBroker(ctx, org.ID)
-	if err != nil && !errors.Is(err, store.ErrNotFound) {
-		s.ServerError(w, r, "Couldn't load the broker.", err)
-		return
-	}
-	observers, err := s.Store.ListOrgObservers(ctx, org.ID)
-	if err != nil {
-		s.ServerError(w, r, "Couldn't load observers.", err)
-		return
-	}
-	data := map[string]any{
-		"Org":       org,
-		"Nav":       s.orgNav(ctx, org, "observers", isAdmin),
-		"IsAdmin":   isAdmin,
-		"Observers": observers,
-		"Now":       time.Now(),
-		"Error":     r.URL.Query().Get("error"),
-		"OK":        r.URL.Query().Get("ok"),
-	}
-	if broker != nil {
-		data["Broker"] = broker
-		data["BrokerError"] = ingest.CategoryMessage(broker.LastError)
-	}
-	s.Render(w, r, "org_observers.html", data)
-}
-
-func observersURL(r *http.Request) string { return "/orgs/" + orgParam(r) + "/observers" }
+// mqttURL is Settings › MQTT, where the broker and observers are managed.
+func mqttURL(r *http.Request) string { return settingsURL(orgParam(r), "mqtt") }
 
 func (s *Handlers) handleSaveOrgBroker(w http.ResponseWriter, r *http.Request) {
 	id, ok := s.requireOrgAdmin(w, r)
 	if !ok {
 		return
 	}
-	fail := func(msg string) { web.RedirectErr(w, r, observersURL(r), msg) }
+	fail := func(msg string) { web.RedirectErr(w, r, mqttURL(r), msg) }
 
 	rawURL := strings.TrimSpace(r.FormValue("url"))
 	if _, err := ingest.ParseBrokerURL(rawURL); err != nil {
@@ -140,7 +109,7 @@ func (s *Handlers) handleSaveOrgBroker(w http.ResponseWriter, r *http.Request) {
 		s.ServerError(w, r, "Couldn't save the broker.", err)
 		return
 	}
-	web.RedirectFlash(w, r, observersURL(r), "ok", "Broker saved. MeshTender connects within a minute.")
+	web.RedirectFlash(w, r, mqttURL(r), "ok", "Broker saved. MeshTender connects within a minute.")
 }
 
 func (s *Handlers) handleDeleteOrgBroker(w http.ResponseWriter, r *http.Request) {
@@ -152,7 +121,7 @@ func (s *Handlers) handleDeleteOrgBroker(w http.ResponseWriter, r *http.Request)
 		s.ServerError(w, r, "Couldn't remove the broker.", err)
 		return
 	}
-	web.RedirectFlash(w, r, observersURL(r), "ok", "Broker removed.")
+	web.RedirectFlash(w, r, mqttURL(r), "ok", "Broker removed.")
 }
 
 // handleTestOrgBroker connects to the saved broker once (address guard and all)
@@ -165,7 +134,7 @@ func (s *Handlers) handleTestOrgBroker(w http.ResponseWriter, r *http.Request) {
 	}
 	b, err := s.Store.GetOrgBroker(r.Context(), id)
 	if errors.Is(err, store.ErrNotFound) {
-		web.RedirectErr(w, r, observersURL(r), "Save the broker settings first.")
+		web.RedirectErr(w, r, mqttURL(r), "Save the broker settings first.")
 		return
 	}
 	if err != nil {
@@ -176,7 +145,7 @@ func (s *Handlers) handleTestOrgBroker(w http.ResponseWriter, r *http.Request) {
 	if b.HasPassword() {
 		pt, err := secretbox.Open(s.Cfg.MasterKey, b.PasswordSealed)
 		if err != nil {
-			web.RedirectErr(w, r, observersURL(r), ingest.CategoryMessage(ingest.CategoryConfig))
+			web.RedirectErr(w, r, mqttURL(r), ingest.CategoryMessage(ingest.CategoryConfig))
 			return
 		}
 		password = string(pt)
@@ -184,11 +153,11 @@ func (s *Handlers) handleTestOrgBroker(w http.ResponseWriter, r *http.Request) {
 	// Connect bounds itself (dial, handshakes and CONNACK each time out).
 	client, err := ingest.NewDialer().Connect(ingest.BrokerConfig{OrgID: id, URL: b.URL, Username: b.Username, Password: password}, nil)
 	if err != nil {
-		web.RedirectErr(w, r, observersURL(r), ingest.CategoryMessage(ingest.Category(err)))
+		web.RedirectErr(w, r, mqttURL(r), ingest.CategoryMessage(ingest.Category(err)))
 		return
 	}
 	client.Disconnect(250)
-	web.RedirectFlash(w, r, observersURL(r), "ok", "Connected to the broker.")
+	web.RedirectFlash(w, r, mqttURL(r), "ok", "Connected to the broker.")
 }
 
 func (s *Handlers) handleAddOrgObserver(w http.ResponseWriter, r *http.Request) {
@@ -196,7 +165,7 @@ func (s *Handlers) handleAddOrgObserver(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
-	fail := func(msg string) { web.RedirectErr(w, r, observersURL(r), msg) }
+	fail := func(msg string) { web.RedirectErr(w, r, mqttURL(r)+"/observers/new", msg) }
 	name := strings.TrimSpace(r.FormValue("name"))
 	if name == "" || utf8.RuneCountInString(name) > maxCompanionName {
 		fail("Give the observer a name (up to 64 characters).")
@@ -216,7 +185,7 @@ func (s *Handlers) handleAddOrgObserver(w http.ResponseWriter, r *http.Request) 
 		s.ServerError(w, r, "Couldn't add the observer.", err)
 		return
 	}
-	http.Redirect(w, r, observersURL(r), http.StatusSeeOther) //nolint:gosec // G710: local path
+	http.Redirect(w, r, mqttURL(r), http.StatusSeeOther) //nolint:gosec // G710: local path
 }
 
 func (s *Handlers) handleDeleteOrgObserver(w http.ResponseWriter, r *http.Request) {
@@ -236,7 +205,7 @@ func (s *Handlers) handleDeleteOrgObserver(w http.ResponseWriter, r *http.Reques
 		s.ServerError(w, r, "Couldn't remove the observer.", err)
 		return
 	}
-	http.Redirect(w, r, observersURL(r), http.StatusSeeOther) //nolint:gosec // G710: local path
+	http.Redirect(w, r, mqttURL(r), http.StatusSeeOther) //nolint:gosec // G710: local path
 }
 
 func (s *Handlers) pageOrgActivity(w http.ResponseWriter, r *http.Request) {

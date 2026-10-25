@@ -56,3 +56,26 @@
   <span class="form-hint mt-0">Inactive nets keep their history but schedule no new sessions.</span>
 </label>
 {{end}}
+
+{{/* net-list is an org's nets with their schedule and next session, linking to
+     each net's page. Data: the page map with Nets (core netSummaryView), Org, Now.
+     Shared by Check-ins › Nets and Settings › Nets. */}}
+{{define "net-list"}}
+<div class="card">
+  <div class="list-group list-group-flush" data-testid="net-list">
+    {{range .Nets}}
+    <a class="list-group-item list-group-item-action" href="/orgs/{{$.Org.Slug}}/nets/{{.ID}}">
+      <div class="d-flex align-items-center flex-wrap gap-2">
+        <span class="fw-bold">{{.Name}}</span>
+        {{if not .Active}}<span class="badge bg-secondary-lt">Inactive</span>{{end}}
+        {{with .Next}}
+          {{if $.Now.Before .StartsAt}}<span class="ms-auto text-secondary">Next {{ts .StartsAt "datetime"}}</span>
+          {{else}}<span class="badge bg-green-lt">In progress</span><span class="ms-auto text-secondary">Until {{ts .EndsAt "time"}}</span>{{end}}
+        {{end}}
+      </div>
+      <div class="text-secondary small">{{.Schedule}}</div>
+    </a>
+    {{end}}
+  </div>
+</div>
+{{end}}

@@ -27,8 +27,8 @@ func TestOrgConfigProfilesFlow(t *testing.T) {
 		t.Fatalf("create org: %v", err)
 	}
 
-	// Two profiles, each created through the editor. A save lands back on the
-	// config page with the new profile selected.
+	// Two profiles, each created through the editor. A save lands back on
+	// Settings › Profiles with the new profile selected.
 	for _, p := range []struct{ name, steps string }{{"ESP32", "# esp base"}, {"nRF52", "# nrf base"}} {
 		save := post(t, ts, h.app, "/orgs/"+org.Slug+"/config/profiles",
 			url.Values{"profile_name": {p.name}, "profile_steps": {p.steps}}, sess)
@@ -36,7 +36,7 @@ func TestOrgConfigProfilesFlow(t *testing.T) {
 		if save.StatusCode != http.StatusSeeOther {
 			t.Fatalf("create profile %s status = %d, want 303", p.name, save.StatusCode)
 		}
-		if got, want := save.Header.Get("Location"), "/orgs/"+org.Slug+"/config?profile="+url.QueryEscape(p.name); got != want {
+		if got, want := save.Header.Get("Location"), "/orgs/"+org.Slug+"/settings/profiles?profile="+url.QueryEscape(p.name); got != want {
 			t.Fatalf("create profile %s redirected to %q, want %q", p.name, got, want)
 		}
 	}
@@ -77,17 +77,28 @@ func TestOrgConfigProfilesFlow(t *testing.T) {
 	}
 
 	body := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/config", sess))
-	// The profile list and the region list, each with per-row admin actions, plus the
-	// click-to-preview location map the drawn geofence enables.
+	// The recommended configuration: the profile list and the region legend, plus
+	// the click-to-preview location map the drawn geofence enables.
 	for _, want := range []string{
-		"ESP32", "nRF52", `data-testid="config-profile-list"`,
-		`data-testid="config-profile-add"`, `data-testid="config-profile-edit"`, `data-testid="config-profile-delete"`,
-		`id="config-profile-modal"`, `data-testid="config-regions"`, "region-map",
-		"Mountains", "mtns", `data-testid="config-region-row"`, `data-testid="config-region-add"`,
-		`data-testid="config-region-area"`, `id="config-region-modal"`,
+		"ESP32", "nRF52", `data-testid="config-profile-list"`, `data-testid="config-regions"`, "region-map",
+		"Mountains", "mtns", `data-testid="config-region-row"`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("config view missing %q", want)
+		}
+	}
+	// The per-row admin actions are in Settings › Profiles and › Regions.
+	for page, wants := range map[string][]string{
+		"/settings/profiles": {`data-testid="config-profile-add"`, `data-testid="config-profile-edit"`,
+			`data-testid="config-profile-delete"`, `data-testid="config-profile-view"`},
+		"/settings/regions": {`data-testid="config-region-add"`, `data-testid="config-region-area"`,
+			`data-testid="config-region-edit"`, "region-map", "Mountains"},
+	} {
+		pb := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+page, sess))
+		for _, want := range wants {
+			if !strings.Contains(pb, want) {
+				t.Fatalf("%s missing %q", page, want)
+			}
 		}
 	}
 	// With an area drawn, the region is no longer flagged as a draft.

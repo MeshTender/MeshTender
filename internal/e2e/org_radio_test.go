@@ -3,7 +3,6 @@
 package e2e
 
 import (
-	"strings"
 	"testing"
 
 	cdplog "github.com/chromedp/cdproto/log"
@@ -28,11 +27,10 @@ func editRadioField(id, value string) chromedp.Action {
 const radioState = `["radio-preset","radio_freq_mhz","radio_bw_khz","radio_sf","radio_cr"]
 	.map(id => document.getElementById(id).value).join(" ")`
 
-// TestE2EOrgRadioSettings: an admin sets the org's radio from the Configuration
-// page. The editor loads into a modal via htmx, and the delegated preset script
-// (radio-preset.js) still drives the swapped-in picker under the CSP: a preset
-// fills the fields, editing one moves the picker to Custom. Saving shows the
-// values on the page. The same shared picker drives the add-repeater form.
+// TestE2EOrgRadioSettings: an admin sets the org's radio on Settings › Profile.
+// The delegated preset script (radio-preset.js) drives the picker under the CSP:
+// a preset fills the fields, editing one moves the picker to Custom, and the
+// saved values come back. The same shared picker drives the add-repeater form.
 func TestE2EOrgRadioSettings(t *testing.T) {
 	srv := newE2EServer(t)
 	user, cookie := srv.login(t, "e2eradio")
@@ -44,22 +42,20 @@ func TestE2EOrgRadioSettings(t *testing.T) {
 	bctx, cancel, watch := startBrowser(t)
 	defer cancel()
 
-	var afterPreset, afterEdit, card string
+	var afterPreset, afterEdit, saved string
 	if err := chromedp.Run(bctx,
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(srv.appURL+"/orgs/"+org.Slug+"/config"),
-		chromedp.WaitVisible(`[data-testid="config-radio-edit"]`, chromedp.ByQuery),
-		chromedp.Click(`[data-testid="config-radio-edit"]`, chromedp.ByQuery),
-		chromedp.WaitVisible(`#config-radio-modal-content #radio-preset`, chromedp.ByQuery),
+		chromedp.Navigate(srv.appURL+"/orgs/"+org.Slug+"/settings"),
+		chromedp.WaitVisible(`#radio-preset`, chromedp.ByQuery),
 		pickPreset("ch"),
 		chromedp.Evaluate(radioState, &afterPreset),
 		editRadioField("radio_sf", "9"),
 		chromedp.Evaluate(radioState, &afterEdit),
 		chromedp.Click(`[data-testid="save-radio"]`, chromedp.ByQuery),
-		chromedp.WaitVisible(`[data-testid="config-radio-values"]`, chromedp.ByQuery),
-		chromedp.Text(`[data-testid="config-radio-values"]`, &card, chromedp.ByQuery),
+		chromedp.WaitVisible(`[data-testid="settings-ok"]`, chromedp.ByQuery),
+		chromedp.Evaluate(radioState, &saved),
 	); err != nil {
 		t.Fatalf("set org radio: %v", err)
 	}
@@ -69,8 +65,8 @@ func TestE2EOrgRadioSettings(t *testing.T) {
 	if afterEdit != "custom 869.618 62.5 9 8" {
 		t.Errorf("after editing SF: %q", afterEdit)
 	}
-	if !strings.Contains(card, "869.618 MHz · BW62.5 · SF9 · CR8") {
-		t.Errorf("radio card = %q", card)
+	if saved != "custom 869.618 62.5 9 8" {
+		t.Errorf("radio after saving = %q", saved)
 	}
 
 	var addForm string

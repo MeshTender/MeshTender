@@ -3,6 +3,7 @@
 package e2e
 
 import (
+	"strings"
 	"testing"
 
 	cdplog "github.com/chromedp/cdproto/log"
@@ -10,9 +11,10 @@ import (
 	"github.com/chromedp/chromedp"
 )
 
-// TestE2EOrgProfileModal: an admin opens the About card's Edit button and the
-// profile fragment loads into the modal, prefilled, under the strict CSP.
-func TestE2EOrgProfileModal(t *testing.T) {
+// TestE2EOrgProfileSettingsSave: an admin edits the org's profile in place on
+// Settings › Profile and saves it, landing back there with a confirmation, under
+// the strict CSP.
+func TestE2EOrgProfileSettingsSave(t *testing.T) {
 	srv := newE2EServer(t)
 	user, cookie := srv.login(t, "e2eorgprofile")
 	org, err := srv.store.CreateOrg(srv.ctx, "Profile Org", user.ID) // creator = admin
@@ -24,30 +26,33 @@ func TestE2EOrgProfileModal(t *testing.T) {
 	defer cancel()
 
 	var name string
-	homeURL := srv.appURL + "/orgs/" + org.Slug
+	settingsURL := srv.appURL + "/orgs/" + org.Slug + "/settings"
 	if err := chromedp.Run(bctx,
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(homeURL),
-		chromedp.WaitVisible(`[data-testid="edit-profile"]`, chromedp.ByQuery),
-		chromedp.Click(`[data-testid="edit-profile"]`, chromedp.ByQuery),
-		chromedp.WaitVisible(`#org-profile-modal-content input[name=name]`, chromedp.ByQuery),
-		chromedp.Value(`#org-profile-modal-content input[name=name]`, &name, chromedp.ByQuery),
+		chromedp.Navigate(settingsURL),
+		chromedp.WaitVisible(`#org_name`, chromedp.ByQuery),
+		chromedp.Value(`#org_name`, &name, chromedp.ByQuery),
+		chromedp.SetValue(`#org_region`, "Buffalo, NY", chromedp.ByQuery),
+		chromedp.Click(`[data-testid="save-profile-settings"]`, chromedp.ByQuery),
+		chromedp.WaitVisible(`[data-testid="settings-ok"]`, chromedp.ByQuery),
 	); err != nil {
-		t.Fatalf("browser run against %s: %v", homeURL, err)
+		t.Fatalf("browser run against %s: %v", settingsURL, err)
 	}
 	if name != "Profile Org" {
-		t.Fatalf("profile modal name field = %q, want %q", name, "Profile Org")
+		t.Fatalf("profile name field = %q, want %q", name, "Profile Org")
+	}
+	if got, err := srv.store.GetOrg(srv.ctx, org.ID); err != nil || got.Region != "Buffalo, NY" {
+		t.Fatalf("region after save = %+v, %v", got, err)
 	}
 	watch.assertClean(t)
 }
 
-// TestE2EOrgProfileModalKeepsOpenOnError: a server validation error (renaming to a
-// slug already taken — passes HTML5 checks, rejected server-side) re-renders the
-// modal in place instead of navigating away, so the modal stays open with the
-// error shown and the entered work preserved.
-func TestE2EOrgProfileModalKeepsOpenOnError(t *testing.T) {
+// TestE2EOrgProfileSettingsKeepsWorkOnError: a server validation error (renaming
+// to a slug already taken — passes HTML5 checks, rejected server-side) re-renders
+// Settings › Profile with the error shown and the entered work preserved.
+func TestE2EOrgProfileSettingsKeepsWorkOnError(t *testing.T) {
 	srv := newE2EServer(t)
 	user, cookie := srv.login(t, "e2eorgerr")
 	// Two orgs owned by the same admin; renaming one onto the other's slug collides.
@@ -62,44 +67,36 @@ func TestE2EOrgProfileModalKeepsOpenOnError(t *testing.T) {
 	bctx, cancel, watch := startBrowser(t)
 	defer cancel()
 
-	var errShown, modalShown bool
-	var nameVal string
-	homeURL := srv.appURL + "/orgs/" + beta.Slug
+	var errText, nameVal, slugVal string
+	settingsURL := srv.appURL + "/orgs/" + beta.Slug + "/settings"
 	if err := chromedp.Run(bctx,
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(homeURL),
-		chromedp.WaitVisible(`[data-testid="edit-profile"]`, chromedp.ByQuery),
-		chromedp.Click(`[data-testid="edit-profile"]`, chromedp.ByQuery),
-		chromedp.WaitVisible(`#org-profile-modal-content input[name=slug]`, chromedp.ByQuery),
-		// Collide with Alpha's slug, then Save (footer button posts the modal form).
-		chromedp.SetValue(`#org-profile-modal-content input[name=slug]`, "alpha", chromedp.ByQuery),
-		chromedp.Click(`#org-profile-modal-content .modal-footer button[type=submit]`, chromedp.ByQuery),
-		// htmx swaps the error fragment back into the still-open modal.
-		chromedp.WaitVisible(`#org-profile-modal-content .alert-danger`, chromedp.ByQuery),
-		chromedp.Evaluate(`document.querySelector('#org-profile-modal').classList.contains('show')`, &modalShown),
-		chromedp.Evaluate(`!!document.querySelector('#org-profile-modal-content .alert-danger')`, &errShown),
-		chromedp.Value(`#org-profile-modal-content input[name=name]`, &nameVal, chromedp.ByQuery),
+		chromedp.Navigate(settingsURL),
+		chromedp.WaitVisible(`#org_slug`, chromedp.ByQuery),
+		chromedp.SetValue(`#org_name`, "Beta Renamed", chromedp.ByQuery),
+		chromedp.SetValue(`#org_slug`, "alpha", chromedp.ByQuery),
+		chromedp.Click(`[data-testid="save-profile-settings"]`, chromedp.ByQuery),
+		chromedp.WaitVisible(`[data-testid="settings-form-error"]`, chromedp.ByQuery),
+		chromedp.Text(`[data-testid="settings-form-error"]`, &errText, chromedp.ByQuery),
+		chromedp.Value(`#org_name`, &nameVal, chromedp.ByQuery),
+		chromedp.Value(`#org_slug`, &slugVal, chromedp.ByQuery),
 	); err != nil {
-		t.Fatalf("browser run against %s: %v", homeURL, err)
+		t.Fatalf("browser run against %s: %v", settingsURL, err)
 	}
-	if !modalShown {
-		t.Fatal("modal closed after a validation error; it should stay open")
+	if !strings.Contains(errText, "already taken") {
+		t.Fatalf("error = %q", errText)
 	}
-	if !errShown {
-		t.Fatal("no error shown in the re-rendered modal")
-	}
-	if nameVal != "Beta" {
-		t.Fatalf("entered name not preserved after error: got %q, want %q", nameVal, "Beta")
+	if nameVal != "Beta Renamed" || slugVal != "alpha" {
+		t.Fatalf("entered values not preserved: name %q, slug %q", nameVal, slugVal)
 	}
 	watch.assertClean(t)
 }
 
-// TestE2EOrgLinksModalAddRow: the links editor works inside the htmx-loaded modal —
-// clicking "Add link" appends a row, proving link-editor.js re-initializes on the
-// swapped-in form (not just at page load).
-func TestE2EOrgLinksModalAddRow(t *testing.T) {
+// TestE2EOrgLinksSettingsAddRow: the links editor on Settings › Profile works —
+// "Add link" appends a row, and a saved link comes back on the page.
+func TestE2EOrgLinksSettingsAddRow(t *testing.T) {
 	srv := newE2EServer(t)
 	user, cookie := srv.login(t, "e2eorglinks")
 	org, err := srv.store.CreateOrg(srv.ctx, "Links Org", user.ID)
@@ -110,25 +107,29 @@ func TestE2EOrgLinksModalAddRow(t *testing.T) {
 	bctx, cancel, watch := startBrowser(t)
 	defer cancel()
 
-	const countRows = `document.querySelectorAll('#org-links-modal-content .link-row').length`
+	const countRows = `document.querySelectorAll('[data-testid="settings-links"] .link-row').length`
 	var before, after int
-	homeURL := srv.appURL + "/orgs/" + org.Slug
+	settingsURL := srv.appURL + "/orgs/" + org.Slug + "/settings"
 	if err := chromedp.Run(bctx,
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(homeURL),
-		chromedp.WaitVisible(`[data-testid="edit-links"]`, chromedp.ByQuery),
-		chromedp.Click(`[data-testid="edit-links"]`, chromedp.ByQuery),
-		chromedp.WaitVisible(`#org-links-modal-content [data-link-add]`, chromedp.ByQuery),
+		chromedp.Navigate(settingsURL),
+		chromedp.WaitVisible(`[data-testid="add-link"]`, chromedp.ByQuery),
 		chromedp.Evaluate(countRows, &before),
-		chromedp.Click(`#org-links-modal-content [data-link-add]`, chromedp.ByQuery),
+		chromedp.Click(`[data-testid="add-link"]`, chromedp.ByQuery),
 		chromedp.Evaluate(countRows, &after),
+		chromedp.SetValue(`[data-testid="settings-links"] .link-row:last-child .link-value`, "https://example.org", chromedp.ByQuery),
+		chromedp.Click(`[data-testid="save-links"]`, chromedp.ByQuery),
+		chromedp.WaitVisible(`[data-testid="settings-ok"]`, chromedp.ByQuery),
 	); err != nil {
-		t.Fatalf("browser run against %s: %v", homeURL, err)
+		t.Fatalf("browser run against %s: %v", settingsURL, err)
 	}
 	if after != before+1 {
-		t.Fatalf("Add link: rows %d -> %d, want +1 (link-editor.js didn't re-init in the modal)", before, after)
+		t.Fatalf("Add link: rows %d -> %d, want +1", before, after)
+	}
+	if links, err := srv.store.ListOrgLinks(srv.ctx, org.ID); err != nil || len(links) != 1 {
+		t.Fatalf("links after save = %+v, %v", links, err)
 	}
 	watch.assertClean(t)
 }

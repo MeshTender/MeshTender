@@ -1,14 +1,17 @@
-{{/* org-tabs renders the organization sub-navigation. Data: a map with Slug,
-Active ("home" | "repeaters" | "members" | "nets" | "activity" | "observers" |
-"config") and IsMember (Members, Nets, Activity and Observers only show for members — they
-expose personal info and the org's infrastructure). Nil-safe: a
-missing map renders empty links (harmless for the empty-data compose test). Links
-are same-host relative so they work on both the app host (signed-in) and the root
-host (anonymous). */}}
-{{/* org-header is the shared chrome for every org tab, so the Actions menu (member
-     views) and the "Go to organization" CTA (public views) stay consistent across
-     tabs — the parallel to repeater-header. Pass the full page data (it reads
-     .Nav.* plus the renderer-injected .AppURL). .Nav.Manage picks Actions vs CTA. */}}
+{{/* The organization chrome shared by every org page: org-header, org-tabs, and the
+     sub-navs of the tabs that group several pages (org-checkins-nav,
+     org-settings-nav). Data: the map from web.OrgNavFor — Slug, Active (the page:
+     "home" | "members" | "repeaters" | "nets" | "activity" | "profile" | "config" |
+     "observers"), Tab (the top-level tab that page lives under, derived from
+     Active), IsMember / IsAdmin (which tabs show), ShowConfig. Nil-safe: a missing
+     map renders empty links (harmless for the empty-data compose test). Links are
+     same-host relative so they work on both the app host (signed-in) and the root
+     host (anonymous). */}}
+
+{{/* org-header: the org's name, and on the right a link to the public page for
+     members, or the public "Go to organization / Join" call to action. Pass the
+     full page data (it reads .Nav.* plus the renderer-injected .RootURL/.AppURL).
+     .Nav.Manage picks which. */}}
 {{define "org-header"}}
 <div class="row g-2 align-items-center">
   <div class="col">
@@ -17,16 +20,7 @@ host (anonymous). */}}
   </div>
   <div class="col-auto ms-auto d-print-none">
     {{if .Nav.Manage}}
-    <div class="dropdown">
-      <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" data-testid="org-actions">Actions</button>
-      <div class="dropdown-menu dropdown-menu-end">
-        <a class="dropdown-item" href="{{.RootURL}}/orgs/{{.Nav.Slug}}">{{template "icon-world" "dropdown-item-icon"}}View public page</a>
-        <div class="dropdown-divider"></div>
-        <form method="post" action="/orgs/{{.Nav.Slug}}/leave" class="m-0" data-confirm="Leave this organization?">
-          <button type="submit" class="dropdown-item text-danger">{{template "icon-logout" "dropdown-item-icon"}}Leave organization</button>
-        </form>
-      </div>
-    </div>
+    <a class="btn btn-ghost-secondary" href="{{.RootURL}}/orgs/{{.Nav.Slug}}" data-testid="org-public-page">{{template "icon-world" "me-1"}}Public page</a>
     {{else if .Nav.CanGoToOrg}}
     <a class="btn btn-primary" href="{{.AppURL}}/orgs/{{.Nav.Slug}}">{{template "icon-arrow-right" "me-1"}}Go to organization</a>
     {{else if .Nav.CanJoin}}
@@ -38,14 +32,119 @@ host (anonymous). */}}
 </div>
 {{end}}
 
+{{/* org-tabs: Home, Members, Repeaters and Check-ins, plus Settings for admins on
+     the right. Members and Check-ins are members-only — they carry personal info —
+     so a public view shows Home and Repeaters. The recommended configuration
+     isn't a tab: Home and Repeaters link to it. */}}
 {{define "org-tabs"}}
-<ul class="nav nav-tabs mb-3" role="tablist">
-  <li class="nav-item"><a class="nav-link{{if eq .Active "home"}} active{{end}}" href="/orgs/{{.Slug}}">{{template "icon-world" "me-1"}}Home</a></li>
-  {{if .IsMember}}<li class="nav-item"><a class="nav-link{{if eq .Active "members"}} active{{end}}" href="/orgs/{{.Slug}}/members">{{template "icon-users" "me-1"}}Members</a></li>{{end}}
-  <li class="nav-item"><a class="nav-link{{if eq .Active "repeaters"}} active{{end}}" href="/orgs/{{.Slug}}/repeaters">{{template "icon-antenna" "me-1"}}Repeaters</a></li>
-  {{if .IsMember}}<li class="nav-item"><a class="nav-link{{if eq .Active "nets"}} active{{end}}" href="/orgs/{{.Slug}}/nets" data-testid="org-tab-nets">{{template "icon-calendar-event" "me-1"}}Nets</a></li>{{end}}
-  {{if .IsMember}}<li class="nav-item"><a class="nav-link{{if eq .Active "activity"}} active{{end}}" href="/orgs/{{.Slug}}/activity" data-testid="org-tab-activity">{{template "icon-activity" "me-1"}}Activity</a></li>{{end}}
-  {{if .IsMember}}<li class="nav-item"><a class="nav-link{{if eq .Active "observers"}} active{{end}}" href="/orgs/{{.Slug}}/observers" data-testid="org-tab-observers">{{template "icon-access-point" "me-1"}}Observers</a></li>{{end}}
-  {{if .ShowConfig}}<li class="nav-item"><a class="nav-link{{if eq .Active "config"}} active{{end}}" href="/orgs/{{.Slug}}/config">{{template "icon-settings" "me-1"}}Configuration</a></li>{{end}}
+<ul class="nav nav-tabs mb-3" role="tablist" data-testid="org-tabs">
+  <li class="nav-item"><a class="nav-link{{if eq .Tab "home"}} active{{end}}" href="/orgs/{{.Slug}}" data-testid="org-tab-home">{{template "icon-home" "me-1"}}Home</a></li>
+  {{if .IsMember}}<li class="nav-item"><a class="nav-link{{if eq .Tab "members"}} active{{end}}" href="/orgs/{{.Slug}}/members" data-testid="org-tab-members">{{template "icon-users" "me-1"}}Members</a></li>{{end}}
+  <li class="nav-item"><a class="nav-link{{if eq .Tab "repeaters"}} active{{end}}" href="/orgs/{{.Slug}}/repeaters" data-testid="org-tab-repeaters">{{template "icon-antenna" "me-1"}}Repeaters</a></li>
+  {{if .IsMember}}<li class="nav-item"><a class="nav-link{{if eq .Tab "checkins"}} active{{end}}" href="/orgs/{{.Slug}}/nets" data-testid="org-tab-checkins">{{template "icon-calendar-event" "me-1"}}Check-ins</a></li>{{end}}
+  {{if and .IsMember .IsAdmin}}<li class="nav-item ms-auto"><a class="nav-link{{if eq .Tab "settings"}} active{{end}}" href="/orgs/{{.Slug}}/settings" data-testid="org-tab-settings">{{template "icon-settings" "me-1"}}Settings</a></li>{{end}}
 </ul>
+{{end}}
+
+{{/* org-checkins-nav switches between the Check-ins tab's pages. */}}
+{{define "org-checkins-nav"}}
+<nav class="btn-group mb-3" aria-label="Check-ins" data-testid="org-checkins-nav">
+  <a class="btn{{if eq .Active "nets"}} btn-primary active{{end}}" href="/orgs/{{.Slug}}/nets"{{if eq .Active "nets"}} aria-current="page"{{end}}>Nets</a>
+  <a class="btn{{if eq .Active "activity"}} btn-primary active{{end}}" href="/orgs/{{.Slug}}/activity"{{if eq .Active "activity"}} aria-current="page"{{end}} data-testid="org-subnav-activity">Member activity</a>
+</nav>
+{{end}}
+
+{{/* org-settings-nav is the Settings tab's left rail (admins only): one page per
+     thing an admin sets up. Active is "settings-<section>". */}}
+{{define "org-settings-nav"}}
+<nav aria-label="Settings" data-testid="org-settings-nav">
+  <h2 class="subheader">Organization</h2>
+  <div class="list-group list-group-transparent mb-3">
+    {{template "org-settings-item" (dict "Nav" . "Section" "profile" "Label" "Profile" "Icon" "world")}}
+  </div>
+  <h2 class="subheader">Repeaters</h2>
+  <div class="list-group list-group-transparent mb-3">
+    {{template "org-settings-item" (dict "Nav" . "Section" "regions" "Label" "Regions" "Icon" "map-pin")}}
+    {{template "org-settings-item" (dict "Nav" . "Section" "profiles" "Label" "Configuration profiles" "Icon" "list")}}
+  </div>
+  <h2 class="subheader">Check-ins</h2>
+  <div class="list-group list-group-transparent">
+    {{template "org-settings-item" (dict "Nav" . "Section" "mqtt" "Label" "MQTT" "Icon" "access-point")}}
+    {{template "org-settings-item" (dict "Nav" . "Section" "nets" "Label" "Nets" "Icon" "calendar-event")}}
+  </div>
+</nav>
+{{end}}
+
+{{define "org-settings-item"}}
+{{$active := eq .Nav.Active (printf "settings-%s" .Section)}}
+<a class="list-group-item list-group-item-action d-flex align-items-center{{if $active}} active{{end}}"
+   href="/orgs/{{.Nav.Slug}}/settings{{if ne .Section "profile"}}/{{.Section}}{{end}}"{{if $active}} aria-current="page"{{end}}
+   data-testid="org-settings-{{.Section}}">{{template "org-settings-icon" .Icon}}{{.Label}}</a>
+{{end}}
+
+{{/* org-settings-icon picks the rail icon by name (template names can't be computed). */}}
+{{define "org-settings-icon"}}
+{{if eq . "world"}}{{template "icon-world" "me-2"}}{{else if eq . "map-pin"}}{{template "icon-map-pin" "me-2"}}{{else if eq . "list"}}{{template "icon-list" "me-2"}}{{else if eq . "access-point"}}{{template "icon-access-point" "me-2"}}{{else if eq . "calendar-event"}}{{template "icon-calendar-event" "me-2"}}{{end}}
+{{end}}
+
+{{/* settings-layout-open / -close wrap a Settings page's content in one card,
+     after Tabler's settings example: the rail of grouped sections on the left,
+     the page on the right. Pass .Nav to the opener. */}}
+{{define "settings-layout-open"}}
+{{template "org-tabs" .}}
+<div class="card" data-testid="settings-card">
+  <div class="row g-0">
+    <div class="col-12 col-md-3 border-end">
+      <div class="card-body">{{template "org-settings-nav" .}}</div>
+    </div>
+    <div class="col-12 col-md-9 d-flex flex-column">
+      <div class="card-body">
+{{end}}
+{{define "settings-layout-close"}}
+      </div>
+    </div>
+  </div>
+</div>
+{{end}}
+
+{{/* settings-heading is a Settings page's title, with an optional primary action
+     on the right (a list's New button). Data: dict Title, and optionally
+     ActionURL, ActionLabel, ActionTestID. */}}
+{{define "settings-heading"}}
+<div class="d-flex align-items-center gap-2 mb-4">
+  <h2 class="mb-0">{{.Title}}</h2>
+  {{with .ActionURL}}<a class="btn btn-primary ms-auto" href="{{.}}"{{with $.ActionTestID}} data-testid="{{.}}"{{end}}>{{template "icon-plus" "me-1"}}{{$.ActionLabel}}</a>{{end}}
+</div>
+{{end}}
+
+{{/* settings-subheading titles a subsection of a Settings page, with an optional
+     one-line explanation under it and an optional action on the right (a list's
+     New button). Data: dict Title, and optionally ID, Hint, ActionURL,
+     ActionLabel, ActionTestID. */}}
+{{define "settings-subheading"}}
+<div class="d-flex align-items-center gap-2 mt-5{{if not .Hint}} mb-3{{end}}">
+  <h3 class="mb-0"{{with .ID}} id="{{.}}"{{end}}>{{.Title}}</h3>
+  {{with .ActionURL}}<a class="btn btn-primary ms-auto" href="{{.}}"{{with $.ActionTestID}} data-testid="{{.}}"{{end}}>{{template "icon-plus" "me-1"}}{{$.ActionLabel}}</a>{{end}}
+</div>
+{{with .Hint}}<p class="card-subtitle mt-1 mb-3">{{.}}</p>{{end}}
+{{end}}
+
+{{/* org-config-link points members and visitors at the org's recommended
+     repeater configuration, which isn't a tab. Shown only when there is some. */}}
+{{define "org-config-link"}}
+{{if .ShowConfig}}<a class="btn" href="/orgs/{{.Slug}}/config" data-testid="org-config-link">{{template "icon-settings" "me-1"}}Recommended configuration</a>{{end}}
+{{end}}
+
+{{/* org-config-card is Home's pointer to the recommended configuration, for
+     members and the public alike. Pass .Nav. */}}
+{{define "org-config-card"}}
+{{if .ShowConfig}}
+<div class="card mb-3" data-testid="org-config-card">
+  <div class="card-body">
+    <h2 class="card-title mb-1">Repeater setup</h2>
+    <p class="text-secondary">The radio settings and configuration this organization recommends for its repeaters.</p>
+    {{template "org-config-link" .}}
+  </div>
+</div>
+{{end}}
 {{end}}

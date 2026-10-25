@@ -1,0 +1,399 @@
+{{/* The org Settings tab (admins): the left rail (org-settings-nav) and the chosen
+     section. A singular thing is a form on its page, saved in place; a list has a
+     New button and per-row actions, with creating and editing on pages of their
+     own (config_profile_edit.html, config_region_edit.html). .Section picks the
+     section; .New shows a list's New page instead. */}}
+{{define "title"}}Settings · {{.Org.Name}} · MeshTender{{end}}
+{{define "header"}}{{template "org-header" .}}{{end}}
+{{define "content"}}
+{{template "settings-layout-open" .Nav}}
+{{if .Error}}<div class="alert alert-danger" role="alert"><div>{{.Error}}</div></div>{{end}}
+{{if .OK}}<div class="alert alert-success" role="alert" data-testid="settings-ok"><div>{{.OK}}</div></div>{{end}}
+{{if eq .Section "profile"}}{{template "settings-profile" .}}
+{{else if eq .Section "regions"}}{{template "settings-regions" .}}
+{{else if eq .Section "profiles"}}{{template "settings-profiles" .}}
+{{else if and (eq .Section "mqtt") .New}}{{template "settings-observer-new" .}}
+{{else if eq .Section "mqtt"}}{{template "settings-mqtt" .}}
+{{else if and (eq .Section "nets") .New}}{{template "settings-net-new" .}}
+{{else if eq .Section "nets"}}{{template "settings-nets" .}}
+{{end}}
+{{template "settings-layout-close"}}
+{{end}}
+
+{{/* settings-form-error is a form's own error, shown above it. */}}
+{{define "settings-form-error"}}
+{{if .}}<div class="alert alert-danger" role="alert" data-testid="settings-form-error"><div>{{.}}</div></div>{{end}}
+{{end}}
+
+{{/* settings-delete is a list row's Delete button: its own POST form behind a
+     confirmation. Data: dict Action, Confirm, Label (for screen readers), TestID. */}}
+{{define "settings-delete"}}
+<form method="post" action="{{.Action}}" class="m-0" data-confirm="{{.Confirm}}">
+  <button type="submit" class="btn btn-sm text-danger-emphasis" aria-label="{{.Label}}" data-testid="{{.TestID}}">Delete</button>
+</form>
+{{end}}
+
+{{/* ======== Profile: the org's public profile, its links, and its radio. ======== */}}
+{{define "settings-profile"}}
+{{template "settings-heading" (dict "Title" "Profile")}}
+{{template "settings-form-error" .ProfileError}}
+<form method="post" action="/orgs/{{.Org.Slug}}/edit" data-testid="settings-profile" style="max-width:40rem">
+  <div class="mb-3">
+    <label class="form-label" for="org_name">Name</label>
+    <input type="text" class="form-control" id="org_name" name="name" value="{{.ProfileForm.Name}}" maxlength="80" required>
+  </div>
+  <div class="mb-3">
+    <label class="form-label" for="org_slug">URL</label>
+    <div class="input-group">
+      <span class="input-group-text">/orgs/</span>
+      <input type="text" class="form-control font-monospace" id="org_slug" name="slug" value="{{.ProfileForm.Slug}}"
+             pattern="[a-z0-9]+(-[a-z0-9]+)*" minlength="3" maxlength="40" required>
+    </div>
+    <small class="form-hint">Lowercase letters, numbers, and hyphens. Changing it changes the organization's address.</small>
+  </div>
+  <div class="mb-3">
+    <label class="form-label" for="org_region">Region <span class="text-secondary">(optional)</span></label>
+    <input type="text" class="form-control" id="org_region" name="region" value="{{.ProfileForm.Region}}" maxlength="120" placeholder="e.g. Buffalo, NY">
+  </div>
+  <div class="mb-3">
+    <label class="form-label" for="org_description">Description</label>
+    <textarea class="form-control" id="org_description" name="description" rows="4" maxlength="2000" placeholder="What this organization is about, where it operates, etc.">{{.ProfileForm.Description}}</textarea>
+    <small class="form-hint">Markdown supported — headings, lists, links, and emphasis.</small>
+  </div>
+  <button type="submit" class="btn btn-primary" data-testid="save-profile-settings">Save profile</button>
+</form>
+
+{{template "settings-subheading" (dict "Title" "Links" "ID" "links" "Hint" "Your organization's website and social accounts, shown on its home page.")}}
+{{template "settings-form-error" .LinksError}}
+<form method="post" action="/orgs/{{.Org.Slug}}/links" data-link-editor data-testid="settings-links">
+  <div data-link-rows>
+    {{range .Links}}
+    <div class="link-row row g-2 mb-2 align-items-center">
+      <div class="col-12 col-sm-3">
+        <select class="form-select link-platform" name="link_platform" aria-label="Link type">
+          {{$sel := .Platform}}
+          {{range $.Platforms}}<option value="{{.Key}}"{{if eq .Key $sel}} selected{{end}}>{{.Name}}</option>{{end}}
+        </select>
+      </div>
+      <div class="col-12 col-sm-3 link-label-col">
+        <input class="form-control link-label" name="link_label" value="{{.Label}}" maxlength="60" placeholder="Label (optional)" aria-label="Link label">
+      </div>
+      <div class="col">
+        <input class="form-control link-value" type="text" name="link_url" value="{{.URL}}" maxlength="300" aria-label="Link value">
+      </div>
+      <div class="col-auto">
+        <button type="button" class="btn btn-ghost-secondary btn-icon remove-link" aria-label="Remove link">{{template "icon-trash" ""}}</button>
+      </div>
+    </div>
+    {{end}}
+  </div>
+  <template data-link-tpl>
+    <div class="link-row row g-2 mb-2 align-items-center">
+      <div class="col-12 col-sm-3">
+        <select class="form-select link-platform" name="link_platform" aria-label="Link type">
+          {{range .Platforms}}<option value="{{.Key}}">{{.Name}}</option>{{end}}
+        </select>
+      </div>
+      <div class="col-12 col-sm-3 link-label-col">
+        <input class="form-control link-label" name="link_label" maxlength="60" placeholder="Label (optional)" aria-label="Link label">
+      </div>
+      <div class="col">
+        <input class="form-control link-value" type="text" name="link_url" maxlength="300" aria-label="Link value">
+      </div>
+      <div class="col-auto">
+        <button type="button" class="btn btn-ghost-secondary btn-icon remove-link" aria-label="Remove link">{{template "icon-trash" ""}}</button>
+      </div>
+    </div>
+  </template>
+  <div class="btn-list mt-2">
+    <button type="button" class="btn" data-link-add data-testid="add-link">{{template "icon-plus" "me-1"}}Add link</button>
+    <button type="submit" class="btn btn-primary" data-testid="save-links">Save links</button>
+  </div>
+</form>
+
+{{template "settings-subheading" (dict "Title" "Radio" "ID" "radio")}}
+<p class="card-subtitle mb-3">
+  The LoRa settings this organization's mesh runs on{{if .RadioSet}}{{with .Preset}} — currently <strong>{{.}}</strong>{{end}}{{else}} — not set yet{{end}}.
+  Profiles use them through <code>{{"{{ radio.freq }}"}}</code>, <code>{{"{{ radio.bw }}"}}</code>, <code>{{"{{ radio.sf }}"}}</code> and <code>{{"{{ radio.cr }}"}}</code>; net control's modem is tuned to them; and a repeater set up from a profile that doesn't set its radio gets them.
+</p>
+{{template "settings-form-error" .RadioError}}
+<form method="post" action="/orgs/{{.Org.Slug}}/config/radio" data-testid="settings-radio" style="max-width:40rem">
+  {{template "radio-fields" .RadioFields}}
+  <div class="btn-list mt-3">
+    <button type="submit" class="btn btn-primary" data-testid="save-radio">Save radio settings</button>
+  </div>
+</form>
+{{if .RadioSet}}
+<form method="post" action="/orgs/{{.Org.Slug}}/config/radio" class="mt-2" data-confirm="Clear this organization's radio settings?">
+  <input type="hidden" name="clear" value="1">
+  <button type="submit" class="btn btn-sm text-danger-emphasis" data-testid="clear-radio">Clear radio settings</button>
+</form>
+{{end}}
+
+{{/* Per-platform link config for the links editor above (link-editor.js). */}}
+<script nonce="{{.Nonce}}">window.MESHTENDER_LINK_PLATFORMS = {{.PlatformsJS}};</script>
+<script src="{{ asset "/static/link-editor.js" }}"></script>
+<script src="{{ asset "/static/radio-preset.js" }}"></script>
+{{/* Custom domains — hidden for now; the hosting/TLS infrastructure isn't in place
+     yet. When it is, give it its own subsection here (plus the /domains routes in
+     web.go); the card it had on the old org page is in git history. */}}
+{{end}}
+
+{{/* ======== Regions: the map on top, the list below. ======== */}}
+{{define "settings-regions"}}
+{{template "settings-heading" (dict "Title" "Regions" "ActionURL" (printf "/orgs/%s/config/regions/new" .Org.Slug) "ActionLabel" "New region" "ActionTestID" "config-region-add")}}
+<p class="text-secondary">Named areas drawn on a map. A repeater joins every region whose area contains it.</p>
+{{if not .Config.RootAllowFlood}}
+{{/* Denying the wildcard is the one setting here that can quietly take an org off
+     the air, so it gets a standing alert rather than a line of small print. */}}
+<div class="alert alert-danger" role="alert" data-testid="config-root-deny-warning">
+  <div>{{template "icon-alert" "alert-icon"}}</div>
+  <div>
+    <div class="fw-bold">Unscoped packets are being dropped</div>
+    <p class="mb-0">
+      Flooding is denied on <code>*</code>, so a repeater running this configuration
+      repeats nothing that arrives without a region — including traffic from any
+      companion whose owner hasn't set up regions yet. Only packets scoped to a
+      region you allow below get through.
+    </p>
+  </div>
+</div>
+{{end}}
+<div class="card" data-testid="config-regions">
+  <div class="card-body p-0 border-bottom">{{template "config-region-map" (dict "Page" . "PickURL" false "Height" "420px")}}</div>
+  <div class="list-group list-group-flush">
+    {{/* The root (*) isn't a region row — it lives on the org — so it has no swatch
+         and its only setting is flood policy, saved on its own. It is NOT
+         "everywhere": MeshCore consults the wildcard only for packets that carry no
+         region, and scoped packets are matched against the defined regions alone
+         (meshcore-go node/region.go, FindFloodMatch). */}}
+    <div class="list-group-item d-flex align-items-center gap-2" data-testid="config-region-root">
+      <div class="flex-fill" style="min-width:0">
+        <div class="fw-bold">Root <span class="text-secondary fw-normal">· <code>*</code></span></div>
+        <div class="text-secondary small">Packets that carry no region.</div>
+      </div>
+      <form method="post" action="/orgs/{{.Org.Slug}}/config/root-flood" class="m-0 flex-shrink-0">
+        {{/* No hidden shadow input: an unchecked checkbox simply isn't submitted,
+             which the handler reads as deny. */}}
+        <label class="form-check form-switch m-0 text-nowrap">
+          <input class="form-check-input" type="checkbox" name="root_allow_flood" value="1"
+                 {{if .Config.RootAllowFlood}}checked{{end}} data-autosubmit
+                 aria-label="Allow flood at the root region">
+          <span class="form-check-label">Allow flood</span>
+        </label>
+      </form>
+      {{/* Next to the switch, outside its <label> so a click opens the popover
+           instead of toggling it. Every claim below is from the firmware —
+           filterRecvFloodPacket and allowPacketForward in
+           examples/simple_repeater/MyMesh.cpp, and RegionMap::findMatch. The
+           direct-route exemption is real: direct packets also get a NULL region, but
+           the region check in allowPacketForward is guarded by isRouteFlood(). */}}
+      <button type="button" class="btn btn-icon btn-ghost-secondary btn-sm flex-shrink-0 ms-2"
+              data-popover data-testid="config-root-info"
+              aria-label="How flooding and regions work"
+              title="How flooding and regions work"
+              data-bs-content="A flooded packet either carries a region scope or it doesn&#39;t.&lt;br&gt;&lt;br&gt;&lt;strong&gt;Unscoped&lt;/strong&gt; packets are matched only by &lt;code&gt;*&lt;/code&gt;. &lt;strong&gt;Scoped&lt;/strong&gt; packets are matched only against the regions defined below — define none, and every scoped packet is dropped.&lt;br&gt;&lt;br&gt;&lt;strong&gt;Allow flood&lt;/strong&gt; on a region means a repeater configured with it repeats packets scoped to that region. &lt;strong&gt;Deny flood&lt;/strong&gt; means it drops them — the same as never defining that region.&lt;br&gt;&lt;br&gt;Most meshes allow flood on &lt;code&gt;*&lt;/code&gt;: a companion whose owner hasn&#39;t set up regions sends unscoped, and that is how it reaches the mesh.&lt;br&gt;&lt;br&gt;None of this touches direct-routed packets. Those follow the path recorded in them rather than flooding.">{{template "icon-help" ""}}</button>
+    </div>
+    {{range .Config.Regions}}
+    <div class="list-group-item d-flex align-items-center gap-2" data-testid="config-region-row">
+      {{template "config-region-label" .}}
+      <div class="btn-list flex-shrink-0 flex-nowrap">
+        <a class="btn btn-sm" data-testid="config-region-area" href="/orgs/{{$.Org.Slug}}/config/regions/{{.ID}}/area">{{if .HasShape}}Edit area{{else}}Draw area{{end}}</a>
+        <a class="btn btn-sm" data-testid="config-region-edit" href="/orgs/{{$.Org.Slug}}/config/regions/{{.ID}}/edit">Edit</a>
+        {{template "settings-delete" (dict "Action" (printf "/orgs/%s/config/regions/%d/delete" $.Org.Slug .ID) "Confirm" (printf "Delete the region “%s”?" .DisplayName) "Label" (printf "Delete region %s" .DisplayName) "TestID" "config-region-delete")}}
+      </div>
+    </div>
+    {{else}}
+    <div class="list-group-item text-secondary">No regions yet.</div>
+    {{end}}
+  </div>
+</div>
+{{end}}
+
+{{/* ======== Configuration profiles: the list, then the selected one's commands. ======== */}}
+{{define "settings-profiles"}}
+{{template "settings-heading" (dict "Title" "Configuration profiles" "ActionURL" (printf "/orgs/%s/config/profiles/new" .Org.Slug) "ActionLabel" "New profile" "ActionTestID" "config-profile-add")}}
+<p class="text-secondary">The commands a repeater owner runs to bring their repeater in spec, not just onto the mesh. Profiles vary by hardware and use case, so give each a name that tells members which fits theirs.</p>
+{{if .Config.Profiles}}
+<div class="card mb-4">
+  <div class="list-group list-group-flush" data-testid="config-profile-list">
+    {{range .Config.Profiles}}
+    <div class="list-group-item d-flex align-items-center gap-2{{if eq .Name $.Config.Selected}} active{{end}}" data-testid="config-profile-row">
+      <div class="flex-fill text-truncate fw-bold">{{.Name}}</div>
+      <div class="btn-list flex-shrink-0 flex-nowrap">
+        <a class="btn btn-sm" data-testid="config-profile-view" href="/orgs/{{$.Org.Slug}}/settings/profiles?profile={{.Name | urlquery}}"{{if eq .Name $.Config.Selected}} aria-current="true"{{end}}>View</a>
+        <a class="btn btn-sm" data-testid="config-profile-edit" href="/orgs/{{$.Org.Slug}}/config/profiles/{{.ID}}/edit">Edit</a>
+        {{template "settings-delete" (dict "Action" (printf "/orgs/%s/config/profiles/%d/delete" $.Org.Slug .ID) "Confirm" (printf "Delete the profile “%s”?" .Name) "Label" (printf "Delete profile %s" .Name) "TestID" "config-profile-delete")}}
+      </div>
+    </div>
+    {{end}}
+  </div>
+</div>
+{{template "config-preview" .}}
+{{else}}
+<div class="card"><div class="card-body text-secondary">No configuration profiles yet. Use <strong>New profile</strong> to create the first one.</div></div>
+{{end}}
+{{end}}
+
+{{/* ======== MQTT: the broker (a form) and the observers (a list). ======== */}}
+{{define "settings-mqtt"}}
+{{template "settings-heading" (dict "Title" "MQTT")}}
+<p class="text-secondary">Observers upload the packets they hear to an MQTT broker; MeshTender listens to it and counts the adverts your registered observers heard as check-ins.</p>
+
+{{template "settings-subheading" (dict "Title" "Broker" "ID" "broker")}}
+<div data-testid="broker-card" style="max-width:40rem">
+  {{with .Broker}}
+  <div class="mb-3">
+    {{if not .Enabled}}<span class="badge bg-secondary-lt">Disabled</span>
+    {{else if $.BrokerError}}<span class="badge bg-red-lt">Not connected</span>
+    {{else if .LastConnectedAt}}<span class="badge bg-green-lt">Connected</span>
+    {{else}}<span class="badge bg-yellow-lt">Connecting</span>{{end}}
+    {{if .LastMessageAt}}<span class="text-secondary small ms-2">Last message {{ts .LastMessageAt "datetime"}}</span>{{end}}
+    {{if $.BrokerError}}<div class="text-danger-emphasis small mt-1" data-testid="broker-error">{{$.BrokerError}}</div>{{end}}
+  </div>
+  {{else}}
+  <p class="text-secondary">No broker configured. MeshTender needs your observers' MQTT broker to hear check-ins.</p>
+  {{end}}
+  <form method="post" action="/orgs/{{.Org.Slug}}/broker">
+    <div class="mb-3">
+      <label class="form-label" for="broker-url">URL</label>
+      <input type="text" id="broker-url" name="url" class="form-control" required
+             value="{{with .Broker}}{{.URL}}{{end}}" placeholder="wss://mqtt.example.org" autocomplete="off">
+      <div class="form-hint"><code>wss://</code> for a broker behind HTTPS (the usual setup; the path defaults to <code>/mqtt</code>), or <code>tls://</code> / <code>tcp://</code> for raw MQTT. The host must be on the public internet.</div>
+    </div>
+    <div class="row g-3 mb-3">
+      <div class="col-md-6">
+        <label class="form-label" for="broker-user">Username</label>
+        <input type="text" id="broker-user" name="username" class="form-control" value="{{with .Broker}}{{.Username}}{{end}}" autocomplete="off">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label" for="broker-pass">Password</label>
+        <input type="password" id="broker-pass" name="password" class="form-control" autocomplete="new-password"
+               placeholder="{{with .Broker}}{{if .HasPassword}}Unchanged{{end}}{{end}}">
+        {{with .Broker}}{{if .HasPassword}}
+        <label class="form-check mt-2">
+          <input class="form-check-input" type="checkbox" name="clear_password" value="1">
+          <span class="form-check-label">Remove the stored password</span>
+        </label>
+        {{end}}{{end}}
+      </div>
+    </div>
+    <div class="mb-3">
+      <label class="form-label" for="broker-prefix">Topic prefix</label>
+      <input type="text" id="broker-prefix" name="topic_prefix" class="form-control" style="max-width:20rem" value="{{with .Broker}}{{.TopicPrefix}}{{else}}meshcore{{end}}">
+    </div>
+    <label class="form-check mb-3">
+      <input class="form-check-input" type="checkbox" name="enabled" value="1" {{with .Broker}}{{if .Enabled}}checked{{end}}{{else}}checked{{end}}>
+      <span class="form-check-label">Enabled</span>
+    </label>
+    <div class="btn-list">
+      <button type="submit" class="btn btn-primary">Save broker</button>
+      {{if .Broker}}<button type="submit" class="btn" formaction="/orgs/{{.Org.Slug}}/broker/test">Test connection</button>{{end}}
+    </div>
+  </form>
+  {{if .Broker}}
+  <form method="post" action="/orgs/{{.Org.Slug}}/broker/delete" class="mt-2" data-confirm="Remove the broker? MeshTender stops listening for check-ins.">
+    <button type="submit" class="btn btn-sm text-danger-emphasis">Remove broker</button>
+  </form>
+  {{end}}
+</div>
+
+{{template "settings-subheading" (dict "Title" "Observers" "ID" "observers" "Hint" "The uplinking nodes this organization vouches for. Only adverts a registered observer heard count as check-ins." "ActionURL" (printf "/orgs/%s/settings/mqtt/observers/new" .Org.Slug) "ActionLabel" "New observer" "ActionTestID" "observer-add")}}
+{{if .Observers}}
+<div class="card">
+  <div class="list-group list-group-flush" data-testid="observer-list">
+    {{range .Observers}}
+    <div class="list-group-item d-flex align-items-center gap-3">
+      <span class="text-secondary">{{template "icon-access-point" ""}}</span>
+      <div class="flex-fill" style="min-width:0">
+        <div class="fw-bold">{{.Name}}
+          {{if .OnlineAt $.Now}}<span class="badge bg-green-lt ms-1">Online</span>
+          {{else if .LastSeenAt}}<span class="badge bg-secondary-lt ms-1">Offline</span>
+          {{else}}<span class="badge bg-yellow-lt ms-1" title="No message from this observer has reached MeshTender since it was registered">Not heard yet</span>{{end}}
+        </div>
+        <div class="text-secondary font-monospace small text-truncate">{{.PublicKeyHex}}</div>
+        <div class="text-secondary small">
+          {{if .LastSeenAt}}Heard {{ts .LastSeenAt "datetime"}}{{end}}
+          {{if .Model}} · {{.Model}}{{end}}{{if .FirmwareVersion}} · {{.FirmwareVersion}}{{end}}
+          {{if .BatteryMV}} · battery {{.BatteryMV}} mV{{end}}{{if .NoiseFloor}} · noise floor {{.NoiseFloor}} dBm{{end}}
+        </div>
+      </div>
+      {{template "settings-delete" (dict "Action" (printf "/orgs/%s/observers/%d/delete" $.Org.Slug .ID) "Confirm" (printf "Remove the observer “%s”?" .Name) "Label" (printf "Remove %s" .Name) "TestID" "observer-delete")}}
+    </div>
+    {{end}}
+  </div>
+</div>
+{{else}}
+<div class="card"><div class="card-body text-secondary">No observers registered yet.</div></div>
+{{end}}
+{{end}}
+
+{{define "settings-observer-new"}}
+<ol class="breadcrumb mb-2" aria-label="Breadcrumb">
+  <li class="breadcrumb-item"><a href="/orgs/{{.Org.Slug}}/settings/mqtt">MQTT</a></li>
+  <li class="breadcrumb-item active" aria-current="page">New observer</li>
+</ol>
+{{template "settings-heading" (dict "Title" "New observer")}}
+<form method="post" action="/orgs/{{.Org.Slug}}/observers" style="max-width:40rem" data-testid="observer-form">
+  <div class="mb-3">
+    <label class="form-label" for="observer-name">Name</label>
+    <input type="text" id="observer-name" name="name" class="form-control" maxlength="64" required autofocus>
+  </div>
+  <div class="mb-3">
+    <label class="form-label" for="observer-key">Public key</label>
+    <input type="text" id="observer-key" name="public_key" class="form-control font-monospace" required
+           pattern="[0-9A-Fa-f]{64}" autocomplete="off" spellcheck="false">
+    <div class="form-hint">The key in the observer's MQTT topic (<code>meshcore/&lt;IATA&gt;/&lt;key&gt;/packets</code>).</div>
+  </div>
+  <div class="btn-list">
+    <button type="submit" class="btn btn-primary">Add observer</button>
+    <a class="btn" href="/orgs/{{.Org.Slug}}/settings/mqtt">Cancel</a>
+  </div>
+</form>
+{{end}}
+
+{{/* ======== Nets: the list; each net's own settings are on its page. ======== */}}
+{{define "settings-nets"}}
+{{template "settings-heading" (dict "Title" "Nets" "ActionURL" (and .CanAdd (printf "/orgs/%s/settings/nets/new" .Org.Slug)) "ActionLabel" "New net" "ActionTestID" "net-add")}}
+<p class="text-secondary">Weekly windows in which members check in by sending a flood advert from their companion.{{if not .CanAdd}} This organization has the maximum number of nets.{{end}}</p>
+{{if .Nets}}
+<div class="card">
+  <div class="list-group list-group-flush" data-testid="net-list">
+    {{range .Nets}}
+    <div class="list-group-item d-flex align-items-center gap-3">
+      <span class="text-secondary">{{template "icon-calendar-event" ""}}</span>
+      <div class="flex-fill" style="min-width:0">
+        <div class="fw-bold">{{.Name}}
+          {{if not .Active}}<span class="badge bg-secondary-lt ms-1">Inactive</span>{{end}}
+          {{with .Next}}{{if not ($.Now.Before .StartsAt)}}<span class="badge bg-green-lt ms-1">In progress</span>{{end}}{{end}}
+        </div>
+        <div class="text-secondary small">{{.Schedule}}</div>
+      </div>
+      <div class="btn-list flex-shrink-0 flex-nowrap">
+        <a class="btn btn-sm" href="/orgs/{{$.Org.Slug}}/nets/{{.ID}}" data-testid="net-view">View</a>
+        {{template "settings-delete" (dict "Action" (printf "/orgs/%s/nets/%d/delete" $.Org.Slug .ID) "Confirm" (printf "Delete %s and all its session history?" .Name) "Label" (printf "Delete %s" .Name) "TestID" "net-delete")}}
+      </div>
+    </div>
+    {{end}}
+  </div>
+</div>
+{{else}}
+<div class="card"><div class="card-body text-secondary">No nets yet.</div></div>
+{{end}}
+{{end}}
+
+{{define "settings-net-new"}}
+<ol class="breadcrumb mb-2" aria-label="Breadcrumb">
+  <li class="breadcrumb-item"><a href="/orgs/{{.Org.Slug}}/settings/nets">Nets</a></li>
+  <li class="breadcrumb-item active" aria-current="page">New net</li>
+</ol>
+{{template "settings-heading" (dict "Title" "New net")}}
+<form method="post" action="/orgs/{{.Org.Slug}}/nets" style="max-width:40rem" data-testid="net-form">
+  {{template "net-form" .}}
+  <div class="btn-list">
+    <button type="submit" class="btn btn-primary">Create net</button>
+    <a class="btn" href="/orgs/{{.Org.Slug}}/settings/nets">Cancel</a>
+  </div>
+</form>
+<script src="{{ asset "/static/timezone-picker.js" }}"></script>
+{{end}}

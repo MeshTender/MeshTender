@@ -106,12 +106,14 @@ type RegionInput struct {
 	GeofenceJSON []byte
 }
 
-// OrgHasConfig reports whether an org has any profile or region defined (drives
-// hiding the Configuration tab when there's nothing to show).
+// OrgHasConfig reports whether an org recommends any configuration — radio
+// settings, a profile or a region (drives hiding the recommended-configuration
+// links when there's nothing to show).
 func (s *Store) OrgHasConfig(ctx context.Context, orgID int64) (bool, error) {
 	var exists bool
 	err := s.pool.QueryRow(ctx, `
-		SELECT EXISTS (SELECT 1 FROM config_profiles WHERE org_id = $1)
+		SELECT EXISTS (SELECT 1 FROM organizations   WHERE id = $1 AND radio_freq_hz IS NOT NULL)
+		    OR EXISTS (SELECT 1 FROM config_profiles WHERE org_id = $1)
 		    OR EXISTS (SELECT 1 FROM config_regions  WHERE org_id = $1)`, orgID).Scan(&exists)
 	if err != nil {
 		return false, fmt.Errorf("org has config: %w", err)

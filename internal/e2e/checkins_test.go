@@ -76,7 +76,10 @@ func TestE2ECompanionRegistrationAndOrgPages(t *testing.T) {
 		chromedp.Navigate(srv.appURL+"/orgs/"+org.Slug+"/activity"),
 		chromedp.WaitVisible(`[data-testid="activity"]`, chromedp.ByQuery),
 		chromedp.Text(`[data-testid="activity"]`, &activityText, chromedp.ByQuery),
-		chromedp.Click(`[data-testid="org-tab-observers"]`, chromedp.ByQuery),
+		// The broker lives under Settings.
+		chromedp.Click(`[data-testid="org-tab-settings"]`, chromedp.ByQuery),
+		chromedp.WaitVisible(`[data-testid="org-settings-nav"]`, chromedp.ByQuery),
+		chromedp.Click(`[data-testid="org-settings-mqtt"]`, chromedp.ByQuery),
 		chromedp.WaitVisible(`[data-testid="broker-card"]`, chromedp.ByQuery),
 		chromedp.Text(`[data-testid="broker-card"]`, &observersText, chromedp.ByQuery),
 	); err != nil {
@@ -131,7 +134,7 @@ func TestE2ENetScheduleAndRoster(t *testing.T) {
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(srv.appURL+"/orgs/"+org.Slug+"/nets"),
+		chromedp.Navigate(srv.appURL+"/orgs/"+org.Slug+"/settings/nets/new"),
 		// Options in a closed select never count as visible; wait for the
 		// picker to have rebuilt the list instead.
 		chromedp.Poll(`document.querySelector("#net-timezone optgroup") !== null`, nil, chromedp.WithPollingTimeout(10*time.Second)),

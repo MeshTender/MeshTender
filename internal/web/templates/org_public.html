@@ -60,8 +60,9 @@
     </div>
   </div>
 
-  <!-- Right column: repeater map, admins, links -->
+  <!-- Right column: repeater setup, repeater map, admins, links -->
   <div class="col-lg-4">
+    {{template "org-config-card" .Nav}}
     <div class="card">
       <div class="card-header"><h2 class="card-title">Repeaters</h2></div>
       {{if .HasMap}}

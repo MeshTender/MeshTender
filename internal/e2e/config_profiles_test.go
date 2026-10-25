@@ -13,9 +13,9 @@ import (
 	"github.com/MeshTender/MeshTender/internal/store"
 )
 
-// TestE2EConfigProfileSelect: the profile list on the Configuration page selects a
-// profile — clicking a row shows that profile's base settings on the left and marks
-// the row active — under the strict CSP.
+// TestE2EConfigProfileSelect: the profile list on the recommended configuration
+// selects a profile — clicking a row shows that profile's base settings on the left
+// and marks the row active — under the strict CSP.
 func TestE2EConfigProfileSelect(t *testing.T) {
 	srv := newE2EServer(t)
 	user, cookie := srv.login(t, "e2ecfgselect")
@@ -42,7 +42,7 @@ func TestE2EConfigProfileSelect(t *testing.T) {
 		chromedp.Navigate(cfgURL),
 		chromedp.WaitVisible(`[data-testid="config-profile-list"]`, chromedp.ByQuery),
 		// Click the second row's name to select it.
-		chromedp.Click(`[data-testid="config-profile-row"]:nth-of-type(2) a`, chromedp.ByQuery),
+		chromedp.Click(`[data-testid="config-profile-row"]:nth-of-type(2)`, chromedp.ByQuery),
 		chromedp.WaitVisible(`[data-testid="config-preview"]`, chromedp.ByQuery),
 		chromedp.Text(`[data-testid="config-preview"] .card-title`, &heading, chromedp.ByQuery),
 		chromedp.Text(`[data-testid="config-commands"]`, &steps, chromedp.ByQuery),
@@ -62,10 +62,10 @@ func TestE2EConfigProfileSelect(t *testing.T) {
 	watch.assertClean(t)
 }
 
-// TestE2EConfigProfileModalSave: an admin adds a profile from the Configuration page
-// itself — the editor loads into the modal via htmx and saving navigates back to the
-// config page with the new profile selected (no separate editor page).
-func TestE2EConfigProfileModalSave(t *testing.T) {
+// TestE2EConfigProfileNewPage: an admin adds a profile from Settings ›
+// Configuration profiles — New opens the editor page, and saving lands back on
+// the list with the new profile selected.
+func TestE2EConfigProfileNewPage(t *testing.T) {
 	srv := newE2EServer(t)
 	user, cookie := srv.login(t, "e2ecfgadd")
 	org, err := srv.store.CreateOrg(srv.ctx, "Config Add Org", user.ID)
@@ -77,7 +77,7 @@ func TestE2EConfigProfileModalSave(t *testing.T) {
 	defer cancel()
 
 	var heading, currentURL string
-	cfgURL := srv.appURL + "/orgs/" + org.Slug + "/config"
+	cfgURL := srv.appURL + "/orgs/" + org.Slug + "/settings/profiles"
 	if err := chromedp.Run(bctx,
 		network.Enable(),
 		cdplog.Enable(),
@@ -85,12 +85,11 @@ func TestE2EConfigProfileModalSave(t *testing.T) {
 		chromedp.Navigate(cfgURL),
 		chromedp.WaitVisible(`[data-testid="config-profile-add"]`, chromedp.ByQuery),
 		chromedp.Click(`[data-testid="config-profile-add"]`, chromedp.ByQuery),
-		// The editor arrives in the modal via htmx.
-		chromedp.WaitVisible(`#config-profile-modal-content input[name=profile_name]`, chromedp.ByQuery),
-		chromedp.SetValue(`#config-profile-modal-content input[name=profile_name]`, "Heltec", chromedp.ByQuery),
-		chromedp.SetValue(`#config-profile-modal-content textarea[name=profile_steps]`, "# heltec base", chromedp.ByQuery),
+		chromedp.WaitVisible(`input[name=profile_name]`, chromedp.ByQuery),
+		chromedp.SetValue(`input[name=profile_name]`, "Heltec", chromedp.ByQuery),
+		chromedp.SetValue(`textarea[name=profile_steps]`, "# heltec base", chromedp.ByQuery),
 		chromedp.Click(`[data-testid="save-profile"]`, chromedp.ByQuery),
-		// HX-Redirect navigates back to the config page, now showing the new profile.
+		// Back on the list, now showing the new profile.
 		chromedp.WaitVisible(`[data-testid="config-profile-list"]`, chromedp.ByQuery),
 		chromedp.Text(`[data-testid="config-preview"] .card-title`, &heading, chromedp.ByQuery),
 		chromedp.Location(&currentURL),
@@ -100,8 +99,8 @@ func TestE2EConfigProfileModalSave(t *testing.T) {
 	if !strings.Contains(heading, "Heltec") {
 		t.Fatalf("after saving, left panel heading = %q, want it to name Heltec", heading)
 	}
-	if !strings.Contains(currentURL, "/config?profile=Heltec") {
-		t.Fatalf("after saving, URL = %q, want the config page with Heltec selected", currentURL)
+	if !strings.Contains(currentURL, "/settings/profiles?profile=Heltec") {
+		t.Fatalf("after saving, URL = %q, want Settings › Configuration profiles with Heltec selected", currentURL)
 	}
 	watch.assertClean(t)
 }

@@ -1,0 +1,97 @@
+{{/* Partials for showing an org's configuration, shared by the read-only
+     recommended configuration (org_config.html, app and public hosts) and the admin
+     Settings pages (core org_settings.html). */}}
+
+{{/* config-preview is the assembled-commands card for the selected profile (and
+     previewed location). Shared with Settings › Profiles. */}}
+{{define "config-preview"}}
+<div class="card" data-testid="config-preview">
+  <div class="card-header">
+    <h2 class="card-title">
+      {{if .Config.Profiles}}{{.Config.Selected}}{{else}}Region commands{{end}}
+      <span class="text-secondary fw-normal">{{if .Config.PreviewActive}} · at {{.PreviewLat}}, {{.PreviewLon}}{{else}} · base settings{{end}}</span>
+    </h2>
+  </div>
+  <div class="card-body">{{template "config-lines" .Config.AssembledLines}}</div>
+  {{if .Config.RadioMissing}}
+  <div class="card-footer text-danger small" data-testid="config-radio-missing">
+    Some lines use this organization's radio settings, which aren't set, so they can't be run.
+  </div>
+  {{end}}
+  {{if .Config.PreviewActive}}
+    {{if not .Config.RegionDef}}
+    <div class="card-footer text-secondary small">No regions cover this location.</div>
+    {{end}}
+  {{else if and .Config.HasRegionShapes (not .Config.HideMapHint)}}
+  <div class="card-footer text-secondary small">Click a spot on the map below to see the region commands a repeater there would also run.</div>
+  {{end}}
+</div>
+{{end}}
+
+{{/* config-region-map draws the org's region map, or says why there is none. Data:
+     dict Page (the page data), PickURL (clicking previews that location on the
+     recommended configuration), Height. */}}
+{{define "config-region-map"}}
+{{$p := .Page}}
+{{if $p.Config.HasRegionShapes}}
+{{template "map-styles"}}
+<div id="region-map" style="height:{{.Height}}" role="region"
+     aria-label="Map of this organization’s regions{{if .PickURL}} — click to preview a location{{end}}"></div>
+{{template "map-scripts"}}
+<script src="{{ asset "/static/regionmap.js" }}"></script>
+{{/* Region names and shapes are user data, interpolated in a JS context so
+     html/template JSON-encodes and escapes them. */}}
+<script nonce="{{$p.Nonce}}">
+  regionMapView('region-map', {
+    regions: {{$p.Config.MapRegions}}{{if .PickURL}},
+    pickURL: '/orgs/{{$p.Org.Slug}}/config?{{if $p.Config.Profiles}}profile={{$p.Config.Selected | urlquery}}&{{end}}'{{if $p.Config.PreviewActive}},
+    preview: {lat: {{$p.PreviewLat}}, lon: {{$p.PreviewLon}}}{{end}}{{end}}
+  });
+</script>
+{{else}}
+<div class="p-4 text-secondary" data-testid="config-regions-noshapes">
+  {{if $p.Config.Regions}}
+  No region has an area drawn yet, so there is nothing to show on a map.
+  {{else}}
+  Regions apply settings by location. Add one, draw where it applies, and a
+  repeater there picks it up automatically.
+  {{end}}
+</div>
+{{end}}
+{{end}}
+
+{{/* config-region-label is a region's swatch, name, token and status, indented by
+     its depth in the hierarchy. Shared by the legend here and Settings › Regions. */}}
+{{define "config-region-label"}}
+{{/* Align to the top, not the middle: the swatch labels the region's name on the
+     first line, and centering would float it down beside the token. */}}
+<div class="flex-fill d-flex align-items-start gap-2" style="min-width:0; padding-left:{{.Depth}}rem">
+  {{if .HasShape}}
+  <span class="flex-shrink-0" aria-hidden="true"
+        style="width:.75rem; height:.75rem; margin-top:.4rem; border-radius:2px; background-color:{{.Color}}"></span>
+  {{else}}
+  <span class="flex-shrink-0 text-warning" title="No area drawn yet">{{template "icon-alert" ""}}</span>
+  {{end}}
+  {{/* Name, then token, then status — each on its own line. A token is an
+       identifier, so it never wraps mid-string. */}}
+  <div style="min-width:0">
+    <div>{{.DisplayName}}</div>
+    <div><span class="text-secondary text-nowrap"><code>{{.Token}}</code></span></div>
+    {{if not .HasShape}}
+    <div class="text-warning small" data-testid="config-region-draft">Needs an area</div>
+    {{else if .Matches}}
+    <div class="text-green small" data-testid="config-region-match">Applies here</div>
+    {{else if not .AllowFlood}}
+    <div class="text-secondary small">Flood denied</div>
+    {{end}}
+  </div>
+</div>
+{{end}}
+
+{{/* config-lines renders assembled ConfigLines as one copy-pasteable block. Region
+     lines are tinted so it reads which came from the location rather than the
+     profile, matching the highlighted polygons on the map. */}}
+{{define "config-lines"}}
+{{if .}}<pre class="mb-0" data-testid="config-commands"><code>{{range .}}{{if .IsMarker}}<span class="text-secondary">&#8230; click a spot on the map below to fill in the region commands &#8230;</span>{{else if .IsComment}}# {{.Text}}{{else if .FromRegion}}<span class="text-azure" data-testid="config-region-line">{{.Text}}</span>{{else}}{{.Text}}{{end}}
+{{end}}</code></pre>{{else}}<div class="text-secondary">No steps.</div>{{end}}
+{{end}}

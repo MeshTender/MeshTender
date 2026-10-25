@@ -128,7 +128,6 @@ func (s *Handlers) pageOrg(w http.ResponseWriter, r *http.Request) {
 		"Members":       members,
 		"Repeaters":     repeaters,
 		"Links":         links,
-		"PlatformsJS":   web.LinkPlatformsJS(store.LinkPlatforms()),
 		"HasMap":        mapped > 0,
 		"MemberCount":   len(members),
 		"RepeaterCount": len(repeaters),
@@ -136,8 +135,8 @@ func (s *Handlers) pageOrg(w http.ResponseWriter, r *http.Request) {
 		"Self":          uid,
 		"Error":         r.URL.Query().Get("error"),
 	}
-	// Custom domains are hidden for now (infrastructure not in place); the
-	// org.html card and the /domains routes are disabled, so don't load them.
+	// Custom domains are hidden for now (infrastructure not in place); their
+	// Settings card (org_settings.html) and the /domains routes are disabled.
 	s.Render(w, r, "org.html", data)
 }
 
@@ -263,109 +262,51 @@ func (s *Handlers) pageOrgRepeaters(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// handleEditOrg updates an org's slug, name, description, and region (admin only).
-// pageEditOrg renders the org profile edit modal fragment (admin only), loaded via
-// htmx into the org Home page.
-func (s *Handlers) pageEditOrg(w http.ResponseWriter, r *http.Request) {
-	id, ok := s.requireOrgAdmin(w, r)
-	if !ok {
-		return
-	}
-	org, err := s.Store.GetOrg(r.Context(), id)
-	if err != nil {
-		s.NotFound(w, r)
-		return
-	}
-	s.renderProfileModal(w, r, org.Slug, org.Name, org.Slug, org.Region, org.Description, "")
-}
-
-// pageEditLinks renders the org links edit modal fragment (admin only), loaded via
-// htmx into the org Home page.
-func (s *Handlers) pageEditLinks(w http.ResponseWriter, r *http.Request) {
-	id, ok := s.requireOrgAdmin(w, r)
-	if !ok {
-		return
-	}
-	links, err := s.Store.ListOrgLinks(r.Context(), id)
-	if err != nil {
-		s.ServerError(w, r, "could not load links", err)
-		return
-	}
-	s.renderLinksModal(w, r, orgParam(r), links, "")
-}
-
-// renderProfileModal renders the profile edit modal fragment with the given field
-// values and optional error — reused by the GET (prefilled from the org) and the
-// POST error re-render (repopulated from the submission, so no work is lost).
-func (s *Handlers) renderProfileModal(w http.ResponseWriter, r *http.Request, orgSlug, name, slug, region, desc, errMsg string) {
-	s.Render(w, r, "org_edit_profile.html", map[string]any{
-		"OrgSlug": orgSlug, "Name": name, "Slug": slug, "Region": region,
-		"Description": desc, "Error": errMsg, "Layout": "org-profile-modal",
-	})
-}
-
-// renderLinksModal renders the links edit modal fragment with the given rows and
-// optional error — reused by the GET and the POST error re-render.
-func (s *Handlers) renderLinksModal(w http.ResponseWriter, r *http.Request, orgSlug string, links []store.OrgLink, errMsg string) {
-	s.Render(w, r, "org_edit_links.html", map[string]any{
-		"OrgSlug": orgSlug, "Links": links, "Platforms": store.LinkPlatforms(),
-		"Error": errMsg, "Layout": "org-links-modal",
-	})
-}
-
-// hxRedirect navigates the browser to url: for an htmx request (a modal form) via
-// the HX-Redirect header so it does a full navigation that closes the modal;
-// otherwise a plain 303 (no-JS / non-htmx fallback).
-func (s *Handlers) hxRedirect(w http.ResponseWriter, r *http.Request, url string) {
-	if r.Header.Get("HX-Request") != "" {
-		w.Header().Set("HX-Redirect", url)
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-	http.Redirect(w, r, url, http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
-}
-
+// handleEditOrg saves the org's name, URL slug, region and description from
+// Settings › Profile (admin only). A validation error re-shows the form with what
+// was entered.
 func (s *Handlers) handleEditOrg(w http.ResponseWriter, r *http.Request) {
 	id, ok := s.requireOrgAdmin(w, r)
 	if !ok {
 		return
 	}
-	name := strings.TrimSpace(r.FormValue("name"))
-	slug := strings.ToLower(strings.TrimSpace(r.FormValue("slug")))
-	desc := strings.TrimSpace(r.FormValue("description"))
-	region := strings.TrimSpace(r.FormValue("region"))
-	// fail keeps the modal open with the entered values on an htmx submit; a non-htmx
-	// (no-JS) submit falls back to the full-page error redirect.
+	entered := profileForm{
+		Name:        strings.TrimSpace(r.FormValue("name")),
+		Slug:        strings.ToLower(strings.TrimSpace(r.FormValue("slug"))),
+		Description: strings.TrimSpace(r.FormValue("description")),
+		Region:      strings.TrimSpace(r.FormValue("region")),
+	}
 	fail := func(msg string) {
-		if r.Header.Get("HX-Request") != "" {
-			s.renderProfileModal(w, r, orgParam(r), name, slug, region, desc, msg)
+		org, err := s.Store.GetOrg(r.Context(), id)
+		if err != nil {
+			s.NotFound(w, r)
 			return
 		}
-		orgErr(w, r, msg)
+		s.renderSettings(w, r, org, "profile", map[string]any{"ProfileForm": entered, "ProfileError": msg})
 	}
-	if name == "" || len(name) > 80 {
+	if entered.Name == "" || len(entered.Name) > 80 {
 		fail("Enter an organization name.")
 		return
 	}
-	if !store.ValidOrgSlug(slug) {
+	if !store.ValidOrgSlug(entered.Slug) {
 		fail("Slug must be 3–40 lowercase letters, numbers, and hyphens (and not reserved).")
 		return
 	}
-	desc = web.Clip(desc, 2000)
-	region = web.Clip(region, 120)
-	if err := s.Store.UpdateOrg(r.Context(), id, slug, name, desc, region); errors.Is(err, store.ErrDuplicate) {
+	desc := web.Clip(entered.Description, 2000)
+	region := web.Clip(entered.Region, 120)
+	if err := s.Store.UpdateOrg(r.Context(), id, entered.Slug, entered.Name, desc, region); errors.Is(err, store.ErrDuplicate) {
 		fail("That URL slug is already taken.")
 		return
 	} else if err != nil {
 		fail("Could not save changes.")
 		return
 	}
-	// The slug may have changed; navigate to the new canonical URL (closing the modal).
-	s.hxRedirect(w, r, "/orgs/"+slug)
+	// The slug may have changed; land on the new canonical URL.
+	web.RedirectFlash(w, r, settingsURL(entered.Slug, "profile"), "ok", "Profile saved.")
 }
 
 // handleSetOrgLinks replaces an org's whole set of social/site links from the
-// repeatable rows posted by the profile editor (admin only). Rows with a blank
+// repeatable rows posted by Settings › Profile (admin only). Rows with a blank
 // URL are dropped, so removing a link is just clearing its row and saving.
 func (s *Handlers) handleSetOrgLinks(w http.ResponseWriter, r *http.Request) {
 	id, ok := s.requireOrgAdmin(w, r)
@@ -373,7 +314,7 @@ func (s *Handlers) handleSetOrgLinks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := r.ParseForm(); err != nil {
-		orgErr(w, r, "Could not save links.")
+		web.RedirectErr(w, r, settingsURL(orgParam(r), "profile"), "Could not save links.")
 		return
 	}
 	// The three fields are submitted as index-aligned parallel arrays: one entry
@@ -396,11 +337,12 @@ func (s *Handlers) handleSetOrgLinks(w http.ResponseWriter, r *http.Request) {
 		entered = append(entered, store.OrgLink{Platform: p, Label: strings.TrimSpace(l), URL: strings.TrimSpace(u)})
 	}
 	fail := func(msg string) {
-		if r.Header.Get("HX-Request") != "" {
-			s.renderLinksModal(w, r, orgParam(r), entered, msg)
+		org, err := s.Store.GetOrg(r.Context(), id)
+		if err != nil {
+			s.NotFound(w, r)
 			return
 		}
-		orgErr(w, r, msg)
+		s.renderSettings(w, r, org, "profile", map[string]any{"Links": entered, "LinksError": msg})
 	}
 	var links []store.OrgLink
 	for i, raw := range urls {
@@ -463,7 +405,7 @@ func (s *Handlers) handleSetOrgLinks(w http.ResponseWriter, r *http.Request) {
 		fail("Could not save links.")
 		return
 	}
-	s.hxRedirect(w, r, "/orgs/"+orgParam(r))
+	web.RedirectFlash(w, r, settingsURL(orgParam(r), "profile"), "ok", "Links saved.")
 }
 
 // requireOrgAdmin resolves {id} and verifies the current user is an org admin.

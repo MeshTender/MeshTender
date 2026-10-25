@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/MeshTender/MeshTender/internal/config"
 	"github.com/MeshTender/MeshTender/internal/store"
@@ -98,6 +99,9 @@ type ConfigView struct {
 	// couldn't be, so those lines are shown as written and must not be run.
 	Radio        *config.RadioDefaults
 	RadioMissing bool
+	// HideMapHint drops the preview's "click the map" hint on a page with no
+	// map to click (Settings › Profiles).
+	HideMapHint bool
 }
 
 // MapRegion is one region as the read-only config map draws it — the payload handed
@@ -260,17 +264,20 @@ func BuildConfigView(ctx context.Context, st *store.Store, orgID int64, selected
 // OrgNavArgs is the input to OrgNavFor and the data the shared org-header +
 // org-tabs partials expect.
 type OrgNavArgs struct {
-	OrgID  int64
-	Name   string
-	Slug   string
-	Active string // "home" | "members" | "repeaters" | "nets" | "activity" | "observers" | "config"
-	// IsMember gates the member-only tabs (Members, Nets, Activity, Observers), so it's false on public views
-	// even when a member is previewing. IsAdmin keeps the Configuration tab visible
-	// on an org that hasn't defined any config yet, so an admin can go and create it.
+	OrgID int64
+	Name  string
+	Slug  string
+	// Active is the page: "home" | "members" | "repeaters" | "config" (the
+	// read-only recommended configuration) | "nets" | "activity" |
+	// "settings-<section>". The top-level tab it lives under is derived from it
+	// (orgTab).
+	Active string
+	// IsMember gates the member-only tabs (Members, Check-ins), so it's false on
+	// public views even when a member is previewing. IsAdmin adds Settings.
 	IsMember bool
 	IsAdmin  bool
-	// Manage selects the header's right-side controls: true renders the member
-	// Actions dropdown, false renders the public "Go to organization / Join" CTA.
+	// Manage selects the header's right-side control: true renders the member
+	// "Public page" link, false renders the public "Go to organization / Join" CTA.
 	Manage bool
 	// CanGoToOrg / CanJoin drive that CTA (used only when !Manage): a member
 	// previewing the public page gets "Go to organization", a signed-in non-member
@@ -279,15 +286,28 @@ type OrgNavArgs struct {
 	CanJoin    bool
 }
 
+// orgTab is the top-level org tab a page lives under. The recommended
+// configuration is reached from Home.
+func orgTab(a OrgNavArgs) string {
+	switch {
+	case a.Active == "nets" || a.Active == "activity":
+		return "checkins"
+	case strings.HasPrefix(a.Active, "settings-"):
+		return "settings"
+	case a.Active == "config":
+		return "home"
+	}
+	return a.Active
+}
+
 // OrgNavFor builds the org nav map, querying whether the org has any config so the
-// Configuration tab hides when empty — for everyone except admins, who always see
-// it so they can create the first profile/region.
+// recommended-configuration links show only when there's something to recommend.
 func (e *Env) OrgNavFor(ctx context.Context, a OrgNavArgs) map[string]any {
 	hasConfig, _ := e.Store.OrgHasConfig(ctx, a.OrgID)
 	return map[string]any{
-		"Name": a.Name, "Slug": a.Slug, "Active": a.Active,
+		"Name": a.Name, "Slug": a.Slug, "Active": a.Active, "Tab": orgTab(a),
 		"IsMember": a.IsMember, "IsAdmin": a.IsAdmin,
-		"ShowConfig": hasConfig || a.IsAdmin,
+		"ShowConfig": hasConfig,
 		"Manage":     a.Manage, "CanGoToOrg": a.CanGoToOrg, "CanJoin": a.CanJoin,
 	}
 }

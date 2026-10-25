@@ -8,59 +8,43 @@ import (
 	"testing"
 )
 
-// TestConfigProfileEditorSurfaces: the profile editor serves the modal fragment to
-// htmx and the standalone page to everything else (the no-JS fallback), a
-// validation error re-renders the fragment in place with the entered values kept,
-// and a save sends the browser back to the config page with that profile selected.
-func TestConfigProfileEditorSurfaces(t *testing.T) {
+// TestConfigProfileEditorPages: New and Edit are Settings pages of their own; a
+// validation error re-renders the page with the entered values kept, and a save
+// returns to Settings › Configuration profiles with that profile selected.
+func TestConfigProfileEditorPages(t *testing.T) {
 	t.Parallel()
 	st, ctx, ts, h := splitServer(t)
-	admin, sess := appLogin(t, ts, st, ctx, h.app, "profmodaladmin")
-	org, err := st.CreateOrg(ctx, "Modal Org", admin.ID) // creator becomes admin
+	admin, sess := appLogin(t, ts, st, ctx, h.app, "profpageadmin")
+	org, err := st.CreateOrg(ctx, "Profile Page Org", admin.ID) // creator becomes admin
 	if err != nil {
 		t.Fatalf("create org: %v", err)
 	}
 
-	// htmx GET → just the modal fragment (no page chrome), posting to the collection.
-	frag := readBody(t, doHX(t, ts, h.app, "/orgs/"+org.Slug+"/config/profiles/new", sess))
-	for _, want := range []string{"modal-header", "Add profile", `hx-post="/orgs/` + org.Slug + `/config/profiles"`} {
-		if !strings.Contains(frag, want) {
-			t.Fatalf("new-profile fragment missing %q", want)
+	page := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/config/profiles/new", sess))
+	for _, want := range []string{"New profile", `action="/orgs/` + org.Slug + `/config/profiles"`, `data-testid="org-settings-nav"`} {
+		if !strings.Contains(page, want) {
+			t.Fatalf("new-profile page missing %q", want)
 		}
 	}
-	if strings.Contains(frag, "<html") {
-		t.Fatal("htmx request should get a bare fragment, not the full page")
-	}
 
-	// Plain GET → the full page fallback, with no htmx attributes to hijack it.
-	page := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/config/profiles/new", sess))
-	if !strings.Contains(page, "<html") || !strings.Contains(page, "Create profile") {
-		t.Fatal("non-htmx request should get the standalone editor page")
-	}
-	if strings.Contains(page, "hx-post") {
-		t.Fatal("the fallback page must not carry hx-post (its target doesn't exist there)")
-	}
-
-	// A validation error on an htmx submit keeps the modal: 200 with the fragment,
-	// the error, and the entered values — never a redirect that drops the work.
-	bad := postHX(t, ts, h.app, "/orgs/"+org.Slug+"/config/profiles",
+	// A validation error keeps the work: 200 with the page, the error, and the values.
+	bad := post(t, ts, h.app, "/orgs/"+org.Slug+"/config/profiles",
 		url.Values{"profile_name": {"ESP32"}, "profile_steps": {"definitely not a command"}}, sess)
 	badBody := readBody(t, bad)
-	if bad.StatusCode != http.StatusOK || bad.Header.Get("HX-Redirect") != "" {
-		t.Fatalf("invalid submit = %d (HX-Redirect %q), want 200 with no redirect", bad.StatusCode, bad.Header.Get("HX-Redirect"))
+	if bad.StatusCode != http.StatusOK {
+		t.Fatalf("invalid submit = %d, want 200 (re-rendered page)", bad.StatusCode)
 	}
 	for _, want := range []string{"Nothing was saved", "definitely not a command", `value="ESP32"`} {
 		if !strings.Contains(badBody, want) {
-			t.Fatalf("re-rendered fragment missing %q", want)
+			t.Fatalf("re-rendered page missing %q", want)
 		}
 	}
 
-	// A valid htmx submit closes the modal via HX-Redirect onto the saved profile.
-	ok := postHX(t, ts, h.app, "/orgs/"+org.Slug+"/config/profiles",
+	ok := post(t, ts, h.app, "/orgs/"+org.Slug+"/config/profiles",
 		url.Values{"profile_name": {"ESP32"}, "profile_steps": {"# esp base"}}, sess)
 	ok.Body.Close()
-	if got, want := ok.Header.Get("HX-Redirect"), "/orgs/"+org.Slug+"/config?profile=ESP32"; ok.StatusCode != http.StatusOK || got != want {
-		t.Fatalf("valid submit = %d HX-Redirect %q, want 200 → %q", ok.StatusCode, got, want)
+	if got, want := ok.Header.Get("Location"), "/orgs/"+org.Slug+"/settings/profiles?profile=ESP32"; ok.StatusCode != http.StatusSeeOther || got != want {
+		t.Fatalf("valid submit = %d → %q, want 303 → %q", ok.StatusCode, got, want)
 	}
 
 	profiles, err := st.ListProfiles(ctx, org.ID)
@@ -69,27 +53,26 @@ func TestConfigProfileEditorSurfaces(t *testing.T) {
 	}
 	pid := strconv.FormatInt(profiles[0].ID, 10)
 
-	// The edit fragment is pre-filled and posts to that profile's own URL.
-	editFrag := readBody(t, doHX(t, ts, h.app, "/orgs/"+org.Slug+"/config/profiles/"+pid+"/edit", sess))
+	// The edit page is pre-filled and posts to that profile's own URL.
+	edit := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/config/profiles/"+pid+"/edit", sess))
 	for _, want := range []string{"Edit profile", `value="ESP32"`, "# esp base",
-		`hx-post="/orgs/` + org.Slug + `/config/profiles/` + pid + `"`} {
-		if !strings.Contains(editFrag, want) {
-			t.Fatalf("edit fragment missing %q", want)
+		`action="/orgs/` + org.Slug + `/config/profiles/` + pid + `"`} {
+		if !strings.Contains(edit, want) {
+			t.Fatalf("edit page missing %q", want)
 		}
 	}
 
-	// Deleting from the list row (a plain POST) returns to the config page.
+	// Deleting from the list row (a plain POST) returns to the list.
 	del := post(t, ts, h.app, "/orgs/"+org.Slug+"/config/profiles/"+pid+"/delete", url.Values{}, sess)
 	del.Body.Close()
-	if got, want := del.Header.Get("Location"), "/orgs/"+org.Slug+"/config"; del.StatusCode != http.StatusSeeOther || got != want {
+	if got, want := del.Header.Get("Location"), "/orgs/"+org.Slug+"/settings/profiles"; del.StatusCode != http.StatusSeeOther || got != want {
 		t.Fatalf("delete = %d → %q, want 303 → %q", del.StatusCode, got, want)
 	}
 }
 
-// TestConfigPageProfileEditingIsAdminOnly: the inline profile controls (add, edit,
-// delete, and the editor modal itself) render only for an org admin — never for a
-// plain member, and never on the anonymous public surface, which shares this
-// template.
+// TestConfigPageProfileEditingIsAdminOnly: the profile controls (new, view, edit,
+// delete) live in Settings › Configuration profiles, for an org admin. The recommended configuration — for admins, members and the anonymous
+// public surface alike — is read-only.
 func TestConfigPageProfileEditingIsAdminOnly(t *testing.T) {
 	t.Parallel()
 	st, ctx, ts, h := splitServer(t)
@@ -106,22 +89,26 @@ func TestConfigPageProfileEditingIsAdminOnly(t *testing.T) {
 		t.Fatalf("add member: %v", err)
 	}
 
-	adminView := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/config", adminSess))
-	for _, want := range []string{`data-testid="config-profile-add"`, `data-testid="config-profile-edit"`,
-		`data-testid="config-profile-delete"`, `id="config-profile-modal"`} {
+	adminView := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/settings/profiles", adminSess))
+	for _, want := range []string{`data-testid="config-profile-add"`, `data-testid="config-profile-view"`,
+		`data-testid="config-profile-edit"`, `data-testid="config-profile-delete"`} {
 		if !strings.Contains(adminView, want) {
-			t.Fatalf("admin config view missing %q", want)
+			t.Fatalf("admin profile settings missing %q", want)
 		}
 	}
-	// Selecting a profile is a plain link on both surfaces.
-	if !strings.Contains(adminView, "/config?profile=ESP32") {
+	// Selecting a profile is a plain link.
+	if !strings.Contains(adminView, "/settings/profiles?profile=ESP32") {
 		t.Fatal("profile rows should link to ?profile=<name>")
+	}
+	if got := status(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/settings/profiles", memberSess)); got != http.StatusNotFound {
+		t.Fatalf("member GET profile settings = %d, want 404", got)
 	}
 
 	for _, v := range []struct {
 		name string
 		body string
 	}{
+		{"admin", readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/config", adminSess))},
 		{"member", readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/config", memberSess))},
 		{"anonymous", readBody(t, do(t, ts, h.root, "/orgs/"+org.Slug+"/config"))},
 	} {
@@ -137,9 +124,9 @@ func TestConfigPageProfileEditingIsAdminOnly(t *testing.T) {
 	}
 }
 
-// TestConfigPageEmptyStates: an admin with no config yet gets the profile card
-// (with Add profile) plus an explanation of what a profile is, so there's an entry
-// point; everyone else still sees the plain "nothing defined yet" note.
+// TestConfigPageEmptyStates: an admin with no profiles yet gets New profile and an
+// explanation of what a profile is in Settings › Configuration profiles, so there's
+// an entry point; the recommended configuration just says nothing is defined yet.
 func TestConfigPageEmptyStates(t *testing.T) {
 	t.Parallel()
 	st, ctx, ts, h := splitServer(t)
@@ -149,11 +136,11 @@ func TestConfigPageEmptyStates(t *testing.T) {
 		t.Fatalf("create org: %v", err)
 	}
 
-	adminView := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/config", sess))
-	for _, want := range []string{`data-testid="config-profile-add"`, "What's a profile?",
-		"A <strong>profile</strong> is", "No profiles yet."} {
+	adminView := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/settings/profiles", sess))
+	for _, want := range []string{`data-testid="config-profile-add"`, "No configuration profiles yet",
+		"bring their repeater in spec"} {
 		if !strings.Contains(adminView, want) {
-			t.Fatalf("empty admin config view missing %q", want)
+			t.Fatalf("empty profile settings missing %q", want)
 		}
 	}
 

@@ -71,8 +71,14 @@ func TestOrgRadio(t *testing.T) {
 	if r, err := st.OrgRadio(ctx, org.ID); err != nil || r != nil {
 		t.Fatalf("new org radio = %v, %v; want unset", r, err)
 	}
+	if has, _ := st.OrgHasConfig(ctx, org.ID); has {
+		t.Fatal("a new org already has config")
+	}
 	if err := st.SetOrgRadio(ctx, org.ID, &usca); err != nil {
 		t.Fatal(err)
+	}
+	if has, err := st.OrgHasConfig(ctx, org.ID); err != nil || !has {
+		t.Fatalf("radio alone should count as recommended config: %v, %v", has, err)
 	}
 	if r, err := st.OrgRadio(ctx, org.ID); err != nil || r == nil || *r != usca {
 		t.Fatalf("radio = %v, %v; want %v", r, err, usca)

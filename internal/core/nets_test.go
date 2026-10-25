@@ -51,7 +51,7 @@ func TestOrgNetsAdmin(t *testing.T) {
 		"no zone":      netForm("x", "0", "19:00", "60", ""),
 		"bad zone":     netForm("x", "0", "19:00", "60", "Mars/Olympus"),
 	} {
-		if q := redirectTo(t, post(t, ts, h.app, base, form, adminSess), base); q.Get("error") == "" {
+		if q := redirectTo(t, post(t, ts, h.app, base, form, adminSess), "/orgs/"+org.Slug+"/settings/nets/new"); q.Get("error") == "" {
 			t.Errorf("%s: accepted", name)
 		}
 	}
@@ -69,6 +69,11 @@ func TestOrgNetsAdmin(t *testing.T) {
 	if !strings.Contains(getBody(t, ts, h.app, base, memberSess), "Sunday Net") {
 		t.Error("list lacks the net")
 	}
+	// Creating nets is Settings' job: Check-ins › Nets doesn't link there, even
+	// for an admin, once there are nets to list.
+	if body := getBody(t, ts, h.app, base, adminSess); strings.Contains(body, `href="/orgs/`+org.Slug+`/settings/nets`) {
+		t.Error("Check-ins › Nets links to Settings › Nets")
+	}
 
 	// Edit, then delete.
 	q := redirectTo(t, post(t, ts, h.app, loc, netForm("Monday Net", "1", "20:30", "30", "America/New_York"), adminSess), loc)
@@ -81,7 +86,7 @@ func TestOrgNetsAdmin(t *testing.T) {
 	if got := status(t, post(t, ts, h.app, loc+"/delete", nil, memberSess)); got != http.StatusNotFound {
 		t.Errorf("member delete = %d", got)
 	}
-	redirectTo(t, post(t, ts, h.app, loc+"/delete", nil, adminSess), base)
+	redirectTo(t, post(t, ts, h.app, loc+"/delete", nil, adminSess), "/orgs/"+org.Slug+"/settings/nets")
 	if got := status(t, do(t, ts, h.app, loc, adminSess)); got != http.StatusNotFound {
 		t.Errorf("deleted net GET = %d", got)
 	}

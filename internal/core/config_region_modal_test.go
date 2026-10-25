@@ -11,100 +11,80 @@ import (
 	"github.com/MeshTender/MeshTender/internal/store"
 )
 
-// TestConfigRegionEditorSurfaces: the region attribute editor serves the modal
-// fragment to htmx and the standalone page to everything else (the no-JS fallback),
-// a validation error re-renders the fragment in place with the entered values kept,
-// and a save sends the browser back to the config page.
-func TestConfigRegionEditorSurfaces(t *testing.T) {
+// TestConfigRegionEditorPages: New and Edit are Settings pages of their own; a
+// validation error re-renders the page with the entered values kept, and a save
+// returns to Settings › Regions.
+func TestConfigRegionEditorPages(t *testing.T) {
 	t.Parallel()
 	st, ctx, ts, h := splitServer(t)
-	admin, sess := appLogin(t, ts, st, ctx, h.app, "rgnmodaladmin")
-	org, err := st.CreateOrg(ctx, "Region Modal Org", admin.ID) // creator becomes admin
+	admin, sess := appLogin(t, ts, st, ctx, h.app, "rgnpageadmin")
+	org, err := st.CreateOrg(ctx, "Region Page Org", admin.ID) // creator becomes admin
 	if err != nil {
 		t.Fatalf("create org: %v", err)
 	}
 
-	// htmx GET → just the modal fragment (no page chrome), posting to the collection.
-	frag := readBody(t, doHX(t, ts, h.app, "/orgs/"+org.Slug+"/config/regions/new", sess))
-	for _, want := range []string{"modal-header", "Add region", `hx-post="/orgs/` + org.Slug + `/config/regions"`} {
-		if !strings.Contains(frag, want) {
-			t.Fatalf("new-region fragment missing %q", want)
+	page := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/config/regions/new", sess))
+	for _, want := range []string{"New region", "Create region", `action="/orgs/` + org.Slug + `/config/regions"`, `data-testid="org-settings-nav"`} {
+		if !strings.Contains(page, want) {
+			t.Fatalf("new-region page missing %q", want)
 		}
 	}
-	if strings.Contains(frag, "<html") {
-		t.Fatal("htmx request should get a bare fragment, not the full page")
-	}
 	// The area is drawn on its own page, so the attribute form must not carry it.
-	if strings.Contains(frag, "region_geojson") {
-		t.Fatal("the attribute modal must not carry the geofence field")
+	if strings.Contains(page, "region_geojson") {
+		t.Fatal("the attribute form must not carry the geofence field")
 	}
 
-	// Plain GET → the full page fallback, with no htmx attributes to hijack it.
-	page := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/config/regions/new", sess))
-	if !strings.Contains(page, "<html") || !strings.Contains(page, "Create region") {
-		t.Fatal("non-htmx request should get the standalone editor page")
-	}
-	if strings.Contains(page, "hx-post") {
-		t.Fatal("the fallback page must not carry hx-post (its target doesn't exist there)")
-	}
-
-	// A validation error on an htmx submit keeps the modal: 200 with the fragment,
-	// the error, and the entered values — never a redirect that drops the work.
-	bad := postHX(t, ts, h.app, "/orgs/"+org.Slug+"/config/regions",
+	// A validation error keeps the work: 200 with the page, the error, and the values.
+	bad := post(t, ts, h.app, "/orgs/"+org.Slug+"/config/regions",
 		url.Values{"region_display": {"Buffalo"}, "region_token": {"not a token"}}, sess)
 	badBody := readBody(t, bad)
-	if bad.StatusCode != http.StatusOK || bad.Header.Get("HX-Redirect") != "" {
-		t.Fatalf("invalid submit = %d (HX-Redirect %q), want 200 with no redirect", bad.StatusCode, bad.Header.Get("HX-Redirect"))
+	if bad.StatusCode != http.StatusOK {
+		t.Fatalf("invalid submit = %d, want 200 (re-rendered page)", bad.StatusCode)
 	}
 	for _, want := range []string{"Nothing was saved", "letters, digits", `value="Buffalo"`, `value="not a token"`} {
 		if !strings.Contains(badBody, want) {
-			t.Fatalf("re-rendered fragment missing %q", want)
+			t.Fatalf("re-rendered page missing %q", want)
 		}
 	}
 
-	// A valid htmx submit closes the modal via HX-Redirect back to the config page.
-	ok := postHX(t, ts, h.app, "/orgs/"+org.Slug+"/config/regions",
+	ok := post(t, ts, h.app, "/orgs/"+org.Slug+"/config/regions",
 		url.Values{"region_display": {"Buffalo"}, "region_token": {"buf"}, "region_layer": {"3"}, "region_allow_flood": {"1"}}, sess)
 	ok.Body.Close()
-	if got, want := ok.Header.Get("HX-Redirect"), "/orgs/"+org.Slug+"/config"; ok.StatusCode != http.StatusOK || got != want {
-		t.Fatalf("valid submit = %d HX-Redirect %q, want 200 → %q", ok.StatusCode, got, want)
+	if got, want := ok.Header.Get("Location"), "/orgs/"+org.Slug+"/settings/regions"; ok.StatusCode != http.StatusSeeOther || got != want {
+		t.Fatalf("valid submit = %d → %q, want 303 → %q", ok.StatusCode, got, want)
 	}
 
 	regions, err := st.ListRegions(ctx, org.ID)
 	if err != nil || len(regions) != 1 {
 		t.Fatalf("ListRegions = %v, %v; want one region", regions, err)
 	}
-	z := regions[0]
-	if z.Token != "buf" || z.DisplayName != "Buffalo" || z.Layer != 3 || !z.AllowFlood {
-		t.Fatalf("saved region = %+v", z)
+	// A new region is a draft: no area until one is drawn on the workspace page.
+	if regions[0].Geofence != nil {
+		t.Fatal("a region created from the attribute form should be a draft (no area)")
 	}
-	// Created without an area: a draft, which applies nowhere.
-	if z.Geofence != nil {
-		t.Fatalf("a region created from the modal should have no area yet: %+v", z)
-	}
-	rid := strconv.FormatInt(z.ID, 10)
+	rid := strconv.FormatInt(regions[0].ID, 10)
 
-	// The edit fragment is pre-filled and posts to that region's own URL.
-	editFrag := readBody(t, doHX(t, ts, h.app, "/orgs/"+org.Slug+"/config/regions/"+rid+"/edit", sess))
-	for _, want := range []string{"Edit region", `value="Buffalo"`, `value="buf"`,
-		`hx-post="/orgs/` + org.Slug + `/config/regions/` + rid + `"`} {
-		if !strings.Contains(editFrag, want) {
-			t.Fatalf("edit fragment missing %q", want)
+	// The edit page is pre-filled and posts to that region's own URL.
+	edit := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/config/regions/"+rid+"/edit", sess))
+	for _, want := range []string{"Edit region", `value="Buffalo"`, `value="buf"`, `value="3"`,
+		`action="/orgs/` + org.Slug + `/config/regions/` + rid + `"`} {
+		if !strings.Contains(edit, want) {
+			t.Fatalf("edit page missing %q", want)
 		}
 	}
 
-	// A duplicate token is reported as a validation error, not a 500.
-	dup := postHX(t, ts, h.app, "/orgs/"+org.Slug+"/config/regions",
-		url.Values{"region_token": {"buf"}}, sess)
+	// A duplicate token is a friendly error on the re-rendered page, not a 500.
+	dup := post(t, ts, h.app, "/orgs/"+org.Slug+"/config/regions",
+		url.Values{"region_display": {"Other"}, "region_token": {"buf"}}, sess)
 	dupBody := readBody(t, dup)
 	if dup.StatusCode != http.StatusOK || !strings.Contains(dupBody, "already exists") {
 		t.Fatalf("duplicate token = %d, body missing the friendly message: %q", dup.StatusCode, dupBody)
 	}
 
-	// Deleting from the list row (a plain POST) returns to the config page.
+	// Deleting from the list row (a plain POST) returns to Settings › Regions.
 	del := post(t, ts, h.app, "/orgs/"+org.Slug+"/config/regions/"+rid+"/delete", url.Values{}, sess)
 	del.Body.Close()
-	if got, want := del.Header.Get("Location"), "/orgs/"+org.Slug+"/config"; del.StatusCode != http.StatusSeeOther || got != want {
+	if got, want := del.Header.Get("Location"), "/orgs/"+org.Slug+"/settings/regions"; del.StatusCode != http.StatusSeeOther || got != want {
 		t.Fatalf("delete = %d → %q, want 303 → %q", del.StatusCode, got, want)
 	}
 	if left, _ := st.ListRegions(ctx, org.ID); len(left) != 0 {
@@ -151,7 +131,7 @@ func TestConfigRegionAreaSaves(t *testing.T) {
 	drawn := `{"type":"Polygon","coordinates":[[[-80,40],[-75,40],[-75,45],[-80,45],[-80,40]]]}`
 	resp := post(t, ts, h.app, area, url.Values{"region_geojson": {drawn}}, sess)
 	resp.Body.Close()
-	if got, want := resp.Header.Get("Location"), "/orgs/"+org.Slug+"/config"; resp.StatusCode != http.StatusSeeOther || got != want {
+	if got, want := resp.Header.Get("Location"), "/orgs/"+org.Slug+"/settings/regions"; resp.StatusCode != http.StatusSeeOther || got != want {
 		t.Fatalf("save area = %d → %q, want 303 → %q", resp.StatusCode, got, want)
 	}
 	z, err := st.GetRegion(ctx, org.ID, rid)
@@ -216,19 +196,23 @@ func TestConfigRegionEditingIsAdminOnly(t *testing.T) {
 		t.Fatalf("add member: %v", err)
 	}
 
-	adminView := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/config", adminSess))
+	adminView := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/settings/regions", adminSess))
 	for _, want := range []string{`data-testid="config-region-add"`, `data-testid="config-region-edit"`,
 		`data-testid="config-region-delete"`, `data-testid="config-region-area"`,
-		`data-testid="config-region-root"`, `id="config-region-modal"`, "Buffalo"} {
+		`data-testid="config-region-root"`, "Buffalo"} {
 		if !strings.Contains(adminView, want) {
-			t.Fatalf("admin config view missing %q", want)
+			t.Fatalf("admin region settings missing %q", want)
 		}
+	}
+	if got := status(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/settings/regions", memberSess)); got != http.StatusNotFound {
+		t.Fatalf("member GET region settings = %d, want 404", got)
 	}
 
 	for _, v := range []struct {
 		name string
 		body string
 	}{
+		{"admin", readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/config", adminSess))},
 		{"member", readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/config", memberSess))},
 		{"anonymous", readBody(t, do(t, ts, h.root, "/orgs/"+org.Slug+"/config"))},
 	} {
@@ -342,7 +326,7 @@ func TestConfigRootFloodToggle(t *testing.T) {
 	// An unchecked switch submits nothing → deny.
 	resp := post(t, ts, h.app, path, url.Values{}, sess)
 	resp.Body.Close()
-	if got, want := resp.Header.Get("Location"), "/orgs/"+org.Slug+"/config"; resp.StatusCode != http.StatusSeeOther || got != want {
+	if got, want := resp.Header.Get("Location"), "/orgs/"+org.Slug+"/settings/regions"; resp.StatusCode != http.StatusSeeOther || got != want {
 		t.Fatalf("deny flood = %d → %q, want 303 → %q", resp.StatusCode, got, want)
 	}
 	if allow, err := st.RootAllowFlood(ctx, org.ID); err != nil || allow {
@@ -357,9 +341,9 @@ func TestConfigRootFloodToggle(t *testing.T) {
 	}
 
 	// The switch renders checked, reflecting the stored value.
-	page := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/config", sess))
+	page := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/settings/regions", sess))
 	if !strings.Contains(page, `name="root_allow_flood" value="1"`) {
-		t.Fatal("config page should render the root flood switch")
+		t.Fatal("region settings should render the root flood switch")
 	}
 	// While flooding is allowed there's nothing to warn about.
 	if strings.Contains(page, `data-testid="config-root-deny-warning"`) {
@@ -371,7 +355,7 @@ func TestConfigRootFloodToggle(t *testing.T) {
 	// turning it off silently strands anyone who hasn't configured regions. Say so.
 	resp = post(t, ts, h.app, path, url.Values{}, sess)
 	resp.Body.Close()
-	denied := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/config", sess))
+	denied := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/settings/regions", sess))
 	if !strings.Contains(denied, `data-testid="config-root-deny-warning"`) {
 		t.Error("denying root flood should warn what it does to unscoped traffic")
 	}

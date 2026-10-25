@@ -2,8 +2,8 @@ package core
 
 import (
 	"net/http"
-	"net/http/httptest"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -30,21 +30,21 @@ func TestOrgManagementPosts(t *testing.T) {
 	}
 	slug := strings.TrimPrefix(loc.Path, "/orgs/")
 
-	// #44 edit (renames the slug) → 303 to the new canonical URL.
+	// #44 edit (renames the slug) → 303 to Settings at the new canonical URL.
 	edit := post(t, ts, h.app, "/orgs/"+slug+"/edit",
 		url.Values{"name": {"Renamed Org"}, "slug": {"renamed-org"}, "description": {"desc"}, "region": {"NA"}}, sess)
 	edit.Body.Close()
-	if loc, _ := url.Parse(edit.Header.Get("Location")); edit.StatusCode != http.StatusSeeOther || loc.Path != "/orgs/renamed-org" {
-		t.Fatalf("edit org = %d %q, want 303 → /orgs/renamed-org", edit.StatusCode, edit.Header.Get("Location"))
+	if loc, _ := url.Parse(edit.Header.Get("Location")); edit.StatusCode != http.StatusSeeOther || loc.Path != "/orgs/renamed-org/settings" {
+		t.Fatalf("edit org = %d %q, want 303 → /orgs/renamed-org/settings", edit.StatusCode, edit.Header.Get("Location"))
 	}
 	slug = "renamed-org"
 
-	// #104 links → 303 back to the org page.
+	// #104 links → 303 back to Settings.
 	links := post(t, ts, h.app, "/orgs/"+slug+"/links",
 		url.Values{"link_platform": {"website"}, "link_label": {"Home"}, "link_url": {"https://example.org"}}, sess)
 	links.Body.Close()
-	if loc, _ := url.Parse(links.Header.Get("Location")); links.StatusCode != http.StatusSeeOther || loc.Path != "/orgs/"+slug {
-		t.Fatalf("set org links = %d %q, want 303 → /orgs/%s", links.StatusCode, links.Header.Get("Location"), slug)
+	if loc, _ := url.Parse(links.Header.Get("Location")); links.StatusCode != http.StatusSeeOther || loc.Path != "/orgs/"+slug+"/settings" {
+		t.Fatalf("set org links = %d %q, want 303 → /orgs/%s/settings", links.StatusCode, links.Header.Get("Location"), slug)
 	}
 
 	// #48 member role — promote a second member to admin.
@@ -91,18 +91,20 @@ func TestOrgConfigProfileUpdateDelete(t *testing.T) {
 	upd := post(t, ts, h.app, base+"/profiles/"+strconv.FormatInt(pid, 10),
 		url.Values{"profile_name": {"Heltec"}, "profile_steps": {"# base"}}, sess)
 	upd.Body.Close()
-	// Both land back on the config page, where profiles are managed.
-	if loc, _ := url.Parse(upd.Header.Get("Location")); upd.StatusCode != http.StatusSeeOther || loc.Path != base {
-		t.Fatalf("update profile = %d %q, want 303 → config", upd.StatusCode, upd.Header.Get("Location"))
+	// Both land back on Settings › Profiles, where profiles are managed.
+	profiles := "/orgs/" + org.Slug + "/settings/profiles"
+	if loc, _ := url.Parse(upd.Header.Get("Location")); upd.StatusCode != http.StatusSeeOther || loc.Path != profiles {
+		t.Fatalf("update profile = %d %q, want 303 → %s", upd.StatusCode, upd.Header.Get("Location"), profiles)
 	}
 
 	del := post(t, ts, h.app, base+"/profiles/"+strconv.FormatInt(pid, 10)+"/delete", url.Values{}, sess)
 	del.Body.Close()
-	if loc, _ := url.Parse(del.Header.Get("Location")); del.StatusCode != http.StatusSeeOther || loc.Path != base {
-		t.Fatalf("delete profile = %d %q, want 303 → config", del.StatusCode, del.Header.Get("Location"))
+	if loc, _ := url.Parse(del.Header.Get("Location")); del.StatusCode != http.StatusSeeOther || loc.Path != profiles {
+		t.Fatalf("delete profile = %d %q, want 303 → %s", del.StatusCode, del.Header.Get("Location"), profiles)
 	}
 
-	// Regions mirror the same shape: every write lands back on the config page.
+	// Regions mirror the same shape: every write lands back on Settings › Regions.
+	regions := "/orgs/" + org.Slug + "/settings/regions"
 	rid, err := st.CreateRegion(ctx, org.ID, store.RegionInput{Token: "buf", DisplayName: "Buffalo", AllowFlood: true})
 	if err != nil {
 		t.Fatal(err)
@@ -120,8 +122,8 @@ func TestOrgConfigProfileUpdateDelete(t *testing.T) {
 	} {
 		resp := post(t, ts, h.app, step.path, step.form, sess)
 		resp.Body.Close()
-		if loc, _ := url.Parse(resp.Header.Get("Location")); resp.StatusCode != http.StatusSeeOther || loc.Path != base {
-			t.Errorf("%s = %d %q, want 303 → config", step.name, resp.StatusCode, resp.Header.Get("Location"))
+		if loc, _ := url.Parse(resp.Header.Get("Location")); resp.StatusCode != http.StatusSeeOther || loc.Path != regions {
+			t.Errorf("%s = %d %q, want 303 → %s", step.name, resp.StatusCode, resp.Header.Get("Location"), regions)
 		}
 	}
 }
@@ -159,30 +161,10 @@ func TestOrgJoinLeavePosts(t *testing.T) {
 	}
 }
 
-// postHX posts a form with the HX-Request header, as an htmx modal submit does.
-func postHX(t *testing.T, ts *httptest.Server, host, path string, form url.Values, cookies ...*http.Cookie) *http.Response {
-	t.Helper()
-	req, err := http.NewRequest(http.MethodPost, ts.URL+path, strings.NewReader(form.Encode()))
-	if err != nil {
-		t.Fatalf("request: %v", err)
-	}
-	req.Host = host
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("HX-Request", "true")
-	for _, c := range cookies {
-		req.AddCookie(c)
-	}
-	resp, err := noRedirect().Do(req)
-	if err != nil {
-		t.Fatalf("post %s%s: %v", host, path, err)
-	}
-	return resp
-}
-
-// TestOrgEditModalValidationKeepsModal: a validation error on an htmx modal submit
-// re-renders the modal in place (200) with the error and the entered values kept —
-// never a redirect that drops the modal and the work. Success sends HX-Redirect.
-func TestOrgEditModalValidationKeepsModal(t *testing.T) {
+// TestOrgSettingsProfileValidation: a rejected Settings › Profile form re-renders
+// the page (200) with the error and the entered values kept — never a redirect
+// that drops the work. A save redirects back with a confirmation.
+func TestOrgSettingsProfileValidation(t *testing.T) {
 	t.Parallel()
 	st, ctx, ts, h := splitServer(t)
 	owner, sess := appLogin(t, ts, st, ctx, h.app, "orgvalidadmin")
@@ -192,40 +174,42 @@ func TestOrgEditModalValidationKeepsModal(t *testing.T) {
 	}
 	base := "/orgs/" + org.Slug
 
-	// Invalid profile (empty name): re-rendered modal, entered slug preserved.
-	bad := postHX(t, ts, h.app, base+"/edit",
+	// Invalid profile (empty name): the page again, entered slug preserved.
+	bad := post(t, ts, h.app, base+"/edit",
 		url.Values{"name": {""}, "slug": {"keep-this-slug"}, "region": {"R"}, "description": {"D"}}, sess)
 	body := readBody(t, bad)
 	if bad.StatusCode != http.StatusOK {
-		t.Fatalf("invalid profile htmx POST = %d, want 200 (re-rendered modal)", bad.StatusCode)
+		t.Fatalf("invalid profile POST = %d, want 200 (re-rendered page)", bad.StatusCode)
 	}
-	if !strings.Contains(body, "Enter an organization name.") {
-		t.Fatalf("re-rendered profile modal missing the error:\n%s", body)
+	if !strings.Contains(body, "Enter an organization name.") || !strings.Contains(body, `data-testid="settings-form-error"`) {
+		t.Fatalf("re-rendered profile page missing the error:\n%s", body)
 	}
-	if !strings.Contains(body, `value="keep-this-slug"`) || !strings.Contains(body, `form="org-profile-form"`) {
-		t.Fatalf("re-rendered profile modal didn't preserve entered values:\n%s", body)
+	if !strings.Contains(body, `value="keep-this-slug"`) || !strings.Contains(body, `data-testid="org-settings-nav"`) {
+		t.Fatalf("re-rendered profile page didn't keep the entered values:\n%s", body)
 	}
 
-	// Valid profile: HX-Redirect to the new canonical URL (closes the modal).
-	good := postHX(t, ts, h.app, base+"/edit",
+	// Valid profile: back to Settings at the new canonical URL, with a confirmation.
+	good := post(t, ts, h.app, base+"/edit",
 		url.Values{"name": {"Renamed"}, "slug": {"renamed-valid"}, "region": {""}, "description": {""}}, sess)
 	good.Body.Close()
-	if good.StatusCode != http.StatusOK || good.Header.Get("HX-Redirect") != "/orgs/renamed-valid" {
-		t.Fatalf("valid profile htmx POST = %d HX-Redirect=%q, want 200 → /orgs/renamed-valid", good.StatusCode, good.Header.Get("HX-Redirect"))
+	if loc, _ := url.Parse(good.Header.Get("Location")); good.StatusCode != http.StatusSeeOther ||
+		loc.Path != "/orgs/renamed-valid/settings" || loc.Query().Get("ok") == "" {
+		t.Fatalf("valid profile POST = %d %q, want 303 → /orgs/renamed-valid/settings?ok=…", good.StatusCode, good.Header.Get("Location"))
 	}
 
-	// Invalid links (bad URL): re-rendered editor with the bad value kept.
-	badLinks := postHX(t, ts, h.app, "/orgs/renamed-valid/links",
+	// Invalid links (bad URL): the page again with the bad value kept.
+	badLinks := post(t, ts, h.app, "/orgs/renamed-valid/links",
 		url.Values{"link_platform": {"website"}, "link_label": {""}, "link_url": {"not a url"}}, sess)
 	lb := readBody(t, badLinks)
 	if badLinks.StatusCode != http.StatusOK || !strings.Contains(lb, "data-link-editor") || !strings.Contains(lb, "not a url") {
-		t.Fatalf("re-rendered links modal didn't preserve the bad entry:\n%s", lb)
+		t.Fatalf("re-rendered links form didn't keep the bad entry:\n%s", lb)
 	}
 }
 
-// TestOrgEditModals: the Home tab shows read-only profile/links for everyone, with
-// admin-only "Edit" buttons that open modal fragments (admin-gated GET endpoints).
-func TestOrgEditModals(t *testing.T) {
+// TestOrgSettingsProfileInline: Settings › Profile (admins only) edits the org's
+// profile, links and radio in place — three forms on the page, no modals. Home
+// is read-only for everyone.
+func TestOrgSettingsProfileInline(t *testing.T) {
 	t.Parallel()
 	st, ctx, ts, h := splitServer(t)
 	owner, sess := appLogin(t, ts, st, ctx, h.app, "orgeditadmin") // creator = admin
@@ -234,51 +218,44 @@ func TestOrgEditModals(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Admin Home: read-only About + the two Edit buttons.
-	home := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug, sess))
-	if !strings.Contains(home, `data-testid="edit-profile"`) || !strings.Contains(home, `data-testid="edit-links"`) {
-		t.Fatal("admin org Home missing the Edit buttons")
+	settings := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/settings", sess))
+	for _, want := range []string{
+		`action="/orgs/` + org.Slug + `/edit"`, `name="slug"`, // profile
+		`action="/orgs/` + org.Slug + `/links"`, "data-link-editor", // links
+		`action="/orgs/` + org.Slug + `/config/radio"`, `name="radio_freq_mhz"`, // radio
+	} {
+		if !strings.Contains(settings, want) {
+			t.Errorf("Settings › Profile missing %q", want)
+		}
 	}
-	if strings.Contains(home, `action="/orgs/`+org.Slug+`/edit"`) {
-		t.Fatal("admin org Home should not render the profile form inline (it's in a modal now)")
+	if strings.Contains(settings, `data-bs-toggle="modal"`) {
+		t.Error("Settings › Profile still uses a modal")
 	}
-
-	// Profile modal fragment: the form, no page chrome.
-	prof := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/edit", sess))
-	if !strings.Contains(prof, `form="org-profile-form"`) || !strings.Contains(prof, `name="name"`) || !strings.Contains(prof, `name="slug"`) {
-		t.Fatalf("profile modal fragment missing expected fields:\n%s", prof)
-	}
-	if strings.Contains(prof, "back-link") {
-		t.Fatal("profile modal fragment should be modal chrome, not a full page")
-	}
-
-	// Links modal fragment: the link editor.
-	links := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/links", sess))
-	if !strings.Contains(links, "data-link-editor") || !strings.Contains(links, `form="org-links-form"`) {
-		t.Fatalf("links modal fragment missing the editor:\n%s", links)
+	if home := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug, sess)); strings.Contains(home, `action="/orgs/`+org.Slug+`/edit"`) {
+		t.Fatal("org Home has the profile form")
 	}
 
-	// A plain member: read-only Home, no Edit buttons, and the modal GETs 404.
+	// The old modal fragments are gone.
+	for _, p := range []string{"/edit", "/links", "/config/radio/edit"} {
+		if got := status(t, do(t, ts, h.app, "/orgs/"+org.Slug+p, sess)); got == http.StatusOK {
+			t.Errorf("GET %s still serves a page", p)
+		}
+	}
+
+	// A plain member: no forms on Home, and Settings 404s.
 	member, msess := appLogin(t, ts, st, ctx, h.app, "orgeditmember")
 	if err := st.AddOrgMember(ctx, org.ID, member.ID, "member"); err != nil {
 		t.Fatal(err)
 	}
-	mhome := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug, msess))
-	if strings.Contains(mhome, `data-testid="edit-profile"`) || strings.Contains(mhome, `data-testid="edit-links"`) {
-		t.Fatal("non-admin member should not see the Edit buttons")
-	}
-	for _, p := range []string{"/edit", "/links"} {
-		resp := do(t, ts, h.app, "/orgs/"+org.Slug+p, msess)
-		resp.Body.Close()
-		if resp.StatusCode != http.StatusNotFound {
-			t.Fatalf("non-admin GET %s = %d, want 404", p, resp.StatusCode)
-		}
+	if got := status(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/settings", msess)); got != http.StatusNotFound {
+		t.Fatalf("member GET /settings = %d, want 404", got)
 	}
 }
 
-// TestOrgTabsHeaderConsistent: the shared org-header renders the Actions menu on
-// EVERY member tab (not just Home) — the fix for the menu vanishing when you switch
-// tabs.
+// TestOrgTabsHeaderConsistent: every org page renders the same header and tabs —
+// Home, Members, Repeaters, Check-ins, and Settings for admins — with the tab the
+// page lives under marked active, and its sub-nav where the tab groups pages.
+// Plain members get no Settings tab.
 func TestOrgTabsHeaderConsistent(t *testing.T) {
 	t.Parallel()
 	st, ctx, ts, h := splitServer(t)
@@ -287,20 +264,65 @@ func TestOrgTabsHeaderConsistent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, tab := range []string{"", "/members", "/repeaters", "/nets", "/activity", "/observers", "/config"} {
-		body := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+tab, sess))
-		for _, want := range []string{">Actions<", "Leave organization", "View public page"} {
-			if !strings.Contains(body, want) {
-				t.Errorf("tab %q missing %q from the shared Actions header", tab, want)
+	member, msess := appLogin(t, ts, st, ctx, h.app, "tabsmember")
+	if err := st.AddOrgMember(ctx, org.ID, member.ID, "member"); err != nil {
+		t.Fatal(err)
+	}
+	activeTab := regexp.MustCompile(`class="nav-link active"[^>]*data-testid="(org-tab-[a-z]+)"`)
+	for _, c := range []struct{ path, tab, subnav string }{
+		{"", "org-tab-home", ""},
+		{"/members", "org-tab-members", ""},
+		{"/repeaters", "org-tab-repeaters", ""},
+		{"/nets", "org-tab-checkins", "org-checkins-nav"},
+		{"/activity", "org-tab-checkins", "org-checkins-nav"},
+		{"/config", "org-tab-home", ""}, // the read-only recommended configuration
+		{"/settings", "org-tab-settings", "org-settings-nav"},
+		{"/settings/regions", "org-tab-settings", "org-settings-nav"},
+		{"/settings/profiles", "org-tab-settings", "org-settings-nav"},
+		{"/settings/mqtt", "org-tab-settings", "org-settings-nav"},
+		{"/settings/mqtt/observers/new", "org-tab-settings", "org-settings-nav"},
+		{"/settings/nets", "org-tab-settings", "org-settings-nav"},
+		{"/settings/nets/new", "org-tab-settings", "org-settings-nav"},
+		{"/config/regions/new", "org-tab-settings", "org-settings-nav"},
+		{"/config/profiles/new", "org-tab-settings", "org-settings-nav"},
+	} {
+		body := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+c.path, sess))
+		if !strings.Contains(body, `data-testid="org-public-page"`) {
+			t.Errorf("%q: header lacks the public page link", c.path)
+		}
+		if strings.Contains(body, `data-testid="org-actions"`) {
+			t.Errorf("%q: the old Actions menu is back", c.path)
+		}
+		for _, tab := range []string{"org-tab-home", "org-tab-members", "org-tab-repeaters", "org-tab-checkins", "org-tab-settings"} {
+			if !strings.Contains(body, `data-testid="`+tab+`"`) {
+				t.Errorf("%q: missing tab %s", c.path, tab)
 			}
 		}
-		// Configuration is reached by its own tab, which an admin always sees — even
-		// before the org has any config — so the Actions menu doesn't duplicate it.
-		if strings.Contains(body, "Edit configuration") {
-			t.Errorf("tab %q still offers Edit configuration in the Actions menu", tab)
+		if m := activeTab.FindStringSubmatch(body); m == nil || m[1] != c.tab {
+			t.Errorf("%q: active tab = %v, want %s", c.path, m, c.tab)
 		}
-		if !strings.Contains(body, "/orgs/"+org.Slug+"/config") {
-			t.Errorf("tab %q does not link to the Configuration tab", tab)
+		if c.subnav != "" && !strings.Contains(body, `data-testid="`+c.subnav+`"`) {
+			t.Errorf("%q: missing %s", c.path, c.subnav)
 		}
+	}
+
+	// A plain member: no Settings tab, and the admin pages 404.
+	if body := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug, msess)); strings.Contains(body, `data-testid="org-tab-settings"`) ||
+		!strings.Contains(body, `data-testid="leave-org"`) {
+		t.Error("plain member's Home: Settings tab shown, or Leave missing")
+	}
+	for _, p := range []string{"/settings", "/settings/mqtt", "/settings/mqtt/observers/new", "/settings/nets/new"} {
+		if got := status(t, do(t, ts, h.app, "/orgs/"+org.Slug+p, msess)); got != http.StatusNotFound {
+			t.Errorf("plain member GET %s = %d, want 404", p, got)
+		}
+	}
+	// An unknown section 404s; the old Observers address redirects to Settings.
+	if got := status(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/settings/nope", sess)); got != http.StatusNotFound {
+		t.Errorf("unknown settings section = %d, want 404", got)
+	}
+	old := do(t, ts, h.app, "/orgs/"+org.Slug+"/observers", sess)
+	old.Body.Close()
+	if old.StatusCode != http.StatusMovedPermanently || old.Header.Get("Location") != "/orgs/"+org.Slug+"/settings/mqtt" {
+		t.Errorf("old /observers = %d %q, want 301 → Settings › MQTT", old.StatusCode, old.Header.Get("Location"))
 	}
 }

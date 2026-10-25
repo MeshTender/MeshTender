@@ -57,13 +57,6 @@
     <div class="card">
       <div class="card-header">
         <h2 class="card-title">About</h2>
-        {{if .IsAdmin}}
-        <div class="card-actions">
-          <button type="button" class="btn btn-sm" data-testid="edit-profile"
-                  data-bs-toggle="modal" data-bs-target="#org-profile-modal"
-                  hx-get="/orgs/{{.Org.Slug}}/edit" hx-target="#org-profile-modal-content" hx-swap="innerHTML">{{template "icon-pencil" "me-1"}}Edit</button>
-        </div>
-        {{end}}
       </div>
       <div class="card-body">
         {{if .Org.Description}}
@@ -74,17 +67,10 @@
       </div>
     </div>
 
-    {{if or .Links .IsAdmin}}
+    {{if .Links}}
     <div class="card mt-3">
       <div class="card-header">
         <h2 class="card-title">Links</h2>
-        {{if .IsAdmin}}
-        <div class="card-actions">
-          <button type="button" class="btn btn-sm" data-testid="edit-links"
-                  data-bs-toggle="modal" data-bs-target="#org-links-modal"
-                  hx-get="/orgs/{{.Org.Slug}}/links" hx-target="#org-links-modal-content" hx-swap="innerHTML">{{template "icon-pencil" "me-1"}}Edit</button>
-        </div>
-        {{end}}
       </div>
       {{if .Links}}
       <div class="list-group list-group-flush">
@@ -109,64 +95,11 @@
     </div>
     {{end}}
 
-    {{if .IsAdmin}}
-    {{/* Custom domains — hidden for now; the hosting/TLS infrastructure isn't in
-         place yet. Re-enable this card (plus the domains data in pageOrg and the
-         /domains routes in web.go) once it is.
-    <div class="card mt-3">
-      <div class="card-header"><h2 class="card-title">Custom domains</h2></div>
-      <div class="card-body">
-        <p class="text-secondary">
-          Point your own domain at MeshTender (CNAME it to this app). Once verified, visiting that
-          domain shows this organization's public page. Sign-in and management always happen on the
-          main site. TLS certificates for your domain are handled by your hosting/ops setup.
-        </p>
-        {{if .Domains}}
-        <div class="list-group list-group-flush mb-3">
-          {{range .Domains}}
-          <div class="list-group-item px-0">
-            <div class="d-flex align-items-center gap-2 mb-1">
-              <span class="fw-bold font-monospace">{{.Hostname}}</span>
-              {{if .Verified}}
-              <span class="badge bg-success-lt">verified</span>
-              {{else}}
-              <span class="badge bg-warning-lt">pending verification</span>
-              {{end}}
-              <form method="post" action="/orgs/{{$.Org.Slug}}/domains/delete" class="m-0 ms-auto">
-                <input type="hidden" name="domain_id" value="{{.ID}}">
-                <button type="submit" class="btn btn-sm btn-ghost-danger">Remove</button>
-              </form>
-            </div>
-            {{if not .Verified}}
-            <p class="text-secondary mb-2">Add this DNS TXT record, then click Verify:</p>
-            <div class="mb-2">
-              <code class="d-block">{{$.TXTName}}{{.Hostname}}</code>
-              <code class="d-block">TXT&nbsp;&nbsp;{{.VerificationToken}}</code>
-            </div>
-            <form method="post" action="/orgs/{{$.Org.Slug}}/domains/verify" class="m-0">
-              <input type="hidden" name="domain_id" value="{{.ID}}">
-              <button type="submit" class="btn btn-sm">Verify</button>
-            </form>
-            {{end}}
-          </div>
-          {{end}}
-        </div>
-        {{end}}
-        <form method="post" action="/orgs/{{.Org.Slug}}/domains">
-          <div class="mb-3">
-            <label class="form-label" for="add_domain">Add a domain</label>
-            <input type="text" class="form-control font-monospace" id="add_domain" name="hostname" placeholder="mesh.example.org" maxlength="253">
-          </div>
-          <button type="submit" class="btn btn-primary">Add domain</button>
-        </form>
-      </div>
-    </div>
-    */}}
-    {{end}}
   </div>
 
-  <!-- Right column: map -->
+  <!-- Right column: setup + map -->
   <div class="col-lg-4">
+    {{template "org-config-card" .Nav}}
     {{if .HasMap}}
     <div class="card">
       <div class="card-header"><h2 class="card-title">Repeaters</h2></div>
@@ -186,23 +119,10 @@
   </div>
 </div>
 
-{{if .IsAdmin}}
-<!-- Admin edit modals; the About/Links card-header buttons load their fragments here via htmx. -->
-<div class="modal modal-blur fade" id="org-profile-modal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg" role="document">
-    <div class="modal-content" id="org-profile-modal-content"></div>
-  </div>
+<div class="d-flex align-items-center gap-3 mt-3">
+  <a class="back-link" href="/orgs">{{template "icon-arrow-left" "me-1"}}All organizations</a>
+  <form method="post" action="/orgs/{{.Org.Slug}}/leave" class="m-0 ms-auto" data-confirm="Leave this organization?">
+    <button type="submit" class="btn btn-ghost-secondary btn-sm" data-testid="leave-org">{{template "icon-logout" "me-1"}}Leave organization</button>
+  </form>
 </div>
-<div class="modal modal-blur fade" id="org-links-modal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg" role="document">
-    <div class="modal-content" id="org-links-modal-content"></div>
-  </div>
-</div>
-<!-- Per-platform link config for the links editor loaded into the modal above;
-     link-editor.js re-initializes on htmx:afterSwap. -->
-<script nonce="{{.Nonce}}">window.MESHTENDER_LINK_PLATFORMS = {{.PlatformsJS}};</script>
-<script src="{{ asset "/static/link-editor.js" }}"></script>
-{{end}}
-
-<a class="back-link mt-3" href="/orgs">{{template "icon-arrow-left" "me-1"}}All organizations</a>
 {{end}}

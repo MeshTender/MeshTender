@@ -51,7 +51,10 @@
   <!-- Left: list -->
   <div class="col-lg-8">
     <div class="card">
-      <div class="card-header"><h2 class="card-title">Shared repeaters</h2></div>
+      <div class="card-header">
+        <h2 class="card-title">Shared repeaters</h2>
+        {{if .Nav.ShowConfig}}<div class="card-actions">{{template "org-config-link" .Nav}}</div>{{end}}
+      </div>
       {{if .Reps.Repeaters}}
       <div class="list-group list-group-flush" id="rep-list">
         {{template "rep-rows" .}}

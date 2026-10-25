@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -92,26 +93,32 @@ func (s *Handlers) pageOrgNets(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx := r.Context()
 	now := time.Now()
-	nets, err := s.Store.ListOrgNetSummaries(ctx, org.ID, now)
+	views, err := s.netSummaryViews(ctx, org.ID, now)
 	if err != nil {
 		s.ServerError(w, r, "Couldn't load nets.", err)
 		return
+	}
+	s.Render(w, r, "org_nets.html", map[string]any{
+		"Org":     org,
+		"Nav":     s.orgNav(ctx, org, "nets", isAdmin),
+		"IsAdmin": isAdmin,
+		"Nets":    views,
+		"Now":     now,
+		"Error":   r.URL.Query().Get("error"),
+	})
+}
+
+// netSummaryViews loads an org's nets for the "net-list" partial.
+func (s *Handlers) netSummaryViews(ctx context.Context, orgID int64, now time.Time) ([]netSummaryView, error) {
+	nets, err := s.Store.ListOrgNetSummaries(ctx, orgID, now)
+	if err != nil {
+		return nil, err
 	}
 	views := make([]netSummaryView, len(nets))
 	for i := range nets {
 		views[i] = netSummaryView{NetSummary: nets[i], Schedule: netSchedule(&nets[i].Net)}
 	}
-	s.Render(w, r, "org_nets.html", map[string]any{
-		"Org":      org,
-		"Nav":      s.orgNav(ctx, org, "nets", isAdmin),
-		"IsAdmin":  isAdmin,
-		"Nets":     views,
-		"Now":      now,
-		"CanAdd":   len(nets) < store.MaxNetsPerOrg,
-		"Form":     s.netFormDefaults(r),
-		"Weekdays": weekdays,
-		"Error":    r.URL.Query().Get("error"),
-	})
+	return views, nil
 }
 
 func (s *Handlers) handleCreateNet(w http.ResponseWriter, r *http.Request) {
@@ -121,12 +128,12 @@ func (s *Handlers) handleCreateNet(w http.ResponseWriter, r *http.Request) {
 	}
 	in, msg := parseNetForm(r)
 	if msg != "" {
-		web.RedirectErr(w, r, netsURL(r), msg)
+		web.RedirectErr(w, r, settingsURL(orgParam(r), "nets")+"/new", msg)
 		return
 	}
 	net, err := s.Store.CreateNet(r.Context(), id, in, s.Auth.CurrentUserID(r.Context()), time.Now())
 	if errors.Is(err, store.ErrNetLimit) {
-		web.RedirectErr(w, r, netsURL(r), "This organization has the maximum number of nets.")
+		web.RedirectErr(w, r, settingsURL(orgParam(r), "nets"), "This organization has the maximum number of nets.")
 		return
 	}
 	if err != nil {
@@ -333,7 +340,7 @@ func (s *Handlers) handleDeleteNet(w http.ResponseWriter, r *http.Request) {
 		s.ServerError(w, r, "Couldn't delete the net.", err)
 		return
 	}
-	http.Redirect(w, r, netsURL(r), http.StatusSeeOther) //nolint:gosec // G710: local path
+	web.RedirectFlash(w, r, settingsURL(orgParam(r), "nets"), "ok", "Net deleted.")
 }
 
 // netSessionContext is what every session page and action resolves first.

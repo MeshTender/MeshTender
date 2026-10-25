@@ -176,7 +176,7 @@ func (s *Handlers) pageOrgConfig(w http.ResponseWriter, r *http.Request) {
 	data := map[string]any{"Org": org, "Nav": s.OrgNavFor(r.Context(), web.OrgNavArgs{
 		OrgID: org.ID, Name: org.Name, Slug: org.Slug, Active: "config", Manage: false,
 		CanGoToOrg: canGoToOrg, CanJoin: canJoin,
-	}), "CanEdit": false}
+	})}
 	var latP, lonP *float64
 	if lat, lon, ok := web.PreviewLatLon(r); ok {
 		latP, lonP = &lat, &lon

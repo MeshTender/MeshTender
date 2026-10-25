@@ -1,6 +1,6 @@
 {{/* The region area workspace: one region's geofence, drawn on a full-width map with
-     its siblings shown as read-only context. Attributes live in the modal on the
-     Configuration page — this page saves only the shape, through its own endpoint.
+     its siblings shown as read-only context. Attributes have their own editor page
+     in Settings — this page saves only the shape, through its own endpoint.
 
      The side panel is deliberately roomy: it's where boundary import (load a real
      administrative border and pick the areas you want) will land next to the draw
@@ -14,7 +14,7 @@
     <h1 class="page-title fs-1">Edit area</h1>
   </div>
   <div class="col-auto ms-auto d-print-none">
-    <a class="btn" href="/orgs/{{.Org.Slug}}/config">Back to configuration</a>
+    <a class="btn" href="/orgs/{{.Org.Slug}}/settings/regions">Back to settings</a>
   </div>
 </div>
 {{end}}
@@ -69,7 +69,7 @@
         <div class="card-footer">
           <div class="btn-list">
             <button type="submit" class="btn btn-primary" data-testid="save-area">Save area</button>
-            <a class="btn" href="/orgs/{{.Org.Slug}}/config">Cancel</a>
+            <a class="btn" href="/orgs/{{.Org.Slug}}/settings/regions">Cancel</a>
             <button type="button" class="btn btn-ghost-danger ms-auto" id="region-area-clear">Clear area</button>
           </div>
         </div>

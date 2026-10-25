@@ -14,7 +14,7 @@ import (
 
 var uscaRadio = config.RadioDefaults{FreqHz: 910_525_000, BwHz: 62_500, SF: 7, CR: 5}
 
-// TestOrgRadioSettings: an admin sets the org's radio through the modal (the
+// TestOrgRadioSettings: an admin sets the org's radio in Settings › Profile (the
 // firmware's ranges enforced), the Configuration page shows it, a profile can
 // then reference it through placeholders and is shown filled in, and the radio
 // can't be cleared while that profile uses it. Members can't edit it.
@@ -27,52 +27,50 @@ func TestOrgRadioSettings(t *testing.T) {
 		t.Fatal(err)
 	}
 	base := "/orgs/" + org.Slug + "/config"
+	settings := "/orgs/" + org.Slug + "/settings"
 
-	if page := readBody(t, do(t, ts, h.app, base, sess)); !strings.Contains(page, `data-testid="config-radio"`) ||
-		!strings.Contains(page, "Not set") {
-		t.Fatal("config page should offer to set the radio")
+	// Settings › Profile has the radio form, opening on the default preset.
+	page := readBody(t, do(t, ts, h.app, settings, sess))
+	if !strings.Contains(page, `data-testid="settings-radio"`) || !strings.Contains(page, "not set yet") ||
+		!strings.Contains(page, `selected>USA/Canada`) || strings.Contains(page, "clear-radio") {
+		t.Fatal("Settings › Profile should offer to set the radio")
 	}
 	// A profile can't reference a radio the org hasn't set.
-	bad := postHX(t, ts, h.app, base+"/profiles",
+	bad := post(t, ts, h.app, base+"/profiles",
 		url.Values{"profile_name": {"Std"}, "profile_steps": {"set radio {{radio.freq}},{{radio.bw}},{{radio.sf}},{{radio.cr}}"}}, sess)
-	if body := readBody(t, bad); bad.Header.Get("HX-Redirect") != "" || !strings.Contains(body, "set them under Radio first") {
+	if body := readBody(t, bad); bad.StatusCode != http.StatusOK || !strings.Contains(body, "set them under Radio first") {
 		t.Fatalf("placeholder profile saved without an org radio: %q", body)
 	}
 
-	// The editor opens on the default preset.
-	frag := readBody(t, doHX(t, ts, h.app, base+"/radio/edit", sess))
-	if !strings.Contains(frag, "modal-header") || !strings.Contains(frag, `selected>USA/Canada`) || strings.Contains(frag, "clear-radio") {
-		t.Fatalf("radio editor fragment: %q", frag)
-	}
-
-	// Out of the firmware's range: the modal stays open with the error.
+	// Out of the firmware's range: the page again, with the error and the entry.
 	form := url.Values{"radio_freq_mhz": {"50"}, "radio_bw_khz": {"62.5"}, "radio_sf": {"7"}, "radio_cr": {"5"}}
-	resp := postHX(t, ts, h.app, base+"/radio", form, sess)
-	if body := readBody(t, resp); resp.Header.Get("HX-Redirect") != "" || !strings.Contains(body, "150–2500 MHz") {
-		t.Fatalf("out-of-range radio accepted: %q", body)
+	resp := post(t, ts, h.app, base+"/radio", form, sess)
+	if body := readBody(t, resp); resp.StatusCode != http.StatusOK || !strings.Contains(body, "150–2500 MHz") ||
+		!strings.Contains(body, `value="50"`) {
+		t.Fatalf("out-of-range radio not re-shown with the error: %q", body)
 	}
 	if r, _ := st.OrgRadio(ctx, org.ID); r != nil {
 		t.Fatalf("out-of-range radio stored: %v", r)
 	}
 
 	form.Set("radio_freq_mhz", "910.525")
-	resp = postHX(t, ts, h.app, base+"/radio", form, sess)
+	resp = post(t, ts, h.app, base+"/radio", form, sess)
 	resp.Body.Close()
-	if got := resp.Header.Get("HX-Redirect"); got != base {
-		t.Fatalf("save HX-Redirect = %q, want %q", got, base)
+	if loc, _ := url.Parse(resp.Header.Get("Location")); resp.StatusCode != http.StatusSeeOther || loc.Path != settings || loc.Query().Get("ok") == "" {
+		t.Fatalf("save = %d %q, want 303 → %s?ok=…", resp.StatusCode, resp.Header.Get("Location"), settings)
 	}
 	if r, err := st.OrgRadio(ctx, org.ID); err != nil || r == nil || *r != uscaRadio {
 		t.Fatalf("stored radio = %v, %v", r, err)
 	}
 
 	// Now the placeholder profile saves, canonical, and the page shows it filled in.
-	ok := postHX(t, ts, h.app, base+"/profiles",
+	ok := post(t, ts, h.app, base+"/profiles",
 		url.Values{"profile_name": {"Std"}, "profile_steps": {"set radio {{radio.freq}},{{radio.bw}},{{radio.sf}},{{radio.cr}}"}}, sess)
 	ok.Body.Close()
-	if ok.Header.Get("HX-Redirect") == "" {
+	if ok.StatusCode != http.StatusSeeOther {
 		t.Fatal("placeholder profile not saved once the radio was set")
 	}
-	page := readBody(t, do(t, ts, h.app, base, sess))
+	page = readBody(t, do(t, ts, h.app, base, sess))
 	for _, want := range []string{"910.525 MHz · BW62.5 · SF7 · CR5", "set radio 910.525,62.5,7,5"} {
 		if !strings.Contains(page, want) {
 			t.Errorf("config page missing %q", want)
@@ -83,19 +81,15 @@ func TestOrgRadioSettings(t *testing.T) {
 	}
 
 	// Clearing is refused while the profile uses it.
-	clear := postHX(t, ts, h.app, base+"/radio", url.Values{"clear": {"1"}}, sess)
-	if body := readBody(t, clear); clear.Header.Get("HX-Redirect") != "" || !strings.Contains(body, "A profile uses these settings") {
+	clear := post(t, ts, h.app, base+"/radio", url.Values{"clear": {"1"}}, sess)
+	if body := readBody(t, clear); clear.StatusCode != http.StatusOK || !strings.Contains(body, "A profile uses these settings") {
 		t.Fatalf("clear while in use: %q", body)
 	}
 
-	// A plain member sees the radio but can't edit it.
+	// A plain member sees the radio but can't change it.
 	member, memberSess := appLogin(t, ts, st, ctx, h.app, "radiomember")
 	if err := st.AddOrgMember(ctx, org.ID, member.ID, "member"); err != nil {
 		t.Fatal(err)
-	}
-	if r := do(t, ts, h.app, base+"/radio/edit", memberSess); r.StatusCode != http.StatusNotFound {
-		r.Body.Close()
-		t.Fatalf("member GET editor = %d, want 404", r.StatusCode)
 	}
 	form.Set("radio_freq_mhz", "869.525")
 	r := post(t, ts, h.app, base+"/radio", form, memberSess)
@@ -103,7 +97,7 @@ func TestOrgRadioSettings(t *testing.T) {
 	if got, _ := st.OrgRadio(ctx, org.ID); got == nil || *got != uscaRadio {
 		t.Fatalf("member changed the radio: %v", got)
 	}
-	if page := readBody(t, do(t, ts, h.app, base, memberSess)); !strings.Contains(page, "910.525 MHz") || strings.Contains(page, "config-radio-edit") {
+	if page := readBody(t, do(t, ts, h.app, base, memberSess)); !strings.Contains(page, "910.525 MHz") || strings.Contains(page, "settings-radio") {
 		t.Error("member view of the radio card")
 	}
 }

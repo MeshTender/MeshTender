@@ -172,12 +172,13 @@ func TestOrgObserversAndBrokerAdmin(t *testing.T) {
 	base := "/orgs/" + org.Slug
 	obsKey := observetest.NewIdentity(t).String()
 
-	// Members read; outsiders don't; only admins write.
-	if body := getBody(t, ts, h.app, base+"/observers", memberSess); strings.Contains(body, `action="`+base+`/broker"`) {
-		t.Error("a member sees the broker form")
-	}
-	if got := status(t, do(t, ts, h.app, base+"/observers", outsiderSess)); got != http.StatusNotFound {
-		t.Errorf("outsider GET = %d", got)
+	// Settings › MQTT is for admins: members and outsiders get 404.
+	for _, sess := range []*http.Cookie{memberSess, outsiderSess} {
+		for _, p := range []string{"/settings/mqtt", "/settings/mqtt/observers/new"} {
+			if got := status(t, do(t, ts, h.app, base+p, sess)); got != http.StatusNotFound {
+				t.Errorf("non-admin GET %s = %d, want 404", p, got)
+			}
+		}
 	}
 	for _, p := range []string{"/observers", "/broker", "/broker/test", "/broker/delete"} {
 		form := url.Values{"name": {"x"}, "public_key": {obsKey}, "url": {"tcp://203.0.113.10"}}
@@ -186,11 +187,11 @@ func TestOrgObserversAndBrokerAdmin(t *testing.T) {
 		}
 	}
 
-	redirectTo(t, post(t, ts, h.app, base+"/observers", url.Values{"name": {"Roof"}, "public_key": {strings.ToUpper(obsKey)}}, adminSess), base+"/observers")
+	redirectTo(t, post(t, ts, h.app, base+"/observers", url.Values{"name": {"Roof"}, "public_key": {strings.ToUpper(obsKey)}}, adminSess), base+"/settings/mqtt")
 	if ok, _ := st.IsOrgObserver(ctx, org.ID, obsKey); !ok {
 		t.Fatal("observer not registered under its lowercase key")
 	}
-	if q := redirectTo(t, post(t, ts, h.app, base+"/observers", url.Values{"name": {"Roof"}, "public_key": {obsKey}}, adminSess), base+"/observers"); q.Get("error") == "" {
+	if q := redirectTo(t, post(t, ts, h.app, base+"/observers", url.Values{"name": {"Roof"}, "public_key": {obsKey}}, adminSess), base+"/settings/mqtt/observers/new"); q.Get("error") == "" {
 		t.Error("duplicate observer accepted")
 	}
 
@@ -203,7 +204,7 @@ func TestOrgObserversAndBrokerAdmin(t *testing.T) {
 		"credentials":  {"url": {"tcp://u:p@203.0.113.10"}},
 		"wildcard pfx": {"url": {"tcp://203.0.113.10"}, "topic_prefix": {"meshcore/#"}},
 	} {
-		q := redirectTo(t, post(t, ts, h.app, base+"/broker", form, adminSess), base+"/observers")
+		q := redirectTo(t, post(t, ts, h.app, base+"/broker", form, adminSess), base+"/settings/mqtt")
 		if q.Get("error") == "" {
 			t.Errorf("%s: accepted", name)
 		}
@@ -213,7 +214,7 @@ func TestOrgObserversAndBrokerAdmin(t *testing.T) {
 	}
 
 	form := url.Values{"url": {"tls://203.0.113.10:8883"}, "username": {"meshtender"}, "password": {"hunter2"}, "enabled": {"1"}}
-	redirectTo(t, post(t, ts, h.app, base+"/broker", form, adminSess), base+"/observers")
+	redirectTo(t, post(t, ts, h.app, base+"/broker", form, adminSess), base+"/settings/mqtt")
 	b, err := st.GetOrgBroker(ctx, org.ID)
 	if err != nil {
 		t.Fatal(err)
@@ -225,17 +226,17 @@ func TestOrgObserversAndBrokerAdmin(t *testing.T) {
 		t.Fatalf("broker = %+v", b)
 	}
 	// The page never echoes the password back.
-	if body := getBody(t, ts, h.app, base+"/observers", adminSess); strings.Contains(body, "hunter2") {
+	if body := getBody(t, ts, h.app, base+"/settings/mqtt", adminSess); strings.Contains(body, "hunter2") {
 		t.Fatal("password rendered")
 	}
 	// A blank password on re-save keeps the stored one.
 	form.Del("password")
-	redirectTo(t, post(t, ts, h.app, base+"/broker", form, adminSess), base+"/observers")
+	redirectTo(t, post(t, ts, h.app, base+"/broker", form, adminSess), base+"/settings/mqtt")
 	if b2, _ := st.GetOrgBroker(ctx, org.ID); string(b2.PasswordSealed) != string(b.PasswordSealed) {
 		t.Fatal("blank password cleared the stored one")
 	}
 
-	redirectTo(t, post(t, ts, h.app, base+"/broker/delete", nil, adminSess), base+"/observers")
+	redirectTo(t, post(t, ts, h.app, base+"/broker/delete", nil, adminSess), base+"/settings/mqtt")
 	if _, err := st.GetOrgBroker(ctx, org.ID); err == nil {
 		t.Fatal("broker not deleted")
 	}
@@ -256,7 +257,7 @@ func TestBrokerProbeRefusesPrivateAddress(t *testing.T) {
 	if err := st.UpsertOrgBroker(ctx, b, nil, false, admin.ID); err != nil {
 		t.Fatal(err)
 	}
-	q := redirectTo(t, post(t, ts, h.app, "/orgs/"+org.Slug+"/broker/test", nil, sess), "/orgs/"+org.Slug+"/observers")
+	q := redirectTo(t, post(t, ts, h.app, "/orgs/"+org.Slug+"/broker/test", nil, sess), "/orgs/"+org.Slug+"/settings/mqtt")
 	if !strings.Contains(q.Get("error"), "public internet") {
 		t.Fatalf("probe error = %q, want the blocked-address message", q.Get("error"))
 	}
@@ -331,10 +332,11 @@ func TestObserverStatusBadges(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	body := getBody(t, ts, h.app, "/orgs/"+org.Slug+"/observers", sess)
+	body := getBody(t, ts, h.app, "/orgs/"+org.Slug+"/settings/mqtt", sess)
 	for name, want := range map[string]string{"Fresh": "Not heard yet", "Quiet": "Offline", "Busy": "Online"} {
-		row := body[strings.Index(body, ">"+name+"<"):]
-		row = row[:strings.Index(row, "</tr>")]
+		// The status badge follows the observer's name in its row.
+		row := body[strings.Index(body, ">"+name):]
+		row = row[:strings.Index(row, "</span>")]
 		if !strings.Contains(row, want) {
 			t.Errorf("%s observer row lacks %q: %s", name, want, row)
 		}

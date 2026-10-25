@@ -15,10 +15,11 @@ import (
 	"github.com/MeshTender/MeshTender/internal/web"
 )
 
-// pageOrgConfig renders an org's configuration read-only: a selected profile's
-// base settings plus the regions (location steps). Visible to any signed-in user;
-// admins get an Edit button. ?profile= chooses which profile to show; ?lat=&lon=
-// marks which regions apply at a location. The root host serves it anonymously.
+// pageOrgConfig renders the org's recommended configuration, read-only: a selected
+// profile's base settings, the radio, and the regions (location steps). Visible to
+// any signed-in user — admins edit it under Settings. ?profile= chooses which
+// profile to show; ?lat=&lon= marks which regions apply at a location. The root
+// host serves it anonymously.
 func (s *Handlers) pageOrgConfig(w http.ResponseWriter, r *http.Request) {
 	uid := s.Auth.CurrentUserID(r.Context())
 	id, ok := s.orgID(r)
@@ -44,7 +45,6 @@ func (s *Handlers) pageOrgConfig(w http.ResponseWriter, r *http.Request) {
 			IsMember: isMember, IsAdmin: role == "admin", Manage: isMember,
 			CanGoToOrg: isMember, CanJoin: uid != 0 && !isMember,
 		}),
-		"CanEdit": role == "admin",
 	}
 	var latP, lonP *float64
 	if lat, lon, ok := web.PreviewLatLon(r); ok {
@@ -95,22 +95,17 @@ func (s *Handlers) pageProfileEdit(w http.ResponseWriter, r *http.Request) {
 }
 
 // renderProfileEdit renders the profile editor (shared by the initial GET and the
-// error re-render). pid 0 means a new profile. An htmx request gets the modal
-// fragment the Configuration page swaps in place; anything else (no JS, or a
-// direct link) gets the standalone page.
+// error re-render). pid 0 means a new profile.
 func (s *Handlers) renderProfileEdit(w http.ResponseWriter, r *http.Request, org *store.Org, pid int64, name, stepsText string, errs, risky []string) {
 	data := map[string]any{
 		"Org":       org,
-		"Nav":       s.orgAdminNav(r, org),
+		"Nav":       s.orgAdminNav(r, org, "profiles"),
 		"ProfileID": pid,
 		"Action":    profileFormAction(org.Slug, pid),
 		"Name":      name,
 		"StepsText": stepsText,
 		"Errors":    errs,
 		"RiskyWarn": risky,
-	}
-	if r.Header.Get("HX-Request") != "" {
-		data["Layout"] = "config-profile-modal"
 	}
 	s.Render(w, r, "config_profile_edit.html", data)
 }
@@ -194,9 +189,8 @@ func (s *Handlers) saveProfile(w http.ResponseWriter, r *http.Request, orgID, pi
 			s.ServerError(w, r, "could not save profile", err)
 			return
 		default:
-			// Back to the config page with the saved profile selected, so the editor
-			// closes onto what was just changed. hxRedirect closes the modal.
-			s.hxRedirect(w, r, "/orgs/"+orgParam(r)+"/config?profile="+url.QueryEscape(name))
+			// Back to the list with the saved profile selected, so its commands show.
+			http.Redirect(w, r, settingsURL(orgParam(r), "profiles")+"?profile="+url.QueryEscape(name), http.StatusSeeOther) //nolint:gosec // G710: local path
 			return
 		}
 	}
@@ -218,7 +212,7 @@ func (s *Handlers) handleDeleteProfile(w http.ResponseWriter, r *http.Request) {
 		s.ServerError(w, r, "could not delete profile", err)
 		return
 	}
-	http.Redirect(w, r, "/orgs/"+orgParam(r)+"/config", http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
+	http.Redirect(w, r, settingsURL(orgParam(r), "profiles"), http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
 }
 
 // parseConfigSteps turns textarea lines into config steps to persist, validating

@@ -16,11 +16,10 @@ import (
 	"github.com/MeshTender/MeshTender/internal/store"
 )
 
-// TestE2ERegionModalSave: an admin adds a region from the Configuration page — the
-// attribute editor loads into the modal via htmx, saving navigates back, and the new
-// region is listed flagged as needing an area (it has no shape yet). Runs under the
-// strict CSP.
-func TestE2ERegionModalSave(t *testing.T) {
+// TestE2ERegionNewPage: an admin adds a region from Settings › Regions — New opens
+// the attribute editor page, saving navigates back, and the new region is listed
+// flagged as needing an area (it has no shape yet). Runs under the strict CSP.
+func TestE2ERegionNewPage(t *testing.T) {
 	srv := newE2EServer(t)
 	user, cookie := srv.login(t, "e2ergnadd")
 	org, err := srv.store.CreateOrg(srv.ctx, "Region Add Org", user.ID) // creator = admin
@@ -33,7 +32,7 @@ func TestE2ERegionModalSave(t *testing.T) {
 
 	var rowText string
 	var draftFlagged bool
-	cfgURL := srv.appURL + "/orgs/" + org.Slug + "/config"
+	cfgURL := srv.appURL + "/orgs/" + org.Slug + "/settings/regions"
 	if err := chromedp.Run(bctx,
 		network.Enable(),
 		cdplog.Enable(),
@@ -41,13 +40,13 @@ func TestE2ERegionModalSave(t *testing.T) {
 		chromedp.Navigate(cfgURL),
 		chromedp.WaitVisible(`[data-testid="config-region-add"]`, chromedp.ByQuery),
 		chromedp.Click(`[data-testid="config-region-add"]`, chromedp.ByQuery),
-		// The attribute editor arrives in the modal via htmx.
-		chromedp.WaitVisible(`#config-region-modal-content input[name=region_display]`, chromedp.ByQuery),
-		chromedp.SetValue(`#config-region-modal-content input[name=region_display]`, "Buffalo", chromedp.ByQuery),
-		chromedp.SetValue(`#config-region-modal-content input[name=region_token]`, "buf", chromedp.ByQuery),
-		chromedp.SetValue(`#config-region-modal-content input[name=region_layer]`, "3", chromedp.ByQuery),
+		// New opens the attribute editor page.
+		chromedp.WaitVisible(`input[name=region_display]`, chromedp.ByQuery),
+		chromedp.SetValue(`input[name=region_display]`, "Buffalo", chromedp.ByQuery),
+		chromedp.SetValue(`input[name=region_token]`, "buf", chromedp.ByQuery),
+		chromedp.SetValue(`input[name=region_layer]`, "3", chromedp.ByQuery),
 		chromedp.Click(`[data-testid="save-region"]`, chromedp.ByQuery),
-		// HX-Redirect navigates back to the config page, now listing the region.
+		// Back on Settings › Regions, now listing the region.
 		chromedp.WaitVisible(`[data-testid="config-region-row"]`, chromedp.ByQuery),
 		chromedp.Text(`[data-testid="config-region-row"]`, &rowText, chromedp.ByQuery),
 		chromedp.Evaluate(`!!document.querySelector('[data-testid="config-region-draft"]')`, &draftFlagged),
@@ -74,7 +73,7 @@ func TestE2ERegionModalSave(t *testing.T) {
 	watch.assertClean(t)
 }
 
-// TestE2EConfigMapShowsRegionsAndPicksLocation: the Configuration page draws every
+// TestE2EConfigMapShowsRegionsAndPicksLocation: the recommended configuration draws every
 // shaped region on its map, and clicking the map picks a location — after which the
 // regions covering that point are marked in the legend and their commands appear in
 // the assembled preview. This is the read path anonymous visitors and members use,
@@ -160,64 +159,6 @@ func TestE2EConfigMapShowsRegionsAndPicksLocation(t *testing.T) {
 	watch.assertClean(t)
 }
 
-// TestE2ERegionIconTooltips: the region row's controls are icon-only, so each needs
-// to say what it does on hover/focus. Bootstrap tooltips are opt-in and initialized
-// once in ui.js against [data-tooltip]; without that wiring these silently fall back
-// to the browser's slow native tooltip, which is what prompted this.
-func TestE2ERegionIconTooltips(t *testing.T) {
-	srv := newE2EServer(t)
-	user, cookie := srv.login(t, "e2ergntip")
-	org, err := srv.store.CreateOrg(srv.ctx, "Region Tooltip Org", user.ID)
-	if err != nil {
-		t.Fatalf("create org: %v", err)
-	}
-	if _, err := srv.store.CreateRegion(srv.ctx, org.ID, store.RegionInput{
-		Token: "buf", DisplayName: "Buffalo", Layer: 3, AllowFlood: true,
-		GeofenceJSON: geo.Rectangle(40, -80, 45, -75),
-	}); err != nil {
-		t.Fatalf("create region: %v", err)
-	}
-
-	bctx, cancel, watch := startBrowser(t)
-	defer cancel()
-
-	cfgURL := srv.appURL + "/orgs/" + org.Slug + "/config"
-	if err := chromedp.Run(bctx,
-		network.Enable(),
-		cdplog.Enable(),
-		setSessionCookie(cookie),
-		chromedp.Navigate(cfgURL),
-		chromedp.WaitVisible(`[data-testid="config-region-row"]`, chromedp.ByQuery),
-	); err != nil {
-		t.Fatalf("browser run against %s: %v", cfgURL, err)
-	}
-
-	// Focus is the reliable trigger headless (Bootstrap listens for hover *and*
-	// focus); the tooltip body is rendered into .tooltip-inner.
-	for _, c := range []struct{ testid, want string }{
-		{"config-region-area", "Edit area"},
-		{"config-region-edit", "Edit region"},
-		{"config-region-delete", "Delete region"},
-	} {
-		var got string
-		if err := chromedp.Run(bctx,
-			chromedp.Focus(`[data-testid="`+c.testid+`"]`, chromedp.ByQuery),
-			chromedp.WaitVisible(`.tooltip .tooltip-inner`, chromedp.ByQuery),
-			chromedp.Text(`.tooltip .tooltip-inner`, &got, chromedp.ByQuery),
-			chromedp.Blur(`[data-testid="`+c.testid+`"]`, chromedp.ByQuery),
-			// A dismissed tooltip lingers through its fade-out; without waiting for
-			// it to leave the DOM the next read picks up the previous one.
-			chromedp.WaitNotPresent(`.tooltip`, chromedp.ByQuery),
-		); err != nil {
-			t.Fatalf("%s tooltip: %v", c.testid, err)
-		}
-		if got != c.want {
-			t.Errorf("%s tooltip = %q, want %q", c.testid, got, c.want)
-		}
-	}
-	watch.assertClean(t)
-}
-
 // TestE2ERootRegionExplainer: the wildcard's info button opens a popover explaining
 // what it does and doesn't govern. Bootstrap popovers are opt-in and initialized once
 // in ui.js against [data-popover]; the content is the thing people most often misread,
@@ -234,7 +175,7 @@ func TestE2ERootRegionExplainer(t *testing.T) {
 	defer cancel()
 
 	var header, body string
-	cfgURL := srv.appURL + "/orgs/" + org.Slug + "/config"
+	cfgURL := srv.appURL + "/orgs/" + org.Slug + "/settings/regions"
 	if err := chromedp.Run(bctx,
 		network.Enable(),
 		cdplog.Enable(),
@@ -263,8 +204,8 @@ func TestE2ERootRegionExplainer(t *testing.T) {
 	watch.assertClean(t)
 }
 
-// TestE2ERootFloodSwitchAutosubmits: the root (*) flood switch on the Configuration
-// page saves by itself — it's a data-autosubmit checkbox inside its own form nested
+// TestE2ERootFloodSwitchAutosubmits: the root (*) flood switch in Settings ›
+// Regions saves by itself — it's a data-autosubmit checkbox inside its own form nested
 // in a list row, so this proves the delegated handler reaches it and that the POST
 // round-trips (no inline handler, strict CSP).
 func TestE2ERootFloodSwitchAutosubmits(t *testing.T) {
@@ -284,7 +225,7 @@ func TestE2ERootFloodSwitchAutosubmits(t *testing.T) {
 
 	sw := `[data-testid="config-region-root"] input[name="root_allow_flood"]`
 	var checked bool
-	cfgURL := srv.appURL + "/orgs/" + org.Slug + "/config"
+	cfgURL := srv.appURL + "/orgs/" + org.Slug + "/settings/regions"
 	if err := chromedp.Run(bctx,
 		network.Enable(),
 		cdplog.Enable(),

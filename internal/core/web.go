@@ -249,7 +249,7 @@ func (s *Handlers) appRouter() chi.Router {
 			r.Get("/companions/{id}", s.pageCompanion)
 			r.Post("/companions/{id}/delete", s.handleDeleteCompanion)
 			r.Get("/orgs/{id}/activity", s.pageOrgActivity)
-			r.Get("/orgs/{id}/observers", s.pageOrgObservers)
+			r.Get("/orgs/{id}/observers", s.redirectToObserverSettings)
 			r.Post("/orgs/{id}/observers", s.handleAddOrgObserver)
 			r.Post("/orgs/{id}/observers/{oid}/delete", s.handleDeleteOrgObserver)
 			r.Post("/orgs/{id}/broker", s.handleSaveOrgBroker)
@@ -270,9 +270,11 @@ func (s *Handlers) appRouter() chi.Router {
 
 			r.Get("/orgs/new", s.pageNewOrg)
 			r.Post("/orgs", s.handleCreateOrg)
-			r.Get("/orgs/{id}/edit", s.pageEditOrg)
+			r.Get("/orgs/{id}/settings", s.pageOrgSettings)
+			r.Get("/orgs/{id}/settings/{section}", s.pageOrgSettings)
+			r.Get("/orgs/{id}/settings/mqtt/observers/new", s.pageNewObserver)
+			r.Get("/orgs/{id}/settings/nets/new", s.pageNewNet)
 			r.Post("/orgs/{id}/edit", s.handleEditOrg)
-			r.Get("/orgs/{id}/links", s.pageEditLinks)
 			r.Post("/orgs/{id}/links", s.handleSetOrgLinks)
 			r.Get("/orgs/{id}/join", s.pageJoinOrg)
 			r.Post("/orgs/{id}/join", s.handleJoinOrg)
@@ -295,7 +297,6 @@ func (s *Handlers) appRouter() chi.Router {
 			r.Get("/orgs/{id}/config/regions/{rid}/area", s.pageRegionArea)
 			r.Post("/orgs/{id}/config/regions/{rid}/area", s.handleSaveRegionArea)
 			r.Post("/orgs/{id}/config/root-flood", s.handleSetRootFlood)
-			r.Get("/orgs/{id}/config/radio/edit", s.pageRadioEdit)
 			r.Post("/orgs/{id}/config/radio", s.handleSetRadio)
 			// Custom org domains are hidden for now — the hosting/TLS infrastructure
 			// isn't in place yet. Leave the handlers in tree but don't expose them.

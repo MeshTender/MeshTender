@@ -16,8 +16,8 @@ import (
 
 // Regions are edited one at a time, split by what each part needs from the screen:
 //
-//   - Attributes (name, token, level, primary, flood) are a small form, edited in a
-//     modal on the Configuration page — the same pattern as profiles.
+//   - Attributes (name, token, level, primary, flood) are a small form, on a
+//     Settings page of its own — the same pattern as profiles.
 //   - The area is drawn on a map, which needs the width and the spatial context of
 //     the neighboring regions, so it gets its own workspace page.
 //
@@ -80,19 +80,14 @@ func (s *Handlers) pageRegionEdit(w http.ResponseWriter, r *http.Request) {
 }
 
 // renderRegionEdit renders the attribute editor (shared by the initial GET and the
-// error re-render). A zero ID means a new region. An htmx request gets the modal
-// fragment the Configuration page swaps in place; anything else (no JS, or a direct
-// link) gets the standalone page.
+// error re-render). A zero ID means a new region.
 func (s *Handlers) renderRegionEdit(w http.ResponseWriter, r *http.Request, org *store.Org, zv configRegionView, errs []string) {
 	data := map[string]any{
 		"Org":    org,
-		"Nav":    s.orgAdminNav(r, org),
+		"Nav":    s.orgAdminNav(r, org, "regions"),
 		"Region": zv,
 		"Action": regionFormAction(org.Slug, zv.ID),
 		"Errors": errs,
-	}
-	if r.Header.Get("HX-Request") != "" {
-		data["Layout"] = "config-region-modal"
 	}
 	s.Render(w, r, "config_region_edit.html", data)
 }
@@ -188,8 +183,7 @@ func (s *Handlers) saveRegion(w http.ResponseWriter, r *http.Request, orgID, rid
 			s.ServerError(w, r, "could not save region", err)
 			return
 		default:
-			// hxRedirect closes the modal and reloads the config page.
-			s.hxRedirect(w, r, "/orgs/"+orgParam(r)+"/config")
+			http.Redirect(w, r, settingsURL(orgParam(r), "regions"), http.StatusSeeOther) //nolint:gosec // G710: local path
 			return
 		}
 	}
@@ -211,7 +205,7 @@ func (s *Handlers) handleDeleteRegion(w http.ResponseWriter, r *http.Request) {
 		s.ServerError(w, r, "could not delete region", err)
 		return
 	}
-	http.Redirect(w, r, "/orgs/"+orgParam(r)+"/config", http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
+	http.Redirect(w, r, settingsURL(orgParam(r), "regions"), http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
 }
 
 // pageRegionArea renders the area workspace for one region: a full-width map with
@@ -249,7 +243,7 @@ func (s *Handlers) pageRegionArea(w http.ResponseWriter, r *http.Request) {
 func (s *Handlers) renderRegionArea(w http.ResponseWriter, r *http.Request, org *store.Org, zv configRegionView, siblings []regionAreaSibling, errs []string) {
 	s.Render(w, r, "config_region_area.html", map[string]any{
 		"Org":      org,
-		"Nav":      s.orgAdminNav(r, org),
+		"Nav":      s.orgAdminNav(r, org, "regions"),
 		"Region":   zv,
 		"Siblings": siblings,
 		"Errors":   errs,
@@ -287,7 +281,7 @@ func (s *Handlers) handleSaveRegionArea(w http.ResponseWriter, r *http.Request) 
 			s.ServerError(w, r, "could not save area", err)
 			return
 		}
-		http.Redirect(w, r, "/orgs/"+orgParam(r)+"/config", http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
+		http.Redirect(w, r, settingsURL(orgParam(r), "regions"), http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
 		return
 	}
 	// Re-render with the rejected shape still in hand so the admin can fix it.
@@ -325,7 +319,7 @@ func (s *Handlers) handleSetRootFlood(w http.ResponseWriter, r *http.Request) {
 		s.ServerError(w, r, "could not save flood policy", err)
 		return
 	}
-	http.Redirect(w, r, "/orgs/"+orgParam(r)+"/config", http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
+	http.Redirect(w, r, settingsURL(orgParam(r), "regions"), http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
 }
 
 // regionID reads the {rid} URL param.
@@ -334,11 +328,12 @@ func (s *Handlers) regionID(r *http.Request) (int64, bool) {
 	return rid, err == nil
 }
 
-// orgAdminNav builds the org sub-navigation for the admin config screens, which are
-// all admin-only members-area pages on the Configuration tab.
-func (s *Handlers) orgAdminNav(r *http.Request, org *store.Org) map[string]any {
+// orgAdminNav builds the org navigation for the admin editors' pages (profile and
+// region editors, the region area workspace), with the Settings section they
+// belong to marked active.
+func (s *Handlers) orgAdminNav(r *http.Request, org *store.Org, section string) map[string]any {
 	return s.OrgNavFor(r.Context(), web.OrgNavArgs{
-		OrgID: org.ID, Name: org.Name, Slug: org.Slug, Active: "config",
+		OrgID: org.ID, Name: org.Name, Slug: org.Slug, Active: "settings-" + section,
 		IsMember: true, IsAdmin: true, Manage: true,
 	})
 }
