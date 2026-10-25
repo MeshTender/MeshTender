@@ -35,6 +35,11 @@ type NetInput struct {
 	Active          bool
 }
 
+// StartClock is the local start time as "15:04", for a time input.
+func (in NetInput) StartClock() string {
+	return fmt.Sprintf("%02d:%02d", in.StartMinute/60, in.StartMinute%60)
+}
+
 // Net is a check-in net.
 type Net struct {
 	ID    int64
@@ -168,13 +173,41 @@ func (s *Store) GetNet(ctx context.Context, orgID, netID int64) (*Net, error) {
 	return n, notFoundOr(err, "get net")
 }
 
-// ListOrgNets returns the org's nets by name (at most MaxNetsPerOrg).
-func (s *Store) ListOrgNets(ctx context.Context, orgID int64) ([]*Net, error) {
-	rows, err := s.pool.Query(ctx, netSelect+` WHERE org_id = $1 ORDER BY lower(name), id`, orgID)
+// NetSummary is a net with its next session that hasn't ended (nil when the
+// net is inactive).
+type NetSummary struct {
+	Net
+	Next *NetSession
+}
+
+// ListOrgNetSummaries returns the org's nets by name (at most MaxNetsPerOrg), each with its next
+// session, in one query (a LATERAL per net on the (net_id, starts_at) key).
+func (s *Store) ListOrgNetSummaries(ctx context.Context, orgID int64, now time.Time) ([]NetSummary, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT n.id, n.org_id, n.name, n.description, n.weekday, n.start_minute, n.duration_minutes,
+		       n.timezone, n.active, n.created_at, ns.id, ns.starts_at, ns.ends_at
+		FROM check_in_nets n
+		LEFT JOIN LATERAL (
+			SELECT id, starts_at, ends_at FROM net_sessions
+			WHERE net_id = n.id AND ends_at > $2 ORDER BY starts_at LIMIT 1) ns ON TRUE
+		WHERE n.org_id = $1
+		ORDER BY lower(n.name), n.id`, orgID, now)
 	if err != nil {
-		return nil, fmt.Errorf("list org nets: %w", err)
+		return nil, fmt.Errorf("list org net summaries: %w", err)
 	}
-	return collectRows(rows, scanNet)
+	return collectRows(rows, func(r pgx.Row) (NetSummary, error) {
+		var ns NetSummary
+		var weekday, startMinute int16
+		var sid *int64
+		var starts, ends *time.Time
+		err := r.Scan(&ns.ID, &ns.OrgID, &ns.Name, &ns.Description, &weekday, &startMinute,
+			&ns.DurationMinutes, &ns.Timezone, &ns.Active, &ns.CreatedAt, &sid, &starts, &ends)
+		ns.Weekday, ns.StartMinute = time.Weekday(weekday), int(startMinute)
+		if sid != nil {
+			ns.Next = &NetSession{ID: *sid, NetID: ns.ID, StartsAt: *starts, EndsAt: *ends}
+		}
+		return ns, err
+	})
 }
 
 // materializeNetSessions inserts the net's sessions overlapping the horizon.

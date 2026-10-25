@@ -3,6 +3,9 @@
 // maintain a zone list server-side. Enhances any <select data-tz-picker>:
 //   data-current="America/New_York"  — the saved zone ("" = auto-detect)
 //   [data-tz-detected] in the form   — a hint element for the detected zone
+//   data-tz-required                 — a zone must be chosen: no "Auto-detect"
+//                                      option, and the browser's zone is
+//                                      preselected when there's no current one
 // Falls back to the server-rendered options if Intl.supportedValuesOf is absent.
 (function () {
   "use strict";
@@ -29,14 +32,19 @@
 
     var current = sel.getAttribute("data-current") || "";
     var detected = detectedZone();
+    var required = sel.hasAttribute("data-tz-required");
+    if (required && !current) current = detected;
 
-    // Rebuild: an "Auto-detect" option, then one <optgroup> per region.
+    // Rebuild: an "Auto-detect" option (unless a zone is required), then one
+    // <optgroup> per region.
     sel.innerHTML = "";
-    var auto = document.createElement("option");
-    auto.value = "";
-    auto.textContent = detected ? "Auto-detect (" + detected + ")" : "Auto-detect (browser)";
-    if (!current) auto.selected = true;
-    sel.appendChild(auto);
+    if (!required) {
+      var auto = document.createElement("option");
+      auto.value = "";
+      auto.textContent = detected ? "Auto-detect (" + detected + ")" : "Auto-detect (browser)";
+      if (!current) auto.selected = true;
+      sel.appendChild(auto);
+    }
 
     var groups = {}; // region -> <optgroup>
     for (var i = 0; i < zones.length; i++) {
@@ -64,7 +72,7 @@
       kept.value = current;
       kept.textContent = current;
       kept.selected = true;
-      sel.insertBefore(kept, sel.firstChild.nextSibling);
+      sel.insertBefore(kept, required ? sel.firstChild : sel.firstChild.nextSibling);
     }
 
     // Hint: when on auto-detect, show which zone the browser reports. Scoped to the

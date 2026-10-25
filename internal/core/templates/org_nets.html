@@ -1,0 +1,54 @@
+{{define "title"}}Nets · {{.Org.Name}} · MeshTender{{end}}
+{{define "header"}}{{template "org-header" .}}{{end}}
+{{define "content"}}
+{{template "org-tabs" .Nav}}
+{{if .Error}}<div class="alert alert-danger" role="alert"><div>{{.Error}}</div></div>{{end}}
+
+<div class="row row-cards">
+  <div class="{{if .IsAdmin}}col-lg-8{{else}}col-12{{end}}">
+    {{if .Nets}}
+    <div class="card">
+      <div class="list-group list-group-flush" data-testid="net-list">
+        {{range .Nets}}
+        <a class="list-group-item list-group-item-action" href="/orgs/{{$.Org.Slug}}/nets/{{.ID}}">
+          <div class="d-flex align-items-center flex-wrap gap-2">
+            <span class="fw-bold">{{.Name}}</span>
+            {{if not .Active}}<span class="badge bg-secondary-lt">Inactive</span>{{end}}
+            {{with .Next}}
+              {{if $.Now.Before .StartsAt}}<span class="ms-auto text-secondary">Next {{ts .StartsAt "datetime"}}</span>
+              {{else}}<span class="badge bg-green-lt">In progress</span><span class="ms-auto text-secondary">Until {{ts .EndsAt "time"}}</span>{{end}}
+            {{end}}
+          </div>
+          <div class="text-secondary small">{{.Schedule}}</div>
+        </a>
+        {{end}}
+      </div>
+    </div>
+    {{else}}
+    <div class="empty">
+      <p class="empty-title">No nets yet</p>
+      <p class="empty-subtitle text-secondary">A net is a weekly window in which members check in by sending a flood advert from their companion.{{if .IsAdmin}} Schedule one to start taking rosters.{{end}}</p>
+    </div>
+    {{end}}
+  </div>
+
+  {{if .IsAdmin}}
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header"><h2 class="card-title">Schedule a net</h2></div>
+      <div class="card-body">
+        {{if .CanAdd}}
+        <form method="post" action="/orgs/{{.Org.Slug}}/nets">
+          {{template "net-form" .}}
+          <button type="submit" class="btn btn-primary w-100">{{template "icon-plus" "me-1"}}Create net</button>
+        </form>
+        {{else}}
+        <p class="text-secondary m-0">This organization has the maximum number of nets.</p>
+        {{end}}
+      </div>
+    </div>
+  </div>
+  {{end}}
+</div>
+{{if .IsAdmin}}<script src="{{ asset "/static/timezone-picker.js" }}"></script>{{end}}
+{{end}}

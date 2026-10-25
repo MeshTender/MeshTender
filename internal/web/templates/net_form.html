@@ -1,0 +1,45 @@
+{{/* net-form renders the fields of a check-in net's create/edit form (the caller
+     owns the <form> and its submit button). Data: the page map, reading .Form (a
+     store.NetInput) and .Weekdays. The time-zone picker is filled from the
+     browser's zone list by timezone-picker.js; data-tz-required means a net always
+     has an explicit zone, preselecting the saved or detected one. */}}
+{{define "net-form"}}
+<div class="mb-3">
+  <label class="form-label" for="net-name">Name</label>
+  <input type="text" id="net-name" name="name" class="form-control" maxlength="64" required value="{{.Form.Name}}">
+</div>
+<div class="mb-3">
+  <label class="form-label" for="net-description">Description</label>
+  <textarea id="net-description" name="description" class="form-control" rows="2" maxlength="2000">{{.Form.Description}}</textarea>
+</div>
+<div class="mb-3">
+  <label class="form-label" for="net-weekday">Day</label>
+  <select id="net-weekday" name="weekday" class="form-select">
+    {{range .Weekdays}}<option value="{{printf "%d" .}}"{{if eq . $.Form.Weekday}} selected{{end}}>{{.}}</option>{{end}}
+  </select>
+</div>
+{{/* Start and length share a row; the forms sit in a narrow sidebar card, where
+     three columns cut off a 12-hour "07:00 PM". */}}
+<div class="row g-2 mb-3">
+  <div class="col-7">
+    <label class="form-label" for="net-start">Starts</label>
+    <input type="time" id="net-start" name="start" class="form-control" required value="{{.Form.StartClock}}">
+  </div>
+  <div class="col-5">
+    <label class="form-label" for="net-duration">Minutes</label>
+    <input type="number" id="net-duration" name="duration" class="form-control" min="1" max="1440" required value="{{.Form.DurationMinutes}}">
+  </div>
+</div>
+<div class="mb-3">
+  <label class="form-label" for="net-timezone">Time zone</label>
+  <select id="net-timezone" name="timezone" class="form-select" data-tz-picker data-tz-required data-current="{{.Form.Timezone}}">
+    <option value="{{if .Form.Timezone}}{{.Form.Timezone}}{{else}}UTC{{end}}" selected>{{if .Form.Timezone}}{{.Form.Timezone}}{{else}}UTC{{end}}</option>
+  </select>
+  <div class="form-hint">The net keeps its local start time across daylight-saving changes.</div>
+</div>
+<label class="form-check mb-3">
+  <input class="form-check-input" type="checkbox" name="active" value="1"{{if .Form.Active}} checked{{end}}>
+  <span class="form-check-label">Active</span>
+  <span class="form-hint mt-0">Inactive nets keep their history but schedule no new sessions.</span>
+</label>
+{{end}}

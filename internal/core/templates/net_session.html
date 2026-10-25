@@ -1,0 +1,41 @@
+{{define "title"}}{{.Net.Name}} roster · {{.Org.Name}} · MeshTender{{end}}
+{{define "header"}}{{template "org-header" .}}{{end}}
+{{define "content"}}
+{{template "org-tabs" .Nav}}
+
+<div class="card mb-3">
+  <div class="card-body">
+    <div class="page-pretitle"><a href="/orgs/{{.Org.Slug}}/nets/{{.Net.ID}}">{{.Net.Name}}</a></div>
+    <h2 class="card-title mb-1">{{ts .Session.StartsAt "datetime"}} – {{ts .Session.EndsAt "time"}}{{if .InProgress}} <span class="badge bg-green-lt">In progress</span>{{end}}</h2>
+    <div class="text-secondary" data-testid="roster-summary">{{.CheckedIn}} of {{len .Roster}} member companions checked in · {{.ObserversOnline}} of {{.Observers}} observers online now</div>
+  </div>
+</div>
+
+<div class="card">
+  {{if .Roster}}
+  <div class="table-responsive">
+    <table class="table card-table table-vcenter" data-testid="roster">
+      <thead><tr><th>Companion</th><th>Member</th><th>Checked in</th><th>Hops</th><th>Observers</th></tr></thead>
+      <tbody>
+        {{range .Roster}}
+        <tr>
+          <td><a href="/companions/{{.CompanionPublicID}}">{{.CompanionName}}</a></td>
+          <td>{{.OwnerName}}</td>
+          {{if .CheckedIn}}
+          <td>{{ts .FirstHeardAt "time"}}{{if .ZeroHopOnly}} <span class="badge bg-yellow-lt" title="Only heard as a zero-hop advert, which reaches radios in direct range">Zero-hop</span>{{end}}</td>
+          <td>{{.FewestHops}}</td>
+          <td>{{.Observers}}</td>
+          {{else}}
+          <td colspan="3" class="text-secondary">Not heard</td>
+          {{end}}
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+  {{else}}
+  <div class="card-body text-secondary">No member has a confirmed companion yet.</div>
+  {{end}}
+  <div class="card-footer text-secondary small">A check-in is any advert from a member's companion heard during the session; zero-hop ones are marked because only nearby observers can hear them. "Not heard" means no observer heard one, not that the member is absent.</div>
+</div>
+{{end}}

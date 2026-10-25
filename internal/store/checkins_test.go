@@ -456,6 +456,9 @@ func TestNetCRUDAndSessions(t *testing.T) {
 	if err != nil || !next.StartsAt.Equal(time.Date(2026, 11, 2, 0, 0, 0, 0, time.UTC)) {
 		t.Fatalf("next = %+v, %v", next, err)
 	}
+	if sums, err := st.ListOrgNetSummaries(ctx, org, now); err != nil || len(sums) != 1 || sums[0].Next == nil || sums[0].Next.ID != next.ID {
+		t.Fatalf("summaries = %+v, %v", sums, err)
+	}
 	if _, err := st.GetNet(ctx, other, net.ID); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("cross-org get: %v", err)
 	}
@@ -516,9 +519,12 @@ func TestNetLimit(t *testing.T) {
 	if _, err := st.CreateNet(ctx, org, in, admin, time.Now()); !errors.Is(err, ErrNetLimit) {
 		t.Fatalf("err = %v, want ErrNetLimit", err)
 	}
-	nets, _ := st.ListOrgNets(ctx, org)
+	nets, _ := st.ListOrgNetSummaries(ctx, org, time.Now())
 	if len(nets) != MaxNetsPerOrg {
 		t.Fatalf("nets = %d", len(nets))
+	}
+	if nets[0].Next != nil {
+		t.Fatalf("inactive net has a next session: %+v", nets[0].Next)
 	}
 }
 

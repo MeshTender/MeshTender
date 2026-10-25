@@ -287,7 +287,7 @@ func TestOrgTabsHeaderConsistent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, tab := range []string{"", "/members", "/repeaters", "/activity", "/observers", "/config"} {
+	for _, tab := range []string{"", "/members", "/repeaters", "/nets", "/activity", "/observers", "/config"} {
 		body := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+tab, sess))
 		for _, want := range []string{">Actions<", "Leave organization", "View public page"} {
 			if !strings.Contains(body, want) {

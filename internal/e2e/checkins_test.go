@@ -4,6 +4,7 @@ package e2e
 
 import (
 	"encoding/hex"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -103,6 +104,79 @@ func TestE2ECompanionRegistrationAndOrgPages(t *testing.T) {
 	}
 	if left, _ := srv.store.ListCompanionsForUser(srv.ctx, user.ID); len(left) != 0 {
 		t.Error("companion not deleted")
+	}
+	watch.assertClean(t)
+}
+
+// TestE2ENetScheduleAndRoster creates a net through the real form (the
+// time-zone picker runs in its required mode, so a zone must be preselected
+// and there's no auto-detect option), then opens a live session's roster.
+func TestE2ENetScheduleAndRoster(t *testing.T) {
+	srv := newE2EServer(t)
+	user, cookie := srv.login(t, "e2enets")
+	org, err := srv.store.CreateOrg(srv.ctx, "Net Org", user.ID)
+	if err != nil {
+		t.Fatalf("create org: %v", err)
+	}
+
+	bctx, cancel, watch := startBrowser(t)
+	defer cancel()
+
+	var zone string
+	var hasAuto bool
+	if err := chromedp.Run(bctx,
+		network.Enable(),
+		cdplog.Enable(),
+		setSessionCookie(cookie),
+		chromedp.Navigate(srv.appURL+"/orgs/"+org.Slug+"/nets"),
+		// Options in a closed select never count as visible; wait for the
+		// picker to have rebuilt the list instead.
+		chromedp.Poll(`document.querySelector("#net-timezone optgroup") !== null`, nil, chromedp.WithPollingTimeout(10*time.Second)),
+		chromedp.Evaluate(`document.getElementById("net-timezone").value`, &zone),
+		chromedp.Evaluate(`!!document.querySelector('#net-timezone option[value=""]')`, &hasAuto),
+		chromedp.SendKeys(`#net-name`, "Sunday Net", chromedp.ByQuery),
+		chromedp.Submit(`#net-name`, chromedp.ByQuery),
+		chromedp.WaitVisible(`[data-testid="net-next"]`, chromedp.ByQuery),
+	); err != nil {
+		t.Fatalf("create net: %v", err)
+	}
+	if zone == "" || hasAuto {
+		t.Errorf("time-zone picker: value %q, auto-detect option present %v", zone, hasAuto)
+	}
+
+	// A net whose window is open now, with one companion heard in it.
+	now := time.Now().UTC()
+	in := store.NetInput{Name: "Live Net", Weekday: now.Weekday(), StartMinute: max(0, now.Hour()*60+now.Minute()-10),
+		DurationMinutes: 120, Timezone: "UTC", Active: true}
+	net, err := srv.store.CreateNet(srv.ctx, org.ID, in, user.ID, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sess, err := srv.store.NextNetSession(srv.ctx, net.ID, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := srv.store.CreateCompanion(srv.ctx, user.ID, "Live T1", observetest.NewIdentity(t).String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	at := time.Now().Add(time.Second)
+	if _, err := srv.store.RecordAdvertSighting(srv.ctx, store.AdvertSighting{CompanionID: c.ID,
+		ObserverPublicKeyHex: strings.Repeat("ab", 32), ReceivedAt: at, AdvertTS: uint32(at.Unix()), //nolint:gosec // test clock
+		RouteType: 2, PathHashSize: 1, Path: []byte{}}); err != nil {
+		t.Fatal(err)
+	}
+
+	var roster string
+	if err := chromedp.Run(bctx,
+		chromedp.Navigate(fmt.Sprintf("%s/orgs/%s/nets/%d/sessions/%d", srv.appURL, org.Slug, net.ID, sess.ID)),
+		chromedp.WaitVisible(`[data-testid="roster"]`, chromedp.ByQuery),
+		chromedp.Text(`[data-testid="roster"]`, &roster, chromedp.ByQuery),
+	); err != nil {
+		t.Fatalf("roster: %v", err)
+	}
+	if !strings.Contains(roster, "Live T1") || !strings.Contains(roster, "Zero-hop") {
+		t.Errorf("roster: %q", roster)
 	}
 	watch.assertClean(t)
 }
