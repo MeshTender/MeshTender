@@ -332,6 +332,8 @@ Redistributed in compiled form. Their notices are reproduced here.
 - **filippo.io/edwards25519** v1.2.0 — BSD-3-Clause  
   Copyright (c) 2009 The Go Authors. All rights reserved.  
   copyright notice, this list of conditions and the following disclaimer
+- **github.com/SukramJ/go-mqtt** v1.6.0 — MIT  
+  Copyright (c) 2026 SukramJ
 - **github.com/alexedwards/scs/pgxstore** v0.0.0-20251002162104-209de6e426de — MIT  
   Copyright (c) 2016 Alex Edwards
 - **github.com/alexedwards/scs/v2** v2.9.0 — MIT  

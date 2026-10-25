@@ -8,6 +8,7 @@ module github.com/MeshTender/MeshTender
 go 1.27.3
 
 require (
+	github.com/SukramJ/go-mqtt v1.6.0
 	github.com/alexedwards/scs/pgxstore v0.0.0-20251002162104-209de6e426de
 	github.com/alexedwards/scs/v2 v2.9.0
 	github.com/andybalholm/brotli v1.2.3

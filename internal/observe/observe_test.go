@@ -1,7 +1,6 @@
 package observe
 
 import (
-	"crypto/rand"
 	"encoding/hex"
 	"errors"
 	"strings"
@@ -9,48 +8,18 @@ import (
 	"time"
 
 	meshcore "github.com/meshcore-go/meshcore-go"
+
+	"github.com/MeshTender/MeshTender/internal/observe/observetest"
 )
 
-// newAdvertPacket builds the raw bytes of an advert as firmware would put it on
-// air: signed by id, routed as route with the given path (hashSize bytes per
-// entry). Fixtures are synthesized so no real member's key or location lands in
-// the repo.
 func newAdvertPacket(t *testing.T, id meshcore.LocalIdentity, ts uint32, name string, route byte, hashSize int, path [][]byte) []byte {
 	t.Helper()
-	app, err := (&meshcore.AdvertAppData{Type: "CHAT", Name: name}).ToBytes()
-	if err != nil {
-		t.Fatal(err)
-	}
-	adv := &meshcore.Advert{PublicKey: id.Identity, Timestamp: ts, RawAppData: app}
-	adv.SignWith(id)
-	payload, err := adv.ToBytes()
-	if err != nil {
-		t.Fatal(err)
-	}
-	var flat []byte
-	for _, h := range path {
-		flat = append(flat, h...)
-	}
-	pkt := &meshcore.Packet{
-		Header:     meshcore.MakeHeader(route, meshcore.PayloadTypeAdvert, 0),
-		PathLength: byte(hashSize-1)<<6 | byte(len(path)),
-		Path:       flat,
-		Payload:    payload,
-	}
-	raw, err := pkt.ToBytes()
-	if err != nil {
-		t.Fatal(err)
-	}
-	return raw
+	return observetest.AdvertPacket(t, id, ts, name, route, hashSize, path)
 }
 
 func newIdentity(t *testing.T) meshcore.LocalIdentity {
 	t.Helper()
-	id, err := meshcore.GenerateLocalIdentity(rand.Reader)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return id
+	return observetest.NewIdentity(t)
 }
 
 func TestDecodeAdvertRoutes(t *testing.T) {

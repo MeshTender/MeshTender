@@ -1,0 +1,66 @@
+package ingest
+
+import (
+	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"errors"
+	"net"
+	"syscall"
+
+	mqtt "github.com/SukramJ/go-mqtt"
+	"github.com/SukramJ/go-mqtt/protocol"
+)
+
+// Error categories stored in org_mqtt_brokers.last_error and shown to the org.
+// Deliberately coarse: a raw dial error ("connection refused" vs "i/o timeout"
+// per port) would turn the broker form into a port scanner for whoever can
+// edit it.
+const (
+	CategoryDNS       = "dns"
+	CategoryBlocked   = "blocked"
+	CategoryRefused   = "refused"
+	CategoryTimeout   = "timeout"
+	CategoryTLS       = "tls"
+	CategoryAuth      = "auth"
+	CategoryRejected  = "rejected"
+	CategorySubscribe = "subscribe"
+	CategoryConfig    = "config"
+	CategoryConnect   = "connect"
+)
+
+// Category maps a connect/subscribe error to its display category.
+func Category(err error) string {
+	var dnsErr *DNSError
+	var reasonErr *mqtt.ReasonError
+	var certErr *tls.CertificateVerificationError
+	var unknownAuth x509.UnknownAuthorityError
+	var hostErr x509.HostnameError
+	var recErr tls.RecordHeaderError
+	var netErr net.Error
+	switch {
+	case err == nil:
+		return ""
+	case errors.As(err, &dnsErr):
+		return CategoryDNS
+	case errors.Is(err, ErrBlockedAddress):
+		return CategoryBlocked
+	case errors.As(err, &reasonErr):
+		if reasonErr.Packet == "CONNECT" &&
+			(reasonErr.Code == protocol.BadUserNameOrPassword || reasonErr.Code == protocol.NotAuthorized) {
+			return CategoryAuth
+		}
+		if reasonErr.Packet == "CONNECT" {
+			return CategoryRejected
+		}
+		return CategorySubscribe
+	case errors.As(err, &certErr), errors.As(err, &unknownAuth), errors.As(err, &hostErr), errors.As(err, &recErr):
+		return CategoryTLS
+	case errors.Is(err, syscall.ECONNREFUSED):
+		return CategoryRefused
+	case errors.Is(err, context.DeadlineExceeded), errors.As(err, &netErr) && netErr.Timeout():
+		return CategoryTimeout
+	default:
+		return CategoryConnect
+	}
+}

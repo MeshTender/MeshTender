@@ -17,6 +17,7 @@ import (
 	"github.com/MeshTender/MeshTender/internal/config"
 	"github.com/MeshTender/MeshTender/internal/core"
 	"github.com/MeshTender/MeshTender/internal/identity"
+	"github.com/MeshTender/MeshTender/internal/ingest"
 	"github.com/MeshTender/MeshTender/internal/mail"
 	"github.com/MeshTender/MeshTender/internal/seed"
 	"github.com/MeshTender/MeshTender/internal/store"
@@ -158,7 +159,22 @@ func run(logger *slog.Logger) error {
 			janitorSweep{"csp reports", func(ctx context.Context) (int64, error) {
 				return st.PruneCSPReports(ctx, web.CSPRetention)
 			}},
+			// Check-in data: sightings (and the net sessions read from them) age
+			// out, a registration nobody confirmed frees its key, and every
+			// active net always has its next session ready.
+			janitorSweep{"advert sightings", st.PruneSightings},
+			janitorSweep{"unconfirmed companions", st.PruneUnconfirmedCompanions},
+			janitorSweep{"net sessions", func(ctx context.Context) (int64, error) {
+				return 0, st.EnsureUpcomingNetSessions(ctx, time.Now())
+			}},
 		)
+	}()
+	// Org MQTT brokers: one replica (elected by a Postgres lock) holds the
+	// connections and records check-in adverts; the rest stand by.
+	ingestDone := make(chan struct{})
+	go func() {
+		defer close(ingestDone)
+		ingest.NewSupervisor(st, cfg.MasterKey, logger).Run(bgCtx)
 	}()
 
 	httpSrv := &http.Server{
@@ -217,6 +233,7 @@ func run(logger *slog.Logger) error {
 	<-analyticsDone
 	<-cspDone
 	<-janitorDone
+	<-ingestDone
 	return srvErr
 }
 
