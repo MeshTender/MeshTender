@@ -1,0 +1,66 @@
+{{define "title"}}Companions · MeshTender{{end}}
+{{define "header"}}
+<div class="row g-2 align-items-center">
+  <div class="col">
+    <div class="page-pretitle">Your radios</div>
+    <h1 class="page-title fs-1">Companions</h1>
+  </div>
+</div>
+{{end}}
+{{define "content"}}
+{{if .Error}}<div class="alert alert-danger" role="alert"><div>{{.Error}}</div></div>{{end}}
+
+<div class="row row-cards">
+  <div class="col-lg-8">
+    {{if .Companions}}
+    <div class="card">
+      <div class="list-group list-group-flush" data-testid="companion-list">
+        {{range .Companions}}
+        <a class="list-group-item list-group-item-action" href="/companions/{{.PublicID}}">
+          <div class="d-flex align-items-center flex-wrap gap-2">
+            <span class="fw-bold">{{.Name}}</span>
+            {{if .Confirmed}}<span class="badge bg-green-lt">Confirmed</span>{{else}}<span class="badge bg-yellow-lt">Waiting for an advert</span>{{end}}
+            <span class="ms-auto text-secondary">
+              {{if .LastHeardAt}}Last heard {{ts .LastHeardAt "datetime"}}{{else}}Not heard yet{{end}}
+            </span>
+          </div>
+          <div class="text-secondary font-monospace small">{{slice .PublicKeyHex 0 16}}…</div>
+        </a>
+        {{end}}
+      </div>
+    </div>
+    {{else}}
+    <div class="empty">
+      <p class="empty-title">No companions yet</p>
+      <p class="empty-subtitle text-secondary">Register your companion radio so the adverts you send count as check-ins with your organizations.</p>
+    </div>
+    {{end}}
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header"><h2 class="card-title">Register a companion</h2></div>
+      <div class="card-body">
+        {{if ge (len .Companions) .Max}}
+        <p class="text-secondary m-0">You've registered the maximum of {{.Max}} companions.</p>
+        {{else}}
+        <form method="post" action="/companions">
+          <div class="mb-3">
+            <label class="form-label" for="companion-name">Name</label>
+            <input type="text" id="companion-name" name="name" class="form-control" maxlength="64" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="companion-key">Public key</label>
+            <input type="text" id="companion-key" name="public_key" class="form-control font-monospace" required
+                   pattern="[0-9A-Fa-f]{64}" autocomplete="off" spellcheck="false">
+            <div class="form-hint">The 64 hex characters from your companion app's contact sharing.</div>
+          </div>
+          <p class="text-secondary small">After registering, send a <strong>flood</strong> advert from the companion. It's confirmed once one of your organization's observers hears it. Unconfirmed registrations are removed after {{.TTLHours}} hours.</p>
+          <button type="submit" class="btn btn-primary w-100">{{template "icon-plus" "me-1"}}Register</button>
+        </form>
+        {{end}}
+      </div>
+    </div>
+  </div>
+</div>
+{{end}}

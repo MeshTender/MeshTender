@@ -1,0 +1,104 @@
+{{define "title"}}{{.Companion.Name}} · Companions · MeshTender{{end}}
+{{define "header"}}
+<div class="row g-2 align-items-center">
+  <div class="col">
+    <div class="page-pretitle">{{if .IsOwner}}Your companion{{else}}Companion · {{.Companion.OwnerName}}{{end}}</div>
+    <h1 class="page-title fs-1">{{.Companion.Name}}</h1>
+  </div>
+  {{if .IsOwner}}
+  <div class="col-auto ms-auto d-print-none">
+    <form method="post" action="/companions/{{.Companion.PublicID}}/delete" class="m-0" data-confirm="Remove {{.Companion.Name}}? Its check-in history is deleted too.">
+      <button type="submit" class="btn btn-outline-danger">{{template "icon-trash" "me-1"}}Remove</button>
+    </form>
+  </div>
+  {{end}}
+</div>
+{{end}}
+{{define "content"}}
+{{with .Companion}}
+{{if and (not .Confirmed) $.IsOwner}}
+<div class="alert alert-info" role="alert" data-testid="companion-pending">
+  <div>Send a <strong>flood</strong> advert from this companion to confirm it. A zero-hop advert only reaches radios in direct range, so an observer may not hear it. Unconfirmed registrations are removed after {{$.TTLHours}} hours.</div>
+</div>
+{{end}}
+{{if and .LastRejectedAt $.IsOwner}}
+<div class="alert alert-warning" role="alert" data-testid="companion-skew">
+  <div>An advert heard {{ts .LastRejectedAt "datetime"}} didn't count: the companion's clock was off by more than {{$.MaxSkew}} minutes ({{.LastRejectedSkew}}). Sync the clock from the companion app and advert again.</div>
+</div>
+{{end}}
+
+<div class="row row-cards mb-3">
+  <div class="col-md-4">
+    <div class="card"><div class="card-body">
+      <div class="subheader">Status</div>
+      <div class="h3 m-0">{{if .Confirmed}}Confirmed{{else}}Waiting for an advert{{end}}</div>
+    </div></div>
+  </div>
+  <div class="col-md-4">
+    <div class="card"><div class="card-body">
+      <div class="subheader">Last heard</div>
+      <div class="h3 m-0">{{if .LastHeardAt}}{{ts .LastHeardAt "datetime"}}{{else}}Not yet{{end}}</div>
+    </div></div>
+  </div>
+  <div class="col-md-4">
+    <div class="card"><div class="card-body">
+      <div class="subheader">Public key</div>
+      <div class="font-monospace small text-break">{{.PublicKeyHex}}</div>
+    </div></div>
+  </div>
+</div>
+{{end}}
+
+<div class="card mb-3">
+  <div class="card-header"><h2 class="card-title">Routes (last 90 days)</h2></div>
+  {{if .Routes}}
+  <div class="table-responsive">
+    <table class="table card-table table-vcenter">
+      <thead><tr><th>Heard by</th><th>Path</th><th>Times</th><th>Last</th></tr></thead>
+      <tbody>
+        {{range .Routes}}
+        <tr>
+          <td>{{if .ObserverName}}{{.ObserverName}}{{else}}<span class="font-monospace">{{slice .ObserverPublicKeyHex 0 8}}…</span>{{end}}</td>
+          <td>{{template "hops" .Hops}}</td>
+          <td>{{.Count}}</td>
+          <td>{{ts .LastHeardAt "datetime"}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+  {{else}}
+  <div class="card-body text-secondary">No adverts heard yet.</div>
+  {{end}}
+</div>
+
+<div class="card">
+  <div class="card-header"><h2 class="card-title">Sightings</h2></div>
+  {{if .Sightings}}
+  <div class="table-responsive">
+    <table class="table card-table table-vcenter" data-testid="sightings">
+      <thead><tr><th>Heard</th><th>By</th><th>Route</th><th>Path</th><th>Signal</th></tr></thead>
+      <tbody>
+        {{range .Sightings}}
+        <tr>
+          <td>{{ts .ReceivedAt "datetime"}}</td>
+          <td>{{if .ObserverName}}{{.ObserverName}}{{else}}<span class="font-monospace">{{slice .ObserverPublicKeyHex 0 8}}…</span>{{end}}</td>
+          <td>{{if eq .Route "Zero-hop"}}<span class="badge bg-yellow-lt">Zero-hop</span>{{else}}{{.Route}}{{end}}</td>
+          <td>{{template "hops" .Hops}}</td>
+          <td class="text-secondary">{{if .SNR}}SNR {{.SNR}}{{end}}{{if .RSSI}} · RSSI {{.RSSI}}{{end}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+  {{if .NextBefore}}<div class="card-footer text-center"><a class="btn btn-outline-secondary" href="?before={{.NextBefore}}">Older sightings</a></div>{{end}}
+  {{else}}
+  <div class="card-body text-secondary">No adverts heard yet.</div>
+  {{end}}
+</div>
+{{end}}
+
+{{/* hops renders a resolved path, oldest hop first: the repeater name when the
+     hash matches exactly one known repeater, all candidates when it's ambiguous,
+     and the raw hash otherwise. The observer heard the last hop. */}}
+{{define "hops"}}{{if not .}}<span class="text-secondary">direct to observer</span>{{else}}{{range $i, $h := .}}{{if $i}} › {{end}}{{if eq (len $h.Candidates) 1}}{{(index $h.Candidates 0).Name}}{{else if $h.Candidates}}<span title="Ambiguous hash {{$h.Hash}}">{{range $j, $c := $h.Candidates}}{{if $j}} / {{end}}{{$c.Name}}{{end}}?</span>{{else}}<span class="font-monospace">{{$h.Hash}}</span>{{end}}{{end}}{{end}}{{end}}

@@ -263,8 +263,8 @@ type OrgNavArgs struct {
 	OrgID  int64
 	Name   string
 	Slug   string
-	Active string // "home" | "members" | "repeaters" | "config"
-	// IsMember gates the Members tab (personal info), so it's false on public views
+	Active string // "home" | "members" | "repeaters" | "activity" | "observers" | "config"
+	// IsMember gates the member-only tabs (Members, Activity, Observers), so it's false on public views
 	// even when a member is previewing. IsAdmin keeps the Configuration tab visible
 	// on an org that hasn't defined any config yet, so an admin can go and create it.
 	IsMember bool

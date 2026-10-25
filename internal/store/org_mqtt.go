@@ -133,6 +133,17 @@ type OrgObserver struct {
 	NoiseFloor      *int
 }
 
+// ObserverOnlineWindow is how recently an observer must have been heard from to
+// count as online. Busy observers uplink constantly; status reports come every
+// few minutes even on a quiet mesh.
+const ObserverOnlineWindow = 10 * time.Minute
+
+// OnlineAt reports whether the observer was heard within ObserverOnlineWindow
+// of now.
+func (o OrgObserver) OnlineAt(now time.Time) bool {
+	return o.LastSeenAt != nil && now.Sub(*o.LastSeenAt) < ObserverOnlineWindow
+}
+
 // CreateOrgObserver registers an observer for the org. Returns ErrDuplicate if
 // the org already registered that key.
 func (s *Store) CreateOrgObserver(ctx context.Context, orgID int64, name, publicKeyHex string, createdBy int64) error {

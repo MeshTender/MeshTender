@@ -64,3 +64,29 @@ func Category(err error) string {
 		return CategoryConnect
 	}
 }
+
+// categoryMessages explain each category to the org admin who has to fix it.
+var categoryMessages = map[string]string{
+	CategoryDNS:       "Couldn't resolve the broker's hostname.",
+	CategoryBlocked:   "That address isn't on the public internet. MeshTender only connects to public brokers.",
+	CategoryRefused:   "The broker refused the connection. Check the port.",
+	CategoryTimeout:   "Timed out connecting to the broker.",
+	CategoryTLS:       "The TLS handshake failed. Check that the broker's certificate matches its hostname.",
+	CategoryAuth:      "The broker rejected the username or password.",
+	CategoryRejected:  "The broker rejected the connection.",
+	CategorySubscribe: "Connected, but the broker refused the subscription. Check the account's read access to the topic prefix.",
+	CategoryConfig:    "The stored password can't be read. Enter it again.",
+	CategoryConnect:   "Couldn't connect to the broker.",
+}
+
+// CategoryMessage returns the user-facing explanation for a category, or ""
+// for none.
+func CategoryMessage(category string) string {
+	if category == "" {
+		return ""
+	}
+	if m, ok := categoryMessages[category]; ok {
+		return m
+	}
+	return categoryMessages[CategoryConnect]
+}

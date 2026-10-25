@@ -240,6 +240,19 @@ func (s *Handlers) appRouter() chi.Router {
 			r.Post("/repeaters/{id}/orgs/{orgID}/limits", s.handleSaveRepeaterOrgLimits)
 			r.Post("/invite/{token}/accept", s.handleAcceptInvite)
 
+			// Companions and check-ins.
+			r.Get("/companions", s.pageCompanions)
+			r.Post("/companions", s.handleAddCompanion)
+			r.Get("/companions/{id}", s.pageCompanion)
+			r.Post("/companions/{id}/delete", s.handleDeleteCompanion)
+			r.Get("/orgs/{id}/activity", s.pageOrgActivity)
+			r.Get("/orgs/{id}/observers", s.pageOrgObservers)
+			r.Post("/orgs/{id}/observers", s.handleAddOrgObserver)
+			r.Post("/orgs/{id}/observers/{oid}/delete", s.handleDeleteOrgObserver)
+			r.Post("/orgs/{id}/broker", s.handleSaveOrgBroker)
+			r.Post("/orgs/{id}/broker/delete", s.handleDeleteOrgBroker)
+			r.Post("/orgs/{id}/broker/test", s.handleTestOrgBroker)
+
 			r.Get("/orgs/new", s.pageNewOrg)
 			r.Post("/orgs", s.handleCreateOrg)
 			r.Get("/orgs/{id}/edit", s.pageEditOrg)
