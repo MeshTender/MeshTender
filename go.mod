@@ -5,7 +5,7 @@ module github.com/MeshTender/MeshTender
 // rejects as redundant when it matches this line. A different compiler version
 // produces a different binary, so keep the three in sync — enforced by
 // TestReleasePinsAreConsistent in internal/licenses.
-go 1.27.2
+go 1.27.3
 
 require (
 	github.com/alexedwards/scs/pgxstore v0.0.0-20251002162104-209de6e426de
