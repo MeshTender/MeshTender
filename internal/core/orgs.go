@@ -64,10 +64,10 @@ func (s *Handlers) handleCreateOrg(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/orgs/"+org.Slug, http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
 }
 
-// pageOrg shows an org's home. Members get the full management view; a signed-in
+// pageOrg shows an org's home. Members get Home (org_home.go); a signed-in
 // non-member gets the public view (so the Join button works on the app host).
-// Members reach the public page via the "View public page" action, which links to
-// the root (public) host.
+// Members reach the public page via the header's "Public page" link, which goes
+// to the root (public) host.
 func (s *Handlers) pageOrg(w http.ResponseWriter, r *http.Request) {
 	uid := s.Auth.CurrentUserID(r.Context())
 	id, ok := s.orgID(r)
@@ -92,52 +92,7 @@ func (s *Handlers) pageOrg(w http.ResponseWriter, r *http.Request) {
 		s.renderOrgPublic(w, r, org, isMember, role == "admin")
 		return
 	}
-	members, err := s.Store.ListOrgMembers(r.Context(), id)
-	if err != nil {
-		s.ServerError(w, r, "could not load members", err)
-		return
-	}
-	repeaters, err := s.Store.ListOrgRepeaters(r.Context(), id)
-	if err != nil {
-		s.ServerError(w, r, "could not load repeaters", err)
-		return
-	}
-	links, err := s.Store.ListOrgLinks(r.Context(), id)
-	if err != nil {
-		s.ServerError(w, r, "could not load links", err)
-		return
-	}
-	mapped := 0
-	for _, rp := range repeaters {
-		if rp.HasLocation {
-			mapped++
-		}
-	}
-	adminCount := 0
-	for _, m := range members {
-		if m.Role == "admin" {
-			adminCount++
-		}
-	}
-	isAdmin := role == "admin"
-	data := map[string]any{
-		"Org":           org,
-		"Nav":           s.OrgNavFor(r.Context(), web.OrgNavArgs{OrgID: org.ID, Name: org.Name, Slug: org.Slug, Active: "home", IsMember: true, IsAdmin: isAdmin, Manage: true}),
-		"Role":          role,
-		"IsAdmin":       isAdmin,
-		"Members":       members,
-		"Repeaters":     repeaters,
-		"Links":         links,
-		"HasMap":        mapped > 0,
-		"MemberCount":   len(members),
-		"RepeaterCount": len(repeaters),
-		"AdminCount":    adminCount,
-		"Self":          uid,
-		"Error":         r.URL.Query().Get("error"),
-	}
-	// Custom domains are hidden for now (infrastructure not in place); their
-	// Settings card (org_settings.html) and the /domains routes are disabled.
-	s.Render(w, r, "org.html", data)
+	s.renderOrgHome(w, r, org, role == "admin")
 }
 
 // renderOrgPublic renders the shared public org page on the app host for a

@@ -272,21 +272,26 @@ const rosterCompanions = `
 	JOIN org_members om ON om.org_id = $1 AND om.user_id = c.owner_id
 	WHERE c.confirmed_at IS NOT NULL`
 
+// sessionCheckedIn counts the members checked in to session ns of org $1: each
+// current member with a confirmed companion heard in the window, or
+// acknowledged by hand, once.
+const sessionCheckedIn = `
+	(SELECT count(*) FROM (
+	   SELECT c.owner_id FROM advert_checkins k
+	   JOIN companions c ON c.id = k.companion_id
+	   WHERE k.companion_id IN (` + rosterCompanions + `)
+	     AND k.first_heard_at >= ns.starts_at AND k.first_heard_at < ns.ends_at
+	   UNION
+	   SELECT a.user_id FROM net_session_acks a
+	   JOIN org_members am ON am.org_id = $1 AND am.user_id = a.user_id
+	   WHERE a.session_id = ns.id) checked_in)`
+
 // ListNetSessionsPage returns one keyset page of the org's net's sessions that
 // have started, newest first, each with its check-in count. before is the last
 // row's starts_at, or nil for the first page.
 func (s *Store) ListNetSessionsPage(ctx context.Context, orgID, netID int64, now time.Time, before *time.Time) ([]NetSession, bool, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT ns.id, ns.net_id, ns.starts_at, ns.ends_at,
-		       (SELECT count(*) FROM (
-		          SELECT c.owner_id FROM advert_checkins k
-		          JOIN companions c ON c.id = k.companion_id
-		          WHERE k.companion_id IN (`+rosterCompanions+`)
-		            AND k.first_heard_at >= ns.starts_at AND k.first_heard_at < ns.ends_at
-		          UNION
-		          SELECT a.user_id FROM net_session_acks a
-		          JOIN org_members am ON am.org_id = $1 AND am.user_id = a.user_id
-		          WHERE a.session_id = ns.id) checked_in)
+		SELECT ns.id, ns.net_id, ns.starts_at, ns.ends_at, `+sessionCheckedIn+`
 		FROM net_sessions ns
 		JOIN check_in_nets n ON n.id = ns.net_id AND n.org_id = $1
 		WHERE ns.net_id = $2 AND ns.starts_at <= $3

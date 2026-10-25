@@ -36,7 +36,7 @@
     {{with .Config.Radio}}
     <div class="card mb-3" data-testid="config-radio">
       <div class="card-header"><h2 class="card-title">Radio</h2></div>
-      <div class="card-body"><div class="fw-bold" data-testid="config-radio-values">{{.MHz}} MHz · BW{{.KHz}} · SF{{.SF}} · CR{{.CR}}</div></div>
+      <div class="card-body"><div class="fw-bold" data-testid="config-radio-values">{{template "radio-values" .}}</div></div>
     </div>
     {{end}}
     {{if .Config.Profiles}}

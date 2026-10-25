@@ -129,14 +129,35 @@
 {{with .Hint}}<p class="card-subtitle mt-1 mb-3">{{.}}</p>{{end}}
 {{end}}
 
+{{/* org-links-list is an org's links as a flush list group, for the bottom of a
+     card. Pass .Links. */}}
+{{define "org-links-list"}}
+<div class="list-group list-group-flush" data-testid="org-links">
+  {{range .}}
+  {{if .Href}}
+  <a class="list-group-item list-group-item-action d-flex align-items-center gap-2" href="{{.Href}}" target="_blank" rel="noopener noreferrer nofollow">
+    <span class="text-secondary d-flex" title="{{.PlatformName}}">{{template "link-icon" .Platform}}</span>
+    <span class="flex-fill text-truncate">{{.Display}}</span>
+    <span class="text-secondary d-flex">{{template "icon-arrow-right" ""}}</span>
+  </a>
+  {{else}}
+  <div class="list-group-item d-flex align-items-center gap-2">
+    <span class="text-secondary d-flex" title="{{.PlatformName}}">{{template "link-icon" .Platform}}</span>
+    <span class="flex-fill text-truncate">{{.Display}}</span>
+  </div>
+  {{end}}
+  {{end}}
+</div>
+{{end}}
+
 {{/* org-config-link points members and visitors at the org's recommended
      repeater configuration, which isn't a tab. Shown only when there is some. */}}
 {{define "org-config-link"}}
 {{if .ShowConfig}}<a class="btn" href="/orgs/{{.Slug}}/config" data-testid="org-config-link">{{template "icon-settings" "me-1"}}Recommended configuration</a>{{end}}
 {{end}}
 
-{{/* org-config-card is Home's pointer to the recommended configuration, for
-     members and the public alike. Pass .Nav. */}}
+{{/* org-config-card is the public page's pointer to the recommended
+     configuration (members' Home has a fuller Repeater setup card). Pass .Nav. */}}
 {{define "org-config-card"}}
 {{if .ShowConfig}}
 <div class="card mb-3" data-testid="org-config-card">

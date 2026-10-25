@@ -95,3 +95,7 @@
 {{if .}}<pre class="mb-0" data-testid="config-commands"><code>{{range .}}{{if .IsMarker}}<span class="text-secondary">&#8230; click a spot on the map below to fill in the region commands &#8230;</span>{{else if .IsComment}}# {{.Text}}{{else if .FromRegion}}<span class="text-azure" data-testid="config-region-line">{{.Text}}</span>{{else}}{{.Text}}{{end}}
 {{end}}</code></pre>{{else}}<div class="text-secondary">No steps.</div>{{end}}
 {{end}}
+
+{{/* radio-values is an org's radio settings on one line. Pass a
+     *config.RadioDefaults. */}}
+{{define "radio-values"}}{{.MHz}} MHz · BW{{.KHz}} · SF{{.SF}} · CR{{.CR}}{{end}}
