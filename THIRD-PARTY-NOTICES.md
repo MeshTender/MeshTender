@@ -203,13 +203,15 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### Tabler 1.4.0 — MIT
+### Tabler 1.7.1 — MIT
 
 - Homepage: <https://tabler.io>
-- Source: https://cdn.jsdelivr.net/npm/@tabler/core@1.4.0/dist/
-- File: `internal/web/static/tabler.min.js` (sha256 `b60c76160e97624574dbb8cf10abe6aee9a6493b60096fdfc15dd1dd2bd99eb9`)
-- File: `internal/web/static/tabler.min.css` (sha256 `7ef750bd10546a695d0b12767ad8048bd8f3ec5de7daefb1067f9d0daa3d1c9a`)
-- Note: These two files are byte-identical to the public MIT @tabler/core@1.4.0 npm artifacts, verified by SHA-256. Tabler's paid add-ons (Illustrations, Emails, Avatars) are a Personal License that forbids open-source redistribution — nothing from them may enter this repository. The license text here is from the tabler/tabler dev branch: upstream publishes no v1.4.0 git tag and the npm package ships no LICENSE file.
+- Source: https://registry.npmjs.org/@tabler/core/-/core-1.7.1.tgz (dist/css/tabler.min.css, dist/css/tabler-themes.min.css, dist/js/tabler.min.js)
+- File: `internal/web/static/tabler.min.js` (sha256 `0c804e9d4d33f0c3847fcc1a4d593563894237682fd1d7eeea66a48a4a4a8ad3`)
+- File: `internal/web/static/tabler.min.css` (sha256 `413912dcb8c951ba1ec7272b6611259a1fdb225425738da2b83a20d93855fd33`)
+- File: `internal/web/static/tabler-themes.min.css` (sha256 `fb2852041d45aceb0fd62825db812722b1616f701a749bf4f28ea096a0416f72`)
+- Modified: All three have their trailing sourceMappingURL comment stripped, since the .map files are not vendored. tabler.min.js also gets a hand-restored banner, after Tabler's own, for the Bootstrap and Popper code it bundles: Tabler 1.5+ builds Bootstrap from its own tree and its bundle carries neither project's notice. Bodies are byte-identical to upstream (upstream sha256: tabler.min.css dcf84d7b4319c29ab33450bfe2a7bbf607458d994ef71023f7509e912cafdbd5, tabler-themes.min.css 7f863d1f6918e6d9d9f0e8a540c0d45efa567f88caa711a31d2d2253837a544f, tabler.min.js 2a3b9ecae44d821b21ba4521da33fca1bdc692454745536418c4e078e8ba6abf).
+- Note: Tabler's paid add-ons (Illustrations, Emails, Avatars) are a Personal License that forbids open-source redistribution — nothing from them may enter this repository. The license text here is from the repository's @tabler/core@1.7.1 tag; the npm package ships no LICENSE file.
 
 ```
 The MIT License (MIT)
@@ -235,11 +237,11 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### Bootstrap 5.3.7 — MIT
+### Bootstrap 5.3.8 — MIT
 
 - Homepage: <https://getbootstrap.com>
-- Source: bundled inside @tabler/core@1.4.0 dist/js/tabler.min.js
-- Note: Not vendored directly: Tabler's bundle embeds Bootstrap, which its own banner declares partway through tabler.min.js. It ships to every user, so it is attributed here.
+- Source: bundled inside @tabler/core@1.7.1 dist/js/tabler.min.js (its components report VERSION 5.3.8)
+- Note: Not vendored directly: Tabler's bundle embeds Bootstrap's JavaScript. It ships to every user, so it is attributed here and in the banner restored at the top of tabler.min.js.
 
 ```
 The MIT License (MIT)
@@ -263,6 +265,35 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
+```
+
+### Popper 2.11.8 — MIT
+
+- Homepage: <https://popper.js.org>
+- Source: bundled inside @tabler/core@1.7.1 dist/js/tabler.min.js (@tabler/core depends on @popperjs/core ^2.11.8, the last 2.x release); license text from the @popperjs/core@2.11.8 npm package
+- Note: Not vendored directly: Bootstrap's dropdowns and tooltips position with Popper, which Tabler's bundle embeds. It ships to every user, so it is attributed here and in the banner restored at the top of tabler.min.js.
+
+```
+The MIT License (MIT)
+
+Copyright (c) 2019 Federico Zivolo
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software is furnished to do so,
+subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
 ### Tabler Icons — MIT

@@ -16,11 +16,12 @@ import (
 // TestE2ENoLeftGutterWhenScrollbarAppears: a page long enough to scroll must still
 // start at the left edge of the window.
 //
-// Tabler ships `@media (min-width:992px) { :root { margin-left: calc(100vw - 100%) } }`
-// — 100vw counts the scrollbar and 100% doesn't, so any scrollable page gets a left
+// Tabler before 1.7 shipped `@media (min-width:992px) { :root { margin-left: calc(100vw - 100%) } }`
+// — 100vw counts the scrollbar and 100% doesn't, so any scrollable page got a left
 // margin the width of the scrollbar, sliding the whole layout (navbar included) right
-// and leaving an unpainted strip down the left edge. app.css overrides it and reserves
-// the space with scrollbar-gutter instead.
+// and leaving an unpainted strip down the left edge. app.css reserves the space with
+// scrollbar-gutter instead; this keeps a future Tabler or override from bringing the
+// shift back.
 //
 // It has to be a browser test: it only reproduces at a viewport wide enough for the
 // media query AND tall enough content to produce a real scrollbar, which is also why

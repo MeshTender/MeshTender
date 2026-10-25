@@ -124,15 +124,13 @@ markup for it. The one that has already bitten us:
   this; it parses the templates structurally, so extend it there if you find
   another flex-container component with the same trap.
 
-- **Tabler shifts the whole page sideways when a scrollbar appears.** It ships
-  `@media (min-width:992px) { :root { margin-left: calc(100vw - 100%) } }`; `100vw`
-  counts the scrollbar and `100%` doesn't, so any page tall enough to scroll slides
-  right by the scrollbar width with an unpainted strip down the left edge. It reads
-  as page-specific (the tall tabs of a section show it, the short ones don't), but
-  it's every scrollable page. `app.css` overrides it and reserves the space with
-  `scrollbar-gutter: stable` instead; `TestE2ENoLeftGutterWhenScrollbarAppears`
-  locks it in. Override in `app.css` rather than editing `tabler.min.css` — that
-  file's hash is pinned by `internal/licenses`.
+- **Fix Tabler in `app.css`, never in `tabler.min.css`** — that file's hash is
+  pinned by `internal/licenses`. Example: Tabler before 1.7 shifted every
+  scrollable page sideways (`:root { margin-left: calc(100vw - 100%) }`); `app.css`
+  reserves the scrollbar's space with `scrollbar-gutter: stable` instead, and
+  `TestE2ENoLeftGutterWhenScrollbarAppears` keeps it that way. After a Tabler
+  upgrade, re-check each `app.css` override still applies — drop the ones upstream
+  fixed.
 
 - **A `<button>` centers its text.** Invisible on a normal button, wrong the
   moment you use one as a full-width row (`d-flex w-100`, e.g. a `list-group-item`

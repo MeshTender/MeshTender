@@ -113,9 +113,10 @@ code.pubkey {
 /* ---------- Badge contrast (dark) ----------
    Tabler's light "-lt" badges set their text to the full-strength brand color
    over a 10%-opacity tint, which is too dark for this small status text on the dark
-   theme. The list below is now maintained by TestContrastMeetsWCAGAA rather than by
-   eye — an earlier by-hand pass asserted "azure/success/warning/yellow already pass",
-   and azure (4.15:1) and teal (4.13:1) in fact did not.
+   theme. The list below is maintained by TestContrastMeetsWCAGAA rather than by eye,
+   and re-checked on Tabler 1.7.1: without these, purple measures 2.88:1 and azure and
+   teal about 4.25:1. (1.7's palette fixed links and inactive tabs, whose overrides
+   are gone.)
 
    Where Tabler defines a dark-theme *-text-emphasis value, use it; the rest are mixed
    toward white against their own palette variable, so they stay tied to the palette
@@ -133,25 +134,6 @@ code.pubkey {
   color: #fff;
 }
 
-/* ---------- Contrast corrections (WCAG AA on the dark theme) ----------
-   Found by internal/e2e TestContrastMeetsWCAGAA, which measures rendered pixels. All
-   three point at Tabler's own dark-theme *-text-emphasis values rather than
-   hand-picked colors, so they stay tied to the palette.
-
-   Tabler's dark theme lightens --tblr-link-hover-color but NOT --tblr-link-color, which
-   leaves every link at 3.55:1 on the page background and 2.94:1 on a card — below the
-   4.5:1 AA floor for body text. Emphasis blue measures 7.07:1 and 5.85:1. .back-link
-   already reads --tblr-link-color, so it's fixed by this too. */
-:root {
-  --tblr-link-color: var(--tblr-primary-text-emphasis);
-}
-
-/* Inactive tab labels use --tblr-muted (#6b7280 → 3.67:1). Emphasis gray is 7.65:1 and
-   still clearly dimmer than the active tab, which uses the full body color. */
-.nav-tabs .nav-link {
-  color: var(--tblr-secondary-text-emphasis);
-}
-
 /* ---------- Members list filter (org members page) ----------
    The members page filters rows by role + search in JS (text search can't be
    pure CSS). Rows carry `.d-flex` (display:flex !important), so the JS toggles
@@ -159,19 +141,6 @@ code.pubkey {
    would otherwise win over. */
 #member-list .member-hidden {
   display: none !important;
-}
-
-/* ---------- Step indicator (.steps) ----------
-   Tabler ships two unrelated components under the same `.steps` class: the
-   horizontal step indicator (ul.steps > li.step-item) we use on the add/added
-   wizards, and a numbered documentation list (div.steps > h3). The latter's
-   rule sets border-left + a left margin/padding, which also lands on the step
-   indicator — drawing a stray vertical line and an empty gap before the first
-   step. Undo those just for the indicator usage. */
-.steps:has(> .step-item) {
-  margin-left: 0;
-  padding-left: 0;
-  border-left: 0;
 }
 
 /* ---------- MapLibre map (dark) ---------- */
@@ -281,28 +250,14 @@ code.pubkey {
   justify-content: center;
 }
 
-/* Undo Tabler's scrollbar compensation, which shifts the whole page sideways.
-   @media (min-width:992px) it sets `:root { margin-left: calc(100vw - 100%) }` —
-   100vw includes the scrollbar, 100% doesn't, so a page long enough to scroll gets a
-   left margin the width of the scrollbar. The intent is to stop layout shifting when
-   a scrollbar appears, but the result is that every scrollable page sits ~15px right
-   of the window with an unpainted strip down the left edge, navbar included (it was
-   visible on the org Repeaters and Configuration tabs, and absent on the shorter Home
-   and Members tabs, which is what made it look page-specific).
-
-   scrollbar-gutter reserves the space on the correct side instead: no shift when the
-   scrollbar appears, no gutter on the left. Where it isn't supported the declaration
-   is ignored, which lands on the plain browser behavior rather than back on the
-   sideways shift. Overlay scrollbars (macOS, mobile) take no space at all, so the
-   gutter is a no-op there.
-
-   Overriding here rather than editing tabler.min.css keeps that file byte-identical
-   to the audited upstream artifact (internal/licenses pins its hash). */
+/* Reserve the scrollbar's space so pages don't shift sideways when one appears.
+   Tabler before 1.7 did this with `:root { margin-left: calc(100vw - 100%) }`
+   (@media min-width:992px), which put the gutter on the LEFT: every scrollable page
+   sat a scrollbar's width right of the window with an unpainted strip down the left
+   edge. 1.7 dropped that rule; scrollbar-gutter keeps the no-shift behavior on the
+   correct side. Where it isn't supported the declaration is ignored, and overlay
+   scrollbars (macOS, mobile) take no space at all, so it's a no-op there.
+   TestE2ENoLeftGutterWhenScrollbarAppears guards it. */
 :root {
   scrollbar-gutter: stable;
-}
-@media (min-width: 992px) {
-  :root {
-    margin-left: 0;
-  }
 }

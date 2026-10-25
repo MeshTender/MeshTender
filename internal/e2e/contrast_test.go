@@ -30,8 +30,9 @@ const contrastProbe = `(() => {
   // and color(srgb r g b / a) with 0..1 components for values that came through
   // color-mixing or a wide-gamut source. An earlier version of this probe only
   // matched rgb() and SILENTLY SKIPPED the rest — which hid every failing link on the
-  // site, since Tabler's link color arrives in color(srgb ...) form. Anything still
-  // unparseable is now reported rather than ignored (see unparsed below).
+  // site, since Tabler's link color arrives in color(srgb ...) form. Other spaces
+  // go through the browser (viaCanvas). Anything still unparseable is reported
+  // rather than ignored (see unparsed below).
   function parse(css) {
     let m = css.match(/^\s*color\(\s*srgb\s+([^)]+)\)/i);
     if (m) {
@@ -46,7 +47,22 @@ const contrastProbe = `(() => {
       return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 };
     }
     if (/^\s*transparent\s*$/i.test(css)) return { r: 0, g: 0, b: 0, a: 0 };
-    return null;
+    return viaCanvas(css);
+  }
+  // Tabler 1.6+ defines its palette in oklch(), and Chrome serializes computed
+  // colors in whatever space they were mixed in (oklch, oklab, ...). Rather than
+  // implement every color space, let the browser convert: paint the color into a
+  // 1x1 sRGB canvas and read the pixel back — the sRGB value the screen shows.
+  const swatch = document.createElement("canvas").getContext("2d", { willReadFrequently: true });
+  function viaCanvas(css) {
+    const sentinel = "#010203";
+    swatch.fillStyle = sentinel;
+    swatch.fillStyle = css; // an unparseable value leaves the sentinel in place
+    if (swatch.fillStyle === sentinel) return null;
+    swatch.clearRect(0, 0, 1, 1);
+    swatch.fillRect(0, 0, 1, 1);
+    const [r, g, b, a] = swatch.getImageData(0, 0, 1, 1).data;
+    return { r, g, b, a: a / 255 };
   }
   function over(fg, bg) { // alpha-composite fg onto an opaque bg
     return {

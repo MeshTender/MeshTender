@@ -1,11 +1,14 @@
 {{define "base"}}<!doctype html>
-<html lang="en" data-bs-theme="dark" data-tz="{{.UserTZ}}" data-carto-key="{{.CartoKey}}" data-maplibre-worker="{{ asset "/static/maplibre-gl-worker.js" }}">
+<html lang="en" data-bs-theme="dark" data-bs-theme-base="zinc" data-bs-theme-primary="blue" data-tz="{{.UserTZ}}" data-carto-key="{{.CartoKey}}" data-maplibre-worker="{{ asset "/static/maplibre-gl-worker.js" }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <link rel="icon" href="{{ asset "/static/favicon.svg" }}" type="image/svg+xml">
   <title>{{block "title" .}}MeshTender{{end}}</title>
   <link rel="stylesheet" href="{{ asset "/static/tabler.min.css" }}">
+  {{/* tabler-themes.min.css supplies the palette chosen on <html>:
+       data-bs-theme-base="zinc" (Tabler 1.6+ defaults to neutral) and blue primary. */}}
+  <link rel="stylesheet" href="{{ asset "/static/tabler-themes.min.css" }}">
   <link rel="stylesheet" href="{{ asset "/static/app.css" }}">
   <script src="{{ asset "/static/tabler.min.js" }}" defer></script>
   <script src="{{ asset "/static/htmx.min.js" }}" defer></script>
@@ -192,13 +195,14 @@
      the standard page chrome (header block, content, footer). The marketing
      surface defaults to this so every root page matches the rest of the site. */}}
 {{define "rootbase"}}<!doctype html>
-<html lang="en" data-bs-theme="dark" data-tz="{{.UserTZ}}" data-carto-key="{{.CartoKey}}" data-maplibre-worker="{{ asset "/static/maplibre-gl-worker.js" }}">
+<html lang="en" data-bs-theme="dark" data-bs-theme-base="zinc" data-bs-theme-primary="blue" data-tz="{{.UserTZ}}" data-carto-key="{{.CartoKey}}" data-maplibre-worker="{{ asset "/static/maplibre-gl-worker.js" }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <link rel="icon" href="{{ asset "/static/favicon.svg" }}" type="image/svg+xml">
   <title>{{template "title" .}}</title>
   <link rel="stylesheet" href="{{ asset "/static/tabler.min.css" }}">
+  <link rel="stylesheet" href="{{ asset "/static/tabler-themes.min.css" }}">
   <link rel="stylesheet" href="{{ asset "/static/app.css" }}">
   <script src="{{ asset "/static/tabler.min.js" }}" defer></script>
   <script src="{{ asset "/static/htmx.min.js" }}" defer></script>
@@ -236,13 +240,14 @@
      offer are owed on every surface, and someone signing in is as much a user of
      this server as someone already signed in. */}}
 {{define "authbase"}}<!doctype html>
-<html lang="en" data-bs-theme="dark" data-tz="{{.UserTZ}}" data-carto-key="{{.CartoKey}}" data-maplibre-worker="{{ asset "/static/maplibre-gl-worker.js" }}">
+<html lang="en" data-bs-theme="dark" data-bs-theme-base="zinc" data-bs-theme-primary="blue" data-tz="{{.UserTZ}}" data-carto-key="{{.CartoKey}}" data-maplibre-worker="{{ asset "/static/maplibre-gl-worker.js" }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <link rel="icon" href="{{ asset "/static/favicon.svg" }}" type="image/svg+xml">
   <title>{{template "title" .}}</title>
   <link rel="stylesheet" href="{{ asset "/static/tabler.min.css" }}">
+  <link rel="stylesheet" href="{{ asset "/static/tabler-themes.min.css" }}">
   <link rel="stylesheet" href="{{ asset "/static/app.css" }}">
   <script src="{{ asset "/static/tabler.min.js" }}" defer></script>
   <script src="{{ asset "/static/ui.js" }}" defer></script>
@@ -267,13 +272,14 @@
      sign-in / sign-up actions, the page content, and a simple footer. Pages opt
      in via the "Layout":"landingbase" render key. */}}
 {{define "landingbase"}}<!doctype html>
-<html lang="en" data-bs-theme="dark" data-tz="{{.UserTZ}}" data-carto-key="{{.CartoKey}}" data-maplibre-worker="{{ asset "/static/maplibre-gl-worker.js" }}">
+<html lang="en" data-bs-theme="dark" data-bs-theme-base="zinc" data-bs-theme-primary="blue" data-tz="{{.UserTZ}}" data-carto-key="{{.CartoKey}}" data-maplibre-worker="{{ asset "/static/maplibre-gl-worker.js" }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <link rel="icon" href="{{ asset "/static/favicon.svg" }}" type="image/svg+xml">
   <title>{{template "title" .}}</title>
   <link rel="stylesheet" href="{{ asset "/static/tabler.min.css" }}">
+  <link rel="stylesheet" href="{{ asset "/static/tabler-themes.min.css" }}">
   <link rel="stylesheet" href="{{ asset "/static/app.css" }}">
   <script src="{{ asset "/static/tabler.min.js" }}" defer></script>
   <script src="{{ asset "/static/ui.js" }}" defer></script>
