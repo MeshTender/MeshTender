@@ -20,7 +20,7 @@
   <div class="card-header"><h2 class="card-title">On the air</h2></div>
   <div class="card-body">
     <div data-nc-unsupported class="alert alert-danger" role="alert" hidden>
-      <div>This browser can't reach a USB modem. Use Chrome or Edge on a computer.</div>
+      <div>This browser can't connect to USB devices. Use Chrome or Edge, or Firefox 151 or later, on desktop — or Chrome on Android — over HTTPS or on localhost.</div>
     </div>
     {{if .Radio}}
     <p class="text-secondary small">Connect a MeshCore KISS modem to send announcements and acknowledgements on {{.Channel}} as “{{.Sender}}”, and to count the adverts it hears. On {{.Radio.MHz}} MHz · BW{{.Radio.KHz}} · SF{{.Radio.SF}} · CR{{.Radio.CR}}.</p>
@@ -99,7 +99,7 @@
             {{if .ZeroHopOnly}}<span class="badge bg-yellow-lt" title="Only heard as a zero-hop advert, which reaches radios in direct range">Zero-hop</span>{{end}}
             {{if .Aired}}<span class="badge bg-green-lt" data-testid="aired" title="Net control's modem acknowledged this check-in on the air">On air {{ts .AiredAt "time"}}</span>{{end}}
             {{if $.Net.ManualAck}}
-              {{if .Acked}}<div class="text-secondary small" data-testid="acked">acknowledged by @{{.AckedBy}}{{if .AckNote}} · {{.AckNote}}{{end}}</div>
+              {{if .Acked}}<div class="text-secondary small" data-testid="acked">acknowledged by {{template "net-control-name" .AckedBy}}{{if .AckNote}} · {{.AckNote}}{{end}}</div>
               {{else}}<div><span class="badge bg-orange-lt" data-testid="awaiting">Awaiting acknowledgement</span></div>{{end}}
             {{end}}
           </td>
@@ -107,7 +107,7 @@
           <td>{{.Observers}}</td>
           {{else if .Acked}}
           <td data-testid="added-by-hand">
-            {{ts .AckedAt "time"}} <span class="text-secondary">by @{{.AckedBy}}</span>
+            {{ts .AckedAt "time"}} <span class="text-secondary">by {{template "net-control-name" .AckedBy}}</span>
             {{if .Aired}}<span class="badge bg-green-lt" data-testid="aired" title="Net control's modem acknowledged this check-in on the air">On air {{ts .AiredAt "time"}}</span>{{end}}
             {{if .AckNote}}<div class="text-secondary small">{{.AckNote}}</div>{{end}}
           </td>
@@ -150,3 +150,8 @@
   <div class="card-footer text-secondary small">A member checks in by sending an advert from any of their companions during the session; "on" names the one heard first. Net control can also add a check-in by hand ("by"). Zero-hop check-ins are marked because only nearby observers can hear them. Spread and Observers are from the member's best check-in: how many repeaters were seen relaying the advert and how many observers heard it. Spread is a minimum, since a relay whose copies never reached an observer can't be seen. "Not heard" means no observer heard one, not that the member is absent.</div>
 </div>
 {{end}}
+
+{{/* net-control-name names who acknowledged a check-in: their @username, or
+     "@<net-control>" once that account is gone — still true, just less
+     specific. The angle brackets keep it from reading as a real username. */}}
+{{define "net-control-name"}}@{{if .}}{{.}}{{else}}&lt;net-control&gt;{{end}}{{end}}

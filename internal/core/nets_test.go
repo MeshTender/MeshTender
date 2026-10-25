@@ -297,6 +297,20 @@ func TestNetControlAcknowledgements(t *testing.T) {
 	if body := getBody(t, ts, h.app, sessPath, adminSess); strings.Contains(body, "<td>Radioless Member</td>") {
 		t.Error("undone hand-added check-in still on the roster")
 	}
+
+	// Net control deletes their account: their acknowledgements stay, credited
+	// to "@<net-control>" rather than "by @" with nothing after it.
+	redirectTo(t, post(t, ts, h.app, sessPath+"/acks", url.Values{"user_id": {strconv.FormatInt(radioless.ID, 10)}}, controlSess), sessPath)
+	if err := st.DeleteUser(ctx, control.ID); err != nil {
+		t.Fatal(err)
+	}
+	body = getBody(t, ts, h.app, sessPath, adminSess)
+	if !strings.Contains(body, `data-testid="acked"`) || !strings.Contains(body, `data-testid="added-by-hand"`) {
+		t.Fatal("acknowledgements vanished with net control's account")
+	}
+	if strings.Count(body, "by @&lt;net-control&gt;") != 2 {
+		t.Error("roster doesn't credit a deleted net control as @<net-control>")
+	}
 }
 
 // TestAutomaticAcknowledgementShowsNoAwaiting: on a default net an observed
