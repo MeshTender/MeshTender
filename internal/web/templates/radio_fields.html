@@ -1,0 +1,28 @@
+{{/* radio-fields is the radio preset picker plus the four LoRa values it fills
+     in, shared by the add/edit repeater forms and the org radio settings. The
+     preset is a starting point, not a lock: picking one fills the fields, and
+     editing a field moves the picker to whichever preset now matches (or
+     Custom). static/radio-preset.js does both, delegated, so it also works in a
+     fragment htmx swaps in. Data: Presets, Selected (preset id or "custom"),
+     Radio (a config.RadioDefaults), Named (submit the fields with the form;
+     serial setup reads them by id instead). Preset data-* values are in Hz; the
+     fields show MHz/kHz like the firmware's `set radio`. */}}
+{{define "radio-fields"}}
+<div data-radio-fields>
+  <div class="mb-3">
+    <label class="form-label" for="radio-preset">Radio preset</label>
+    <select class="form-select" id="radio-preset" data-radio-preset>
+      {{range .Presets}}
+      <option value="{{.ID}}" data-freq="{{.FreqHz}}" data-bw="{{.BwHz}}" data-sf="{{.SF}}" data-cr="{{.CR}}"{{if eq .ID $.Selected}} selected{{end}}>{{.Label}}</option>
+      {{end}}
+      <option value="custom"{{if eq "custom" .Selected}} selected{{end}}>Custom…</option>
+    </select>
+  </div>
+  <div class="row g-2">
+    <div class="col-6 col-md-3"><label class="form-label" for="radio_freq_mhz">Freq (MHz)</label><input type="number" step="0.001" min="150" max="2500" class="form-control" id="radio_freq_mhz" data-radio="freq" value="{{.Radio.MHz}}"{{if .Named}} name="radio_freq_mhz" required{{end}}></div>
+    <div class="col-6 col-md-3"><label class="form-label" for="radio_bw_khz">Bandwidth (kHz)</label><input type="number" step="0.1" min="7" max="500" class="form-control" id="radio_bw_khz" data-radio="bw" value="{{.Radio.KHz}}"{{if .Named}} name="radio_bw_khz" required{{end}}></div>
+    <div class="col-6 col-md-3"><label class="form-label" for="radio_sf">SF</label><input type="number" min="5" max="12" class="form-control" id="radio_sf" data-radio="sf" value="{{.Radio.SF}}"{{if .Named}} name="radio_sf" required{{end}}></div>
+    <div class="col-6 col-md-3"><label class="form-label" for="radio_cr">CR</label><input type="number" min="5" max="8" class="form-control" id="radio_cr" data-radio="cr" value="{{.Radio.CR}}"{{if .Named}} name="radio_cr" required{{end}}></div>
+  </div>
+</div>
+{{end}}

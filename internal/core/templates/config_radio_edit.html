@@ -1,0 +1,85 @@
+{{/* The org radio settings editor. Admins normally reach it as the
+     config-radio-modal fragment swapped into #config-radio-modal on the
+     Configuration page; it posts via htmx so a validation error re-renders the
+     fragment in place and a save sends HX-Redirect back to the config page. The
+     full page below is the no-JS / direct-link fallback. */}}
+
+{{define "title"}}Radio settings · {{.Org.Name}} · MeshTender{{end}}
+{{define "header"}}
+<div class="row g-2 align-items-center">
+  <div class="col">
+    <div class="page-pretitle">{{.Org.Name}} · Configuration</div>
+    <h1 class="page-title fs-1">Radio settings</h1>
+  </div>
+  <div class="col-auto ms-auto d-print-none">
+    <a class="btn" href="/orgs/{{.Org.Slug}}/config">Back to configuration</a>
+  </div>
+</div>
+{{end}}
+{{define "content"}}
+{{template "org-tabs" .Nav}}
+
+{{template "radio-editor-alerts" .}}
+
+<div class="card">
+  <div class="card-body">
+    <form method="post" action="{{.Action}}">
+      {{template "radio-editor-fields" .}}
+      <div class="btn-list mt-3">
+        <button type="submit" class="btn btn-primary">Save radio settings</button>
+        <a class="btn" href="/orgs/{{.Org.Slug}}/config">Cancel</a>
+      </div>
+    </form>
+    {{if .IsSet}}
+    <form method="post" action="{{.Action}}" class="mt-3">
+      <input type="hidden" name="clear" value="1">
+      <button type="submit" class="btn btn-ghost-danger">Clear radio settings</button>
+    </form>
+    {{end}}
+  </div>
+</div>
+<script src="{{ asset "/static/radio-preset.js" }}"></script>
+{{end}}
+
+{{/* config-radio-modal is the htmx fragment swapped into #config-radio-modal.
+     radio-preset.js is loaded by the Configuration page and delegates, so the
+     swapped-in preset picker works without a script of its own. */}}
+{{define "config-radio-modal"}}
+<div class="modal-header">
+  <h2 class="modal-title">Radio settings</h2>
+  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+</div>
+<div class="modal-body">
+  {{template "radio-editor-alerts" .}}
+  <form method="post" action="{{.Action}}" id="config-radio-form"
+        hx-post="{{.Action}}" hx-target="#config-radio-modal-content" hx-swap="innerHTML">
+    {{template "radio-editor-fields" .}}
+  </form>
+</div>
+<div class="modal-footer">
+  {{if .IsSet}}
+  <form method="post" action="{{.Action}}" class="me-auto"
+        hx-post="{{.Action}}" hx-target="#config-radio-modal-content" hx-swap="innerHTML">
+    <input type="hidden" name="clear" value="1">
+    <button type="submit" class="btn btn-ghost-danger" data-testid="clear-radio">Clear</button>
+  </form>
+  {{end}}
+  <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">Cancel</button>
+  <button type="submit" form="config-radio-form" class="btn btn-primary" data-testid="save-radio">Save radio settings</button>
+</div>
+{{end}}
+
+{{define "radio-editor-alerts"}}
+{{if .Error}}
+<div class="alert alert-danger" role="alert">
+  <div>{{.Error}}</div>
+</div>
+{{end}}
+{{end}}
+
+{{define "radio-editor-fields"}}
+<p class="text-secondary">The LoRa settings this organization's mesh runs on. Profiles can use them instead of
+  hard-coding values — e.g. <code>set radio {{"{{ radio.freq }}"}},{{"{{ radio.bw }}"}},{{"{{ radio.sf }}"}},{{"{{ radio.cr }}"}}</code> —
+  and a repeater set up from a profile that doesn't set its radio gets these.</p>
+{{template "radio-fields" .Radio}}
+{{end}}

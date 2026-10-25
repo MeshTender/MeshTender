@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/MeshTender/MeshTender/internal/buildinfo"
@@ -107,13 +108,29 @@ type Config struct {
 	TrustedProxies []*net.IPNet
 }
 
-// RadioDefaults is a set of LoRa parameters, used to match a repeater's stored
-// radio config against the region presets offered in the UI.
+// RadioDefaults is a set of LoRa parameters: an organization's radio settings,
+// or a repeater's stored radio config matched against the presets offered in
+// the UI.
 type RadioDefaults struct {
 	FreqHz uint32
 	BwHz   uint32
 	SF     uint8
 	CR     uint8
+}
+
+// MHz is the frequency in the unit `set radio` takes, without trailing zeros.
+func (r RadioDefaults) MHz() string { return strconv.FormatFloat(float64(r.FreqHz)/1e6, 'f', -1, 64) }
+
+// KHz is the bandwidth in the unit `set radio` takes, without trailing zeros.
+func (r RadioDefaults) KHz() string { return strconv.FormatFloat(float64(r.BwHz)/1e3, 'f', -1, 64) }
+
+// Valid reports whether the firmware would accept these parameters: `set radio`
+// rejects anything outside 150–2500 MHz, 7–500 kHz, SF 5–12 and CR 5–8
+// (MeshCore src/helpers/CommonRadioPrefs.cpp).
+func (r RadioDefaults) Valid() bool {
+	return r.FreqHz >= 150_000_000 && r.FreqHz <= 2_500_000_000 &&
+		r.BwHz >= 7_000 && r.BwHz <= 500_000 &&
+		r.SF >= 5 && r.SF <= 12 && r.CR >= 5 && r.CR <= 8
 }
 
 // Load reads configuration from the environment, applying defaults and

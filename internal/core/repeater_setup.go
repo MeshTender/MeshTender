@@ -10,6 +10,7 @@ import (
 
 	meshcore "github.com/meshcore-go/meshcore-go"
 
+	"github.com/MeshTender/MeshTender/internal/config"
 	"github.com/MeshTender/MeshTender/internal/store"
 	"github.com/MeshTender/MeshTender/internal/web"
 )
@@ -74,19 +75,31 @@ func (s *Handlers) handleSetupCommands(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "no access to that organization", http.StatusForbidden)
 			return
 		}
+		orgRadio, err := s.Store.OrgRadio(r.Context(), req.OrgID)
+		if err != nil {
+			s.ServerError(w, r, "could not load radio settings", err)
+			return
+		}
 		if req.Profile != "" {
 			s2, err := s.profileSteps(r.Context(), req.OrgID, req.Profile)
 			if err != nil {
 				s.ServerError(w, r, "could not load profile", err)
 				return
 			}
-			steps = s2
+			filled, ok := store.ExpandSteps(s2, orgRadio)
+			if !ok {
+				http.Error(w, "this profile uses the organization's radio settings, which aren't set", http.StatusConflict)
+				return
+			}
+			steps = filled
 		}
-		// Prefer the radio the profile sets on the device; if it sets none, fall
-		// back to the default preset so the device still ends up tunable (and the
-		// record radio is accurate).
+		// Prefer the radio the profile sets on the device; if it sets none, the
+		// org's radio settings, and failing those the default preset — so the
+		// device still ends up tunable (and the record radio is accurate).
 		if rad, ok := parseProfileRadio(profileCommandLines(steps)); ok {
 			radio = rad
+		} else if orgRadio != nil {
+			radio = setupRadioFrom(*orgRadio)
 		} else {
 			radio = defaultSetupRadio()
 		}
@@ -143,6 +156,11 @@ type setupCompleteResponse struct {
 func defaultSetupRadio() setupRadio {
 	p := defaultPreset()
 	return setupRadio{FreqMHz: float64(p.FreqHz) / 1e6, BwKHz: float64(p.BwHz) / 1e3, SF: p.SF, CR: p.CR}
+}
+
+// setupRadioFrom converts an org's Hz-canonical radio settings to command units.
+func setupRadioFrom(r config.RadioDefaults) setupRadio {
+	return setupRadio{FreqMHz: float64(r.FreqHz) / 1e6, BwKHz: float64(r.BwHz) / 1e3, SF: int(r.SF), CR: int(r.CR)}
 }
 
 // parseProfileRadio extracts radio settings from a profile's `set radio
@@ -245,7 +263,7 @@ func (s *Handlers) handleSetupComplete(w http.ResponseWriter, r *http.Request) {
 	}
 	freq, bw, sf, cr, ok := parseRadioForm(r)
 	if !ok {
-		http.Error(w, "radio parameters must be valid numbers", http.StatusBadRequest)
+		http.Error(w, radioFormError, http.StatusBadRequest)
 		return
 	}
 

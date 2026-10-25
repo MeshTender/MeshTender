@@ -64,3 +64,22 @@ func presetIDFor(d config.RadioDefaults) string {
 	}
 	return "custom"
 }
+
+// radioFields is the data for the shared "radio-fields" template: the preset
+// picker, preselected to whichever preset matches radio, plus its values.
+type radioFields struct {
+	Presets  []RadioPreset
+	Selected string
+	Radio    config.RadioDefaults
+	Named    bool // submit the values with the form
+}
+
+func newRadioFields(radio config.RadioDefaults, named bool) radioFields {
+	return radioFields{Presets: radioPresets, Selected: presetIDFor(radio), Radio: radio, Named: named}
+}
+
+// defaultRadio is the default preset as radio settings.
+func defaultRadio() config.RadioDefaults {
+	p := defaultPreset()
+	return config.RadioDefaults{FreqHz: uint32(p.FreqHz), BwHz: uint32(p.BwHz), SF: uint8(p.SF), CR: uint8(p.CR)} //nolint:gosec // G115: preset constants
+}

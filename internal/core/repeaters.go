@@ -46,15 +46,14 @@ func (s *Handlers) pageAddRepeater(w http.ResponseWriter, r *http.Request) {
 		method = "kiss"
 	}
 	data := map[string]any{
-		"Step":            step,
-		"Method":          method,
-		"ServerPubKey":    s.Identity.PublicKeyHex(),
-		"SetPermCommand":  s.Identity.SetPermCommand(),
-		"RevokeCommand":   s.Identity.RevokePermCommand(),
-		"Defaults":        defaultPreset(),
-		"Presets":         radioPresets,
-		"DefaultPresetID": defaultPresetID,
-		"Error":           r.URL.Query().Get("error"),
+		"Step":           step,
+		"Method":         method,
+		"ServerPubKey":   s.Identity.PublicKeyHex(),
+		"SetPermCommand": s.Identity.SetPermCommand(),
+		"RevokeCommand":  s.Identity.RevokePermCommand(),
+		"Radio":          newRadioFields(defaultRadio(), true),
+		"RadioSerial":    newRadioFields(defaultRadio(), false), // serial-setup.js reads the fields by id
+		"Error":          r.URL.Query().Get("error"),
 	}
 	if step == "serial" {
 		orgs := s.setupOrgOptions(r)
@@ -197,7 +196,7 @@ func (s *Handlers) handleAddRepeater(w http.ResponseWriter, r *http.Request) {
 
 	freq, bw, sf, cr, ok := parseRadioForm(r)
 	if !ok {
-		addErr(w, r, "Radio parameters must be valid numbers.")
+		addErr(w, r, radioFormError)
 		return
 	}
 
@@ -224,18 +223,31 @@ func (s *Handlers) handleAddRepeater(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/repeaters/"+rep.PublicID+"/added", http.StatusSeeOther)
 }
 
-// parseRadioForm reads and validates the radio fields from a repeater form.
-// Frequency and bandwidth are entered in MHz/kHz (matching the region presets)
-// and stored as Hz.
-func parseRadioForm(r *http.Request) (freq, bw int64, sf, cr int16, ok bool) {
+// radioFormError is shown when the radio fields don't parse or are out of the
+// range the firmware accepts (config.RadioDefaults.Valid).
+const radioFormError = "Radio parameters must be ones MeshCore accepts: 150–2500 MHz, 7–500 kHz bandwidth, SF 5–12, CR 5–8."
+
+// parseRadio reads and validates the shared radio fields ("radio-fields"
+// template). Frequency and bandwidth are entered in MHz/kHz (matching the
+// presets) and returned as Hz.
+func parseRadio(r *http.Request) (config.RadioDefaults, bool) {
 	mhz, e1 := strconv.ParseFloat(r.FormValue("radio_freq_mhz"), 64)
 	khz, e2 := strconv.ParseFloat(r.FormValue("radio_bw_khz"), 64)
-	s, e3 := strconv.ParseInt(r.FormValue("radio_sf"), 10, 16)
-	c, e4 := strconv.ParseInt(r.FormValue("radio_cr"), 10, 16)
-	if e1 != nil || e2 != nil || e3 != nil || e4 != nil || mhz <= 0 || khz <= 0 {
-		return 0, 0, 0, 0, false
+	sf, e3 := strconv.ParseUint(r.FormValue("radio_sf"), 10, 8)
+	cr, e4 := strconv.ParseUint(r.FormValue("radio_cr"), 10, 8)
+	// Range-check in float space first: converting an out-of-range float to an
+	// integer is implementation-defined in Go.
+	if e1 != nil || e2 != nil || e3 != nil || e4 != nil || !(mhz > 0 && mhz < 4000) || !(khz > 0 && khz < 4000) {
+		return config.RadioDefaults{}, false
 	}
-	return int64(math.Round(mhz * 1e6)), int64(math.Round(khz * 1e3)), int16(s), int16(c), true
+	rd := config.RadioDefaults{FreqHz: uint32(math.Round(mhz * 1e6)), BwHz: uint32(math.Round(khz * 1e3)), SF: uint8(sf), CR: uint8(cr)}
+	return rd, rd.Valid()
+}
+
+// parseRadioForm is parseRadio in a repeater record's column types.
+func parseRadioForm(r *http.Request) (freq, bw int64, sf, cr int16, ok bool) {
+	rd, ok := parseRadio(r)
+	return int64(rd.FreqHz), int64(rd.BwHz), int16(rd.SF), int16(rd.CR), ok
 }
 
 // pageEditRepeater shows the edit form for an owned repeater.
@@ -245,11 +257,10 @@ func (s *Handlers) pageEditRepeater(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Render(w, r, "edit_repeater.html", map[string]any{
-		"Repeater":       rep,
-		"Presets":        radioPresets,
-		"SelectedPreset": presetIDFor(config.RadioDefaults{FreqHz: uint32(rep.RadioFreqHz), BwHz: uint32(rep.RadioBwHz), SF: uint8(rep.RadioSF), CR: uint8(rep.RadioCR)}), //nolint:gosec // G115: radio config value is bounded (preset-constrained)
-		"RevokeCommand":  s.Identity.RevokePermCommand(),
-		"Error":          r.URL.Query().Get("error"),
+		"Repeater":      rep,
+		"Radio":         newRadioFields(config.RadioDefaults{FreqHz: uint32(rep.RadioFreqHz), BwHz: uint32(rep.RadioBwHz), SF: uint8(rep.RadioSF), CR: uint8(rep.RadioCR)}, true), //nolint:gosec // G115: radio config value is bounded (preset-constrained)
+		"RevokeCommand": s.Identity.RevokePermCommand(),
+		"Error":         r.URL.Query().Get("error"),
 	})
 }
 
@@ -271,7 +282,7 @@ func (s *Handlers) handleEditRepeater(w http.ResponseWriter, r *http.Request) {
 	}
 	freq, bw, sf, cr, valid := parseRadioForm(r)
 	if !valid {
-		editErr("Radio parameters must be valid numbers.")
+		editErr(radioFormError)
 		return
 	}
 	showOnPublicOrg := r.FormValue("show_on_public_org") != ""

@@ -106,6 +106,11 @@ func (s *Handlers) consoleConfigJSON(w http.ResponseWriter, r *http.Request) {
 		allowed[cid] = true
 	}
 	runnable := func(line string) (bool, string) {
+		if store.HasPlaceholders(line) {
+			// BuildConfigView filled in everything it could; what's left needs
+			// radio settings the org hasn't set.
+			return false, "the organization's radio settings aren't set"
+		}
 		cmd := resolveCommand(line, catalog)
 		if cmd == nil {
 			return false, "not a recognized command"

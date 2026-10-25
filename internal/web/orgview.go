@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/MeshTender/MeshTender/internal/config"
 	"github.com/MeshTender/MeshTender/internal/store"
 )
 
@@ -92,6 +93,11 @@ type ConfigView struct {
 	RootAllowFlood  bool        // the org root (*) flood policy — not a region row
 	RegionDef       []string    // region def/save commands for the previewed location
 	PreviewActive   bool
+	// Radio is the org's radio settings (nil when unset). SelectedSteps already
+	// have its {{ radio.* }} placeholders filled in; RadioMissing means some
+	// couldn't be, so those lines are shown as written and must not be run.
+	Radio        *config.RadioDefaults
+	RadioMissing bool
 }
 
 // MapRegion is one region as the read-only config map draws it — the payload handed
@@ -186,8 +192,13 @@ func BuildConfigView(ctx context.Context, st *store.Store, orgID int64, selected
 	if err != nil {
 		return ConfigView{}, err
 	}
+	radio, err := st.OrgRadio(ctx, orgID)
+	if err != nil {
+		return ConfigView{}, err
+	}
 	cv := ConfigView{
-		HasConfig:     len(profiles) > 0 || len(regions) > 0,
+		HasConfig:     len(profiles) > 0 || len(regions) > 0 || radio != nil,
+		Radio:         radio,
 		HasRegions:    len(regions) > 0,
 		PreviewActive: lat != nil && lon != nil,
 	}
@@ -203,7 +214,10 @@ func BuildConfigView(ctx context.Context, st *store.Store, orgID int64, selected
 			}
 		}
 		cv.Selected = profiles[idx].Name
-		cv.SelectedSteps = profiles[idx].Steps
+		// Every surface that assembles commands from this view (the page, the
+		// console) gets them with the org's radio filled in.
+		filled, ok := store.ExpandSteps(profiles[idx].Steps, radio)
+		cv.SelectedSteps, cv.RadioMissing = filled, !ok
 	}
 	// Frame the location-preview map. Prefer the primary region's geofence; if
 	// none is set (or it has no shape), fall back to the org's public repeaters;

@@ -15,7 +15,7 @@
      location's region commands spliced in — which is what a repeater owner actually
      runs; see ConfigView.AssembledLines. Main comes first in the DOM so a narrow
      screen reads content before its picker, matching the other org pages. */}}
-{{if or .Config.Profiles .Config.PreviewActive .CanEdit}}
+{{if or .Config.Profiles .Config.PreviewActive .Config.Radio .CanEdit}}
 <div class="row row-cards">
   <div class="col-lg-8">
     {{if or .Config.Profiles .Config.PreviewActive}}
@@ -27,6 +27,11 @@
         </h2>
       </div>
       <div class="card-body">{{template "config-lines" .Config.AssembledLines}}</div>
+      {{if .Config.RadioMissing}}
+      <div class="card-footer text-danger small" data-testid="config-radio-missing">
+        Some lines use this organization's radio settings, which aren't set, so they can't be run.
+      </div>
+      {{end}}
       {{if .Config.PreviewActive}}
         {{if not .Config.RegionDef}}
         <div class="card-footer text-secondary small">No regions cover this location.</div>
@@ -47,6 +52,28 @@
     {{end}}
   </div>
   <div class="col-lg-4">
+    {{/* The org's radio: what its profiles' {{ radio.* }} placeholders fill in. */}}
+    {{if or .Config.Radio .CanEdit}}
+    <div class="card mb-3" data-testid="config-radio">
+      <div class="card-header">
+        <h2 class="card-title">Radio</h2>
+        {{if .CanEdit}}
+        <div class="card-actions">
+          <button type="button" class="btn btn-sm" data-testid="config-radio-edit"
+                  data-bs-toggle="modal" data-bs-target="#config-radio-modal"
+                  hx-get="/orgs/{{.Org.Slug}}/config/radio/edit" hx-target="#config-radio-modal-content" hx-swap="innerHTML">{{template "icon-pencil" "me-1"}}{{if .Config.Radio}}Edit{{else}}Set{{end}}</button>
+        </div>
+        {{end}}
+      </div>
+      <div class="card-body">
+        {{with .Config.Radio}}
+        <div class="fw-bold" data-testid="config-radio-values">{{.MHz}} MHz · BW{{.KHz}} · SF{{.SF}} · CR{{.CR}}</div>
+        {{else}}
+        <div class="text-secondary">Not set. Set the radio this organization's mesh runs on so profiles can use it.</div>
+        {{end}}
+      </div>
+    </div>
+    {{end}}
     {{if or .Config.Profiles .CanEdit}}
     <div class="card">
       <div class="card-header">
@@ -254,11 +281,17 @@
     <div class="modal-content" id="config-profile-modal-content"></div>
   </div>
 </div>
+<div class="modal modal-blur fade" id="config-radio-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content" id="config-radio-modal-content"></div>
+  </div>
+</div>
 <div class="modal modal-blur fade" id="config-region-modal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" role="document">
     <div class="modal-content" id="config-region-modal-content"></div>
   </div>
 </div>
+<script src="{{ asset "/static/radio-preset.js" }}"></script>
 {{end}}
 {{end}}
 {{end}}

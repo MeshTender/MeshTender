@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/MeshTender/MeshTender/internal/config"
 	"github.com/MeshTender/MeshTender/internal/store"
 	"github.com/MeshTender/MeshTender/internal/web"
 )
@@ -170,7 +171,12 @@ func (s *Handlers) saveProfile(w http.ResponseWriter, r *http.Request, orgID, pi
 	if name == "" {
 		errs = append(errs, "Give the profile a name.")
 	}
-	_, steps := parseConfigSteps(stepsText, catalog, "profile", &errs, &risky)
+	radio, err := s.Store.OrgRadio(r.Context(), orgID)
+	if err != nil {
+		s.ServerError(w, r, "could not load radio settings", err)
+		return
+	}
+	steps := parseConfigSteps(stepsText, catalog, radio, "profile", &errs, &risky)
 
 	if len(errs) == 0 {
 		if pid == 0 {
@@ -215,12 +221,15 @@ func (s *Handlers) handleDeleteProfile(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/orgs/"+orgParam(r)+"/config", http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
 }
 
-// parseConfigSteps turns textarea lines into config steps, validating each command
-// against the catalog with the same resolver the console uses. Blank lines are
-// skipped; "# ..." lines become comment steps; unknown commands are recorded in
-// errs and risky commands in risky. It returns view steps (with rendered fields)
-// and the store steps to persist.
-func parseConfigSteps(text string, catalog []*store.Command, label string, errs, risky *[]string) (view, persist []store.ConfigStep) {
+// parseConfigSteps turns textarea lines into config steps to persist, validating
+// each command against the catalog with the same resolver the console uses.
+// Blank lines are skipped; "# ..." lines become comment steps; unknown commands
+// are recorded in errs and risky commands in risky. A line's {{ radio.* }}
+// placeholders are stored canonical and validated filled in from radio — the
+// org's radio settings — so a profile can't reference settings the org hasn't
+// set.
+func parseConfigSteps(text string, catalog []*store.Command, radio *config.RadioDefaults, label string, errs, risky *[]string) []store.ConfigStep {
+	var steps []store.ConfigStep
 	markerSeen := false
 	for _, raw := range strings.Split(text, "\n") {
 		line := strings.TrimSpace(strings.TrimRight(raw, "\r"))
@@ -228,10 +237,7 @@ func parseConfigSteps(text string, catalog []*store.Command, label string, errs,
 			continue
 		}
 		if strings.HasPrefix(line, "#") {
-			comment := strings.TrimSpace(strings.TrimPrefix(line, "#"))
-			step := store.ConfigStep{Comment: comment}
-			view = append(view, step)
-			persist = append(persist, step)
+			steps = append(steps, store.ConfigStep{Comment: strings.TrimSpace(strings.TrimPrefix(line, "#"))})
 			continue
 		}
 		if isRegionMarkerLine(line) {
@@ -240,16 +246,24 @@ func parseConfigSteps(text string, catalog []*store.Command, label string, errs,
 				continue
 			}
 			markerSeen = true
-			step := store.ConfigStep{CommandLine: store.RegionMarker}
-			view = append(view, step)
-			persist = append(persist, step)
+			steps = append(steps, store.ConfigStep{CommandLine: store.RegionMarker})
 			continue
 		}
-		if !validCommandText(line) {
+		line, unknown := store.CanonicalizePlaceholders(line)
+		if len(unknown) > 0 {
+			*errs = append(*errs, fmt.Sprintf("%s: unknown placeholder %s in %q.", label, strings.Join(unknown, ", "), line))
+			continue
+		}
+		filled, ok := store.ExpandPlaceholders(line, radio)
+		if !ok {
+			*errs = append(*errs, fmt.Sprintf("%s: %q uses the organization's radio settings, which aren't set — set them under Radio first.", label, line))
+			continue
+		}
+		if !validCommandText(filled) { // what reaches the device
 			*errs = append(*errs, fmt.Sprintf("%s: invalid command %q.", label, line))
 			continue
 		}
-		cmd := resolveCommand(line, catalog)
+		cmd := resolveCommand(filled, catalog)
 		if cmd == nil {
 			*errs = append(*errs, fmt.Sprintf("%s: unknown command %q.", label, line))
 			continue
@@ -258,11 +272,9 @@ func parseConfigSteps(text string, catalog []*store.Command, label string, errs,
 			*risky = append(*risky, line)
 		}
 		id := cmd.ID
-		step := store.ConfigStep{CommandLine: line, CommandID: &id}
-		view = append(view, step)
-		persist = append(persist, step)
+		steps = append(steps, store.ConfigStep{CommandLine: line, CommandID: &id})
 	}
-	return view, persist
+	return steps
 }
 
 // isRegionMarkerLine reports whether a profile line is the region placeholder,

@@ -271,6 +271,7 @@ var FirstPartyStatic = []string{
 	"listfilter.js",
 	"livereload.js",
 	"meshmap.js",
+	"radio-preset.js",
 	"regionmap.js",
 	"serial-port.js",
 	"serial-setup.js",
