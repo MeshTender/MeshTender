@@ -2,7 +2,6 @@ package core
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -10,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coder/websocket"
 	meshcore "github.com/meshcore-go/meshcore-go"
 	"github.com/meshcore-go/meshcore-go/hardware"
 
@@ -237,25 +235,12 @@ func (s *Handlers) wsConsole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Track the socket so shutdown can drain it (http.Server.Shutdown doesn't close
-	// hijacked/WebSocket conns). Add before Accept so a shutdown racing the upgrade
-	// still waits for this handler.
-	s.wsWG.Add(1)
-	defer s.wsWG.Done()
-
-	ws, err := websocket.Accept(w, r, nil)
-	if err != nil {
+	sess, ok := s.openModemSession(w, r, consoleIdleTimeout, hardware.WithTxFlowControl(0))
+	if !ok {
 		return
 	}
-	// Derive from the server's WS context so shutdown cancels the session.
-	ctx, cancel := context.WithCancel(s.wsCtx)
-	defer cancel()
-	idle := time.AfterFunc(consoleIdleTimeout, cancel)
-	defer idle.Stop()
-
-	bridge := wsbridge.New(ctx, ws)
-	modem := hardware.NewKissModem(bridge, hardware.WithTxFlowControl(0))
-	defer func() { _ = modem.Close() }()
+	defer sess.Close()
+	ctx, bridge, modem := sess.Ctx, sess.Bridge, sess.Modem
 	server := s.Identity.Local()
 
 	// All commands go through one exchanger: rate-limited, monotonic timestamps,
@@ -295,54 +280,8 @@ func (s *Handlers) wsConsole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ready := make(chan struct{}, 1)
-	cmdCh := make(chan string, 8)
-	locCh := make(chan struct{}, 1) // "getloc" requests: fetch the device's coordinates
-
-	go func() {
-		for {
-			typ, data, err := ws.Read(ctx)
-			if err != nil {
-				bridge.MarkDead()
-				cancel()
-				return
-			}
-			switch typ {
-			case websocket.MessageBinary:
-				bridge.Feed(data)
-			case websocket.MessageText:
-				var msg struct {
-					Type string `json:"type"`
-					Text string `json:"text"`
-				}
-				if json.Unmarshal(data, &msg) != nil {
-					continue
-				}
-				switch msg.Type {
-				case "ready":
-					select {
-					case ready <- struct{}{}:
-					default:
-					}
-				case "cmd":
-					select {
-					case cmdCh <- msg.Text:
-					default:
-						_ = bridge.Status("error", "busy — wait for the previous command")
-					}
-				case "getloc":
-					select {
-					case locCh <- struct{}{}:
-					default:
-					}
-				}
-			}
-		}
-	}()
-
-	select {
-	case <-ready:
-	case <-ctx.Done():
+	sess.Start()
+	if !sess.WaitReady() {
 		return
 	}
 
@@ -393,7 +332,8 @@ func (s *Handlers) wsConsole(w http.ResponseWriter, r *http.Request) {
 			_ = bridge.Status("warning", fmt.Sprintf("Repeater reached, but MeshTender only has GUEST access (permissions=%d). Guest is open to anyone with a blank password, so MeshTender can't administer this repeater — re-run `%s` to grant admin.", lr.Permissions, s.Identity.SetPermCommand()))
 		}
 	}
-	_ = bridge.Status("info", "Connected. Ready for commands.")
+	// "ready" is what the page waits for before offering the command box.
+	_ = bridge.Status("ready", "Connected. Ready for commands.")
 
 	// permitted reports whether this user may send cmd on this repeater, using the
 	// one authorization query the sidebar is also built from. An error is treated as
@@ -437,7 +377,7 @@ func (s *Handlers) wsConsole(w http.ResponseWriter, r *http.Request) {
 	}
 
 	runCommand := func(text string) {
-		idle.Reset(consoleIdleTimeout)
+		sess.ResetIdle()
 		if !validCommandText(text) {
 			_ = bridge.Status("denied", "Invalid command.")
 			return
@@ -515,14 +455,17 @@ func (s *Handlers) wsConsole(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-ctx.Done():
 			return
-		case text := <-cmdCh:
-			runCommand(text)
-		case <-locCh:
-			// Handled in the same loop as commands so it never drives the exchanger
-			// concurrently with a command. Emits a "location" status on success so an
-			// open config panel refreshes its region commands.
-			idle.Reset(consoleIdleTimeout)
-			fetchLocation()
+		case msg := <-sess.Messages():
+			switch msg.Type {
+			case "cmd":
+				runCommand(msg.Text)
+			case "getloc":
+				// Handled in the same loop as commands so it never drives the
+				// exchanger concurrently with a command. Emits a "location" status on
+				// success so an open config panel refreshes its region commands.
+				sess.ResetIdle()
+				fetchLocation()
+			}
 		}
 	}
 }

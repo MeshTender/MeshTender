@@ -1,6 +1,5 @@
-// Interactive repeater console. Bridges a WebSerial-connected KISS modem to the
-// server over a WebSocket (binary = raw KISS bytes), and exchanges JSON control
-// messages for commands and status: a KISS-modem bridge plus a CLI.
+// Interactive repeater console: a CLI on top of the modem bridge
+// (mesh-bridge.js), which pipes the user's KISS modem to the server and back.
 //
 // It also exposes a small API (window.MeshConsole) and document events so the
 // separate "apply org configuration" script (console-config.js) can send commands
@@ -20,24 +19,22 @@
   const form = document.getElementById("cmdform");
   const input = document.getElementById("cmdinput");
 
-  let port, ws, reader, writer, keepReading = false;
+  let bridge = null;
 
   // The shared API other scripts use. `ready` is the single source of truth for
   // whether a command can be sent right now.
   const api = {
     ready: false,
-    supported: !!(window.MeshSerial && window.MeshSerial.supported),
+    supported: !!(window.MeshBridge && window.MeshBridge.supported),
     connect() {}, // replaced with the real routine below when a serial transport is present
     send(text) {
       const t = String(text || "").trim();
-      if (!t || !api.ready || !ws || ws.readyState !== WebSocket.OPEN) return false;
-      ws.send(JSON.stringify({ type: "cmd", text: t }));
-      return true;
+      if (!t || !api.ready || !bridge) return false;
+      return bridge.send({ type: "cmd", text: t });
     },
     getLocation() {
-      if (!api.ready || !ws || ws.readyState !== WebSocket.OPEN) return false;
-      ws.send(JSON.stringify({ type: "getloc" }));
-      return true;
+      if (!api.ready || !bridge) return false;
+      return bridge.send({ type: "getloc" });
     },
   };
   window.MeshConsole = api;
@@ -82,28 +79,6 @@
     }
   }
 
-  async function cleanup() {
-    keepReading = false;
-    setReady(false);
-    try { if (reader) await reader.cancel(); } catch (_) {}
-    try { if (writer) writer.releaseLock(); } catch (_) {}
-    try { if (port) await port.close(); } catch (_) {}
-    try { if (ws && ws.readyState === WebSocket.OPEN) ws.close(); } catch (_) {}
-    connectBtn.disabled = false;
-  }
-
-  async function pumpSerialToWS() {
-    try {
-      while (keepReading) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        if (value && value.length && ws.readyState === WebSocket.OPEN) ws.send(value);
-      }
-    } catch (e) {
-      addLog("error", "Serial read error: " + e.message);
-    }
-  }
-
   // Chips fill the input.
   document.querySelectorAll(".chip").forEach((c) => {
     c.addEventListener("click", () => {
@@ -124,38 +99,22 @@
     connectBtn.disabled = true;
     log.innerHTML = "";
     try {
-      addLog("info", "Requesting serial port…");
-      port = await MeshSerial.requestPort();
-      await port.open({ baudRate: 115200 });
-      writer = port.writable.getWriter();
-      reader = port.readable.getReader();
-      keepReading = true;
-      addLog("info", "Serial port open. Connecting to server…");
-
-      ws = new WebSocket(wsURL());
-      ws.binaryType = "arraybuffer";
-
-      ws.onopen = () => {
-        pumpSerialToWS();
-        ws.send(JSON.stringify({ type: "ready" }));
-      };
-      ws.onmessage = async (ev) => {
-        if (typeof ev.data === "string") {
-          let msg = {};
-          try { msg = JSON.parse(ev.data); } catch (_) {}
-          addLog(msg.state || "info", msg.message || ev.data);
-          emit("mesh:status", { state: msg.state || "info", message: msg.message || "" });
-          if (msg.state === "info" && /ready for commands/i.test(msg.message || "")) setReady(true);
-          return;
-        }
-        try { await writer.write(new Uint8Array(ev.data)); }
-        catch (e) { addLog("error", "Serial write error: " + e.message); }
-      };
-      ws.onclose = () => { addLog("info", "Disconnected."); emit("mesh:closed", null); cleanup(); };
-      ws.onerror = () => { addLog("error", "WebSocket error."); };
-    } catch (e) {
-      addLog("error", e.message);
-      await cleanup();
+      bridge = await MeshBridge.open(wsURL(), {
+        onLog: addLog,
+        onStatus: (state, message) => {
+          addLog(state, message);
+          emit("mesh:status", { state: state, message: message });
+          if (state === "ready") setReady(true);
+        },
+        onClose: () => {
+          bridge = null;
+          setReady(false);
+          connectBtn.disabled = false;
+          emit("mesh:closed", null);
+        },
+      });
+    } catch (_) {
+      // MeshBridge reported the error to the log and cleaned up.
     }
   }
 

@@ -158,5 +158,6 @@ swap needs no new markup. The flex row is nested so the [hidden] attribute wins
   window.MESHTENDER_WS = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/repeaters/{{.Repeater.PublicID}}/console/ws{{if .Debug}}?debug=1{{end}}";
 </script>
 <script src="{{ asset "/static/serial-port.js" }}"></script>
+<script src="{{ asset "/static/mesh-bridge.js" }}"></script>
 <script src="{{ asset "/static/console.js" }}"></script>
 {{end}}
