@@ -283,6 +283,7 @@ func identify(dir string) (string, []string, error) {
 	var best licensecheck.Coverage
 	var bestIDs []string
 	var copyrights []string
+	var declared []string // alternatives from SPDX-License-Identifier "A OR B" declarations
 	found := false
 
 	err := filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
@@ -304,6 +305,7 @@ func identify(dir string) (string, []string, error) {
 			return nil
 		}
 		found = true
+		declared = append(declared, declaredAlternatives(string(b))...)
 		cov := licensecheck.Scan(b)
 		if cov.Percent > best.Percent {
 			best = cov
@@ -332,7 +334,89 @@ func identify(dir string) (string, []string, error) {
 			return id, dedupe(copyrights), nil
 		}
 	}
+	// A module can declare a choice of licenses with an SPDX expression while
+	// its LICENSE file carries only one of them: Eclipse projects ship the EPL as
+	// LICENSE, declare "EPL-2.0 OR BSD-3-Clause" in NOTICE, and put the BSD text
+	// in a file named edl-v10. Taking the permissive option is what the dual
+	// license grants, but only when the module ships that option's text — a BSD
+	// notice has to reproduce it, copyright line included.
+	for _, id := range declared {
+		if !licenses.AllowedSPDX[id] {
+			continue
+		}
+		if text, ok := shippedLicenseText(dir, id); ok {
+			return id, dedupe(append(copyrights, copyrightLines(text)...)), nil
+		}
+	}
 	return bestIDs[0], dedupe(copyrights), nil
+}
+
+// declaredAlternatives returns the license IDs offered by "SPDX-License-Identifier:
+// A OR B" lines in text. Only a pure disjunction is a choice the recipient can
+// make; an AND or WITH expression obliges more than one license (or an
+// exception) at once, so it is not treated as offering alternatives.
+func declaredAlternatives(text string) []string {
+	const tag = "spdx-license-identifier:"
+	var out []string
+	for _, line := range strings.Split(text, "\n") {
+		i := strings.Index(strings.ToLower(line), tag)
+		if i < 0 {
+			continue
+		}
+		expr := strings.Trim(strings.TrimSpace(line[i+len(tag):]), "()")
+		fields := strings.Fields(expr)
+		if len(fields) < 3 {
+			continue
+		}
+		var ids []string
+		disjunction := true
+		for j, f := range fields {
+			if j%2 == 1 {
+				if !strings.EqualFold(f, "OR") {
+					disjunction = false
+					break
+				}
+				continue
+			}
+			ids = append(ids, strings.Trim(f, "()"))
+		}
+		if disjunction && len(fields)%2 == 1 {
+			out = append(out, ids...)
+		}
+	}
+	return out
+}
+
+// maxLicenseTextSize bounds the module-root files shippedLicenseText reads.
+const maxLicenseTextSize = 64 << 10
+
+// shippedLicenseText looks through the files at the module root (whatever
+// they're named) for the text of license id, and returns it.
+func shippedLicenseText(dir, id string) (string, bool) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return "", false
+	}
+	for _, e := range entries {
+		info, err := e.Info()
+		if err != nil || !info.Mode().IsRegular() || info.Size() > maxLicenseTextSize {
+			continue
+		}
+		b, err := os.ReadFile(filepath.Join(dir, e.Name())) //nolint:gosec // G304: a file in the module cache directory
+		if err != nil {
+			continue
+		}
+		cov := licensecheck.Scan(b)
+		if cov.Percent < minCoverage {
+			continue
+		}
+		for _, m := range cov.Match {
+			if m.ID == id {
+				return string(b), true
+			}
+		}
+	}
+	return "", false
 }
 
 func isLicenseFile(name string) bool {

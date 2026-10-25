@@ -1,8 +1,11 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"slices"
 	"sort"
+	"strings"
 	"testing"
 )
 
@@ -97,5 +100,87 @@ func TestAuditPlatformsCoversShipAndDev(t *testing.T) {
 	}
 	if len(oses) < 2 {
 		t.Errorf("auditPlatforms covers only %v — scanning one GOOS makes the generated file host-dependent", oses)
+	}
+}
+
+// copyFixture copies testdata/dual (Eclipse Paho's LICENSE, edl-v10 and
+// NOTICE.md, verbatim) into a temp module dir, minus any files named in skip,
+// with NOTICE.md's declaration replaced when notice is non-empty.
+func copyFixture(t *testing.T, notice string, skip ...string) string {
+	t.Helper()
+	dir := t.TempDir()
+	for _, name := range []string{"LICENSE", "edl-v10", "NOTICE.md"} {
+		if slices.Contains(skip, name) {
+			continue
+		}
+		b, err := os.ReadFile(filepath.Join("testdata", "dual", name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if name == "NOTICE.md" && notice != "" {
+			b = []byte(strings.ReplaceAll(string(b), "SPDX-License-Identifier: EPL-2.0 or BSD-3-Clause", notice))
+		}
+		if err := os.WriteFile(filepath.Join(dir, name), b, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return dir
+}
+
+// TestIdentifyHonorsDeclaredDualLicense: Eclipse Paho's LICENSE file is the
+// EPL-2.0 text, but the project is dual-licensed EPL-2.0 OR BSD-3-Clause (its
+// NOTICE.md says so in SPDX form) and ships the BSD text as edl-v10. The
+// scanner used to read only LICENSE and reject the module as EPL.
+func TestIdentifyHonorsDeclaredDualLicense(t *testing.T) {
+	t.Parallel()
+	spdx, copyrights, err := identify(copyFixture(t, ""))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spdx != "BSD-3-Clause" {
+		t.Fatalf("spdx = %s, want BSD-3-Clause", spdx)
+	}
+	if !slices.ContainsFunc(copyrights, func(c string) bool { return strings.Contains(c, "Eclipse Foundation") }) {
+		t.Errorf("copyrights = %q; the BSD notice needs edl-v10's copyright line", copyrights)
+	}
+}
+
+func TestIdentifyDualLicenseNeedsGrantAndText(t *testing.T) {
+	t.Parallel()
+	for name, dir := range map[string]string{
+		// Declared, but the BSD text isn't shipped: nothing to reproduce in a notice.
+		"text missing": copyFixture(t, "", "edl-v10"),
+		// The BSD text is there, but nothing grants a choice.
+		"no declaration": copyFixture(t, "SPDX-License-Identifier: EPL-2.0"),
+		// AND obliges both licenses; it isn't a choice.
+		"conjunction": copyFixture(t, "SPDX-License-Identifier: EPL-2.0 AND BSD-3-Clause"),
+		// A license exception isn't an alternative either.
+		"with exception": copyFixture(t, "SPDX-License-Identifier: EPL-2.0 WITH Classpath-exception-2.0"),
+	} {
+		spdx, _, err := identify(dir)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if spdx != "EPL-2.0" {
+			t.Errorf("%s: spdx = %s, want EPL-2.0 (rejected later as not permissive)", name, spdx)
+		}
+	}
+}
+
+func TestDeclaredAlternatives(t *testing.T) {
+	t.Parallel()
+	for in, want := range map[string][]string{
+		"SPDX-License-Identifier: EPL-2.0 or BSD-3-Clause":         {"EPL-2.0", "BSD-3-Clause"},
+		"// SPDX-License-Identifier: (MIT OR Apache-2.0)":          {"MIT", "Apache-2.0"},
+		"SPDX-License-Identifier: MIT":                             nil,
+		"SPDX-License-Identifier: GPL-2.0 AND MIT":                 nil,
+		"SPDX-License-Identifier: MIT OR":                          nil,
+		"no declaration here":                                      nil,
+		"SPDX-License-Identifier: A OR B AND C":                    nil,
+		"SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note": nil,
+	} {
+		if got := declaredAlternatives(in); !slices.Equal(got, want) {
+			t.Errorf("declaredAlternatives(%q) = %q, want %q", in, got, want)
+		}
 	}
 }
