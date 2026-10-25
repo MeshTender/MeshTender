@@ -285,3 +285,38 @@ func TestOrgActivityPage(t *testing.T) {
 		t.Errorf("outsider GET = %d", got)
 	}
 }
+
+// TestObserverStatusBadges: a newly registered observer hasn't been heard yet,
+// which is different from one that went quiet. Calling the first "Offline"
+// read as a broken setup in the minute before its first message arrived.
+func TestObserverStatusBadges(t *testing.T) {
+	t.Parallel()
+	st, ctx, ts, h := splitServer(t)
+	admin, sess := appLogin(t, ts, st, ctx, h.app, "badgeadmin")
+	org, err := st.CreateOrg(ctx, "Badge Org", admin.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	keys := map[string]string{}
+	for _, name := range []string{"Fresh", "Quiet", "Busy"} {
+		keys[name] = observetest.NewIdentity(t).String()
+		if err := st.CreateOrgObserver(ctx, org.ID, name, keys[name], admin.ID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := st.TouchObserver(ctx, org.ID, keys["Quiet"], time.Now().Add(-time.Hour), nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.TouchObserver(ctx, org.ID, keys["Busy"], time.Now(), nil); err != nil {
+		t.Fatal(err)
+	}
+
+	body := getBody(t, ts, h.app, "/orgs/"+org.Slug+"/observers", sess)
+	for name, want := range map[string]string{"Fresh": "Not heard yet", "Quiet": "Offline", "Busy": "Online"} {
+		row := body[strings.Index(body, ">"+name+"<"):]
+		row = row[:strings.Index(row, "</tr>")]
+		if !strings.Contains(row, want) {
+			t.Errorf("%s observer row lacks %q: %s", name, want, row)
+		}
+	}
+}

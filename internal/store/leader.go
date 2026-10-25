@@ -2,8 +2,11 @@ package store
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -51,4 +54,31 @@ func (l *SessionLock) Alive(ctx context.Context) error {
 func (l *SessionLock) Release(ctx context.Context) {
 	_, _ = l.conn.Exec(ctx, `SELECT pg_advisory_unlock($1)`, l.key)
 	l.conn.Release()
+}
+
+// Listen subscribes the lock's connection to a notification channel. The
+// lock's connection is the one the leader already keeps open, so it doubles as
+// the listener and a notification can only wake the replica that is leading.
+func (l *SessionLock) Listen(ctx context.Context, channel string) error {
+	if _, err := l.conn.Exec(ctx, "LISTEN "+pgx.Identifier{channel}.Sanitize()); err != nil {
+		return fmt.Errorf("listen %s: %w", channel, err)
+	}
+	return nil
+}
+
+// Wait blocks until a notification arrives on a channel the lock's connection
+// listens on, or until timeout. It reports whether one arrived; a timeout is
+// not an error, and leaves the connection (and so the lock) intact.
+func (l *SessionLock) Wait(ctx context.Context, timeout time.Duration) (bool, error) {
+	wctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	_, err := l.conn.Conn().WaitForNotification(wctx)
+	switch {
+	case err == nil:
+		return true, nil
+	case ctx.Err() == nil && errors.Is(wctx.Err(), context.DeadlineExceeded):
+		return false, nil
+	default:
+		return false, err
+	}
 }

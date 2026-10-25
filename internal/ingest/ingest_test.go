@@ -327,9 +327,14 @@ func testDialer(b *fakeBroker, allow AddrPolicy) Dialer {
 
 func startSupervisor(t *testing.T, st *store.Store, d Dialer) {
 	t.Helper()
+	startSupervisorEvery(t, st, d, 50*time.Millisecond)
+}
+
+func startSupervisorEvery(t *testing.T, st *store.Store, d Dialer, every time.Duration) {
+	t.Helper()
 	sup := NewSupervisor(st, testMasterKey, quietLog())
 	sup.Dialer = d
-	sup.ReconcileEvery = 50 * time.Millisecond
+	sup.ReconcileEvery = every
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() {
@@ -486,4 +491,25 @@ func TestDialerWebSocketWrongPath(t *testing.T) {
 	if Category(err) != CategoryRejected {
 		t.Fatalf("err = %v (category %q), want rejected", err, Category(err))
 	}
+}
+
+// TestSupervisorConnectsAsSoonAsBrokerIsSaved: with the periodic reconcile an
+// hour away, saving a broker still connects within moments, because the save
+// notifies the leader (and removing it disconnects the same way).
+func TestSupervisorConnectsAsSoonAsBrokerIsSaved(t *testing.T) {
+	t.Parallel()
+	st, ctx := newStore(t)
+	f := newFixture(t, st, ctx)
+	broker := newFakeBroker(t, "s3cret", "ws")
+	startSupervisorEvery(t, st, testDialer(broker, allowAll), time.Hour)
+	// Let the leader take the lock and run its first (empty) reconcile, so
+	// the connection below can only come from the notification.
+	time.Sleep(300 * time.Millisecond)
+
+	saveBroker(t, st, ctx, f, broker.url(), "s3cret", true)
+	eventually(t, "connect on save", func() bool { return broker.live() == 1 })
+	if err := st.DeleteOrgBroker(ctx, f.org); err != nil {
+		t.Fatal(err)
+	}
+	eventually(t, "disconnect on delete", func() bool { return broker.live() == 0 })
 }

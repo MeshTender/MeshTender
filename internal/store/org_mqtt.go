@@ -14,6 +14,11 @@ import (
 // to each enabled broker and records adverts only from that org's registered
 // observers; see internal/ingest.
 
+// BrokersChangedChannel is notified (Postgres NOTIFY) whenever an org's broker
+// settings are saved or removed, so the ingester reconnects at once instead of
+// on its next periodic reconcile. Delivered only when the change commits.
+const BrokersChangedChannel = "meshtender_brokers_changed"
+
 // OrgBroker is an org's MQTT broker configuration plus the ingester's last
 // reported status. PasswordSealed is secretbox-sealed; it never leaves the
 // server, and the UI only learns whether one is set.
@@ -59,7 +64,7 @@ func (s *Store) GetOrgBroker(ctx context.Context, orgID int64) (*OrgBroker, erro
 // "unchanged"); clearPassword removes it. Saving resets the status columns: they
 // described the previous settings.
 func (s *Store) UpsertOrgBroker(ctx context.Context, b OrgBroker, passwordSealed []byte, clearPassword bool, updatedBy int64) error {
-	_, err := s.pool.Exec(ctx, `
+	return s.changeBrokers(ctx, "upsert org broker", `
 		INSERT INTO org_mqtt_brokers (org_id, url, username, password_sealed, topic_prefix, enabled, updated_by)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		ON CONFLICT (org_id) DO UPDATE SET
@@ -76,17 +81,28 @@ func (s *Store) UpsertOrgBroker(ctx context.Context, b OrgBroker, passwordSealed
 			last_message_at = NULL,
 			last_error = ''`,
 		b.OrgID, b.URL, b.Username, passwordSealed, b.TopicPrefix, b.Enabled, updatedBy, clearPassword)
-	if err != nil {
-		return fmt.Errorf("upsert org broker: %w", err)
-	}
-	return nil
 }
 
 // DeleteOrgBroker removes the org's broker; the ingester disconnects on its next
 // reconcile. Observers stay registered.
 func (s *Store) DeleteOrgBroker(ctx context.Context, orgID int64) error {
-	if _, err := s.pool.Exec(ctx, `DELETE FROM org_mqtt_brokers WHERE org_id = $1`, orgID); err != nil {
-		return fmt.Errorf("delete org broker: %w", err)
+	return s.changeBrokers(ctx, "delete org broker", `DELETE FROM org_mqtt_brokers WHERE org_id = $1`, orgID)
+}
+
+// changeBrokers runs a write to org_mqtt_brokers and notifies
+// BrokersChangedChannel in the same transaction, so the ingester hears about
+// the change exactly when it becomes visible. Status writes from the ingester
+// itself (RecordBrokerStatus) deliberately don't notify.
+func (s *Store) changeBrokers(ctx context.Context, what, sql string, args ...any) error {
+	err := s.inTx(ctx, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, sql, args...); err != nil {
+			return err
+		}
+		_, err := tx.Exec(ctx, `SELECT pg_notify($1, '')`, BrokersChangedChannel)
+		return err
+	})
+	if err != nil {
+		return fmt.Errorf("%s: %w", what, err)
 	}
 	return nil
 }

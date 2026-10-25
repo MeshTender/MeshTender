@@ -138,6 +138,14 @@ func (s *Supervisor) lead(ctx context.Context, lock *store.SessionLock) {
 			<-r.done
 		}
 	}()
+	// A saved or removed broker notifies BrokersChangedChannel, which wakes
+	// the wait below so the change takes effect at once; ReconcileEvery is the
+	// fallback (and catches anything a dropped notification would miss).
+	if err := lock.Listen(ctx, store.BrokersChangedChannel); err != nil {
+		if ctx.Err() == nil {
+			s.Log.Warn("ingest: listen for broker changes; falling back to polling", "err", err)
+		}
+	}
 	for {
 		if err := lock.Alive(ctx); err != nil {
 			if ctx.Err() == nil {
@@ -146,10 +154,11 @@ func (s *Supervisor) lead(ctx context.Context, lock *store.SessionLock) {
 			return
 		}
 		s.reconcile(ctx, conns)
-		select {
-		case <-ctx.Done():
+		if _, err := lock.Wait(ctx, s.ReconcileEvery); err != nil {
+			if ctx.Err() == nil {
+				s.Log.Warn("ingest: lost leader lock", "err", err)
+			}
 			return
-		case <-time.After(s.ReconcileEvery):
 		}
 	}
 }

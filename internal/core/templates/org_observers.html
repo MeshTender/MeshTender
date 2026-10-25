@@ -21,7 +21,9 @@
                 <div class="text-secondary font-monospace small">{{slice .PublicKeyHex 0 16}}…</div>
               </td>
               <td>
-                {{if .OnlineAt $.Now}}<span class="badge bg-green-lt">Online</span>{{else}}<span class="badge bg-secondary-lt">Offline</span>{{end}}
+                {{if .OnlineAt $.Now}}<span class="badge bg-green-lt">Online</span>
+                {{else if .LastSeenAt}}<span class="badge bg-secondary-lt">Offline</span>
+                {{else}}<span class="badge bg-yellow-lt" title="No message from this observer has reached MeshTender since it was registered">Not heard yet</span>{{end}}
                 {{if .LastSeenAt}}<div class="text-secondary small">Heard {{ts .LastSeenAt "datetime"}}</div>{{end}}
               </td>
               <td class="text-secondary small">
