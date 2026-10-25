@@ -38,6 +38,8 @@ type AdvertHeard struct {
 	ZeroHop bool
 	// Relays are the path entries: one hash per repeater that forwarded it.
 	Relays [][]byte
+	// Name is the name the advert carries (signed with it).
+	Name string
 }
 
 // RecordAdvertHeard adds one copy of an advert to its check-in: the check-in
@@ -86,8 +88,10 @@ func (s *Store) RecordAdvertHeard(ctx context.Context, h AdvertHeard) (bool, err
 			UPDATE companions SET
 				last_heard_at = GREATEST(last_heard_at, $2),
 				last_advert_ts = GREATEST(last_advert_ts, $3),
-				confirmed_at = COALESCE(confirmed_at, CASE WHEN $2 >= created_at THEN $2 END)
-			WHERE id = $1`, h.CompanionID, h.ReceivedAt, int64(h.AdvertTS))
+				confirmed_at = COALESCE(confirmed_at, CASE WHEN $2 >= created_at THEN $2 END),
+				-- The newest advert's name wins; a late copy of an older one doesn't.
+				advert_name = CASE WHEN $4 <> '' AND $3 >= COALESCE(last_advert_ts, 0) THEN $4 ELSE advert_name END
+			WHERE id = $1`, h.CompanionID, h.ReceivedAt, int64(h.AdvertTS), h.Name)
 		if err != nil {
 			return fmt.Errorf("advance companion: %w", err)
 		}

@@ -161,6 +161,7 @@ func (in *Ingester) handlePacket(ctx context.Context, m Message, observer string
 		ReceivedAt:           m.ReceivedAt,
 		ZeroHop:              adv.ZeroHop(),
 		Relays:               adv.Path,
+		Name:                 adv.Name,
 	})
 	if err != nil {
 		in.Log.Warn("ingest: record check-in", "err", err)

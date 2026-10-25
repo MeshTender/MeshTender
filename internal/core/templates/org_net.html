@@ -56,6 +56,72 @@
       </div>
     </div>
 
+    {{/* Members see where net control's messages go out, so they can listen;
+         a private channel's key never leaves the server. */}}
+    <div class="card mb-3" data-testid="net-air">
+      <div class="card-header"><h2 class="card-title">On the air</h2></div>
+      <div class="card-body">
+        <p class="text-secondary small">When net control connects a modem during a session, announcements and acknowledgements go out as channel messages here.</p>
+        <dl class="row mb-0" data-testid="net-air-summary">
+          <dt class="col-sm-4">Channel</dt>
+          <dd class="col-sm-8">{{with .Air}}{{if eq .ChannelKind "hashtag"}}<code>#{{.ChannelName}}</code>{{else if eq .ChannelKind "private"}}{{if .ChannelName}}{{.ChannelName}}{{else}}A private channel{{end}} <span class="text-secondary">(private)</span>{{else}}Public{{end}}{{end}}</dd>
+          <dt class="col-sm-4">Scope</dt>
+          <dd class="col-sm-8">{{if .Air.ScopeToken}}Region <code>{{.Air.ScopeToken}}</code>{{else}}Unscoped{{end}}</dd>
+          <dt class="col-sm-4">Sent as</dt>
+          <dd class="col-sm-8">{{if .Air.OnAirName}}{{.Air.OnAirName}}{{else}}{{.Net.Name}}{{end}}</dd>
+          <dt class="col-sm-4">Logged</dt>
+          <dd class="col-sm-8">{{if .Air.LogPrefix}}Channel messages starting with <code>{{.Air.LogPrefix}}</code>{{else}}Nothing{{end}}</dd>
+          <dt class="col-sm-4">Radio</dt>
+          <dd class="col-sm-8">{{with .Radio}}{{.MHz}} MHz · BW{{.KHz}} · SF{{.SF}} · CR{{.CR}}{{else}}<span class="text-danger" data-testid="net-air-no-radio">Not set — an admin sets the organization's radio on the Configuration tab.</span>{{end}}</dd>
+        </dl>
+        {{if .IsAdmin}}
+        <form method="post" action="/orgs/{{.Org.Slug}}/nets/{{.Net.ID}}/air" class="mt-3 border-top pt-3">
+          <div class="row g-2 mb-3">
+            <div class="col-md-4">
+              <label class="form-label" for="air-kind">Channel</label>
+              <select id="air-kind" name="channel_kind" class="form-select">
+                <option value="public"{{if eq .Air.ChannelKind "public"}} selected{{end}}>Public</option>
+                <option value="hashtag"{{if eq .Air.ChannelKind "hashtag"}} selected{{end}}>Hashtag channel</option>
+                <option value="private"{{if eq .Air.ChannelKind "private"}} selected{{end}}>Private channel</option>
+              </select>
+            </div>
+            <div class="col-md-8">
+              <label class="form-label" for="air-name">Channel name</label>
+              <input type="text" id="air-name" name="channel_name" class="form-control" maxlength="31" value="{{.Air.ChannelName}}" placeholder="wnynet">
+              <div class="form-hint">A hashtag channel's name (exactly as members join it — case matters), or a label for a private channel.</div>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="air-key">Private channel key</label>
+            <input type="password" id="air-key" name="channel_key" class="form-control font-monospace" autocomplete="off"
+                   placeholder="{{if .Air.HasKey}}Stored — leave blank to keep it{{else}}32 hex digits{{end}}">
+            <div class="form-hint">Only for a private channel: the secret the companion app shares. It's stored encrypted and never shown again.</div>
+          </div>
+          <div class="row g-2 mb-3">
+            <div class="col-md-6">
+              <label class="form-label" for="air-scope">Scope to region</label>
+              <select id="air-scope" name="scope_region" class="form-select">
+                <option value="">Unscoped</option>
+                {{range .Air.Regions}}<option value="{{.ID}}"{{if eq .ID $.Air.ScopeID}} selected{{end}}>{{.DisplayName}} ({{.Token}})</option>{{end}}
+              </select>
+              <div class="form-hint">Repeaters that deny unscoped floods still repeat messages scoped to a region they allow.</div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="air-sender">On-air name</label>
+              <input type="text" id="air-sender" name="on_air_name" class="form-control" maxlength="32" value="{{.Air.OnAirName}}" placeholder="{{.Net.Name}}">
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="air-prefix">Log prefix</label>
+            <input type="text" id="air-prefix" name="log_prefix" class="form-control" maxlength="16" value="{{.Air.LogPrefix}}">
+            <div class="form-hint">Channel messages starting with this are logged to the session (marked unverified — anyone can send under any name). Leave blank to log nothing.</div>
+          </div>
+          <button type="submit" class="btn btn-primary" data-testid="net-air-save">Save on-air settings</button>
+        </form>
+        {{end}}
+      </div>
+    </div>
+
     <div class="card">
       <div class="card-header"><h2 class="card-title">Sessions</h2></div>
       {{if .Sessions}}

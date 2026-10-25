@@ -247,3 +247,48 @@ func TestE2ENetControlAcknowledgesAndRosterRefreshes(t *testing.T) {
 	}
 	watch.assertClean(t)
 }
+
+// TestE2ENetAirSettings: an admin saves a net's on-air settings through the
+// real form on the net page, and the summary reflects them.
+func TestE2ENetAirSettings(t *testing.T) {
+	srv := newE2EServer(t)
+	user, cookie := srv.login(t, "e2enetair")
+	org, err := srv.store.CreateOrg(srv.ctx, "Air Org", user.ID)
+	if err != nil {
+		t.Fatalf("create org: %v", err)
+	}
+	net, err := srv.store.CreateNet(srv.ctx, org.ID, store.NetInput{Name: "Air Net", Weekday: time.Sunday, StartMinute: 19 * 60,
+		DurationMinutes: 60, Timezone: "UTC", Active: true}, user.ID, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := srv.store.CreateRegion(srv.ctx, org.ID, store.RegionInput{Token: "us-ny", DisplayName: "New York", AllowFlood: true}); err != nil {
+		t.Fatal(err)
+	}
+
+	bctx, cancel, watch := startBrowser(t)
+	defer cancel()
+	var summary string
+	if err := chromedp.Run(bctx,
+		network.Enable(),
+		cdplog.Enable(),
+		setSessionCookie(cookie),
+		chromedp.Navigate(fmt.Sprintf("%s/orgs/%s/nets/%d", srv.appURL, org.Slug, net.ID)),
+		chromedp.WaitVisible(`[data-testid="net-air-save"]`, chromedp.ByQuery),
+		chromedp.SetValue(`#air-kind`, "hashtag", chromedp.ByQuery),
+		chromedp.SetValue(`#air-name`, "wnynet", chromedp.ByQuery),
+		chromedp.Evaluate(`(() => { const s = document.getElementById("air-scope"); s.value = s.options[1].value; })()`, nil),
+		chromedp.SetValue(`#air-sender`, "Net Control", chromedp.ByQuery),
+		chromedp.Click(`[data-testid="net-air-save"]`, chromedp.ByQuery),
+		chromedp.WaitVisible(`.alert-success`, chromedp.ByQuery),
+		chromedp.Text(`[data-testid="net-air-summary"]`, &summary, chromedp.ByQuery),
+	); err != nil {
+		t.Fatalf("save on-air settings: %v", err)
+	}
+	for _, want := range []string{"#wnynet", "us-ny", "Net Control", "news:"} {
+		if !strings.Contains(summary, want) {
+			t.Errorf("summary missing %q: %q", want, summary)
+		}
+	}
+	watch.assertClean(t)
+}

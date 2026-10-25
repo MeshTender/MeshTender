@@ -41,6 +41,9 @@ type Companion struct {
 	// heard but didn't count because the companion's clock was too far off.
 	LastRejectedAt   *time.Time
 	LastRejectedSkew *time.Duration
+	// AdvertName is the name its newest advert carries — what other companions
+	// list it as ("" until one is heard).
+	AdvertName string
 }
 
 // Confirmed reports whether an advert from this companion has been heard since
@@ -50,7 +53,7 @@ func (c *Companion) Confirmed() bool { return c.ConfirmedAt != nil }
 const companionSelect = `
 	SELECT c.id, c.public_id, c.owner_id, COALESCE(NULLIF(u.display_name, ''), u.username),
 	       c.name, c.public_key_hex, c.created_at, c.confirmed_at, c.last_heard_at,
-	       c.last_advert_ts, c.last_rejected_at, c.last_rejected_skew_s
+	       c.last_advert_ts, c.last_rejected_at, c.last_rejected_skew_s, c.advert_name
 	FROM companions c JOIN users u ON u.id = c.owner_id`
 
 func scanCompanion(row pgx.Row) (*Companion, error) {
@@ -58,7 +61,7 @@ func scanCompanion(row pgx.Row) (*Companion, error) {
 	var advertTS *int64
 	var skewS *int32
 	err := row.Scan(&c.ID, &c.PublicID, &c.OwnerID, &c.OwnerName, &c.Name, &c.PublicKeyHex,
-		&c.CreatedAt, &c.ConfirmedAt, &c.LastHeardAt, &advertTS, &c.LastRejectedAt, &skewS)
+		&c.CreatedAt, &c.ConfirmedAt, &c.LastHeardAt, &advertTS, &c.LastRejectedAt, &skewS, &c.AdvertName)
 	if err != nil {
 		return nil, err
 	}

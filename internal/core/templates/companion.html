@@ -32,6 +32,7 @@
     <div class="card"><div class="card-body">
       <div class="subheader">Status</div>
       <div class="h3 m-0">{{if .Confirmed}}Confirmed{{else}}Waiting for an advert{{end}}</div>
+      {{with .AdvertName}}<div class="text-secondary small mt-1" data-testid="companion-advert-name">Advertises as <strong>{{.}}</strong></div>{{end}}
     </div></div>
   </div>
   <div class="col-md-4">

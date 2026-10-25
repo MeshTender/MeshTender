@@ -136,8 +136,8 @@ func TestIngesterRecordsVerifiedAdvert(t *testing.T) {
 	if k := got[0]; k.Observers != 1 || k.Spread != 2 || k.ZeroHop || k.AdvertTS != uint32(now.Unix()) { //nolint:gosec // test clock
 		t.Fatalf("check-in = %+v", k)
 	}
-	if !f.companionState(t, ctx).Confirmed() {
-		t.Fatal("companion not confirmed")
+	if c := f.companionState(t, ctx); !c.Confirmed() || c.AdvertName != "Owner T1" {
+		t.Fatalf("companion confirmed %v, advertised name %q", c.Confirmed(), c.AdvertName)
 	}
 }
 

@@ -184,12 +184,24 @@ func (s *Handlers) pageOrgNet(w http.ResponseWriter, r *http.Request) {
 		s.ServerError(w, r, "Couldn't load net control.", err)
 		return
 	}
+	air, err := s.Store.GetNetAir(ctx, org.ID, net.ID)
+	if err != nil {
+		s.ServerError(w, r, "Couldn't load the on-air settings.", err)
+		return
+	}
+	radio, err := s.Store.OrgRadio(ctx, org.ID)
+	if err != nil {
+		s.ServerError(w, r, "Couldn't load the radio settings.", err)
+		return
+	}
 	data := map[string]any{
 		"Org":      org,
 		"Nav":      s.orgNav(ctx, org, "nets", isAdmin),
 		"IsAdmin":  isAdmin,
 		"Net":      net,
 		"Controls": controls,
+		"Air":      netAirView{NetAir: air},
+		"Radio":    radio,
 		"Schedule": netSchedule(net),
 		"Next":     next,
 		"Now":      now,
@@ -221,6 +233,12 @@ func (s *Handlers) pageOrgNet(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		data["Candidates"] = candidates
+		regions, err := s.Store.ListRegions(ctx, org.ID)
+		if err != nil {
+			s.ServerError(w, r, "Couldn't load regions.", err)
+			return
+		}
+		data["Air"] = netAirView{NetAir: air, Regions: regions}
 	}
 	s.Render(w, r, "org_net.html", data)
 }
