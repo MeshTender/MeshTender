@@ -121,16 +121,11 @@ func (in *Ingester) handlePacket(ctx context.Context, m Message, observer string
 	if err != nil {
 		return
 	}
-	adv, err := observe.DecodeAdvert(p.Raw)
+	adv, companionID, err := RegisteredAdvert(ctx, in.Store, p.Raw)
 	if err != nil {
-		return
-	}
-	companionID, err := in.Store.CompanionIDForKey(ctx, adv.PublicKey.String())
-	if errors.Is(err, store.ErrNotFound) {
-		return
-	}
-	if err != nil {
-		in.Log.Warn("ingest: companion lookup", "err", err)
+		if !errors.Is(err, ErrNotRegistered) {
+			in.Log.Warn("ingest: companion lookup", "err", err)
+		}
 		return
 	}
 	ok, err := in.Store.IsOrgObserver(ctx, m.OrgID, observer)
@@ -141,29 +136,71 @@ func (in *Ingester) handlePacket(ctx context.Context, m Message, observer string
 	if !ok {
 		return
 	}
-	if !adv.Verify() {
+	_, err = RecordAdvert(ctx, in.Store, adv, companionID, observer, m.ReceivedAt)
+	switch {
+	case errors.Is(err, ErrAdvertSignature):
 		in.Log.Warn("ingest: advert signature invalid", "org", m.OrgID, "observer", observer,
 			"companion", companionID)
-		return
+	case errors.Is(err, ErrAdvertSkew):
+	case err != nil:
+		in.Log.Warn("ingest: record check-in", "err", err)
 	}
-	if skew := adv.Skew(m.ReceivedAt); skew > MaxAdvertSkew || skew < -MaxAdvertSkew {
-		if err := in.Store.RecordAdvertRejected(ctx, companionID, m.ReceivedAt, skew); err != nil {
-			in.Log.Warn("ingest: record rejected", "err", err)
+}
+
+// Errors from RegisteredAdvert and RecordAdvert for adverts that don't count.
+var (
+	// ErrNotRegistered: not an advert, or not from a registered companion.
+	ErrNotRegistered = errors.New("ingest: not a registered companion's advert")
+	// ErrAdvertSignature: the advert's signature doesn't verify.
+	ErrAdvertSignature = errors.New("ingest: advert signature invalid")
+	// ErrAdvertSkew: the sender's clock is too far off (a possible replay); the
+	// companion's owner is shown the rejection.
+	ErrAdvertSkew = errors.New("ingest: advert clock skew")
+)
+
+// RegisteredAdvert decodes raw as an advert from a registered companion,
+// returning ErrNotRegistered for any other packet. The advert isn't verified
+// yet: RecordAdvert does that, so callers can run cheaper checks in between.
+// Shared by the MQTT ingester and net control's modem.
+func RegisteredAdvert(ctx context.Context, st *store.Store, raw []byte) (*observe.Advert, int64, error) {
+	adv, err := observe.DecodeAdvert(raw)
+	if err != nil {
+		return nil, 0, ErrNotRegistered
+	}
+	companionID, err := st.CompanionIDForKey(ctx, adv.PublicKey.String())
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, 0, ErrNotRegistered
+	}
+	if err != nil {
+		return nil, 0, err
+	}
+	return adv, companionID, nil
+}
+
+// RecordAdvert verifies a registered companion's advert and records it as a
+// check-in heard by observer at receivedAt. A bad signature is
+// ErrAdvertSignature; a timestamp more than MaxAdvertSkew from receivedAt is
+// recorded as a rejection and returned as ErrAdvertSkew. created reports
+// whether this copy was the first heard of the advert.
+func RecordAdvert(ctx context.Context, st *store.Store, adv *observe.Advert, companionID int64, observer string, receivedAt time.Time) (created bool, err error) {
+	if !adv.Verify() {
+		return false, ErrAdvertSignature
+	}
+	if skew := adv.Skew(receivedAt); skew > MaxAdvertSkew || skew < -MaxAdvertSkew {
+		if err := st.RecordAdvertRejected(ctx, companionID, receivedAt, skew); err != nil {
+			return false, err
 		}
-		return
+		return false, ErrAdvertSkew
 	}
 	// The path's repeaters go in unordered; the store keeps them only long
 	// enough to count (store.AdvertSetTTL).
-	_, err = in.Store.RecordAdvertHeard(ctx, store.AdvertHeard{
+	return st.RecordAdvertHeard(ctx, store.AdvertHeard{
 		CompanionID:          companionID,
 		AdvertTS:             adv.Timestamp,
 		ObserverPublicKeyHex: observer,
-		ReceivedAt:           m.ReceivedAt,
+		ReceivedAt:           receivedAt,
 		ZeroHop:              adv.ZeroHop(),
 		Relays:               adv.Path,
 		Name:                 adv.Name,
 	})
-	if err != nil {
-		in.Log.Warn("ingest: record check-in", "err", err)
-	}
 }

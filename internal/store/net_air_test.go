@@ -114,3 +114,40 @@ func TestRecordAdvertHeardKeepsNewestName(t *testing.T) {
 		t.Fatalf("a nameless advert cleared it: %q", got)
 	}
 }
+
+func TestNetSessionMessagesDedupeAndCap(t *testing.T) {
+	t.Parallel()
+	st, ctx := orgTestStore(t)
+	admin := mustUser(t, st, ctx, "logadmin")
+	org := mustOrg(t, st, ctx, "LogOrg", admin)
+	net, err := st.CreateNet(ctx, org, testNetInput(), admin, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	sess, err := st.NextNetSession(ctx, net.ID, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	add := func(payload, body string) bool {
+		t.Helper()
+		ok, err := st.AddNetSessionMessage(ctx, sess.ID, []byte(payload), "Bob", body, time.Now())
+		if err != nil {
+			t.Fatal(err)
+		}
+		return ok
+	}
+	if !add("p1", "news: one") || add("p1", "news: one") {
+		t.Fatal("a repeated copy should log once")
+	}
+	if _, err := st.pool.Exec(ctx, `
+		INSERT INTO net_session_messages (session_id, msg_hash, sender, body, heard_at)
+		SELECT $1, int8send(g), 'x', 'news', now() FROM generate_series(1, $2) g`, sess.ID, MaxNetSessionMessages-1); err != nil {
+		t.Fatal(err)
+	}
+	if add("p2", "news: over the cap") {
+		t.Fatal("logged past the cap")
+	}
+	if msgs, err := st.ListNetSessionMessages(ctx, sess.ID); err != nil || len(msgs) != MaxNetSessionMessages || msgs[0].Body != "news: one" {
+		t.Fatalf("log has %d messages, first %+v, %v", len(msgs), msgs[0], err)
+	}
+}

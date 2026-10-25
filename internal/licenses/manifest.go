@@ -272,6 +272,7 @@ var FirstPartyStatic = []string{
 	"mesh-bridge.js",
 	"livereload.js",
 	"meshmap.js",
+	"netcontrol.js",
 	"radio-preset.js",
 	"regionmap.js",
 	"serial-port.js",

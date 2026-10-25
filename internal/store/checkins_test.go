@@ -315,7 +315,7 @@ func TestCompanionForKeyAndPruneUnconfirmed(t *testing.T) {
 	stale := mustCompanion(t, st, ctx, u, "stale", 1)
 	fresh := mustCompanion(t, st, ctx, u, "fresh", 2)
 	confirmed := mustCompanion(t, st, ctx, u, "confirmed", 3)
-	heard(t, st, ctx, AdvertHeard{CompanionID: confirmed.ID, ReceivedAt: time.Now()})
+	heard(t, st, ctx, AdvertHeard{CompanionID: confirmed.ID, ReceivedAt: confirmed.CreatedAt.Add(time.Second)})
 
 	if id, err := st.CompanionIDForKey(ctx, testKey(1)); err != nil || id != stale.ID {
 		t.Fatalf("for key = %d, %v", id, err)
@@ -356,15 +356,17 @@ func TestOrgCompanionActivityPage(t *testing.T) {
 			}
 		}
 		c := mustCompanion(t, st, ctx, owner, fmt.Sprintf("comp %02d", i), i)
-		// Heard after registration, so it confirms.
-		heard(t, st, ctx, AdvertHeard{CompanionID: c.ID, ReceivedAt: time.Now()})
+		// Heard after registration, so it confirms. Offset from the row's own
+		// created_at (the database's clock), not time.Now(): the two clocks can
+		// differ by milliseconds, which reads as heard before registration.
+		heard(t, st, ctx, AdvertHeard{CompanionID: c.ID, ReceivedAt: c.CreatedAt.Add(time.Second)})
 	}
 	// Unconfirmed, and a non-member's: neither listed.
 	pending := mustUser(t, st, ctx, "actpending")
 	_ = st.AddOrgMember(ctx, org, pending, "member")
 	mustCompanion(t, st, ctx, pending, "zz unconfirmed", 90)
 	oc := mustCompanion(t, st, ctx, outsider, "outsider", 91)
-	heard(t, st, ctx, AdvertHeard{CompanionID: oc.ID, ReceivedAt: time.Now()})
+	heard(t, st, ctx, AdvertHeard{CompanionID: oc.ID, ReceivedAt: oc.CreatedAt.Add(time.Second)})
 
 	page, more, err := st.ListOrgCompanionActivityPage(ctx, org, nil)
 	if err != nil || !more || len(page) != OrgCompanionActivityPageSize {

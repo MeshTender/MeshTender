@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/MeshTender/MeshTender/internal/mesh"
 	"github.com/MeshTender/MeshTender/internal/store"
 	"github.com/MeshTender/MeshTender/internal/web"
 )
@@ -433,6 +434,32 @@ func (s *Handlers) pageNetSession(w http.ResponseWriter, r *http.Request) {
 		"Observers":       len(observers),
 		"ObserversOnline": online,
 		"Error":           r.URL.Query().Get("error"),
+	}
+	messages, err := s.Store.ListNetSessionMessages(ctx, c.session.ID)
+	if err != nil {
+		s.ServerError(w, r, "Couldn't load the channel log.", err)
+		return
+	}
+	data["Messages"] = messages
+	if c.netControl && data["InProgress"] == true {
+		air, err := s.Store.GetNetAir(ctx, c.org.ID, c.net.ID)
+		if err != nil {
+			s.ServerError(w, r, "Couldn't load the on-air settings.", err)
+			return
+		}
+		radio, err := s.Store.OrgRadio(ctx, c.org.ID)
+		if err != nil {
+			s.ServerError(w, r, "Couldn't load the radio settings.", err)
+			return
+		}
+		sender := onAirSender(air, c.net.Name)
+		data["Modem"] = map[string]any{
+			"WSPath":  sessionURL(r) + "/modem/ws",
+			"Channel": channelLabel(air),
+			"Sender":  sender,
+			"SayMax":  mesh.GroupTextRoom(sender),
+			"Radio":   radio,
+		}
 	}
 	if c.netControl {
 		// Who net control can log by hand: any member not yet checked in.

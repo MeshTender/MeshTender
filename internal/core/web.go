@@ -38,6 +38,9 @@ type Handlers struct {
 	wsCtx    context.Context
 	wsCancel context.CancelFunc
 	wsWG     sync.WaitGroup
+
+	// netModem paces net control modem sessions; zero means the defaults.
+	netModem netModemTiming
 }
 
 // Server is the built HTTP entry point.
@@ -262,6 +265,7 @@ func (s *Handlers) appRouter() chi.Router {
 			r.Post("/orgs/{id}/nets/{nid}/controls", s.handleAddNetControl)
 			r.Post("/orgs/{id}/nets/{nid}/controls/{uid}/delete", s.handleRemoveNetControl)
 			r.Post("/orgs/{id}/nets/{nid}/sessions/{sid}/acks", s.handleAcknowledge)
+			r.Get("/orgs/{id}/nets/{nid}/sessions/{sid}/modem/ws", s.wsNetModem)
 			r.Post("/orgs/{id}/nets/{nid}/sessions/{sid}/acks/{uid}/delete", s.handleRemoveAcknowledge)
 
 			r.Get("/orgs/new", s.pageNewOrg)

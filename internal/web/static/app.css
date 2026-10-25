@@ -101,13 +101,14 @@ code.pubkey {
 /* Colors chosen for WCAG AA (≥4.5:1) on the near-black log background:
    --tblr-secondary (#6b7280) and --tblr-danger (#d63939) only reach ~3.7:1,
    so info uses the lighter gray-400 and errors the lighter danger emphasis. */
-.ev-info, .ev-ready { color: var(--tblr-gray-400); }
+.ev-info, .ev-ready, .ev-queued { color: var(--tblr-gray-400); }
 .ev-confirmed { color: var(--tblr-success); font-weight: 600; }
+.ev-heard { color: var(--tblr-success); }
 .ev-error, .ev-timeout { color: var(--tblr-danger-text-emphasis); }
 .ev-warning, .ev-denied, .ev-noreply { color: var(--tblr-warning); }
 .ev-debug { color: var(--tblr-info); word-break: break-all; }
 .ev-sent { color: var(--tblr-azure); }
-.ev-reply { color: var(--tblr-body-color); white-space: pre-wrap; }
+.ev-reply, .ev-message { color: var(--tblr-body-color); white-space: pre-wrap; }
 
 /* ---------- Badge contrast (dark) ----------
    Tabler's light "-lt" badges set their text to the full-strength brand color

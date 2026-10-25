@@ -13,6 +13,7 @@ import (
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/chromedp"
 
+	"github.com/MeshTender/MeshTender/internal/config"
 	"github.com/MeshTender/MeshTender/internal/observe/observetest"
 	"github.com/MeshTender/MeshTender/internal/store"
 )
@@ -289,6 +290,73 @@ func TestE2ENetAirSettings(t *testing.T) {
 		if !strings.Contains(summary, want) {
 			t.Errorf("summary missing %q: %q", want, summary)
 		}
+	}
+	watch.assertClean(t)
+}
+
+// TestE2ENetModemPanel: on a live session net control gets the modem panel
+// (its scripts load under the CSP; the serial connect itself needs hardware),
+// and the roster shows who was acknowledged on the air and the channel log.
+func TestE2ENetModemPanel(t *testing.T) {
+	srv := newE2EServer(t)
+	user, cookie := srv.login(t, "e2enetmodem")
+	org, err := srv.store.CreateOrg(srv.ctx, "Modem Org", user.ID)
+	if err != nil {
+		t.Fatalf("create org: %v", err)
+	}
+	if err := srv.store.SetOrgRadio(srv.ctx, org.ID, &config.RadioDefaults{FreqHz: 910_525_000, BwHz: 62_500, SF: 7, CR: 5}); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	net, err := srv.store.CreateNet(srv.ctx, org.ID, store.NetInput{Name: "Modem Net", Weekday: now.Weekday(),
+		StartMinute: max(0, now.Hour()*60+now.Minute()-10), DurationMinutes: 120, Timezone: "UTC", Active: true}, user.ID, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sess, err := srv.store.NextNetSession(srv.ctx, net.ID, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := srv.store.CreateCompanion(srv.ctx, user.ID, "Air T1", observetest.NewIdentity(t).String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	at := time.Now().Add(time.Second)
+	if _, err := srv.store.RecordAdvertHeard(srv.ctx, store.AdvertHeard{CompanionID: c.ID,
+		ObserverPublicKeyHex: strings.Repeat("ab", 32), ReceivedAt: at, AdvertTS: uint32(at.Unix())}); err != nil { //nolint:gosec // test clock
+		t.Fatal(err)
+	}
+	if err := srv.store.MarkAired(srv.ctx, sess.ID, []int64{user.ID}, at); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := srv.store.AddNetSessionMessage(srv.ctx, sess.ID, []byte("p"), "Bob", "news: road closed", at); err != nil {
+		t.Fatal(err)
+	}
+
+	bctx, cancel, watch := startBrowser(t)
+	defer cancel()
+	var connectShown bool
+	var roster, channelLog string
+	if err := chromedp.Run(bctx,
+		network.Enable(),
+		cdplog.Enable(),
+		setSessionCookie(cookie),
+		chromedp.Navigate(fmt.Sprintf("%s/orgs/%s/nets/%d/sessions/%d", srv.appURL, org.Slug, net.ID, sess.ID)),
+		chromedp.WaitVisible(`[data-testid="net-modem"]`, chromedp.ByQuery),
+		chromedp.Evaluate(`!!document.querySelector('[data-testid="nc-connect"]') && typeof window.MeshBridge === "object"`, &connectShown),
+		chromedp.Text(`[data-testid="roster"]`, &roster, chromedp.ByQuery),
+		chromedp.Text(`[data-testid="channel-log"]`, &channelLog, chromedp.ByQuery),
+	); err != nil {
+		t.Fatalf("modem panel: %v", err)
+	}
+	if !connectShown {
+		t.Error("connect button or MeshBridge missing")
+	}
+	if !strings.Contains(roster, "On air") {
+		t.Errorf("roster: %q", roster)
+	}
+	if !strings.Contains(channelLog, "Bob") || !strings.Contains(channelLog, "news: road closed") || !strings.Contains(channelLog, "unverified") {
+		t.Errorf("channel log: %q", channelLog)
 	}
 	watch.assertClean(t)
 }

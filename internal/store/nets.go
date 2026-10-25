@@ -351,7 +351,10 @@ type RosterEntry struct {
 	// earliest advert in the window came from.
 	CompanionPublicID string
 	CompanionName     string
-	HeardAt           *time.Time
+	// CompanionAdvertName is the name that companion advertises: what an
+	// on-air acknowledgement mentions.
+	CompanionAdvertName string
+	HeardAt             *time.Time
 	// Spread and Observers are from the member's best check-in in the
 	// session: the most repeaters seen relaying one of their adverts, and the
 	// most observers that heard one. (Combining across adverts would need the
@@ -366,6 +369,9 @@ type RosterEntry struct {
 	// AckedBy is net control's username; empty once that account is gone.
 	AckedBy string
 	AckNote string
+
+	// AiredAt is when net control's modem acknowledged the member on the air.
+	AiredAt *time.Time
 }
 
 // Heard reports whether an advert from the member was heard in the session.
@@ -381,6 +387,9 @@ func (e *RosterEntry) CheckedIn() bool { return e.Heard() || e.Acked() }
 // AddedByHand reports a check-in net control logged without a heard advert.
 func (e *RosterEntry) AddedByHand() bool { return e.Acked() && !e.Heard() }
 
+// Aired reports whether the member was acknowledged on the air.
+func (e *RosterEntry) Aired() bool { return e.AiredAt != nil }
+
 // NetSessionRoster returns one entry per org member who has a confirmed
 // companion or was acknowledged this session, with what was heard from any of
 // their companions during the window and net control's acknowledgement:
@@ -391,16 +400,19 @@ func (s *Store) NetSessionRoster(ctx context.Context, orgID int64, session *NetS
 		SELECT u.id, COALESCE(NULLIF(u.display_name, ''), u.username),
 		       COALESCE(h.companion_public_id, ''), COALESCE(h.companion_name, ''),
 		       h.first_heard, COALESCE(h.spread, 0), COALESCE(h.observers, 0), COALESCE(h.zero_hop_only, FALSE),
-		       a.acked_at, COALESCE(ab.username, ''), COALESCE(a.note, '')
+		       a.acked_at, COALESCE(ab.username, ''), COALESCE(a.note, ''),
+		       COALESCE(h.companion_advert_name, ''), air.aired_at
 		FROM users u
 		JOIN org_members om ON om.org_id = $1 AND om.user_id = u.id
 		LEFT JOIN net_session_acks a ON a.session_id = $4 AND a.user_id = u.id
 		LEFT JOIN users ab ON ab.id = a.acked_by
+		LEFT JOIN net_session_aired air ON air.session_id = $4 AND air.user_id = u.id
 		LEFT JOIN LATERAL (
 			SELECT min(k.first_heard_at) AS first_heard, max(k.spread) AS spread,
 			       max(k.observers) AS observers, bool_and(k.zero_hop) AS zero_hop_only,
 			       (array_agg(c.public_id ORDER BY k.first_heard_at, k.id))[1] AS companion_public_id,
-			       (array_agg(c.name ORDER BY k.first_heard_at, k.id))[1] AS companion_name
+			       (array_agg(c.name ORDER BY k.first_heard_at, k.id))[1] AS companion_name,
+			       (array_agg(c.advert_name ORDER BY k.first_heard_at, k.id))[1] AS companion_advert_name
 			FROM companions c
 			JOIN advert_checkins k ON k.companion_id = c.id
 			WHERE c.owner_id = u.id AND c.confirmed_at IS NOT NULL
@@ -417,7 +429,8 @@ func (s *Store) NetSessionRoster(ctx context.Context, orgID int64, session *NetS
 	return collectRows(rows, func(r pgx.Row) (RosterEntry, error) {
 		var e RosterEntry
 		return e, r.Scan(&e.MemberID, &e.MemberName, &e.CompanionPublicID, &e.CompanionName,
-			&e.HeardAt, &e.Spread, &e.Observers, &e.ZeroHopOnly, &e.AckedAt, &e.AckedBy, &e.AckNote)
+			&e.HeardAt, &e.Spread, &e.Observers, &e.ZeroHopOnly, &e.AckedAt, &e.AckedBy, &e.AckNote,
+			&e.CompanionAdvertName, &e.AiredAt)
 	})
 }
 
