@@ -5,9 +5,8 @@
 //
 // Observers publish to <prefix>/<IATA>/<observer pubkey hex>/{packets,status}.
 // Uplink programs disagree on most envelope fields, so only the raw packet hex
-// and the radio's SNR/RSSI are trusted from the payload; everything else
-// (route, packet type, timestamps) is re-derived from the raw bytes and the
-// receiver's own clock.
+// is taken from the payload; everything else (route, packet type, timestamps)
+// is re-derived from the raw bytes and the receiver's own clock.
 package observe
 
 import (

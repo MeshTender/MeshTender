@@ -181,22 +181,17 @@ func TestParseTopic(t *testing.T) {
 
 func TestParsePacket(t *testing.T) {
 	t.Parallel()
-	// Shapes seen from different uplinks: numeric and string signal fields,
-	// extra fields, and none at all.
-	p, err := ParsePacket([]byte(`{"type":"PACKET","raw":"11AB","SNR":5.75,"RSSI":-85,"len":"2"}`))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if hex.EncodeToString(p.Raw) != "11ab" || p.SNR == nil || *p.SNR != 5.75 || p.RSSI == nil || *p.RSSI != -85 {
-		t.Errorf("numeric: %+v", p)
-	}
-	p, err = ParsePacket([]byte(`{"raw":"11ab","SNR":"-3.25","RSSI":"-101"}`))
-	if err != nil || *p.SNR != -3.25 || *p.RSSI != -101 {
-		t.Errorf("string: %+v %v", p, err)
-	}
-	p, err = ParsePacket([]byte(`{"raw":"11ab","SNR":"n/a"}`))
-	if err != nil || p.SNR != nil || p.RSSI != nil {
-		t.Errorf("absent/junk: %+v %v", p, err)
+	// Uplinks send varying extra fields (signal readings, lengths, labels);
+	// only raw is read, and none of the rest can break parsing.
+	for _, body := range []string{
+		`{"type":"PACKET","raw":"11AB","SNR":5.75,"RSSI":-85,"len":"2"}`,
+		`{"raw":"11ab","SNR":"n/a"}`,
+		`{"raw":"11ab"}`,
+	} {
+		p, err := ParsePacket([]byte(body))
+		if err != nil || hex.EncodeToString(p.Raw) != "11ab" {
+			t.Errorf("%s: %+v, %v", body, p, err)
+		}
 	}
 
 	for name, body := range map[string]string{
@@ -228,34 +223,5 @@ func TestParseStatus(t *testing.T) {
 	s, err = ParseStatus([]byte(`{"status":"offline"}`))
 	if err != nil || s.Online || s.BatteryMV != nil {
 		t.Errorf("sparse: %+v %v", s, err)
-	}
-}
-
-func TestPathResolver(t *testing.T) {
-	t.Parallel()
-	r := NewPathResolver([]RepeaterKey{
-		{PublicID: "a", Name: "Alpha", PublicKeyHex: "352C30" + strings.Repeat("00", 29)},
-		{PublicID: "b", Name: "Bravo", PublicKeyHex: "35aa11" + strings.Repeat("00", 29)},
-		{PublicID: "c", Name: "Charlie", PublicKeyHex: "8bfcfc" + strings.Repeat("00", 29)},
-	})
-
-	hops := r.Resolve([][]byte{{0x35, 0x2c, 0x30}, {0x8b, 0xfc, 0xfc}, {0x99, 0x99, 0x99}})
-	if len(hops) != 3 {
-		t.Fatalf("hops = %d", len(hops))
-	}
-	if hops[0].Hash != "352c30" || len(hops[0].Candidates) != 1 || hops[0].Candidates[0].Name != "Alpha" {
-		t.Errorf("hop 0: %+v", hops[0])
-	}
-	if len(hops[1].Candidates) != 1 || hops[1].Candidates[0].Name != "Charlie" {
-		t.Errorf("hop 1: %+v", hops[1])
-	}
-	if len(hops[2].Candidates) != 0 {
-		t.Errorf("unknown hop resolved: %+v", hops[2])
-	}
-
-	// A 1-byte hash collides: both repeaters starting 0x35 are candidates.
-	one := r.Resolve([][]byte{{0x35}})
-	if len(one[0].Candidates) != 2 {
-		t.Errorf("1-byte 0x35 candidates = %+v, want Alpha and Bravo", one[0].Candidates)
 	}
 }

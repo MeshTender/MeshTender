@@ -9,21 +9,17 @@ import (
 	"strconv"
 )
 
-// Packet is the trusted part of a packets-topic message: the raw LoRa packet
-// and the observer radio's signal on reception (the last hop only — a flood
-// path carries no per-hop signal).
+// Packet is the trusted part of a packets-topic message: the raw LoRa packet.
+// Uplinks also report the observer radio's SNR and RSSI; MeshTender doesn't
+// keep signal readings, so they aren't decoded.
 type Packet struct {
-	Raw  []byte
-	SNR  *float64
-	RSSI *int
+	Raw []byte
 }
 
 // ParsePacket decodes a packets-topic payload.
 func ParsePacket(payload []byte) (Packet, error) {
 	var env struct {
-		Raw  string     `json:"raw"`
-		SNR  flexNumber `json:"SNR"`
-		RSSI flexNumber `json:"RSSI"`
+		Raw string `json:"raw"`
 	}
 	if err := json.Unmarshal(payload, &env); err != nil {
 		return Packet{}, fmt.Errorf("observe: packet envelope: %w", err)
@@ -35,7 +31,7 @@ func ParsePacket(payload []byte) (Packet, error) {
 	if err != nil {
 		return Packet{}, fmt.Errorf("observe: raw: %w", err)
 	}
-	return Packet{Raw: raw, SNR: env.SNR.float(), RSSI: env.RSSI.int()}, nil
+	return Packet{Raw: raw}, nil
 }
 
 // Status is an observer's self-reported health from its status topic. Every
@@ -94,14 +90,6 @@ func (n *flexNumber) UnmarshalJSON(b []byte) error {
 		n.v, n.ok = v, true
 	}
 	return nil
-}
-
-func (n flexNumber) float() *float64 {
-	if !n.ok {
-		return nil
-	}
-	v := n.v
-	return &v
 }
 
 func (n flexNumber) int() *int {
