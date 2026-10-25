@@ -270,6 +270,7 @@ var FirstPartyStatic = []string{
 	"link-editor.js",
 	"listfilter.js",
 	"mesh-bridge.js",
+	"net-air-form.js",
 	"livereload.js",
 	"meshmap.js",
 	"netcontrol.js",

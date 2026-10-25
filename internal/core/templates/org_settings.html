@@ -15,6 +15,7 @@
 {{else if and (eq .Section "mqtt") .New}}{{template "settings-observer-new" .}}
 {{else if eq .Section "mqtt"}}{{template "settings-mqtt" .}}
 {{else if and (eq .Section "nets") .New}}{{template "settings-net-new" .}}
+{{else if and (eq .Section "nets") .NetEdit}}{{template "settings-net-edit" .}}
 {{else if eq .Section "nets"}}{{template "settings-nets" .}}
 {{end}}
 {{template "settings-layout-close"}}
@@ -371,6 +372,7 @@
       </div>
       <div class="btn-list flex-shrink-0 flex-nowrap">
         <a class="btn btn-sm" href="/orgs/{{$.Org.Slug}}/nets/{{.ID}}" data-testid="net-view">View</a>
+        <a class="btn btn-sm" href="/orgs/{{$.Org.Slug}}/settings/nets/{{.ID}}" data-testid="net-edit">Edit</a>
         {{template "settings-delete" (dict "Action" (printf "/orgs/%s/nets/%d/delete" $.Org.Slug .ID) "Confirm" (printf "Delete %s and all its session history?" .Name) "Label" (printf "Delete %s" .Name) "TestID" "net-delete")}}
       </div>
     </div>
@@ -396,4 +398,143 @@
   </div>
 </form>
 <script src="{{ asset "/static/timezone-picker.js" }}"></script>
+{{end}}
+
+{{/* settings-net-edit is one net's settings, a section per concern, each saved
+     on its own: the schedule, how check-ins are acknowledged and by whom, where
+     net control's modem talks, and deleting the net. */}}
+{{define "settings-net-edit"}}
+<ol class="breadcrumb mb-2" aria-label="Breadcrumb">
+  <li class="breadcrumb-item"><a href="/orgs/{{.Org.Slug}}/settings/nets">Nets</a></li>
+  <li class="breadcrumb-item active" aria-current="page">{{.Net.Name}}</li>
+</ol>
+<div class="d-flex align-items-center gap-2 mb-4">
+  <h2 class="mb-0">{{.Net.Name}}</h2>
+  <a class="btn ms-auto" href="/orgs/{{.Org.Slug}}/nets/{{.Net.ID}}" data-testid="net-view">View net</a>
+</div>
+
+<h3 class="mb-3" id="schedule">Schedule</h3>
+{{template "settings-form-error" .ScheduleError}}
+<form method="post" action="/orgs/{{.Org.Slug}}/nets/{{.Net.ID}}" style="max-width:40rem" data-testid="net-schedule-form">
+  {{template "net-form" .}}
+  <button type="submit" class="btn btn-primary" data-testid="net-schedule-save">Save schedule</button>
+</form>
+
+{{template "settings-subheading" (dict "Title" "Check-ins and net control" "ID" "net-control")}}
+<form method="post" action="/orgs/{{.Org.Slug}}/nets/{{.Net.ID}}/ack" style="max-width:40rem" data-testid="net-ack-form">
+  {{template "net-ack-choice" .Net.ManualAck}}
+  <button type="submit" class="btn btn-primary" data-testid="net-ack-save">Save</button>
+</form>
+<div class="mt-4" style="max-width:40rem" data-testid="net-control">
+  <div class="form-label">Net control</div>
+  <p class="text-secondary">Net control acknowledges check-ins, logs them by hand, and runs the modem. The organization's admins always can{{if .Controls}}, and so can:{{else}}; add members to share the job.{{end}}</p>
+  {{if .Controls}}
+  <div class="card mb-3">
+    <div class="list-group list-group-flush">
+      {{range .Controls}}
+      <div class="list-group-item d-flex align-items-center gap-2">
+        <span>{{.Name}} <span class="text-secondary">@{{.Username}}</span></span>
+        <form method="post" action="/orgs/{{$.Org.Slug}}/nets/{{$.Net.ID}}/controls/{{.UserID}}/delete" class="m-0 ms-auto" data-confirm="Remove {{.Name}} as net control?">
+          <button type="submit" class="btn btn-sm text-danger-emphasis" aria-label="Remove {{.Name}}" data-testid="net-control-remove">Remove</button>
+        </form>
+      </div>
+      {{end}}
+    </div>
+  </div>
+  {{end}}
+  {{if .Candidates}}
+  <form method="post" action="/orgs/{{.Org.Slug}}/nets/{{.Net.ID}}/controls" class="row g-2">
+    <div class="col">
+      <label class="visually-hidden" for="nc-member">Member</label>
+      <select id="nc-member" name="user_id" class="form-select">
+        {{range .Candidates}}<option value="{{.UserID}}">{{.Name}} (@{{.Username}})</option>{{end}}
+      </select>
+    </div>
+    <div class="col-auto"><button type="submit" class="btn" data-testid="net-control-add">{{template "icon-plus" "me-1"}}Add net control</button></div>
+  </form>
+  {{end}}
+</div>
+
+{{template "settings-subheading" (dict "Title" "On the air" "ID" "on-air" "Hint" "When net control connects a modem during a session, announcements and acknowledgements go out as channel messages here.")}}
+<div style="max-width:40rem" data-testid="net-air">
+  <p class="text-secondary small">{{with .Radio}}On the organization's radio, {{template "radio-values" .}}.{{else}}<span class="text-danger-emphasis" data-testid="net-air-no-radio">The organization's radio isn't set, so net control can't connect a modem. Set it in <a href="/orgs/{{$.Org.Slug}}/settings#radio">Settings › Profile</a>.</span>{{end}}</p>
+  {{if .Air.UnjoinableHashtag}}
+  <div class="alert alert-warning" role="alert" data-testid="net-air-uppercase">
+    <div>The channel name <code>#{{.Air.ChannelName}}</code> has uppercase letters. The companion app only lets members type lowercase hashtag names, and the channel's key comes from the exact name, so they can't join this one. Use <code>#{{.Air.LowerChannelName}}</code> instead.</div>
+  </div>
+  {{end}}
+  {{template "settings-form-error" .AirError}}
+  <form method="post" action="/orgs/{{.Org.Slug}}/nets/{{.Net.ID}}/air" data-air-form>
+    <div class="mb-3">
+      <div class="form-label">Channel</div>
+      <div class="btn-group w-100" role="group" aria-label="Channel">
+        {{template "air-kind" (dict "Air" .Air "Kind" "public" "Label" "Public")}}
+        {{template "air-kind" (dict "Air" .Air "Kind" "hashtag" "Label" "Hashtag")}}
+        {{template "air-kind" (dict "Air" .Air "Kind" "private" "Label" "Private")}}
+      </div>
+    </div>
+    <div class="mb-3{{if ne .Air.ChannelKind "hashtag"}} d-none{{end}}" data-air-field="hashtag">
+      <label class="form-label" for="air-hashtag">Hashtag channel</label>
+      <div class="input-group">
+        <span class="input-group-text">#</span>
+        <input type="text" id="air-hashtag" name="hashtag_name" class="form-control" maxlength="30" value="{{if eq .Air.ChannelKind "hashtag"}}{{.Air.ChannelName}}{{end}}" placeholder="wnynet" autocomplete="off">
+      </div>
+      <div class="form-hint">Lowercase, as members type it in the companion app: the channel's key comes from the exact name.</div>
+    </div>
+    <div class="{{if ne .Air.ChannelKind "private"}}d-none{{end}}" data-air-field="private">
+      <div class="mb-3">
+        <label class="form-label" for="air-label">Label <span class="text-secondary">(optional)</span></label>
+        <input type="text" id="air-label" name="private_label" class="form-control" maxlength="31" value="{{if eq .Air.ChannelKind "private"}}{{.Air.ChannelName}}{{end}}" placeholder="Ops">
+        <div class="form-hint">What members see the channel called here. It isn't sent.</div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label" for="air-key">Channel key</label>
+        <input type="password" id="air-key" name="channel_key" class="form-control font-monospace" autocomplete="off"
+               placeholder="{{if and (eq .Air.ChannelKind "private") .Air.HasKey}}Stored — leave blank to keep it{{else}}32 hex digits{{end}}">
+        <div class="form-hint">The secret the companion app shares. It's stored encrypted and never shown again.</div>
+      </div>
+    </div>
+    <div class="mb-3">
+      <label class="form-label" for="air-scope">Scope</label>
+      <select id="air-scope" name="scope_region" class="form-select">
+        <option value="">Unscoped</option>
+        {{range .Air.Regions}}<option value="{{.ID}}"{{if eq .ID $.Air.ScopeID}} selected{{end}}>{{.DisplayName}} ({{.Token}})</option>{{end}}
+      </select>
+      <div class="form-hint">Repeaters that deny unscoped floods still repeat messages scoped to a region they allow.</div>
+    </div>
+    <div class="row g-3 mb-3">
+      <div class="col-md-6">
+        <label class="form-label" for="air-sender">Send as</label>
+        <input type="text" id="air-sender" name="on_air_name" class="form-control" maxlength="32" value="{{.Air.OnAirName}}" placeholder="{{.Net.Name}}">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label" for="air-prefix">Log prefix</label>
+        <input type="text" id="air-prefix" name="log_prefix" class="form-control" maxlength="16" value="{{.Air.LogPrefix}}">
+      </div>
+    </div>
+    <p class="form-hint">Channel messages starting with the log prefix, heard by net control's modem or the organization's observers, are logged to the session without it. Leave it blank to log nothing.</p>
+    <button type="submit" class="btn btn-primary" data-testid="net-air-save">Save on-air settings</button>
+  </form>
+</div>
+
+{{template "settings-subheading" (dict "Title" "Danger zone" "ID" "danger")}}
+<div class="card border-danger" style="max-width:40rem">
+  <div class="card-body d-flex align-items-center gap-3">
+    <div class="flex-fill">
+      <div class="fw-bold">Delete this net</div>
+      <div class="text-secondary small">Its sessions, check-in history and channel log go with it.</div>
+    </div>
+    <form method="post" action="/orgs/{{.Org.Slug}}/nets/{{.Net.ID}}/delete" class="m-0" data-confirm="Delete {{.Net.Name}} and all its session history?">
+      <button type="submit" class="btn btn-outline-danger" data-testid="net-delete">Delete net</button>
+    </form>
+  </div>
+</div>
+<script src="{{ asset "/static/timezone-picker.js" }}"></script>
+<script src="{{ asset "/static/net-air-form.js" }}"></script>
+{{end}}
+
+{{/* air-kind is one choice of the on-air channel kind. Data: dict Air, Kind, Label. */}}
+{{define "air-kind"}}
+<input type="radio" class="btn-check" name="channel_kind" id="air-kind-{{.Kind}}" value="{{.Kind}}" autocomplete="off"{{if eq .Air.ChannelKind .Kind}} checked{{end}}>
+<label class="btn" for="air-kind-{{.Kind}}" data-testid="air-kind-{{.Kind}}">{{.Label}}</label>
 {{end}}

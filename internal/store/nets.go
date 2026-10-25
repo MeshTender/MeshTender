@@ -138,17 +138,19 @@ func (s *Store) CreateNet(ctx context.Context, orgID int64, in NetInput, created
 	return net, nil
 }
 
-// UpdateNet edits the org's net. Sessions that haven't started are rebuilt on
-// the new schedule; started and past sessions keep the window they ran in.
+// UpdateNet edits the org's net's name, description and schedule (in.ManualAck
+// is ignored: SetNetManualAck sets it). Sessions that haven't started are
+// rebuilt on the new schedule; started and past sessions keep the window they
+// ran in.
 func (s *Store) UpdateNet(ctx context.Context, orgID, netID int64, in NetInput, now time.Time) error {
 	return s.inTx(ctx, func(tx pgx.Tx) error {
 		net, err := scanNet(tx.QueryRow(ctx, `
 			UPDATE check_in_nets SET name = $3, description = $4, weekday = $5, start_minute = $6,
-			       duration_minutes = $7, timezone = $8, active = $9, manual_ack = $10
+			       duration_minutes = $7, timezone = $8, active = $9
 			WHERE org_id = $1 AND id = $2
 			RETURNING id, org_id, name, description, weekday, start_minute, duration_minutes, timezone, active, manual_ack, created_at`,
 			orgID, netID, in.Name, in.Description, int16(in.Weekday), int16(in.StartMinute), //nolint:gosec // validated ranges
-			in.DurationMinutes, in.Timezone, in.Active, in.ManualAck))
+			in.DurationMinutes, in.Timezone, in.Active))
 		if err != nil {
 			return notFoundOr(err, "update net")
 		}
@@ -157,6 +159,19 @@ func (s *Store) UpdateNet(ctx context.Context, orgID, netID int64, in NetInput, 
 		}
 		return materializeNetSessions(ctx, tx, net, now)
 	})
+}
+
+// SetNetManualAck sets whether net control acknowledges the org's net's
+// check-ins by hand. Returns ErrNotFound for another org's net.
+func (s *Store) SetNetManualAck(ctx context.Context, orgID, netID int64, manual bool) error {
+	tag, err := s.pool.Exec(ctx, `UPDATE check_in_nets SET manual_ack = $3 WHERE org_id = $1 AND id = $2`, orgID, netID, manual)
+	if err != nil {
+		return fmt.Errorf("set net manual ack: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 // DeleteNet removes the org's net and all its sessions.

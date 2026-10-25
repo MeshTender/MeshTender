@@ -5,130 +5,53 @@
 {{if .Error}}<div class="alert alert-danger" role="alert"><div>{{.Error}}</div></div>{{end}}
 {{if .OK}}<div class="alert alert-success" role="alert"><div>{{.OK}}</div></div>{{end}}
 
+<ol class="breadcrumb mb-2" aria-label="Breadcrumb">
+  <li class="breadcrumb-item"><a href="/orgs/{{.Org.Slug}}/nets">Nets</a></li>
+  <li class="breadcrumb-item active" aria-current="page">{{.Net.Name}}</li>
+</ol>
+<div class="d-flex flex-wrap align-items-start gap-2 mb-3">
+  <div>
+    <h2 class="mb-1">{{.Net.Name}}</h2>
+    <div class="text-secondary">{{.Schedule}}</div>
+  </div>
+  {{if .IsAdmin}}<a class="btn ms-auto" href="{{.SettingsURL}}" data-testid="net-settings">{{template "icon-settings" "me-1"}}Settings</a>{{end}}
+</div>
+
+{{/* How the net runs, at a glance. Members see where net control's messages go
+     out so they can listen; a private channel's key never leaves the server. */}}
+<div class="d-flex flex-wrap gap-2 mb-3" data-testid="net-air-summary">
+  {{if not .Net.Active}}<span class="badge bg-secondary-lt">Inactive</span>{{end}}
+  <span class="badge bg-blue-lt">{{if .Net.ManualAck}}Acknowledged by net control{{else}}Acknowledged automatically{{end}}</span>
+  <span class="badge bg-azure-lt">{{template "icon-access-point" "me-1"}}{{with .Air}}{{if eq .ChannelKind "hashtag"}}#{{.ChannelName}}{{else if eq .ChannelKind "private"}}{{if .ChannelName}}{{.ChannelName}}{{else}}Private channel{{end}} (private){{else}}Public channel{{end}}{{end}}</span>
+  {{with .Air.ScopeToken}}<span class="badge bg-azure-lt">Scope {{.}}</span>{{end}}
+</div>
+
 <div class="row row-cards">
-  <div class="{{if .IsAdmin}}col-lg-8{{else}}col-12{{end}}">
-    <div class="card mb-3">
-      <div class="card-body">
-        <h2 class="card-title mb-1">{{.Net.Name}}{{if not .Net.Active}} <span class="badge bg-secondary-lt">Inactive</span>{{end}}</h2>
-        <div class="text-secondary">{{.Schedule}}</div>
-        {{if .Net.Description}}<p class="mt-2 mb-0">{{.Net.Description}}</p>{{end}}
-        <div class="text-secondary small mt-1">{{if .Net.ManualAck}}Net control acknowledges each check-in.{{else}}Check-ins are acknowledged as soon as they're heard.{{end}}</div>
-        {{with .Next}}
-        <div class="mt-3" data-testid="net-next">
-          {{if $.Now.Before .StartsAt}}Next session {{ts .StartsAt "datetime"}}
-          {{else}}<span class="badge bg-green-lt me-1">In progress</span> until {{ts .EndsAt "time"}} · <a href="/orgs/{{$.Org.Slug}}/nets/{{$.Net.ID}}/sessions/{{.ID}}">Live roster</a>{{end}}
+  <div class="col-lg-8 d-flex flex-column gap-3">
+    {{with .Next}}
+    {{if $.Now.Before .StartsAt}}
+    <div class="card" data-testid="net-next">
+      <div class="card-body d-flex align-items-center gap-3">
+        <span class="text-secondary d-flex">{{template "icon-calendar-event" ""}}</span>
+        <div>Next session <span class="fw-bold">{{ts .StartsAt "datetime"}}</span></div>
+      </div>
+    </div>
+    {{else}}
+    <div class="card card-borderless bg-green-lt" data-testid="net-next">
+      <div class="card-body d-flex flex-wrap align-items-center gap-3">
+        <span class="text-green d-flex">{{template "icon-access-point" ""}}</span>
+        <div class="flex-fill">
+          <span class="fw-bold">In progress</span>
+          <div class="text-secondary small">Until {{ts .EndsAt "time"}} · {{$.LiveCount}} checked in</div>
         </div>
-        {{end}}
+        <a class="btn btn-primary" href="/orgs/{{$.Org.Slug}}/nets/{{$.Net.ID}}/sessions/{{.ID}}" data-testid="net-live-roster">Open roster</a>
       </div>
     </div>
-
-    <div class="card mb-3" data-testid="net-control">
-      <div class="card-header"><h2 class="card-title">Net control</h2></div>
-      <div class="card-body">
-        <p class="text-secondary small">Net control acknowledges check-ins and can log them by hand. Organization admins can always act as net control.</p>
-        {{if .Controls}}
-        <ul class="list-unstyled mb-0">
-          {{range .Controls}}
-          <li class="d-flex align-items-center gap-2 mb-1">
-            <span>{{.Name}} <span class="text-secondary">@{{.Username}}</span></span>
-            {{if $.IsAdmin}}
-            <form method="post" action="/orgs/{{$.Org.Slug}}/nets/{{$.Net.ID}}/controls/{{.UserID}}/delete" class="m-0 ms-auto" data-confirm="Remove {{.Name}} as net control?">
-              <button type="submit" class="btn btn-sm btn-ghost-danger" aria-label="Remove {{.Name}}">{{template "icon-trash" ""}}</button>
-            </form>
-            {{end}}
-          </li>
-          {{end}}
-        </ul>
-        {{else}}
-        <p class="text-secondary mb-0">No one besides the organization's admins.</p>
-        {{end}}
-        {{if and .IsAdmin .Candidates}}
-        <form method="post" action="/orgs/{{.Org.Slug}}/nets/{{.Net.ID}}/controls" class="row g-2 align-items-end mt-2">
-          <div class="col">
-            <label class="form-label" for="nc-member">Add a member</label>
-            <select id="nc-member" name="user_id" class="form-select">
-              {{range .Candidates}}<option value="{{.UserID}}">{{.Name}} (@{{.Username}})</option>{{end}}
-            </select>
-          </div>
-          <div class="col-auto"><button type="submit" class="btn btn-outline-primary">Add</button></div>
-        </form>
-        {{end}}
-      </div>
-    </div>
-
-    {{/* Members see where net control's messages go out, so they can listen;
-         a private channel's key never leaves the server. */}}
-    <div class="card mb-3" data-testid="net-air">
-      <div class="card-header"><h2 class="card-title">On the air</h2></div>
-      <div class="card-body">
-        <p class="text-secondary small">When net control connects a modem during a session, announcements and acknowledgements go out as channel messages here.</p>
-        <dl class="row mb-0" data-testid="net-air-summary">
-          <dt class="col-sm-4">Channel</dt>
-          <dd class="col-sm-8">{{with .Air}}{{if eq .ChannelKind "hashtag"}}<code>#{{.ChannelName}}</code>{{else if eq .ChannelKind "private"}}{{if .ChannelName}}{{.ChannelName}}{{else}}A private channel{{end}} <span class="text-secondary">(private)</span>{{else}}Public{{end}}{{end}}</dd>
-          <dt class="col-sm-4">Scope</dt>
-          <dd class="col-sm-8">{{if .Air.ScopeToken}}Region <code>{{.Air.ScopeToken}}</code>{{else}}Unscoped{{end}}</dd>
-          <dt class="col-sm-4">Sent as</dt>
-          <dd class="col-sm-8">{{if .Air.OnAirName}}{{.Air.OnAirName}}{{else}}{{.Net.Name}}{{end}}</dd>
-          <dt class="col-sm-4">Logged</dt>
-          <dd class="col-sm-8">{{if .Air.LogPrefix}}Channel messages starting with <code>{{.Air.LogPrefix}}</code>{{else}}Nothing{{end}}</dd>
-          <dt class="col-sm-4">Radio</dt>
-          <dd class="col-sm-8">{{with .Radio}}{{.MHz}} MHz · BW{{.KHz}} · SF{{.SF}} · CR{{.CR}}{{else}}<span class="text-danger" data-testid="net-air-no-radio">Not set — an admin sets the organization's radio on the Configuration tab.</span>{{end}}</dd>
-        </dl>
-        {{if .Air.UnjoinableHashtag}}
-        <div class="alert alert-warning mt-3 mb-0" role="alert" data-testid="net-air-uppercase">
-          <div>The channel name <code>#{{.Air.ChannelName}}</code> has uppercase letters. The companion app only lets members type lowercase hashtag names, and the channel's key comes from the exact name, so they can't join this one. Use <code>#{{.Air.LowerChannelName}}</code> instead.</div>
-        </div>
-        {{end}}
-        {{if .IsAdmin}}
-        <form method="post" action="/orgs/{{.Org.Slug}}/nets/{{.Net.ID}}/air" class="mt-3 border-top pt-3">
-          <div class="row g-2 mb-3">
-            <div class="col-md-4">
-              <label class="form-label" for="air-kind">Channel</label>
-              <select id="air-kind" name="channel_kind" class="form-select">
-                <option value="public"{{if eq .Air.ChannelKind "public"}} selected{{end}}>Public</option>
-                <option value="hashtag"{{if eq .Air.ChannelKind "hashtag"}} selected{{end}}>Hashtag channel</option>
-                <option value="private"{{if eq .Air.ChannelKind "private"}} selected{{end}}>Private channel</option>
-              </select>
-            </div>
-            <div class="col-md-8">
-              <label class="form-label" for="air-name">Channel name</label>
-              <input type="text" id="air-name" name="channel_name" class="form-control" maxlength="31" value="{{.Air.ChannelName}}" placeholder="wnynet">
-              <div class="form-hint">A hashtag channel's name, in lowercase as the companion app requires (the key comes from the exact name), or a label for a private channel.</div>
-            </div>
-          </div>
-          <div class="mb-3">
-            <label class="form-label" for="air-key">Private channel key</label>
-            <input type="password" id="air-key" name="channel_key" class="form-control font-monospace" autocomplete="off"
-                   placeholder="{{if .Air.HasKey}}Stored — leave blank to keep it{{else}}32 hex digits{{end}}">
-            <div class="form-hint">Only for a private channel: the secret the companion app shares. It's stored encrypted and never shown again.</div>
-          </div>
-          <div class="row g-2 mb-3">
-            <div class="col-md-6">
-              <label class="form-label" for="air-scope">Scope to region</label>
-              <select id="air-scope" name="scope_region" class="form-select">
-                <option value="">Unscoped</option>
-                {{range .Air.Regions}}<option value="{{.ID}}"{{if eq .ID $.Air.ScopeID}} selected{{end}}>{{.DisplayName}} ({{.Token}})</option>{{end}}
-              </select>
-              <div class="form-hint">Repeaters that deny unscoped floods still repeat messages scoped to a region they allow.</div>
-            </div>
-            <div class="col-md-6">
-              <label class="form-label" for="air-sender">On-air name</label>
-              <input type="text" id="air-sender" name="on_air_name" class="form-control" maxlength="32" value="{{.Air.OnAirName}}" placeholder="{{.Net.Name}}">
-            </div>
-          </div>
-          <div class="mb-3">
-            <label class="form-label" for="air-prefix">Log prefix</label>
-            <input type="text" id="air-prefix" name="log_prefix" class="form-control" maxlength="16" value="{{.Air.LogPrefix}}">
-            <div class="form-hint">Channel messages starting with this, heard by net control's modem or the organization's observers, are logged to the session without it. Leave blank to log nothing.</div>
-          </div>
-          <button type="submit" class="btn btn-primary" data-testid="net-air-save">Save on-air settings</button>
-        </form>
-        {{end}}
-      </div>
-    </div>
+    {{end}}
+    {{end}}
 
     <div class="card">
-      <div class="card-header"><h2 class="card-title">Sessions</h2></div>
+      <div class="card-header"><h2 class="card-title">Past sessions</h2></div>
       {{if .Sessions}}
       <div class="list-group list-group-flush" data-testid="net-sessions">
         {{range .Sessions}}
@@ -145,22 +68,21 @@
     </div>
   </div>
 
-  {{if .IsAdmin}}
-  <div class="col-lg-4">
-    <div class="card mb-3">
-      <div class="card-header"><h2 class="card-title">Edit net</h2></div>
+  <div class="col-lg-4 d-flex flex-column gap-3">
+    {{if .Net.Description}}
+    <div class="card">
+      <div class="card-header"><h2 class="card-title">About</h2></div>
+      <div class="card-body">{{.Net.Description}}</div>
+    </div>
+    {{end}}
+    <div class="card" data-testid="net-control">
+      <div class="card-header"><h2 class="card-title">Taking part</h2></div>
       <div class="card-body">
-        <form method="post" action="/orgs/{{.Org.Slug}}/nets/{{.Net.ID}}">
-          {{template "net-form" .}}
-          <button type="submit" class="btn btn-primary w-100">Save</button>
-        </form>
+        <p>Check in by sending a flood advert from your companion during the session.</p>
+        {{with .Air.LogPrefix}}<p>To add to the session log, start a message on the channel with <code>{{.}}</code>.</p>{{end}}
+        <p class="mb-0 text-secondary">Net control: the organization's admins{{range $i, $c := .Controls}}{{if eq $i 0}}, plus {{else}}, {{end}}{{$c.Name}}{{end}}.</p>
       </div>
     </div>
-    <form method="post" action="/orgs/{{.Org.Slug}}/nets/{{.Net.ID}}/delete" data-confirm="Delete {{.Net.Name}} and all its session history?">
-      <button type="submit" class="btn btn-outline-danger w-100">{{template "icon-trash" "me-1"}}Delete net</button>
-    </form>
   </div>
-  {{end}}
 </div>
-{{if .IsAdmin}}<script src="{{ asset "/static/timezone-picker.js" }}"></script>{{end}}
 {{end}}

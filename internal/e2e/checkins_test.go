@@ -142,7 +142,8 @@ func TestE2ENetScheduleAndRoster(t *testing.T) {
 		chromedp.Evaluate(`!!document.querySelector('#net-timezone option[value=""]')`, &hasAuto),
 		chromedp.SendKeys(`#net-name`, "Sunday Net", chromedp.ByQuery),
 		chromedp.Submit(`#net-name`, chromedp.ByQuery),
-		chromedp.WaitVisible(`[data-testid="net-next"]`, chromedp.ByQuery),
+		// A new net lands on its settings page.
+		chromedp.WaitVisible(`[data-testid="net-schedule-form"]`, chromedp.ByQuery),
 	); err != nil {
 		t.Fatalf("create net: %v", err)
 	}
@@ -253,7 +254,8 @@ func TestE2ENetControlAcknowledgesAndRosterRefreshes(t *testing.T) {
 }
 
 // TestE2ENetAirSettings: an admin saves a net's on-air settings through the
-// real form on the net page, and the summary reflects them.
+// real form in Settings › Nets — choosing Hashtag reveals only the hashtag
+// field — and the net's page summarizes them.
 func TestE2ENetAirSettings(t *testing.T) {
 	srv := newE2EServer(t)
 	user, cookie := srv.login(t, "e2enetair")
@@ -272,27 +274,45 @@ func TestE2ENetAirSettings(t *testing.T) {
 
 	bctx, cancel, watch := startBrowser(t)
 	defer cancel()
-	var summary string
+	const hidden = `document.querySelector('[data-air-field="%s"]').classList.contains("d-none")`
+	var hashtagHiddenBefore, hashtagHiddenAfter, privateHiddenAfter bool
+	var summary, page string
 	if err := chromedp.Run(bctx,
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(fmt.Sprintf("%s/orgs/%s/nets/%d", srv.appURL, org.Slug, net.ID)),
+		chromedp.Navigate(fmt.Sprintf("%s/orgs/%s/settings/nets/%d", srv.appURL, org.Slug, net.ID)),
 		chromedp.WaitVisible(`[data-testid="net-air-save"]`, chromedp.ByQuery),
-		chromedp.SetValue(`#air-kind`, "hashtag", chromedp.ByQuery),
-		chromedp.SetValue(`#air-name`, "wnynet", chromedp.ByQuery),
+		chromedp.Evaluate(fmt.Sprintf(hidden, "hashtag"), &hashtagHiddenBefore),
+		chromedp.Click(`[data-testid="air-kind-hashtag"]`, chromedp.ByQuery),
+		chromedp.WaitVisible(`#air-hashtag`, chromedp.ByQuery),
+		chromedp.Evaluate(fmt.Sprintf(hidden, "hashtag"), &hashtagHiddenAfter),
+		chromedp.Evaluate(fmt.Sprintf(hidden, "private"), &privateHiddenAfter),
+		chromedp.SetValue(`#air-hashtag`, "wnynet", chromedp.ByQuery),
 		chromedp.Evaluate(`(() => { const s = document.getElementById("air-scope"); s.value = s.options[1].value; })()`, nil),
 		chromedp.SetValue(`#air-sender`, "Net Control", chromedp.ByQuery),
 		chromedp.Click(`[data-testid="net-air-save"]`, chromedp.ByQuery),
-		chromedp.WaitVisible(`.alert-success`, chromedp.ByQuery),
+		chromedp.WaitVisible(`[data-testid="settings-ok"]`, chromedp.ByQuery),
+		chromedp.Navigate(fmt.Sprintf("%s/orgs/%s/nets/%d", srv.appURL, org.Slug, net.ID)),
+		chromedp.WaitVisible(`[data-testid="net-air-summary"]`, chromedp.ByQuery),
 		chromedp.Text(`[data-testid="net-air-summary"]`, &summary, chromedp.ByQuery),
+		chromedp.Text(`.page-body`, &page, chromedp.ByQuery),
 	); err != nil {
 		t.Fatalf("save on-air settings: %v", err)
 	}
-	for _, want := range []string{"#wnynet", "us-ny", "Net Control", "news:"} {
+	if !hashtagHiddenBefore || hashtagHiddenAfter || !privateHiddenAfter {
+		t.Errorf("channel fields: hashtag hidden %v → %v, private hidden after %v", hashtagHiddenBefore, hashtagHiddenAfter, privateHiddenAfter)
+	}
+	for _, want := range []string{"#wnynet", "us-ny"} {
 		if !strings.Contains(summary, want) {
 			t.Errorf("summary missing %q: %q", want, summary)
 		}
+	}
+	if !strings.Contains(page, "news:") {
+		t.Error("the net page doesn't say how to add to the session log")
+	}
+	if a, err := srv.store.GetNetAir(srv.ctx, org.ID, net.ID); err != nil || a.OnAirName != "Net Control" {
+		t.Errorf("on-air settings = %+v, %v", a, err)
 	}
 	watch.assertClean(t)
 }

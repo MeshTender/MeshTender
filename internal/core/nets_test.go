@@ -56,11 +56,21 @@ func TestOrgNetsAdmin(t *testing.T) {
 		}
 	}
 
-	resp := post(t, ts, h.app, base, netForm("Sunday Net", "0", "19:00", "60", "America/New_York"), adminSess)
-	loc := resp.Header.Get("Location")
-	resp.Body.Close()
-	if resp.StatusCode != http.StatusSeeOther || !strings.HasPrefix(loc, base+"/") {
-		t.Fatalf("create = %d → %q", resp.StatusCode, loc)
+	// Creating a net lands on its settings, where the on-air settings are.
+	created := post(t, ts, h.app, base, netForm("Sunday Net", "0", "19:00", "60", "America/New_York"), adminSess)
+	settingsPrefix := "/orgs/" + org.Slug + "/settings/nets/"
+	created.Body.Close()
+	createdAt, _ := url.Parse(created.Header.Get("Location"))
+	if created.StatusCode != http.StatusSeeOther || createdAt == nil || !strings.HasPrefix(createdAt.Path, settingsPrefix) {
+		t.Fatalf("create = %d → %q", created.StatusCode, created.Header.Get("Location"))
+	}
+	settings := createdAt.Path
+	loc := base + "/" + strings.TrimPrefix(settings, settingsPrefix)
+	if body := getBody(t, ts, h.app, settings, adminSess); !strings.Contains(body, `data-testid="net-schedule-form"`) {
+		t.Error("the net's settings page lacks its schedule form")
+	}
+	if got := status(t, do(t, ts, h.app, settings, memberSess)); got != http.StatusNotFound {
+		t.Errorf("member GET of the net's settings = %d", got)
 	}
 	body := getBody(t, ts, h.app, loc, memberSess)
 	if !strings.Contains(body, "Sundays, 19:00–20:00 (America/New_York)") || !strings.Contains(body, `data-testid="net-next"`) {
@@ -75,13 +85,27 @@ func TestOrgNetsAdmin(t *testing.T) {
 		t.Error("Check-ins › Nets links to Settings › Nets")
 	}
 
-	// Edit, then delete.
-	q := redirectTo(t, post(t, ts, h.app, loc, netForm("Monday Net", "1", "20:30", "30", "America/New_York"), adminSess), loc)
+	// Edit, then delete. A rejected schedule is re-shown with what was entered.
+	if body := readBody(t, post(t, ts, h.app, loc, netForm("Typo Net", "1", "20:30", "0", "America/New_York"), adminSess)); !strings.Contains(body, `data-testid="settings-form-error"`) ||
+		!strings.Contains(body, `value="Typo Net"`) {
+		t.Error("a rejected schedule isn't re-shown with its error")
+	}
+	q := redirectTo(t, post(t, ts, h.app, loc, netForm("Monday Net", "1", "20:30", "30", "America/New_York"), adminSess), settings)
 	if q.Get("ok") == "" {
 		t.Error("no confirmation after saving")
 	}
 	if body := getBody(t, ts, h.app, loc, adminSess); !strings.Contains(body, "Mondays, 20:30–21:00") {
 		t.Error("edit not applied")
+	}
+	// The acknowledgement mode is its own section, and a schedule save leaves it.
+	if got := status(t, post(t, ts, h.app, loc+"/ack", url.Values{"ack": {"manual"}}, memberSess)); got != http.StatusNotFound {
+		t.Errorf("member ack-mode save = %d", got)
+	}
+	redirectTo(t, post(t, ts, h.app, loc+"/ack", url.Values{"ack": {"manual"}}, adminSess), settings)
+	redirectTo(t, post(t, ts, h.app, loc, netForm("Monday Net", "1", "20:30", "30", "America/New_York"), adminSess), settings)
+	nid, _ := strconv.ParseInt(strings.TrimPrefix(settings, settingsPrefix), 10, 64)
+	if n, err := st.GetNet(ctx, org.ID, nid); err != nil || !n.ManualAck {
+		t.Errorf("ack mode after a schedule save = %+v, %v; want manual", n, err)
 	}
 	if got := status(t, post(t, ts, h.app, loc+"/delete", nil, memberSess)); got != http.StatusNotFound {
 		t.Errorf("member delete = %d", got)
@@ -165,7 +189,7 @@ func TestNetSessionRosterPage(t *testing.T) {
 			t.Errorf("roster lists the device %q", absent)
 		}
 	}
-	if !strings.Contains(getBody(t, ts, h.app, "/orgs/"+org.Slug+"/nets/"+strconv.FormatInt(net.ID, 10), sess), "Live roster") {
+	if !strings.Contains(getBody(t, ts, h.app, "/orgs/"+org.Slug+"/nets/"+strconv.FormatInt(net.ID, 10), sess), `data-testid="net-live-roster"`) {
 		t.Error("net page doesn't link the live roster")
 	}
 
@@ -221,9 +245,11 @@ func TestNetControlAcknowledgements(t *testing.T) {
 		time.Date(2000, 1, 1, 0, max(0, now.Hour()*60+now.Minute()-10), 0, 0, time.UTC).Format("15:04"), "120", "UTC")
 	form.Set("ack", "manual")
 	resp := post(t, ts, h.app, base, form, adminSess)
-	netPath := resp.Header.Get("Location")
 	resp.Body.Close()
-	nid, _ := strconv.ParseInt(netPath[strings.LastIndex(netPath, "/")+1:], 10, 64)
+	created, _ := url.Parse(resp.Header.Get("Location"))
+	nid, _ := strconv.ParseInt(created.Path[strings.LastIndex(created.Path, "/")+1:], 10, 64)
+	netPath := base + "/" + strconv.FormatInt(nid, 10)
+	settingsPath := netSettingsURL(org.Slug, nid)
 	net, err := st.GetNet(ctx, org.ID, nid)
 	if err != nil || !net.ManualAck {
 		t.Fatalf("net = %+v, %v; want manual acknowledgement", net, err)
@@ -255,9 +281,12 @@ func TestNetControlAcknowledgements(t *testing.T) {
 	if got := status(t, post(t, ts, h.app, netPath+"/controls", url.Values{"user_id": {strconv.FormatInt(control.ID, 10)}}, controlSess)); got != http.StatusNotFound {
 		t.Errorf("member designating net control = %d, want 404", got)
 	}
-	redirectTo(t, post(t, ts, h.app, netPath+"/controls", url.Values{"user_id": {strconv.FormatInt(control.ID, 10)}}, adminSess), netPath)
-	if body := getBody(t, ts, h.app, netPath, adminSess); !strings.Contains(body, "@ackcontrol") {
-		t.Error("net page doesn't list the designated net control")
+	redirectTo(t, post(t, ts, h.app, netPath+"/controls", url.Values{"user_id": {strconv.FormatInt(control.ID, 10)}}, adminSess), settingsPath)
+	if body := getBody(t, ts, h.app, settingsPath, adminSess); !strings.Contains(body, "@ackcontrol") {
+		t.Error("the net's settings don't list the designated net control")
+	}
+	if body := getBody(t, ts, h.app, netPath, controlSess); !strings.Contains(body, "plus ackcontrol") {
+		t.Error("the net page doesn't name the designated net control")
 	}
 
 	// Net control sees the heard advert awaiting acknowledgement, then

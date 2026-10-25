@@ -1,6 +1,8 @@
-{{/* net-form renders the fields of a check-in net's create/edit form (the caller
-     owns the <form> and its submit button). Data: the page map, reading .Form (a
-     store.NetInput) and .Weekdays. The time-zone picker is filled from the
+{{/* net-form renders the fields of a check-in net's create form and its
+     Schedule settings (the caller owns the <form> and its submit button). Data: the
+     page map, reading .Form (a store.NetInput) and .Weekdays; .NetEdit (the
+     settings page) swaps the acknowledgement choice, which has its own section
+     there, for the Active switch. The time-zone picker is filled from the
      browser's zone list by timezone-picker.js; data-tz-required means a net always
      has an explicit zone, preselecting the saved or detected one. */}}
 {{define "net-form"}}
@@ -18,8 +20,6 @@
     {{range .Weekdays}}<option value="{{printf "%d" .}}"{{if eq . $.Form.Weekday}} selected{{end}}>{{.}}</option>{{end}}
   </select>
 </div>
-{{/* Start and length share a row; the forms sit in a narrow sidebar card, where
-     three columns cut off a 12-hour "07:00 PM". */}}
 <div class="row g-2 mb-3">
   <div class="col-7">
     <label class="form-label" for="net-start">Starts</label>
@@ -37,24 +37,33 @@
   </select>
   <div class="form-hint">The net keeps its local start time across daylight-saving changes.</div>
 </div>
+{{if .NetEdit}}
+<label class="form-check form-switch mb-3">
+  <input class="form-check-input" type="checkbox" name="active" value="1"{{if .Form.Active}} checked{{end}} data-testid="net-active">
+  <span class="form-check-label">Active</span>
+  <span class="form-hint mt-0">An inactive net keeps its history but schedules no new sessions.</span>
+</label>
+{{else}}
+{{template "net-ack-choice" .Form.ManualAck}}
+{{end}}
+{{end}}
+
+{{/* net-ack-choice is the choice of how a net's check-ins are acknowledged.
+     Pass whether it's by hand (store.NetInput.ManualAck). */}}
+{{define "net-ack-choice"}}
 <div class="mb-3">
   <div class="form-label">Acknowledge check-ins</div>
   <label class="form-check">
-    <input class="form-check-input" type="radio" name="ack" value="auto"{{if not .Form.ManualAck}} checked{{end}}>
+    <input class="form-check-input" type="radio" name="ack" value="auto"{{if not .}} checked{{end}}>
     <span class="form-check-label">Automatically</span>
     <span class="form-hint mt-0">An advert counts as acknowledged as soon as an observer hears it.</span>
   </label>
   <label class="form-check">
-    <input class="form-check-input" type="radio" name="ack" value="manual"{{if .Form.ManualAck}} checked{{end}}>
-    <span class="form-check-label">Manually, by net control</span>
+    <input class="form-check-input" type="radio" name="ack" value="manual"{{if .}} checked{{end}}>
+    <span class="form-check-label">By net control</span>
     <span class="form-hint mt-0">Net control replies on the air, then marks each check-in acknowledged.</span>
   </label>
 </div>
-<label class="form-check mb-3">
-  <input class="form-check-input" type="checkbox" name="active" value="1"{{if .Form.Active}} checked{{end}}>
-  <span class="form-check-label">Active</span>
-  <span class="form-hint mt-0">Inactive nets keep their history but schedule no new sessions.</span>
-</label>
 {{end}}
 
 {{/* net-list is an org's nets with their schedule and next session, linking to

@@ -698,6 +698,26 @@ func TestNetControlAndAcknowledgements(t *testing.T) {
 	if got, _ := st.GetNet(ctx, org, net.ID); !got.ManualAck {
 		t.Fatal("manual_ack didn't round-trip")
 	}
+	// A schedule edit leaves the mode alone; SetNetManualAck changes it, for
+	// this org's net only.
+	in.ManualAck = false
+	if err := st.UpdateNet(ctx, org, net.ID, in, before); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := st.GetNet(ctx, org, net.ID); !got.ManualAck {
+		t.Fatal("UpdateNet changed manual_ack")
+	}
+	if err := st.SetNetManualAck(ctx, mustOrg(t, st, ctx, "AckOther", admin), net.ID, false); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("cross-org SetNetManualAck: %v", err)
+	}
+	for _, manual := range []bool{false, true} {
+		if err := st.SetNetManualAck(ctx, org, net.ID, manual); err != nil {
+			t.Fatal(err)
+		}
+		if got, _ := st.GetNet(ctx, org, net.ID); got.ManualAck != manual {
+			t.Fatalf("manual_ack = %v, want %v", got.ManualAck, manual)
+		}
+	}
 	sess, err := st.NextNetSession(ctx, net.ID, before)
 	if err != nil {
 		t.Fatal(err)

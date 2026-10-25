@@ -10,8 +10,6 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/go-chi/chi/v5"
-
 	"github.com/MeshTender/MeshTender/internal/netair"
 	"github.com/MeshTender/MeshTender/internal/secretbox"
 	"github.com/MeshTender/MeshTender/internal/store"
@@ -71,22 +69,23 @@ func plainText(s string) bool {
 	return strings.IndexFunc(s, unicode.IsControl) < 0
 }
 
-// parseNetAirForm validates the on-air form against the org's regions. key is
-// the private channel key when one was entered. msg is a user-facing error.
+// parseNetAirForm validates the on-air form against the org's regions. The
+// form has a field per channel kind — hashtag_name, and private_label with
+// channel_key — and only the chosen kind's are read. key is the private channel
+// key when one was entered. msg is a user-facing error.
 func parseNetAirForm(r *http.Request, regions []store.Region) (a store.NetAir, key []byte, msg string) {
 	a.ChannelKind = r.FormValue("channel_kind")
-	a.ChannelName = strings.TrimSpace(r.FormValue("channel_name"))
 	switch a.ChannelKind {
 	case store.ChannelPublic:
-		a.ChannelName = ""
 	case store.ChannelHashtag:
 		// The key is SHA256 of the exact "#name", so keep it as typed.
-		a.ChannelName = strings.TrimPrefix(a.ChannelName, "#")
+		a.ChannelName = strings.TrimPrefix(strings.TrimSpace(r.FormValue("hashtag_name")), "#")
 		if a.ChannelName == "" || len(a.ChannelName)+1 > maxChannelName || strings.ContainsFunc(a.ChannelName, unicode.IsSpace) ||
 			!plainText(a.ChannelName) {
 			return a, nil, "Enter the hashtag channel's name, without spaces (up to 30 characters)."
 		}
 	case store.ChannelPrivate:
+		a.ChannelName = strings.TrimSpace(r.FormValue("private_label"))
 		if len(a.ChannelName) > maxChannelName || !plainText(a.ChannelName) {
 			return a, nil, "The channel name is too long."
 		}
@@ -123,25 +122,34 @@ func parseNetAirForm(r *http.Request, regions []store.Region) (a store.NetAir, k
 	return a, key, ""
 }
 
+// handleUpdateNetAir saves a net's on-air settings. A rejected form re-shows
+// what was entered with the error (never the key).
 func (s *Handlers) handleUpdateNetAir(w http.ResponseWriter, r *http.Request) {
-	id, ok := s.requireOrgAdmin(w, r)
+	org, net, ok := s.settingsNet(w, r)
 	if !ok {
 		return
 	}
-	nid, err := strconv.ParseInt(chi.URLParam(r, "nid"), 10, 64)
-	if err != nil {
-		s.NotFound(w, r)
-		return
-	}
 	ctx := r.Context()
-	regions, err := s.Store.ListRegions(ctx, id)
+	regions, err := s.Store.ListRegions(ctx, org.ID)
 	if err != nil {
 		s.ServerError(w, r, "Couldn't load regions.", err)
 		return
 	}
+	current, err := s.Store.GetNetAir(ctx, org.ID, net.ID)
+	if err != nil {
+		s.ServerError(w, r, "Couldn't load the net.", err)
+		return
+	}
 	a, key, msg := parseNetAirForm(r, regions)
+	if msg == "" && key == nil && a.ChannelKind == store.ChannelPrivate && (current.ChannelKind != store.ChannelPrivate || !current.HasKey()) {
+		msg = "Enter the private channel's key."
+	}
 	if msg != "" {
-		web.RedirectErr(w, r, netURL(r), msg)
+		// Re-show the entries; a stored key stays stored, so say so.
+		if current.ChannelKind == store.ChannelPrivate {
+			a.PSKSealed = current.PSKSealed
+		}
+		s.renderNetSettings(w, r, org, net, map[string]any{"Air": netAirView{NetAir: &a, Regions: regions}, "AirError": msg})
 		return
 	}
 	var sealed []byte
@@ -150,22 +158,8 @@ func (s *Handlers) handleUpdateNetAir(w http.ResponseWriter, r *http.Request) {
 			s.ServerError(w, r, "Couldn't store the channel key.", err)
 			return
 		}
-	} else if a.ChannelKind == store.ChannelPrivate {
-		current, err := s.Store.GetNetAir(ctx, id, nid)
-		if errors.Is(err, store.ErrNotFound) {
-			s.NotFound(w, r)
-			return
-		}
-		if err != nil {
-			s.ServerError(w, r, "Couldn't load the net.", err)
-			return
-		}
-		if current.ChannelKind != store.ChannelPrivate || !current.HasKey() {
-			web.RedirectErr(w, r, netURL(r), "Enter the private channel's key.")
-			return
-		}
 	}
-	err = s.Store.UpdateNetAir(ctx, id, nid, a, sealed)
+	err = s.Store.UpdateNetAir(ctx, org.ID, net.ID, a, sealed)
 	if errors.Is(err, store.ErrNotFound) {
 		s.NotFound(w, r)
 		return
@@ -174,5 +168,5 @@ func (s *Handlers) handleUpdateNetAir(w http.ResponseWriter, r *http.Request) {
 		s.ServerError(w, r, "Couldn't save the on-air settings.", err)
 		return
 	}
-	web.RedirectFlash(w, r, netURL(r), "ok", "On-air settings saved.")
+	web.RedirectFlash(w, r, netSettingsURL(org.Slug, net.ID), "ok", "On-air settings saved.")
 }

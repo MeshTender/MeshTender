@@ -131,6 +131,7 @@ func (s *Handlers) handleCreateNet(w http.ResponseWriter, r *http.Request) {
 		web.RedirectErr(w, r, settingsURL(orgParam(r), "nets")+"/new", msg)
 		return
 	}
+	in.Active = true // a new net runs; its settings page can pause it
 	net, err := s.Store.CreateNet(r.Context(), id, in, s.Auth.CurrentUserID(r.Context()), time.Now())
 	if errors.Is(err, store.ErrNetLimit) {
 		web.RedirectErr(w, r, settingsURL(orgParam(r), "nets"), "This organization has the maximum number of nets.")
@@ -140,7 +141,13 @@ func (s *Handlers) handleCreateNet(w http.ResponseWriter, r *http.Request) {
 		s.ServerError(w, r, "Couldn't create the net.", err)
 		return
 	}
-	http.Redirect(w, r, netsURL(r)+"/"+strconv.FormatInt(net.ID, 10), http.StatusSeeOther) //nolint:gosec // G710: local path
+	web.RedirectFlash(w, r, netSettingsURL(orgParam(r), net.ID), "ok",
+		"Net scheduled. Choose where net control's messages go out under On the air.")
+}
+
+// netSettingsURL is a net's page in Settings › Nets.
+func netSettingsURL(slug string, netID int64) string {
+	return settingsURL(slug, "nets") + "/" + strconv.FormatInt(netID, 10)
 }
 
 // orgNet loads the net named in the URL for a member page, writing a 404 when
@@ -163,6 +170,9 @@ func (s *Handlers) orgNet(w http.ResponseWriter, r *http.Request, orgID int64) (
 	return net, true
 }
 
+// pageOrgNet is a net's overview, for every member: its schedule, how it runs
+// and where it's on the air, the session in progress or next, and past
+// sessions. Admins change it in Settings › Nets.
 func (s *Handlers) pageOrgNet(w http.ResponseWriter, r *http.Request) {
 	org, isAdmin, ok := s.orgMemberPage(w, r)
 	if !ok {
@@ -188,6 +198,15 @@ func (s *Handlers) pageOrgNet(w http.ResponseWriter, r *http.Request) {
 		s.ServerError(w, r, "Couldn't load the next session.", err)
 		return
 	}
+	var live int
+	if next != nil && !now.Before(next.StartsAt) {
+		counts, err := s.Store.NetSessionsCheckedIn(ctx, org.ID, []int64{next.ID})
+		if err != nil {
+			s.ServerError(w, r, "Couldn't load the session.", err)
+			return
+		}
+		live = counts[next.ID]
+	}
 	controls, err := s.Store.ListNetControls(ctx, org.ID, net.ID)
 	if err != nil {
 		s.ServerError(w, r, "Couldn't load net control.", err)
@@ -198,120 +217,167 @@ func (s *Handlers) pageOrgNet(w http.ResponseWriter, r *http.Request) {
 		s.ServerError(w, r, "Couldn't load the on-air settings.", err)
 		return
 	}
+	data := map[string]any{
+		"Org":         org,
+		"Nav":         s.orgNav(ctx, org, "nets", isAdmin),
+		"IsAdmin":     isAdmin,
+		"Net":         net,
+		"Controls":    controls,
+		"Air":         netAirView{NetAir: air},
+		"Schedule":    netSchedule(net),
+		"Next":        next,
+		"LiveCount":   live,
+		"Now":         now,
+		"Sessions":    sessions,
+		"SettingsURL": netSettingsURL(org.Slug, net.ID),
+		"Error":       r.URL.Query().Get("error"),
+		"OK":          r.URL.Query().Get("ok"),
+	}
+	if hasMore && len(sessions) > 0 {
+		data["NextBefore"] = web.EncodeCursor(sessions[len(sessions)-1].StartsAt)
+	}
+	s.Render(w, r, "org_net.html", data)
+}
+
+// pageNetSettings is a net's page in Settings › Nets: its schedule, how
+// check-ins are acknowledged and by whom, its on-air settings, and deleting it.
+func (s *Handlers) pageNetSettings(w http.ResponseWriter, r *http.Request) {
+	org, ok := s.requireSettings(w, r)
+	if !ok {
+		return
+	}
+	if net, ok := s.orgNet(w, r, org.ID); ok {
+		s.renderNetSettings(w, r, org, net, nil)
+	}
+}
+
+// renderNetSettings renders a net's settings page, with extra merged over its
+// data — a section's submitted values and error when it's re-shown.
+func (s *Handlers) renderNetSettings(w http.ResponseWriter, r *http.Request, org *store.Org, net *store.Net, extra map[string]any) {
+	ctx := r.Context()
+	data, err := s.settingsData(ctx, r, org, "nets")
+	if err != nil {
+		s.ServerError(w, r, "Couldn't load settings.", err)
+		return
+	}
+	controls, err := s.Store.ListNetControls(ctx, org.ID, net.ID)
+	if err != nil {
+		s.ServerError(w, r, "Couldn't load net control.", err)
+		return
+	}
+	// Candidates for net control: members not already designated. Admins can
+	// act as net control anyway, so they're left out.
+	members, err := s.Store.ListOrgMembers(ctx, org.ID)
+	if err != nil {
+		s.ServerError(w, r, "Couldn't load members.", err)
+		return
+	}
+	designated := map[int64]bool{}
+	for _, c := range controls {
+		designated[c.UserID] = true
+	}
+	var candidates []store.OrgMemberInfo
+	for _, m := range members {
+		if m.Role != "admin" && !designated[m.UserID] {
+			candidates = append(candidates, m)
+		}
+	}
+	air, err := s.Store.GetNetAir(ctx, org.ID, net.ID)
+	if err != nil {
+		s.ServerError(w, r, "Couldn't load the on-air settings.", err)
+		return
+	}
+	regions, err := s.Store.ListRegions(ctx, org.ID)
+	if err != nil {
+		s.ServerError(w, r, "Couldn't load regions.", err)
+		return
+	}
 	radio, err := s.Store.OrgRadio(ctx, org.ID)
 	if err != nil {
 		s.ServerError(w, r, "Couldn't load the radio settings.", err)
 		return
 	}
-	data := map[string]any{
-		"Org":      org,
-		"Nav":      s.orgNav(ctx, org, "nets", isAdmin),
-		"IsAdmin":  isAdmin,
-		"Net":      net,
-		"Controls": controls,
-		"Air":      netAirView{NetAir: air},
-		"Radio":    radio,
-		"Schedule": netSchedule(net),
-		"Next":     next,
-		"Now":      now,
-		"Sessions": sessions,
-		"Form":     net.NetInput,
-		"Weekdays": weekdays,
-		"Error":    r.URL.Query().Get("error"),
-		"OK":       r.URL.Query().Get("ok"),
+	data["NetEdit"] = true
+	data["Net"] = net
+	data["Form"] = net.NetInput
+	data["Weekdays"] = weekdays
+	data["Controls"] = controls
+	data["Candidates"] = candidates
+	data["Air"] = netAirView{NetAir: air, Regions: regions}
+	data["Radio"] = radio
+	data["NetURL"] = netSettingsURL(org.Slug, net.ID)
+	for k, v := range extra {
+		data[k] = v
 	}
-	if hasMore && len(sessions) > 0 {
-		data["NextBefore"] = web.EncodeCursor(sessions[len(sessions)-1].StartsAt)
+	s.Render(w, r, "org_settings.html", data)
+}
+
+// settingsNet resolves the org and net for a net settings action, writing a
+// 404 for anyone but an org admin. ok is false when a response was written.
+func (s *Handlers) settingsNet(w http.ResponseWriter, r *http.Request) (*store.Org, *store.Net, bool) {
+	org, ok := s.requireSettings(w, r)
+	if !ok {
+		return nil, nil, false
 	}
-	if isAdmin {
-		// Candidates for net control: members not already designated. Admins
-		// can act as net control anyway, so they're left out.
-		members, err := s.Store.ListOrgMembers(ctx, org.ID)
-		if err != nil {
-			s.ServerError(w, r, "Couldn't load members.", err)
-			return
-		}
-		designated := map[int64]bool{}
-		for _, c := range controls {
-			designated[c.UserID] = true
-		}
-		var candidates []store.OrgMemberInfo
-		for _, m := range members {
-			if m.Role != "admin" && !designated[m.UserID] {
-				candidates = append(candidates, m)
-			}
-		}
-		data["Candidates"] = candidates
-		regions, err := s.Store.ListRegions(ctx, org.ID)
-		if err != nil {
-			s.ServerError(w, r, "Couldn't load regions.", err)
-			return
-		}
-		data["Air"] = netAirView{NetAir: air, Regions: regions}
-	}
-	s.Render(w, r, "org_net.html", data)
+	net, ok := s.orgNet(w, r, org.ID)
+	return org, net, ok
 }
 
 func netURL(r *http.Request) string { return netsURL(r) + "/" + chi.URLParam(r, "nid") }
 
 func (s *Handlers) handleAddNetControl(w http.ResponseWriter, r *http.Request) {
-	id, ok := s.requireOrgAdmin(w, r)
+	org, net, ok := s.settingsNet(w, r)
 	if !ok {
 		return
 	}
-	nid, err1 := strconv.ParseInt(chi.URLParam(r, "nid"), 10, 64)
-	uid, err2 := strconv.ParseInt(r.FormValue("user_id"), 10, 64)
-	if err1 != nil || err2 != nil {
-		web.RedirectErr(w, r, netURL(r), "Choose a member.")
+	back := netSettingsURL(org.Slug, net.ID)
+	uid, err := strconv.ParseInt(r.FormValue("user_id"), 10, 64)
+	if err != nil {
+		web.RedirectErr(w, r, back, "Choose a member.")
 		return
 	}
-	err := s.Store.AddNetControl(r.Context(), id, nid, uid, s.Auth.CurrentUserID(r.Context()))
+	err = s.Store.AddNetControl(r.Context(), org.ID, net.ID, uid, s.Auth.CurrentUserID(r.Context()))
 	if errors.Is(err, store.ErrNotFound) {
-		web.RedirectErr(w, r, netURL(r), "That member isn't in this organization.")
+		web.RedirectErr(w, r, back, "That member isn't in this organization.")
 		return
 	}
 	if err != nil {
 		s.ServerError(w, r, "Couldn't add net control.", err)
 		return
 	}
-	http.Redirect(w, r, netURL(r), http.StatusSeeOther) //nolint:gosec // G710: local path
+	http.Redirect(w, r, back+"#net-control", http.StatusSeeOther) //nolint:gosec // G710: local path
 }
 
 func (s *Handlers) handleRemoveNetControl(w http.ResponseWriter, r *http.Request) {
-	id, ok := s.requireOrgAdmin(w, r)
+	org, net, ok := s.settingsNet(w, r)
 	if !ok {
 		return
 	}
-	nid, err1 := strconv.ParseInt(chi.URLParam(r, "nid"), 10, 64)
-	uid, err2 := strconv.ParseInt(chi.URLParam(r, "uid"), 10, 64)
-	if err1 != nil || err2 != nil {
-		s.NotFound(w, r)
-		return
-	}
-	if err := s.Store.RemoveNetControl(r.Context(), id, nid, uid); err != nil {
-		s.ServerError(w, r, "Couldn't remove net control.", err)
-		return
-	}
-	http.Redirect(w, r, netURL(r), http.StatusSeeOther) //nolint:gosec // G710: local path
-}
-
-func (s *Handlers) handleUpdateNet(w http.ResponseWriter, r *http.Request) {
-	id, ok := s.requireOrgAdmin(w, r)
-	if !ok {
-		return
-	}
-	nid, err := strconv.ParseInt(chi.URLParam(r, "nid"), 10, 64)
+	uid, err := strconv.ParseInt(chi.URLParam(r, "uid"), 10, 64)
 	if err != nil {
 		s.NotFound(w, r)
 		return
 	}
-	netURL := netsURL(r) + "/" + strconv.FormatInt(nid, 10)
-	in, msg := parseNetForm(r)
-	if msg != "" {
-		web.RedirectErr(w, r, netURL, msg)
+	if err := s.Store.RemoveNetControl(r.Context(), org.ID, net.ID, uid); err != nil {
+		s.ServerError(w, r, "Couldn't remove net control.", err)
 		return
 	}
-	err = s.Store.UpdateNet(r.Context(), id, nid, in, time.Now())
+	http.Redirect(w, r, netSettingsURL(org.Slug, net.ID)+"#net-control", http.StatusSeeOther) //nolint:gosec // G710: local path
+}
+
+// handleUpdateNet saves a net's name, description and schedule. A rejected
+// form re-shows what was entered with the error.
+func (s *Handlers) handleUpdateNet(w http.ResponseWriter, r *http.Request) {
+	org, net, ok := s.settingsNet(w, r)
+	if !ok {
+		return
+	}
+	in, msg := parseNetForm(r)
+	if msg != "" {
+		s.renderNetSettings(w, r, org, net, map[string]any{"Form": in, "ScheduleError": msg})
+		return
+	}
+	err := s.Store.UpdateNet(r.Context(), org.ID, net.ID, in, time.Now())
 	if errors.Is(err, store.ErrNotFound) {
 		s.NotFound(w, r)
 		return
@@ -320,7 +386,23 @@ func (s *Handlers) handleUpdateNet(w http.ResponseWriter, r *http.Request) {
 		s.ServerError(w, r, "Couldn't save the net.", err)
 		return
 	}
-	web.RedirectFlash(w, r, netURL, "ok", "Saved. Sessions that have already started keep their original times.")
+	web.RedirectFlash(w, r, netSettingsURL(org.Slug, net.ID), "ok", "Schedule saved. Sessions that have already started keep their original times.")
+}
+
+// handleSetNetAck saves how a net's check-ins are acknowledged.
+func (s *Handlers) handleSetNetAck(w http.ResponseWriter, r *http.Request) {
+	org, net, ok := s.settingsNet(w, r)
+	if !ok {
+		return
+	}
+	if err := s.Store.SetNetManualAck(r.Context(), org.ID, net.ID, r.FormValue("ack") == "manual"); errors.Is(err, store.ErrNotFound) {
+		s.NotFound(w, r)
+		return
+	} else if err != nil {
+		s.ServerError(w, r, "Couldn't save the net.", err)
+		return
+	}
+	web.RedirectFlash(w, r, netSettingsURL(org.Slug, net.ID), "ok", "Check-in settings saved.")
 }
 
 func (s *Handlers) handleDeleteNet(w http.ResponseWriter, r *http.Request) {
