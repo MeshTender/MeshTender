@@ -15,7 +15,7 @@
   {{if .Roster}}
   <div class="table-responsive">
     <table class="table card-table table-vcenter" data-testid="roster">
-      <thead><tr><th>Companion</th><th>Member</th><th>Checked in</th><th>Hops</th><th>Observers</th></tr></thead>
+      <thead><tr><th>Companion</th><th>Member</th><th>Checked in</th><th title="Repeaters seen relaying the member's best check-in">Spread</th><th>Observers</th></tr></thead>
       <tbody>
         {{range .Roster}}
         <tr>
@@ -23,7 +23,7 @@
           <td>{{.OwnerName}}</td>
           {{if .CheckedIn}}
           <td>{{ts .FirstHeardAt "time"}}{{if .ZeroHopOnly}} <span class="badge bg-yellow-lt" title="Only heard as a zero-hop advert, which reaches radios in direct range">Zero-hop</span>{{end}}</td>
-          <td>{{.FewestHops}}</td>
+          <td>{{if .Spread}}{{.Spread}} repeater{{if ne .Spread 1}}s{{end}}{{else}}<span class="text-secondary">—</span>{{end}}</td>
           <td>{{.Observers}}</td>
           {{else}}
           <td colspan="3" class="text-secondary">Not heard</td>
@@ -36,6 +36,6 @@
   {{else}}
   <div class="card-body text-secondary">No member has a confirmed companion yet.</div>
   {{end}}
-  <div class="card-footer text-secondary small">A check-in is any advert from a member's companion heard during the session; zero-hop ones are marked because only nearby observers can hear them. "Not heard" means no observer heard one, not that the member is absent.</div>
+  <div class="card-footer text-secondary small">A check-in is any advert from a member's companion heard during the session; zero-hop ones are marked because only nearby observers can hear them. Spread and Observers are from the member's best check-in: how many repeaters were seen relaying the advert and how many observers heard it. Spread is a minimum, since a relay whose copies never reached an observer can't be seen. "Not heard" means no observer heard one, not that the member is absent.</div>
 </div>
 {{end}}

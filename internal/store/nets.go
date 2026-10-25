@@ -274,9 +274,9 @@ const rosterCompanions = `
 func (s *Store) ListNetSessionsPage(ctx context.Context, orgID, netID int64, now time.Time, before *time.Time) ([]NetSession, bool, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT ns.id, ns.net_id, ns.starts_at, ns.ends_at,
-		       (SELECT count(DISTINCT s.companion_id) FROM advert_sightings s
-		        WHERE s.companion_id IN (`+rosterCompanions+`)
-		          AND s.received_at >= ns.starts_at AND s.received_at < ns.ends_at)
+		       (SELECT count(DISTINCT k.companion_id) FROM advert_checkins k
+		        WHERE k.companion_id IN (`+rosterCompanions+`)
+		          AND k.first_heard_at >= ns.starts_at AND k.first_heard_at < ns.ends_at)
 		FROM net_sessions ns
 		JOIN check_in_nets n ON n.id = ns.net_id AND n.org_id = $1
 		WHERE ns.net_id = $2 AND ns.starts_at <= $3
@@ -335,10 +335,13 @@ type RosterEntry struct {
 	CompanionName     string
 	OwnerName         string
 	FirstHeardAt      *time.Time
-	// FewestHops is the shortest path any observer heard it by.
-	FewestHops int
-	Observers  int
-	// ZeroHopOnly is true when every sighting was a zero-hop advert, which only
+	// Spread and Observers are from the member's best check-in in the session:
+	// the most repeaters seen relaying one of its adverts, and the most
+	// observers that heard one. (Combining across adverts would need the
+	// relay sets, which aren't kept.)
+	Spread    int
+	Observers int
+	// ZeroHopOnly is true when every check-in was a zero-hop advert, which only
 	// observers in direct range can hear.
 	ZeroHopOnly bool
 }
@@ -353,19 +356,15 @@ func (e *RosterEntry) CheckedIn() bool { return e.FirstHeardAt != nil }
 func (s *Store) NetSessionRoster(ctx context.Context, orgID int64, session *NetSession) ([]RosterEntry, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT c.public_id, c.name, COALESCE(NULLIF(u.display_name, ''), u.username),
-		       h.first_heard, COALESCE(h.fewest_hops, 0), COALESCE(h.observers, 0), COALESCE(h.zero_hop_only, FALSE)
+		       h.first_heard, COALESCE(h.spread, 0), COALESCE(h.observers, 0), COALESCE(h.zero_hop_only, FALSE)
 		FROM companions c
 		JOIN org_members om ON om.org_id = $1 AND om.user_id = c.owner_id
 		JOIN users u ON u.id = c.owner_id
 		LEFT JOIN LATERAL (
-			SELECT min(s.received_at) AS first_heard,
-			       min(length(s.path) / GREATEST(s.path_hash_size, 1)) AS fewest_hops,
-			       count(DISTINCT s.observer_public_key_hex) AS observers,
-			       -- route types 2/3 are meshcore.RouteTypeDirect/TransportDirect: a direct
-			       -- advert with an empty path is how firmware sends zero-hop.
-			       bool_and(s.route_type IN (2, 3) AND length(s.path) = 0) AS zero_hop_only
-			FROM advert_sightings s
-			WHERE s.companion_id = c.id AND s.received_at >= $2 AND s.received_at < $3
+			SELECT min(k.first_heard_at) AS first_heard, max(k.spread) AS spread,
+			       max(k.observers) AS observers, bool_and(k.zero_hop) AS zero_hop_only
+			FROM advert_checkins k
+			WHERE k.companion_id = c.id AND k.first_heard_at >= $2 AND k.first_heard_at < $3
 			HAVING count(*) > 0) h ON TRUE
 		WHERE c.confirmed_at IS NOT NULL
 		ORDER BY h.first_heard NULLS LAST, lower(c.name), c.id`,
@@ -376,6 +375,6 @@ func (s *Store) NetSessionRoster(ctx context.Context, orgID int64, session *NetS
 	return collectRows(rows, func(r pgx.Row) (RosterEntry, error) {
 		var e RosterEntry
 		return e, r.Scan(&e.CompanionPublicID, &e.CompanionName, &e.OwnerName,
-			&e.FirstHeardAt, &e.FewestHops, &e.Observers, &e.ZeroHopOnly)
+			&e.FirstHeardAt, &e.Spread, &e.Observers, &e.ZeroHopOnly)
 	})
 }

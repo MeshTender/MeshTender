@@ -152,25 +152,17 @@ func (in *Ingester) handlePacket(ctx context.Context, m Message, observer string
 		}
 		return
 	}
-	var path []byte
-	for _, h := range adv.Path {
-		path = append(path, h...)
-	}
-	if path == nil {
-		path = []byte{}
-	}
-	_, err = in.Store.RecordAdvertSighting(ctx, store.AdvertSighting{
+	// The path's repeaters go in unordered; the store keeps them only long
+	// enough to count (store.AdvertSetTTL).
+	_, err = in.Store.RecordAdvertHeard(ctx, store.AdvertHeard{
 		CompanionID:          companionID,
+		AdvertTS:             adv.Timestamp,
 		ObserverPublicKeyHex: observer,
 		ReceivedAt:           m.ReceivedAt,
-		AdvertTS:             adv.Timestamp,
-		RouteType:            adv.RouteType,
-		PathHashSize:         adv.PathHashSize,
-		Path:                 path,
-		SNR:                  p.SNR,
-		RSSI:                 p.RSSI,
+		ZeroHop:              adv.ZeroHop(),
+		Relays:               adv.Path,
 	})
 	if err != nil {
-		in.Log.Warn("ingest: record sighting", "err", err)
+		in.Log.Warn("ingest: record check-in", "err", err)
 	}
 }

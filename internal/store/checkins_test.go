@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -46,26 +47,21 @@ func mustCompanion(t *testing.T, st *Store, ctx context.Context, owner int64, na
 	return c
 }
 
-// sight records a sighting heard at `at` and fails the test on error.
-func sight(t *testing.T, st *Store, ctx context.Context, sg AdvertSighting) bool {
+// heard records one copy of an advert and fails the test on error. The advert
+// timestamp defaults to the receive time, the observer to a fixed key.
+func heard(t *testing.T, st *Store, ctx context.Context, h AdvertHeard) bool {
 	t.Helper()
-	if sg.AdvertTS == 0 {
-		sg.AdvertTS = uint32(sg.ReceivedAt.Unix())
+	if h.AdvertTS == 0 {
+		h.AdvertTS = uint32(h.ReceivedAt.Unix()) //nolint:gosec // test clock
 	}
-	if sg.ObserverPublicKeyHex == "" {
-		sg.ObserverPublicKeyHex = testKey(200)
+	if h.ObserverPublicKeyHex == "" {
+		h.ObserverPublicKeyHex = testKey(200)
 	}
-	if sg.RouteType == 0 && sg.PathHashSize == 0 {
-		sg.RouteType, sg.PathHashSize = 1, 1 // flood
-	}
-	if sg.Path == nil {
-		sg.Path = []byte{}
-	}
-	ok, err := st.RecordAdvertSighting(ctx, sg)
+	created, err := st.RecordAdvertHeard(ctx, h)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return ok
+	return created
 }
 
 func TestOrgBrokerUpsertKeepsAndClearsPassword(t *testing.T) {
@@ -231,60 +227,79 @@ func TestCompanionLimit(t *testing.T) {
 	}
 }
 
-func TestRecordAdvertSightingConfirmsAndDedupes(t *testing.T) {
+// TestRecordAdvertHeardCountsWithoutPaths: copies of one advert collapse into
+// one check-in whose counts are exact over distinct observers and repeaters,
+// whatever the duplicates; the sets behind them go after AdvertSetTTL without
+// the counts shrinking.
+func TestRecordAdvertHeardCountsWithoutPaths(t *testing.T) {
 	t.Parallel()
 	st, ctx := orgTestStore(t)
 	u := mustUser(t, st, ctx, "sighter")
 	c := mustCompanion(t, st, ctx, u, "T1", 1)
 
-	// Heard before registration (an advert that was in flight): stored, but it
-	// doesn't confirm.
+	// Heard before registration (an advert that was in flight): recorded, but
+	// it doesn't confirm.
 	early := c.CreatedAt.Add(-time.Minute)
-	if !sight(t, st, ctx, AdvertSighting{CompanionID: c.ID, ReceivedAt: early}) {
-		t.Fatal("first sighting not inserted")
+	if !heard(t, st, ctx, AdvertHeard{CompanionID: c.ID, ReceivedAt: early, ZeroHop: true}) {
+		t.Fatal("first copy didn't create a check-in")
 	}
 	got, _ := st.GetCompanionForViewer(ctx, c.PublicID, u)
 	if got.Confirmed() || got.LastHeardAt == nil {
-		t.Fatalf("after early sighting: %+v", got)
+		t.Fatalf("after early advert: %+v", got)
 	}
 
-	heard := c.CreatedAt.Add(time.Minute)
-	sg := AdvertSighting{CompanionID: c.ID, ReceivedAt: heard, Path: []byte{0x35, 0x8b}}
-	if !sight(t, st, ctx, sg) {
-		t.Fatal("sighting not inserted")
+	at := c.CreatedAt.Add(time.Minute)
+	ts := uint32(at.Unix()) //nolint:gosec // test clock
+	first := AdvertHeard{CompanionID: c.ID, AdvertTS: ts, ReceivedAt: at, ObserverPublicKeyHex: testKey(100),
+		Relays: [][]byte{{0x35, 0x2c, 0x30}, {0x8b, 0xfc, 0xfc}}}
+	if !heard(t, st, ctx, first) {
+		t.Fatal("new advert didn't create a check-in")
 	}
-	// The identical sighting (uplink duplicate) is absorbed.
-	if sight(t, st, ctx, sg) {
-		t.Fatal("duplicate sighting inserted")
+	if heard(t, st, ctx, first) { // uplink duplicate
+		t.Fatal("a duplicate copy created a second check-in")
 	}
-	// Same advert, same observer, different route: a distinct row.
-	sg.Path = []byte{0x35, 0x99}
-	if !sight(t, st, ctx, sg) {
-		t.Fatal("second route not inserted")
-	}
+	// Another observer, another route sharing one repeater.
+	heard(t, st, ctx, AdvertHeard{CompanionID: c.ID, AdvertTS: ts, ReceivedAt: at.Add(time.Second), ObserverPublicKeyHex: testKey(101),
+		Relays: [][]byte{{0x8b, 0xfc, 0xfc}, {0x99, 0x99, 0x99}}})
 
 	got, _ = st.GetCompanionForViewer(ctx, c.PublicID, u)
-	if !got.Confirmed() || !got.LastHeardAt.Equal(heard.Truncate(time.Microsecond)) {
-		t.Fatalf("after sighting: %+v", got)
+	if !got.Confirmed() || !got.LastHeardAt.Equal(at.Add(time.Second).Truncate(time.Microsecond)) {
+		t.Fatalf("after advert: %+v", got)
 	}
-	if got.LastAdvertAt == nil || got.LastAdvertAt.Unix() != heard.Unix() {
+	if got.LastAdvertAt == nil || got.LastAdvertAt.Unix() != at.Unix() {
 		t.Fatalf("last advert = %v", got.LastAdvertAt)
 	}
 
-	page, more, err := st.ListCompanionSightingsPage(ctx, c.ID, nil)
-	if err != nil || more || len(page) != 3 {
-		t.Fatalf("sightings = %d, more=%v, err=%v", len(page), more, err)
+	page, more, err := st.ListCompanionCheckinsPage(ctx, c.ID, nil)
+	if err != nil || more || len(page) != 2 {
+		t.Fatalf("check-ins = %+v, more=%v, err=%v", page, more, err)
 	}
-	if hops := page[0].Hops(); len(hops) != 2 {
-		t.Fatalf("hops = %x", hops)
+	k := page[0] // newest first
+	if k.Observers != 2 || k.Spread != 3 || k.ZeroHop || !k.FirstHeardAt.Equal(at.Truncate(time.Microsecond)) {
+		t.Fatalf("check-in = %+v; want 2 observers, 3 distinct repeaters", k)
+	}
+	if !page[1].ZeroHop || page[1].Spread != 0 {
+		t.Fatalf("zero-hop check-in = %+v", page[1])
 	}
 
-	routes, err := st.ListCompanionRoutes(ctx, c.ID, heard)
-	if err != nil || len(routes) != 3 {
-		t.Fatalf("routes = %+v, %v", routes, err)
+	// Once the advert is older than AdvertSetTTL its sets are swept, and a
+	// straggling copy afterwards can't shrink the counts.
+	if _, err := st.pool.Exec(ctx, `UPDATE advert_checkins SET first_heard_at = first_heard_at - $2::interval WHERE id = $1`,
+		k.ID, (AdvertSetTTL + time.Minute).String()); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := st.PruneAdvertSets(ctx); err != nil || n != 5 { // 3 relays + 2 receivers
+		t.Fatalf("pruned = %d, %v", n, err)
+	}
+	heard(t, st, ctx, AdvertHeard{CompanionID: c.ID, AdvertTS: ts, ReceivedAt: at.Add(time.Minute), ObserverPublicKeyHex: testKey(102),
+		Relays: [][]byte{{0x01, 0x02, 0x03}}})
+	page, _, _ = st.ListCompanionCheckinsPage(ctx, c.ID, nil)
+	i := slices.IndexFunc(page, func(x Checkin) bool { return x.ID == k.ID })
+	if i < 0 || page[i].Observers != 2 || page[i].Spread != 3 {
+		t.Fatalf("after sweep + late copy: %+v; counts must not shrink", page)
 	}
 
-	if err := st.RecordAdvertRejected(ctx, c.ID, heard, 50*365*24*time.Hour); err != nil {
+	if err := st.RecordAdvertRejected(ctx, c.ID, at, 50*365*24*time.Hour); err != nil {
 		t.Fatal(err)
 	}
 	got, _ = st.GetCompanionForViewer(ctx, c.PublicID, u)
@@ -300,7 +315,7 @@ func TestCompanionForKeyAndPruneUnconfirmed(t *testing.T) {
 	stale := mustCompanion(t, st, ctx, u, "stale", 1)
 	fresh := mustCompanion(t, st, ctx, u, "fresh", 2)
 	confirmed := mustCompanion(t, st, ctx, u, "confirmed", 3)
-	sight(t, st, ctx, AdvertSighting{CompanionID: confirmed.ID, ReceivedAt: time.Now()})
+	heard(t, st, ctx, AdvertHeard{CompanionID: confirmed.ID, ReceivedAt: time.Now()})
 
 	if id, err := st.CompanionIDForKey(ctx, testKey(1)); err != nil || id != stale.ID {
 		t.Fatalf("for key = %d, %v", id, err)
@@ -342,21 +357,20 @@ func TestOrgCompanionActivityPage(t *testing.T) {
 		}
 		c := mustCompanion(t, st, ctx, owner, fmt.Sprintf("comp %02d", i), i)
 		// Heard after registration, so it confirms.
-		sight(t, st, ctx, AdvertSighting{CompanionID: c.ID, ReceivedAt: time.Now(), RouteType: 1, PathHashSize: 3,
-			Path: []byte{0x35, 0x2c, 0x30, 0x8b, 0xfc, 0xfc}})
+		heard(t, st, ctx, AdvertHeard{CompanionID: c.ID, ReceivedAt: time.Now()})
 	}
 	// Unconfirmed, and a non-member's: neither listed.
 	pending := mustUser(t, st, ctx, "actpending")
 	_ = st.AddOrgMember(ctx, org, pending, "member")
 	mustCompanion(t, st, ctx, pending, "zz unconfirmed", 90)
 	oc := mustCompanion(t, st, ctx, outsider, "outsider", 91)
-	sight(t, st, ctx, AdvertSighting{CompanionID: oc.ID, ReceivedAt: time.Now()})
+	heard(t, st, ctx, AdvertHeard{CompanionID: oc.ID, ReceivedAt: time.Now()})
 
 	page, more, err := st.ListOrgCompanionActivityPage(ctx, org, nil)
 	if err != nil || !more || len(page) != OrgCompanionActivityPageSize {
 		t.Fatalf("page 1 = %d, more=%v, err=%v", len(page), more, err)
 	}
-	if page[0].Name != "comp 00" || page[0].HomeHashSize != 3 || fmt.Sprintf("%x", page[0].HomeHash) != "352c30" {
+	if page[0].Name != "comp 00" || !page[0].Confirmed() {
 		t.Fatalf("first row = %+v", page[0])
 	}
 	last := page[len(page)-1]
@@ -366,24 +380,39 @@ func TestOrgCompanionActivityPage(t *testing.T) {
 	}
 }
 
-func TestListRepeaterKeysForViewer(t *testing.T) {
+// TestAdvertSetsKeepNoOrderAndNoHistory pins the privacy shape of the relay and
+// receiver sets: unlogged (never replicated or backed up), and nothing but the
+// check-in and the member of the set. A timestamp or sequence column would
+// record which repeater a copy came through first — the order this design
+// exists not to keep.
+func TestAdvertSetsKeepNoOrderAndNoHistory(t *testing.T) {
 	t.Parallel()
 	st, ctx := orgTestStore(t)
-	alice := mustUser(t, st, ctx, "rkalice")
-	bob := mustUser(t, st, ctx, "rkbob")
-	eve := mustUser(t, st, ctx, "rkeve")
-	org := mustOrg(t, st, ctx, "RKOrg", alice)
-	_ = st.AddOrgMember(ctx, org, bob, "member")
-	mustOrg(t, st, ctx, "EveOrg", eve)
-
-	for i, owner := range []int64{bob, eve} {
-		if _, err := st.CreateRepeater(ctx, &Repeater{OwnerID: owner, Name: fmt.Sprintf("r%d", i), PublicKeyHex: testKey(i)}); err != nil {
+	for table, want := range map[string]string{
+		"advert_relays":    "checkin_id,hash",
+		"advert_receivers": "checkin_id,observer_public_key_hex",
+	} {
+		var persistence string
+		if err := st.pool.QueryRow(ctx, `SELECT relpersistence FROM pg_class WHERE relname = $1`, table).Scan(&persistence); err != nil {
 			t.Fatal(err)
 		}
+		if persistence != "u" {
+			t.Errorf("%s is not UNLOGGED (relpersistence %q)", table, persistence)
+		}
+		var cols string
+		if err := st.pool.QueryRow(ctx, `
+			SELECT string_agg(column_name, ',' ORDER BY column_name) FROM information_schema.columns
+			WHERE table_name = $1`, table).Scan(&cols); err != nil {
+			t.Fatal(err)
+		}
+		if cols != want {
+			t.Errorf("%s columns = %s, want only %s", table, cols, want)
+		}
 	}
-	keys, err := st.ListRepeaterKeysForViewer(ctx, alice)
-	if err != nil || len(keys) != 1 || keys[0].Name != "r0" {
-		t.Fatalf("keys = %+v, %v", keys, err)
+	// And the paths themselves are gone.
+	var exists bool
+	if err := st.pool.QueryRow(ctx, `SELECT to_regclass('advert_sightings') IS NOT NULL`).Scan(&exists); err != nil || exists {
+		t.Fatalf("advert_sightings still exists (%v)", err)
 	}
 }
 
@@ -552,7 +581,7 @@ func TestNetSessionRoster(t *testing.T) {
 		if _, err := st.pool.Exec(ctx, `UPDATE companions SET created_at = $2 WHERE id = $1`, c.ID, before.Add(-time.Hour)); err != nil {
 			t.Fatal(err)
 		}
-		sight(t, st, ctx, AdvertSighting{CompanionID: c.ID, ReceivedAt: before, Path: []byte{}})
+		heard(t, st, ctx, AdvertHeard{CompanionID: c.ID, ReceivedAt: before})
 	}
 	flood := mustCompanion(t, st, ctx, member, "Flood", 1)
 	zero := mustCompanion(t, st, ctx, admin, "ZeroHop", 2)
@@ -564,16 +593,24 @@ func TestNetSessionRoster(t *testing.T) {
 	}
 
 	at := sess.StartsAt.Add(10 * time.Minute)
-	// Flood: two observers, 3 and 1 hops.
-	sight(t, st, ctx, AdvertSighting{CompanionID: flood.ID, ReceivedAt: at, ObserverPublicKeyHex: testKey(100),
-		RouteType: 1, PathHashSize: 1, Path: []byte{1, 2, 3}})
-	sight(t, st, ctx, AdvertSighting{CompanionID: flood.ID, ReceivedAt: at.Add(time.Second), ObserverPublicKeyHex: testKey(101),
-		RouteType: 1, PathHashSize: 1, Path: []byte{9}})
-	// Zero-hop: direct, empty path, earlier than flood.
-	sight(t, st, ctx, AdvertSighting{CompanionID: zero.ID, ReceivedAt: at.Add(-time.Minute), RouteType: 2, PathHashSize: 1})
+	// Flood: one advert heard by two observers; repeaters 1, 2, 3 on one
+	// route, 9 on another, and a third route through 1 and 9 again. Each
+	// repeater rebroadcasts a flood once, so the spread is the 4 distinct
+	// repeaters, not the 6 path entries.
+	ts := uint32(at.Unix()) //nolint:gosec // test clock
+	heard(t, st, ctx, AdvertHeard{CompanionID: flood.ID, AdvertTS: ts, ReceivedAt: at, ObserverPublicKeyHex: testKey(100),
+		Relays: [][]byte{{1}, {2}, {3}}})
+	heard(t, st, ctx, AdvertHeard{CompanionID: flood.ID, AdvertTS: ts, ReceivedAt: at.Add(time.Second), ObserverPublicKeyHex: testKey(101),
+		Relays: [][]byte{{9}}})
+	heard(t, st, ctx, AdvertHeard{CompanionID: flood.ID, AdvertTS: ts, ReceivedAt: at.Add(2 * time.Second), ObserverPublicKeyHex: testKey(101),
+		Relays: [][]byte{{1}, {9}}})
+	// A second, smaller advert later in the session: the roster shows the best.
+	heard(t, st, ctx, AdvertHeard{CompanionID: flood.ID, ReceivedAt: at.Add(5 * time.Minute), Relays: [][]byte{{7}}})
+	// Zero-hop, earlier than flood.
+	heard(t, st, ctx, AdvertHeard{CompanionID: zero.ID, ReceivedAt: at.Add(-time.Minute), ZeroHop: true})
 	// Exactly at the end: outside the half-open window.
-	sight(t, st, ctx, AdvertSighting{CompanionID: late.ID, ReceivedAt: sess.EndsAt})
-	sight(t, st, ctx, AdvertSighting{CompanionID: foreign.ID, ReceivedAt: at})
+	heard(t, st, ctx, AdvertHeard{CompanionID: late.ID, ReceivedAt: sess.EndsAt})
+	heard(t, st, ctx, AdvertHeard{CompanionID: foreign.ID, ReceivedAt: at})
 
 	roster, err := st.NetSessionRoster(ctx, org, sess)
 	if err != nil {
@@ -587,10 +624,10 @@ func TestNetSessionRoster(t *testing.T) {
 		t.Fatalf("roster order = %s", got)
 	}
 	z, f, a := roster[0], roster[1], roster[2]
-	if !z.CheckedIn() || !z.ZeroHopOnly || z.Observers != 1 {
+	if !z.CheckedIn() || !z.ZeroHopOnly || z.Observers != 1 || z.Spread != 0 {
 		t.Errorf("zero-hop = %+v", z)
 	}
-	if !f.CheckedIn() || f.ZeroHopOnly || f.Observers != 2 || f.FewestHops != 1 {
+	if !f.CheckedIn() || f.ZeroHopOnly || f.Observers != 2 || f.Spread != 4 {
 		t.Errorf("flood = %+v", f)
 	}
 	if a.CheckedIn() || roster[3].CheckedIn() {
@@ -603,14 +640,14 @@ func TestNetSessionRoster(t *testing.T) {
 	}
 }
 
-func TestPruneSightings(t *testing.T) {
+func TestPruneCheckins(t *testing.T) {
 	t.Parallel()
 	st, ctx := orgTestStore(t)
 	u := mustUser(t, st, ctx, "oldsighter")
 	c := mustCompanion(t, st, ctx, u, "Old", 1)
-	sight(t, st, ctx, AdvertSighting{CompanionID: c.ID, ReceivedAt: time.Now().Add(-SightingRetention - time.Hour)})
-	sight(t, st, ctx, AdvertSighting{CompanionID: c.ID, ReceivedAt: time.Now()})
-	n, err := st.PruneSightings(ctx)
+	heard(t, st, ctx, AdvertHeard{CompanionID: c.ID, ReceivedAt: time.Now().Add(-CheckinRetention - time.Hour)})
+	heard(t, st, ctx, AdvertHeard{CompanionID: c.ID, ReceivedAt: time.Now()})
+	n, err := st.PruneCheckins(ctx)
 	if err != nil || n != 1 {
 		t.Fatalf("pruned = %d, %v", n, err)
 	}

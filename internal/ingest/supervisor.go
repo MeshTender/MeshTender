@@ -154,6 +154,12 @@ func (s *Supervisor) lead(ctx context.Context, lock *store.SessionLock) {
 			return
 		}
 		s.reconcile(ctx, conns)
+		// The relay and receiver sets behind check-in counts only live while an
+		// advert propagates; sweeping each pass keeps them within about
+		// store.AdvertSetTTL plus ReconcileEvery.
+		if _, err := s.Store.PruneAdvertSets(ctx); err != nil && ctx.Err() == nil {
+			s.Log.Warn("ingest: prune advert sets", "err", err)
+		}
 		if _, err := lock.Wait(ctx, s.ReconcileEvery); err != nil {
 			if ctx.Err() == nil {
 				s.Log.Warn("ingest: lost leader lock", "err", err)

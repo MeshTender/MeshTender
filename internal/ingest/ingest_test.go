@@ -106,10 +106,10 @@ func (f *fixture) companionState(t *testing.T, ctx context.Context) *store.Compa
 	return c
 }
 
-func (f *fixture) sightings(t *testing.T, ctx context.Context) []store.AdvertSighting {
+func (f *fixture) checkins(t *testing.T, ctx context.Context) []store.Checkin {
 	t.Helper()
 	c := f.companionState(t, ctx)
-	page, _, err := f.st.ListCompanionSightingsPage(ctx, c.ID, nil)
+	page, _, err := f.st.ListCompanionCheckinsPage(ctx, c.ID, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,14 +129,12 @@ func TestIngesterRecordsVerifiedAdvert(t *testing.T) {
 	in.Handle(ctx, m)
 	in.Handle(ctx, m) // an uplink duplicate collapses
 
-	got := f.sightings(t, ctx)
+	got := f.checkins(t, ctx)
 	if len(got) != 1 {
-		t.Fatalf("sightings = %d, want 1", len(got))
+		t.Fatalf("check-ins = %d, want 1", len(got))
 	}
-	s := got[0]
-	if s.ObserverPublicKeyHex != f.observer.String() || s.PathHashSize != 3 || hex.EncodeToString(s.Path) != "352c308bfcfc" ||
-		*s.SNR != 5.5 || *s.RSSI != -90 || s.RouteType != meshcore.RouteTypeFlood {
-		t.Fatalf("sighting = %+v", s)
+	if k := got[0]; k.Observers != 1 || k.Spread != 2 || k.ZeroHop || k.AdvertTS != uint32(now.Unix()) { //nolint:gosec // test clock
+		t.Fatalf("check-in = %+v", k)
 	}
 	if !f.companionState(t, ctx).Confirmed() {
 		t.Fatal("companion not confirmed")
@@ -169,8 +167,8 @@ func TestIngesterIgnoresWhatItShould(t *testing.T) {
 	in.Handle(ctx, Message{OrgID: f.org, Prefix: "meshcore", Topic: "other/thing", Payload: []byte("{}"), ReceivedAt: now})
 	in.Handle(ctx, Message{OrgID: f.org, Prefix: "meshcore", Topic: packetMsg(f.org, f.observer, nil, now).Topic, Payload: []byte("not json"), ReceivedAt: now})
 
-	if got := f.sightings(t, ctx); len(got) != 0 {
-		t.Fatalf("sightings = %+v, want none", got)
+	if got := f.checkins(t, ctx); len(got) != 0 {
+		t.Fatalf("check-ins = %+v, want none", got)
 	}
 	if f.companionState(t, ctx).Confirmed() {
 		t.Fatal("confirmed by an ignored message")
@@ -188,7 +186,7 @@ func TestIngesterRejectsReplayedAdvert(t *testing.T) {
 	old := uint32(now.Add(-time.Hour).Unix()) //nolint:gosec // test clock
 	in.Handle(ctx, packetMsg(f.org, f.observer, observetest.AdvertPacket(t, f.companion, old, "T1", meshcore.RouteTypeFlood, 1, nil), now))
 
-	if got := f.sightings(t, ctx); len(got) != 0 {
+	if got := f.checkins(t, ctx); len(got) != 0 {
 		t.Fatalf("replay recorded: %+v", got)
 	}
 	c := f.companionState(t, ctx)
@@ -512,4 +510,38 @@ func TestSupervisorConnectsAsSoonAsBrokerIsSaved(t *testing.T) {
 		t.Fatal(err)
 	}
 	eventually(t, "disconnect on delete", func() bool { return broker.live() == 0 })
+}
+
+// TestLeaderSweepsExpiredAdvertSets: the leading replica deletes the relay and
+// receiver sets of adverts older than store.AdvertSetTTL on its own loop, so
+// they don't wait for the five-minute janitor, and keeps the counts.
+func TestLeaderSweepsExpiredAdvertSets(t *testing.T) {
+	t.Parallel()
+	st, ctx := newStore(t)
+	f := newFixture(t, st, ctx)
+	in := &Ingester{Store: st, Log: quietLog()}
+	now := time.Now().Add(time.Second)
+	raw := observetest.AdvertPacket(t, f.companion, uint32(now.Unix()), "Owner T1", meshcore.RouteTypeFlood, 3, //nolint:gosec // test clock
+		[][]byte{{0x35, 0x2c, 0x30}})
+	in.Handle(ctx, packetMsg(f.org, f.observer, raw, now))
+
+	sets := func() int {
+		var n int
+		if err := st.Pool().QueryRow(ctx, `SELECT (SELECT count(*) FROM advert_relays) + (SELECT count(*) FROM advert_receivers)`).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	if got := sets(); got != 2 {
+		t.Fatalf("sets before = %d, want 2 (one relay, one receiver)", got)
+	}
+	if _, err := st.Pool().Exec(ctx, `UPDATE advert_checkins SET first_heard_at = first_heard_at - $1::interval`,
+		(store.AdvertSetTTL + time.Minute).String()); err != nil {
+		t.Fatal(err)
+	}
+	startSupervisor(t, st, Dialer{Resolver: net.DefaultResolver, Allow: allowAll})
+	eventually(t, "sets swept", func() bool { return sets() == 0 })
+	if k := f.checkins(t, ctx); len(k) != 1 || k[0].Spread != 1 || k[0].Observers != 1 {
+		t.Fatalf("counts after sweep = %+v", k)
+	}
 }

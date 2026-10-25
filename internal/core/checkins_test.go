@@ -106,11 +106,19 @@ func TestCompanionVisibilityAndDelete(t *testing.T) {
 	}
 }
 
-func TestCompanionPageResolvesRoutes(t *testing.T) {
+// TestCompanionPageShowsCountsNotPaths: a companion's check-ins show when it
+// was heard, by how many observers and how far the advert spread, and nothing
+// that says which repeaters carried it, for the owner and org-mates alike.
+func TestCompanionPageShowsCountsNotPaths(t *testing.T) {
 	t.Parallel()
 	st, ctx, ts, h := splitServer(t)
 	alice, sess := appLogin(t, ts, st, ctx, h.app, "routealice")
-	if _, err := st.CreateOrg(ctx, "Route Org", alice.ID); err != nil {
+	bob, bobSess := appLogin(t, ts, st, ctx, h.app, "routebob")
+	org, err := st.CreateOrg(ctx, "Route Org", alice.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.AddOrgMember(ctx, org.ID, bob.ID, "member"); err != nil {
 		t.Fatal(err)
 	}
 	rep := observetest.NewIdentity(t).String()
@@ -121,22 +129,29 @@ func TestCompanionPageResolvesRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	now := time.Now()
+	now := time.Now().Add(time.Second)
 	repHash, _ := hex.DecodeString(rep[:6])
-	for _, sg := range []store.AdvertSighting{
-		{CompanionID: c.ID, ObserverPublicKeyHex: strings.Repeat("ab", 32), ReceivedAt: now, AdvertTS: uint32(now.Unix()), //nolint:gosec // test clock
-			RouteType: 1, PathHashSize: 3, Path: append(repHash, 0x99, 0x99, 0x99)},
-		{CompanionID: c.ID, ObserverPublicKeyHex: strings.Repeat("cd", 32), ReceivedAt: now, AdvertTS: uint32(now.Unix()), //nolint:gosec // test clock
-			RouteType: 2, PathHashSize: 1, Path: []byte{}},
+	for _, h := range []store.AdvertHeard{
+		{CompanionID: c.ID, AdvertTS: uint32(now.Unix()), ObserverPublicKeyHex: strings.Repeat("ab", 32), ReceivedAt: now, //nolint:gosec // test clock
+			Relays: [][]byte{repHash, {0x99, 0x99, 0x99}}},
+		{CompanionID: c.ID, AdvertTS: uint32(now.Unix()) + 60, ObserverPublicKeyHex: strings.Repeat("cd", 32), //nolint:gosec // test clock
+			ReceivedAt: now.Add(time.Minute), ZeroHop: true},
 	} {
-		if _, err := st.RecordAdvertSighting(ctx, sg); err != nil {
+		if _, err := st.RecordAdvertHeard(ctx, h); err != nil {
 			t.Fatal(err)
 		}
 	}
-	body := getBody(t, ts, h.app, "/companions/"+c.PublicID, sess)
-	for _, want := range []string{"Hilltop", "999999", "Zero-hop", "Flood"} {
-		if !strings.Contains(body, want) {
-			t.Errorf("companion page lacks %q", want)
+	for who, cookie := range map[string]*http.Cookie{"owner": sess, "org-mate": bobSess} {
+		body := getBody(t, ts, h.app, "/companions/"+c.PublicID, cookie)
+		for _, want := range []string{`data-testid="checkins"`, "2 repeaters", "Zero-hop"} {
+			if !strings.Contains(body, want) {
+				t.Errorf("%s: companion page lacks %q", who, want)
+			}
+		}
+		for _, leak := range []string{"Hilltop", "999999", rep[:6]} {
+			if strings.Contains(body, leak) {
+				t.Errorf("%s: companion page reveals %q, a repeater on the advert's path", who, leak)
+			}
 		}
 	}
 }
@@ -269,14 +284,19 @@ func TestOrgActivityPage(t *testing.T) {
 	}
 	repHash, _ := hex.DecodeString(rep[:6])
 	now := time.Now().Add(time.Second)
-	if _, err := st.RecordAdvertSighting(ctx, store.AdvertSighting{CompanionID: c.ID, ObserverPublicKeyHex: strings.Repeat("ab", 32),
-		ReceivedAt: now, AdvertTS: uint32(now.Unix()), RouteType: 1, PathHashSize: 3, Path: repHash}); err != nil { //nolint:gosec // test clock
+	if _, err := st.RecordAdvertHeard(ctx, store.AdvertHeard{CompanionID: c.ID, AdvertTS: uint32(now.Unix()), //nolint:gosec // test clock
+		ObserverPublicKeyHex: strings.Repeat("ab", 32), ReceivedAt: now, Relays: [][]byte{repHash}}); err != nil {
 		t.Fatal(err)
 	}
 
 	body := getBody(t, ts, h.app, "/orgs/"+org.Slug+"/activity", adminSess)
-	if !strings.Contains(body, "Admin T1") || !strings.Contains(body, "Hilltop") {
-		t.Error("activity lacks the confirmed companion and its home repeater")
+	if !strings.Contains(body, "Admin T1") {
+		t.Error("activity lacks the confirmed companion")
+	}
+	// Activity says who checked in, never where: no repeater the member's
+	// adverts went through.
+	if strings.Contains(body, "Hilltop") {
+		t.Error("activity reveals a repeater that carried the member's adverts")
 	}
 	if strings.Contains(body, "Pending T2") {
 		t.Error("an unconfirmed companion is listed")

@@ -8,20 +8,13 @@
   {{if .Activity}}
   <div class="table-responsive">
     <table class="table card-table table-vcenter" data-testid="activity">
-      <thead><tr><th>Companion</th><th>Member</th><th>Last heard</th><th>Home repeater</th></tr></thead>
+      <thead><tr><th>Companion</th><th>Member</th><th>Last heard</th></tr></thead>
       <tbody>
         {{range .Activity}}
         <tr>
           <td><a href="/companions/{{.PublicID}}">{{.Name}}</a></td>
           <td>{{.OwnerName}}</td>
           <td>{{if .LastHeardAt}}{{ts .LastHeardAt "datetime"}}{{else}}<span class="text-secondary">Never</span>{{end}}</td>
-          <td>
-            {{range .Home}}
-              {{if eq (len .Candidates) 1}}{{(index .Candidates 0).Name}}
-              {{else if .Candidates}}<span title="Ambiguous hash {{.Hash}}">{{range $j, $c := .Candidates}}{{if $j}} / {{end}}{{$c.Name}}{{end}}?</span>
-              {{else}}<span class="font-monospace">{{.Hash}}</span>{{end}}
-            {{else}}<span class="text-secondary">—</span>{{end}}
-          </td>
         </tr>
         {{end}}
       </tbody>
@@ -33,6 +26,6 @@
     {{if .First}}No member has a confirmed companion yet. Members register theirs under Companions and send a flood advert.{{else}}No more companions.{{end}}
   </div>
   {{end}}
-  <div class="card-footer text-secondary small">"Home repeater" is the first repeater on the companion's most recent multi-hop advert: the one that heard it directly. Not being heard means no observer heard it, not that the member is absent.</div>
+  <div class="card-footer text-secondary small">Not being heard means no observer heard it, not that the member is absent.</div>
 </div>
 {{end}}

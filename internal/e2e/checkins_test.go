@@ -60,9 +60,9 @@ func TestE2ECompanionRegistrationAndOrgPages(t *testing.T) {
 	}
 	hash, _ := hex.DecodeString(rep.PublicKeyHex[:6])
 	now := time.Now().Add(time.Second)
-	if _, err := srv.store.RecordAdvertSighting(srv.ctx, store.AdvertSighting{
+	if _, err := srv.store.RecordAdvertHeard(srv.ctx, store.AdvertHeard{
 		CompanionID: list[0].ID, ObserverPublicKeyHex: strings.Repeat("ab", 32), ReceivedAt: now,
-		AdvertTS: uint32(now.Unix()), RouteType: 1, PathHashSize: 3, Path: hash, //nolint:gosec // test clock
+		AdvertTS: uint32(now.Unix()), Relays: [][]byte{hash}, //nolint:gosec // test clock
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +70,7 @@ func TestE2ECompanionRegistrationAndOrgPages(t *testing.T) {
 	var companionText, activityText, observersText string
 	if err := chromedp.Run(bctx,
 		chromedp.Reload(),
-		chromedp.WaitVisible(`[data-testid="sightings"]`, chromedp.ByQuery),
+		chromedp.WaitVisible(`[data-testid="checkins"]`, chromedp.ByQuery),
 		chromedp.Text(`#main-content`, &companionText, chromedp.ByQuery),
 		chromedp.Navigate(srv.appURL+"/orgs/"+org.Slug+"/activity"),
 		chromedp.WaitVisible(`[data-testid="activity"]`, chromedp.ByQuery),
@@ -81,10 +81,12 @@ func TestE2ECompanionRegistrationAndOrgPages(t *testing.T) {
 	); err != nil {
 		t.Fatalf("browse check-in pages: %v", err)
 	}
-	if strings.Contains(companionText, "Waiting for an advert") || !strings.Contains(companionText, "Hilltop") {
+	// Counts, never the repeaters that carried it.
+	if strings.Contains(companionText, "Waiting for an advert") || !strings.Contains(companionText, "1 repeater") ||
+		strings.Contains(companionText, "Hilltop") {
 		t.Errorf("companion page after the advert: %q", companionText)
 	}
-	if !strings.Contains(activityText, "My T1") || !strings.Contains(activityText, "Hilltop") {
+	if !strings.Contains(activityText, "My T1") || strings.Contains(activityText, "Hilltop") {
 		t.Errorf("activity: %q", activityText)
 	}
 	if !strings.Contains(observersText, "No broker configured") {
@@ -161,9 +163,9 @@ func TestE2ENetScheduleAndRoster(t *testing.T) {
 		t.Fatal(err)
 	}
 	at := time.Now().Add(time.Second)
-	if _, err := srv.store.RecordAdvertSighting(srv.ctx, store.AdvertSighting{CompanionID: c.ID,
+	if _, err := srv.store.RecordAdvertHeard(srv.ctx, store.AdvertHeard{CompanionID: c.ID,
 		ObserverPublicKeyHex: strings.Repeat("ab", 32), ReceivedAt: at, AdvertTS: uint32(at.Unix()), //nolint:gosec // test clock
-		RouteType: 2, PathHashSize: 1, Path: []byte{}}); err != nil {
+		ZeroHop: true}); err != nil {
 		t.Fatal(err)
 	}
 

@@ -14,7 +14,6 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/MeshTender/MeshTender/internal/ingest"
-	"github.com/MeshTender/MeshTender/internal/observe"
 	"github.com/MeshTender/MeshTender/internal/secretbox"
 	"github.com/MeshTender/MeshTender/internal/store"
 	"github.com/MeshTender/MeshTender/internal/web"
@@ -240,12 +239,6 @@ func (s *Handlers) handleDeleteOrgObserver(w http.ResponseWriter, r *http.Reques
 	http.Redirect(w, r, observersURL(r), http.StatusSeeOther) //nolint:gosec // G710: local path
 }
 
-// activityView is one row of the activity page.
-type activityView struct {
-	store.CompanionActivity
-	Home []observe.Hop
-}
-
 func (s *Handlers) pageOrgActivity(w http.ResponseWriter, r *http.Request) {
 	org, isAdmin, ok := s.orgMemberPage(w, r)
 	if !ok {
@@ -262,24 +255,11 @@ func (s *Handlers) pageOrgActivity(w http.ResponseWriter, r *http.Request) {
 		s.ServerError(w, r, "Couldn't load activity.", err)
 		return
 	}
-	keys, err := s.Store.ListRepeaterKeysForViewer(ctx, s.Auth.CurrentUserID(ctx))
-	if err != nil {
-		s.ServerError(w, r, "Couldn't load repeaters.", err)
-		return
-	}
-	resolver := observe.NewPathResolver(keys)
-	views := make([]activityView, len(rows))
-	for i, a := range rows {
-		views[i] = activityView{CompanionActivity: a}
-		if len(a.HomeHash) > 0 {
-			views[i].Home = resolver.Resolve([][]byte{a.HomeHash})
-		}
-	}
 	data := map[string]any{
 		"Org":      org,
 		"Nav":      s.orgNav(ctx, org, "activity", isAdmin),
 		"IsAdmin":  isAdmin,
-		"Activity": views,
+		"Activity": rows,
 		"First":    cursor == nil,
 	}
 	if hasMore && len(rows) > 0 {

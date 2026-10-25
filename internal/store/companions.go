@@ -7,8 +7,6 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
-
-	"github.com/MeshTender/MeshTender/internal/observe"
 )
 
 // A companion is a member's own MeshCore radio, registered so its adverts count
@@ -181,15 +179,6 @@ func (s *Store) PruneUnconfirmedCompanions(ctx context.Context) (int64, error) {
 // OrgCompanionActivityPageSize is the activity page's keyset page size.
 const OrgCompanionActivityPageSize = 50
 
-// CompanionActivity is one row of an org's activity page: a member's companion,
-// when it was last heard, and the first repeater on its most recent multi-hop
-// flood (its "home" repeater — the one that heard it directly).
-type CompanionActivity struct {
-	Companion
-	HomeHashSize int16
-	HomeHash     []byte
-}
-
 // ActivityCursor is the keyset position on the activity page: the last row's
 // (name, id), ordered by lower(name).
 type ActivityCursor struct {
@@ -198,28 +187,19 @@ type ActivityCursor struct {
 }
 
 // ListOrgCompanionActivityPage returns one keyset page of the confirmed
-// companions owned by the org's members, by name. The home-repeater lookup is a
-// per-row LATERAL bounded by the page size, on the (companion_id, received_at)
-// index.
-func (s *Store) ListOrgCompanionActivityPage(ctx context.Context, orgID int64, after *ActivityCursor) ([]CompanionActivity, bool, error) {
+// companions owned by the org's members, by name: who has checked in and when
+// they were last heard. Deliberately nothing about where — which repeaters
+// carried a member's adverts is the owner's to see (on their companion page),
+// not the whole org's.
+func (s *Store) ListOrgCompanionActivityPage(ctx context.Context, orgID int64, after *ActivityCursor) ([]*Companion, bool, error) {
 	first := after == nil
 	var afterName string
 	var afterID int64
 	if !first {
 		afterName, afterID = after.Name, after.ID
 	}
-	rows, err := s.pool.Query(ctx, `
-		SELECT c.id, c.public_id, c.owner_id, COALESCE(NULLIF(u.display_name, ''), u.username),
-		       c.name, c.public_key_hex, c.created_at, c.confirmed_at, c.last_heard_at,
-		       c.last_advert_ts, c.last_rejected_at, c.last_rejected_skew_s,
-		       COALESCE(h.path_hash_size, 0), COALESCE(substring(h.path FROM 1 FOR h.path_hash_size), ''::bytea)
-		FROM companions c
+	rows, err := s.pool.Query(ctx, companionSelect+`
 		JOIN org_members om ON om.org_id = $1 AND om.user_id = c.owner_id
-		JOIN users u ON u.id = c.owner_id
-		LEFT JOIN LATERAL (
-			SELECT s.path, s.path_hash_size FROM advert_sightings s
-			WHERE s.companion_id = c.id AND length(s.path) > 0
-			ORDER BY s.received_at DESC, s.id DESC LIMIT 1) h ON TRUE
 		WHERE c.confirmed_at IS NOT NULL
 		  AND ($2 OR (lower(c.name), c.id) > (lower($3), $4))
 		ORDER BY lower(c.name), c.id
@@ -227,16 +207,7 @@ func (s *Store) ListOrgCompanionActivityPage(ctx context.Context, orgID int64, a
 	if err != nil {
 		return nil, false, fmt.Errorf("list org companion activity: %w", err)
 	}
-	out, err := collectRows(rows, func(r pgx.Row) (CompanionActivity, error) {
-		var a CompanionActivity
-		var advertTS *int64
-		var skewS *int32
-		err := r.Scan(&a.ID, &a.PublicID, &a.OwnerID, &a.OwnerName, &a.Name, &a.PublicKeyHex,
-			&a.CreatedAt, &a.ConfirmedAt, &a.LastHeardAt, &advertTS, &a.LastRejectedAt, &skewS,
-			&a.HomeHashSize, &a.HomeHash)
-		a.setStored(advertTS, skewS)
-		return a, err
-	})
+	out, err := collectRows(rows, scanCompanion)
 	if err != nil {
 		return nil, false, err
 	}
@@ -245,25 +216,4 @@ func (s *Store) ListOrgCompanionActivityPage(ctx context.Context, orgID int64, a
 		out = out[:OrgCompanionActivityPageSize]
 	}
 	return out, hasMore, nil
-}
-
-// ListRepeaterKeysForViewer returns the repeaters participating in any org the
-// viewer belongs to, for resolving path hashes to names. Scoped to the viewer's
-// orgs so a path never reveals a repeater the viewer couldn't otherwise see.
-func (s *Store) ListRepeaterKeysForViewer(ctx context.Context, viewerID int64) ([]observe.RepeaterKey, error) {
-	rows, err := s.pool.Query(ctx, `
-		SELECT DISTINCT r.public_id, r.name, r.public_key_hex
-		FROM org_members mine
-		JOIN org_members om ON om.org_id = mine.org_id
-		JOIN repeaters r ON r.owner_id = om.user_id
-		WHERE mine.user_id = $1
-		  AND NOT EXISTS (SELECT 1 FROM org_repeater_excludes e
-		                  WHERE e.org_id = mine.org_id AND e.repeater_id = r.id)`, viewerID)
-	if err != nil {
-		return nil, fmt.Errorf("list repeater keys: %w", err)
-	}
-	return collectRows(rows, func(r pgx.Row) (observe.RepeaterKey, error) {
-		var k observe.RepeaterKey
-		return k, r.Scan(&k.PublicID, &k.Name, &k.PublicKeyHex)
-	})
 }

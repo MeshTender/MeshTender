@@ -120,11 +120,11 @@ func TestNetSessionRosterPage(t *testing.T) {
 		t.Fatal(err)
 	}
 	at := time.Now().Add(time.Second)
-	for _, sg := range []store.AdvertSighting{
-		{CompanionID: heard.ID, ObserverPublicKeyHex: strings.Repeat("ab", 32), ReceivedAt: at, AdvertTS: uint32(at.Unix()), RouteType: 1, PathHashSize: 1, Path: []byte{1, 2}}, //nolint:gosec // test clock
-		{CompanionID: quiet.ID, ObserverPublicKeyHex: strings.Repeat("ab", 32), ReceivedAt: cur.StartsAt.Add(-time.Hour), AdvertTS: 1, RouteType: 1, PathHashSize: 1, Path: []byte{}},
+	for _, h := range []store.AdvertHeard{
+		{CompanionID: heard.ID, ObserverPublicKeyHex: strings.Repeat("ab", 32), ReceivedAt: at, AdvertTS: uint32(at.Unix()), Relays: [][]byte{{1}, {2}}}, //nolint:gosec // test clock
+		{CompanionID: quiet.ID, ObserverPublicKeyHex: strings.Repeat("ab", 32), ReceivedAt: cur.StartsAt.Add(-time.Hour), AdvertTS: 1},
 	} {
-		if _, err := st.RecordAdvertSighting(ctx, sg); err != nil {
+		if _, err := st.RecordAdvertHeard(ctx, h); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -136,7 +136,7 @@ func TestNetSessionRosterPage(t *testing.T) {
 
 	path := "/orgs/" + org.Slug + "/nets/" + strconv.FormatInt(net.ID, 10) + "/sessions/" + strconv.FormatInt(cur.ID, 10)
 	body := getBody(t, ts, h.app, path, sess)
-	for _, want := range []string{"Heard T1", "Quiet T2", "Not heard", "In progress", "1 of 2 member companions checked in"} {
+	for _, want := range []string{"Heard T1", "Quiet T2", "Not heard", "In progress", "1 of 2 member companions checked in", ">Spread<", "2 repeaters"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("roster lacks %q", want)
 		}

@@ -4,14 +4,12 @@ import (
 	"errors"
 	"net/http"
 	"strings"
-	"time"
 	"unicode/utf8"
 
 	"github.com/go-chi/chi/v5"
 	meshcore "github.com/meshcore-go/meshcore-go"
 
 	"github.com/MeshTender/MeshTender/internal/ingest"
-	"github.com/MeshTender/MeshTender/internal/observe"
 	"github.com/MeshTender/MeshTender/internal/store"
 	"github.com/MeshTender/MeshTender/internal/web"
 )
@@ -95,36 +93,6 @@ func (s *Handlers) handleDeleteCompanion(w http.ResponseWriter, r *http.Request)
 	http.Redirect(w, r, "/companions", http.StatusSeeOther)
 }
 
-// sightingView is one sighting with its path resolved to repeater names.
-type sightingView struct {
-	store.AdvertSighting
-	Route string
-	Hops  []observe.Hop
-}
-
-// routeView is one of a companion's routes with its path resolved.
-type routeView struct {
-	store.CompanionRoute
-	Hops []observe.Hop
-}
-
-// routeLabel names how an advert travelled. A direct advert with no path is how
-// firmware sends zero-hop; transport routes are region-scoped.
-func routeLabel(routeType byte, hops int) string {
-	switch routeType {
-	case meshcore.RouteTypeFlood:
-		return "Flood"
-	case meshcore.RouteTypeTransportFlood:
-		return "Flood (scoped)"
-	case meshcore.RouteTypeDirect, meshcore.RouteTypeTransportDirect:
-		if hops == 0 {
-			return "Zero-hop"
-		}
-		return "Direct"
-	}
-	return "Unknown"
-}
-
 func (s *Handlers) pageCompanion(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	uid := s.Auth.CurrentUserID(ctx)
@@ -137,49 +105,28 @@ func (s *Handlers) pageCompanion(w http.ResponseWriter, r *http.Request) {
 		s.ServerError(w, r, "Couldn't load the companion.", err)
 		return
 	}
-	now := time.Now()
-	routes, err := s.Store.ListCompanionRoutes(ctx, c.ID, now)
-	if err != nil {
-		s.ServerError(w, r, "Couldn't load routes.", err)
-		return
-	}
-	before, _ := web.DecodeCursor[store.SightingCursor](r.URL.Query().Get("before"))
-	var cursor *store.SightingCursor
-	if !before.ReceivedAt.IsZero() {
+	// Check-ins are counts (observers, spread), never paths: nothing here says
+	// which repeaters carried the member's adverts, so org-mates can see it too.
+	before, _ := web.DecodeCursor[store.CheckinCursor](r.URL.Query().Get("before"))
+	var cursor *store.CheckinCursor
+	if !before.FirstHeardAt.IsZero() {
 		cursor = &before
 	}
-	sightings, hasMore, err := s.Store.ListCompanionSightingsPage(ctx, c.ID, cursor)
+	checkins, hasMore, err := s.Store.ListCompanionCheckinsPage(ctx, c.ID, cursor)
 	if err != nil {
-		s.ServerError(w, r, "Couldn't load sightings.", err)
+		s.ServerError(w, r, "Couldn't load check-ins.", err)
 		return
-	}
-	keys, err := s.Store.ListRepeaterKeysForViewer(ctx, uid)
-	if err != nil {
-		s.ServerError(w, r, "Couldn't load repeaters.", err)
-		return
-	}
-	resolver := observe.NewPathResolver(keys)
-
-	rv := make([]routeView, len(routes))
-	for i, rt := range routes {
-		rv[i] = routeView{CompanionRoute: rt, Hops: resolver.Resolve(rt.Hops())}
-	}
-	sv := make([]sightingView, len(sightings))
-	for i, sg := range sightings {
-		hops := sg.Hops()
-		sv[i] = sightingView{AdvertSighting: sg, Route: routeLabel(sg.RouteType, len(hops)), Hops: resolver.Resolve(hops)}
 	}
 	data := map[string]any{
 		"Companion": c,
 		"IsOwner":   c.OwnerID == uid,
-		"Routes":    rv,
-		"Sightings": sv,
+		"Checkins":  checkins,
 		"TTLHours":  int(store.UnconfirmedCompanionTTL.Hours()),
 		"MaxSkew":   int(ingest.MaxAdvertSkew.Minutes()),
 	}
-	if hasMore && len(sightings) > 0 {
-		last := sightings[len(sightings)-1]
-		data["NextBefore"] = web.EncodeCursor(store.SightingCursor{ReceivedAt: last.ReceivedAt, ID: last.ID})
+	if hasMore && len(checkins) > 0 {
+		last := checkins[len(checkins)-1]
+		data["NextBefore"] = web.EncodeCursor(store.CheckinCursor{FirstHeardAt: last.FirstHeardAt, ID: last.ID})
 	}
 	s.Render(w, r, "companion.html", data)
 }

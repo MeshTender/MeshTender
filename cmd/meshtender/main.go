@@ -159,10 +159,13 @@ func run(logger *slog.Logger) error {
 			janitorSweep{"csp reports", func(ctx context.Context) (int64, error) {
 				return st.PruneCSPReports(ctx, web.CSPRetention)
 			}},
-			// Check-in data: sightings (and the net sessions read from them) age
+			// Check-in data: check-ins (and the net sessions read from them) age
 			// out, a registration nobody confirmed frees its key, and every
 			// active net always has its next session ready.
-			janitorSweep{"advert sightings", st.PruneSightings},
+			janitorSweep{"check-ins", st.PruneCheckins},
+			// The ingester's leader sweeps these every pass; this catches them
+			// when no replica is leading.
+			janitorSweep{"advert relay sets", st.PruneAdvertSets},
 			janitorSweep{"unconfirmed companions", st.PruneUnconfirmedCompanions},
 			janitorSweep{"net sessions", func(ctx context.Context) (int64, error) {
 				return 0, st.EnsureUpcomingNetSessions(ctx, time.Now())
