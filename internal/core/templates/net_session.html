@@ -1,43 +1,169 @@
-{{define "title"}}{{.Net.Name}} roster · {{.Org.Name}} · MeshTender{{end}}
+{{define "title"}}{{.Net.Name}} session · {{.Org.Name}} · MeshTender{{end}}
 {{define "header"}}{{template "org-header" .}}{{end}}
 {{define "content"}}
 {{template "org-tabs" .Nav}}
 {{if .Error}}<div class="alert alert-danger" role="alert"><div>{{.Error}}</div></div>{{end}}
 
-<div class="card mb-3">
-  <div class="card-body">
-    <div class="page-pretitle"><a href="/orgs/{{.Org.Slug}}/nets/{{.Net.ID}}">{{.Net.Name}}</a></div>
-    <h2 class="card-title mb-1">{{ts .Session.StartsAt "datetime"}} – {{ts .Session.EndsAt "time"}}{{if .InProgress}} <span class="badge bg-green-lt">In progress</span>{{end}}</h2>
-    <div class="text-secondary">{{if .Net.ManualAck}}Net control acknowledges each check-in.{{else}}Check-ins are acknowledged as soon as they're heard.{{end}}{{if .NetControl}} You're net control for this net.{{end}}</div>
-  </div>
+<ol class="breadcrumb mb-2" aria-label="Breadcrumb">
+  <li class="breadcrumb-item"><a href="/orgs/{{.Org.Slug}}/nets">Nets</a></li>
+  <li class="breadcrumb-item"><a href="/orgs/{{.Org.Slug}}/nets/{{.Net.ID}}">{{.Net.Name}}</a></li>
+  <li class="breadcrumb-item active" aria-current="page">{{ts .Session.StartsAt "date"}}</li>
+</ol>
+<div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+  <h2 class="mb-0">{{ts .Session.StartsAt "datetime"}} – {{ts .Session.EndsAt "time"}}</h2>
+  {{if .InProgress}}<span class="badge bg-green-lt">In progress</span>{{end}}
+  <span class="badge bg-blue-lt">{{if .Net.ManualAck}}Acknowledged by net control{{else}}Acknowledged automatically{{end}}</span>
+  <span class="ms-auto d-flex align-items-center gap-2 text-secondary small" data-testid="observers-online">
+    <span class="status-dot{{if .ObserversOnline}} status-green{{else}} status-red{{end}}"></span>
+    {{if .IsAdmin}}<a class="text-reset" href="/orgs/{{.Org.Slug}}/settings/mqtt">{{.ObserversOnline}} of {{.Observers}} observers online</a>{{else}}{{.ObserversOnline}} of {{.Observers}} observers online{{end}}
+  </span>
 </div>
 
+{{$rail := and .NetControl .InProgress}}
+<div class="row row-cards">
+  <div class="{{if $rail}}col-lg-8{{else}}col-12{{end}}">
+    {{template "session-live" .}}
+  </div>
+  {{if $rail}}
+  <div class="col-lg-4 d-flex flex-column gap-3">
+    {{template "session-modem" .}}
+    {{template "session-add" .}}
+  </div>
+  {{end}}
+</div>
+{{end}}
+
+{{/* session-live is the part of the page that changes as the session runs: net
+     control's acknowledgement queue and the session log. While the session is
+     in progress it reloads itself every 10 seconds (htmx, same-origin; the
+     handler returns just this for an HX-Request), so check-ins show up as
+     they're heard. The rail lives outside it, so a refresh never clears what
+     net control is typing. */}}
+{{define "session-live"}}
+<div id="session-live" class="d-flex flex-column gap-3" data-testid="roster-card"
+     {{if .InProgress}}hx-get="{{.PollURL}}" hx-trigger="every 10s" hx-swap="outerHTML"{{end}}>
+  {{if and .NetControl .Waiting}}
+  <div class="card border-orange" data-testid="waiting">
+    <div class="card-header"><h2 class="card-title">Waiting for acknowledgement</h2></div>
+    <div class="list-group list-group-flush">
+      {{range .Waiting}}
+      <div class="list-group-item d-flex align-items-center gap-3" data-testid="awaiting">
+        <div class="flex-fill">
+          <div><strong>{{.MemberName}}</strong> on <a href="/companions/{{.CompanionPublicID}}">{{.CompanionName}}</a>
+            <span class="text-secondary">· {{ts .HeardAt "time"}}</span></div>
+          <div class="text-secondary small">{{template "checkin-reach" .}}</div>
+        </div>
+        <form method="post" action="{{$.SessionURL}}/acks" class="m-0">
+          <input type="hidden" name="user_id" value="{{.MemberID}}">
+          <button type="submit" class="btn btn-primary btn-sm" data-testid="acknowledge">Acknowledge</button>
+        </form>
+      </div>
+      {{end}}
+    </div>
+  </div>
+  {{end}}
+
+  <div class="card" data-testid="session-log">
+    <div class="card-header flex-wrap gap-2">
+      <h2 class="card-title" data-testid="roster-summary">{{.CheckedIn}} of {{.Members}} members checked in</h2>
+      <nav class="btn-group btn-group-sm ms-auto" aria-label="Show">
+        {{template "log-filter" (dict "Page" . "Value" "" "Label" "All")}}
+        {{template "log-filter" (dict "Page" . "Value" "checkins" "Label" "Check-ins")}}
+        {{template "log-filter" (dict "Page" . "Value" "news" "Label" "News")}}
+      </nav>
+    </div>
+    {{if .Log}}
+    <div class="list-group list-group-flush" data-testid="roster">
+      {{range .Log}}
+      {{with .CheckIn}}
+      <div class="list-group-item d-flex gap-3" data-testid="log-checkin">
+        <span class="text-secondary d-flex mt-1">{{template "icon-check" ""}}</span>
+        <div class="flex-fill" style="min-width:0">
+          {{if .Heard}}
+          <div><strong>{{.MemberName}}</strong> checked in on <a href="/companions/{{.CompanionPublicID}}">{{.CompanionName}}</a>
+            {{if .ZeroHopOnly}}<span class="badge bg-yellow-lt" title="Only heard as a zero-hop advert, which reaches radios in direct range">Zero-hop</span>{{end}}</div>
+          <div class="text-secondary small">
+            {{template "checkin-reach" .}}
+            {{if .Aired}} · <span data-testid="aired">copied on air {{ts .AiredAt "time"}}</span>{{end}}
+            {{if $.Net.ManualAck}}{{if .Acked}} · <span data-testid="acked">acknowledged by {{template "net-control-name" .AckedBy}}{{if .AckNote}} · {{.AckNote}}{{end}}</span>{{else}} · <span class="text-orange">awaiting acknowledgement</span>{{end}}{{end}}
+          </div>
+          {{else}}
+          <div data-testid="added-by-hand"><strong>{{.MemberName}}</strong> checked in <span class="text-secondary">· added by {{template "net-control-name" .AckedBy}}</span></div>
+          <div class="text-secondary small">{{if .AckNote}}{{.AckNote}}{{else}}Not heard on the air{{end}}{{if .Aired}} · <span data-testid="aired">copied on air {{ts .AiredAt "time"}}</span>{{end}}</div>
+          {{end}}
+        </div>
+        <div class="text-secondary small text-nowrap">{{if .Heard}}{{ts .HeardAt "time"}}{{else}}{{ts .AckedAt "time"}}{{end}}</div>
+        {{if and $.NetControl .Acked}}
+        <div class="dropdown">
+          <button type="button" class="btn btn-sm btn-ghost-secondary btn-icon" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Actions for {{.MemberName}}" data-testid="log-actions">{{template "icon-chevron-down" ""}}</button>
+          <div class="dropdown-menu dropdown-menu-end">
+            <form method="post" action="{{$.SessionURL}}/acks/{{.MemberID}}/delete" class="m-0">
+              <button type="submit" class="dropdown-item" data-testid="undo">{{if .Heard}}Undo acknowledgement{{else}}Remove check-in{{end}}</button>
+            </form>
+          </div>
+        </div>
+        {{end}}
+      </div>
+      {{end}}
+      {{with .Message}}
+      <div class="list-group-item d-flex gap-3" data-testid="channel-log">
+        <span class="text-secondary d-flex mt-1">{{template "icon-radio" ""}}</span>
+        <div class="flex-fill" style="min-width:0">
+          <div><strong data-testid="news-sender">{{.Sender}}</strong> <span class="text-secondary small">on the channel</span></div>
+          <div class="d-inline-block mt-1 px-3 py-2 rounded-3 bg-surface-secondary text-break" data-testid="news-body">{{.Body}}</div>
+        </div>
+        <div class="text-secondary small text-nowrap">{{ts .HeardAt "time"}}</div>
+      </div>
+      {{end}}
+      {{end}}
+    </div>
+    {{else}}
+    <div class="card-body text-secondary">{{if eq .LogFilter "news"}}No news logged{{else if eq .LogFilter "checkins"}}No check-ins{{else}}Nothing{{end}} yet.{{if and .InProgress (ne .LogFilter "news")}} Members check in by sending a flood advert from their companion.{{end}}</div>
+    {{end}}
+    <div class="card-footer text-secondary small">Relays are a minimum: a repeater whose copies never reached an observer can't be seen. News is channel messages starting with the net's log prefix; a sender's name is whatever they typed.</div>
+  </div>
+</div>
+{{end}}
+
+{{/* log-filter is one choice of the session log's filter. Data: dict Page,
+     Value, Label. */}}
+{{define "log-filter"}}
+<a class="btn{{if eq .Page.LogFilter .Value}} active{{end}}" href="{{.Page.SessionURL}}{{with .Value}}?log={{.}}{{end}}"{{if eq .Page.LogFilter .Value}} aria-current="page"{{end}} data-testid="log-filter-{{or .Value "all"}}">{{.Label}}</a>
+{{end}}
+
+{{/* checkin-reach is how far a heard check-in got. Pass a store.RosterEntry. */}}
+{{define "checkin-reach"}}heard by {{.Observers}} observer{{if ne .Observers 1}}s{{end}}{{if .Spread}}, relayed by {{.Spread}} repeater{{if ne .Spread 1}}s{{end}}{{end}}{{end}}
+
+{{/* session-modem is net control's modem: connected through the browser like
+     the repeater console (mesh-bridge.js); netcontrol.js drives it. Everything
+     on the air happens server-side. */}}
+{{define "session-modem"}}
 {{with .Modem}}
-{{/* Net control's modem: connected through the browser like the repeater
-     console (mesh-bridge.js); netcontrol.js drives it. Everything on the air
-     happens server-side. */}}
-<div class="card mb-3" data-net-modem data-ws-path="{{.WSPath}}" data-testid="net-modem">
-  <div class="card-header"><h2 class="card-title">On the air</h2></div>
+<div class="card" data-net-modem data-ws-path="{{.WSPath}}" data-testid="net-modem">
+  <div class="card-header">
+    <h2 class="card-title">On the air</h2>
+    <div class="card-actions"><span class="badge bg-secondary-lt" data-nc-state data-testid="nc-state">Not connected</span></div>
+  </div>
   <div class="card-body">
     <div data-nc-unsupported class="alert alert-danger" role="alert" hidden>
-      <div>This browser can't connect to USB devices. Use Chrome or Edge, or Firefox 151 or later, on desktop — or Chrome on Android — over HTTPS or on localhost.</div>
+      <div>This browser can't connect to USB devices. Use a desktop browser with WebSerial, or Chrome on Android, over HTTPS.</div>
     </div>
     {{if .Radio}}
-    <p class="text-secondary small">Connect a MeshCore KISS modem to send announcements and acknowledgements on {{.Channel}} as “{{.Sender}}”, and to count the adverts it hears. On {{.Radio.MHz}} MHz · BW{{.Radio.KHz}} · SF{{.Radio.SF}} · CR{{.Radio.CR}}.</p>
-    <button type="button" class="btn btn-primary" data-nc-connect data-testid="nc-connect">{{template "icon-plug" "me-1"}}Connect modem</button>
+    <p class="text-secondary small">Sends on {{.Channel}} as “{{.Sender}}” and counts the adverts it hears.</p>
+    <button type="button" class="btn btn-primary w-100" data-nc-connect data-testid="nc-connect">{{template "icon-plug" "me-1"}}Connect modem</button>
     <div data-nc-controls hidden>
       <div class="btn-list mb-2">
-        <button type="button" class="btn btn-outline-primary" data-nc-send="open" data-testid="nc-open">Announce net open</button>
-        <button type="button" class="btn btn-outline-secondary" data-nc-send="close" data-testid="nc-close">Announce net closed</button>
+        <button type="button" class="btn btn-sm" data-nc-send="open" data-testid="nc-open">Announce open</button>
+        <button type="button" class="btn btn-sm" data-nc-send="close" data-testid="nc-close">Announce closed</button>
       </div>
-      <form data-nc-say class="input-group mb-2">
+      <form data-nc-say class="input-group input-group-sm mb-2">
         <input type="text" class="form-control" maxlength="{{.SayMax}}" placeholder="Message to the net" aria-label="Message to the net">
-        <button type="submit" class="btn btn-outline-primary">Send</button>
+        <button type="submit" class="btn">Send</button>
       </form>
     </div>
     <ul data-nc-log class="evlog mt-2" role="log" aria-live="polite" aria-label="Modem activity"></ul>
     {{else}}
-    <div class="text-secondary" data-testid="nc-no-radio">The organization's radio settings aren't set, so a modem can't be tuned. An admin sets them on the Configuration tab.</div>
+    <div class="text-secondary" data-testid="nc-no-radio">The organization's radio isn't set, so a modem can't be tuned. An admin sets it in <a href="/orgs/{{.OrgSlug}}/settings#radio">Settings › Profile</a>.</div>
     {{end}}
   </div>
 </div>
@@ -45,110 +171,54 @@
 <script src="{{ asset "/static/mesh-bridge.js" }}"></script>
 <script src="{{ asset "/static/netcontrol.js" }}"></script>
 {{end}}
+{{end}}
 
-{{template "roster-card" .}}
-
-{{if and .NetControl .Addable}}
-<div class="card mt-3">
+{{/* session-add is net control's "Add a check-in": search the org's members
+     (htmx, answered by member-search) and add one by hand, e.g. someone who
+     checked in by channel message or has no companion. A result's Add button
+     submits this form with that member's id. */}}
+{{define "session-add"}}
+<div class="card" data-testid="add-checkin">
+  <div class="card-header"><h2 class="card-title">Add a check-in</h2></div>
   <div class="card-body">
-    <h2 class="card-title">Add a check-in</h2>
-    <p class="text-secondary small">For a member MeshTender didn't hear, such as someone who checked in by channel message.</p>
-    <form method="post" action="{{.SessionURL}}/acks" class="row g-2 align-items-end" data-testid="add-checkin">
-      <div class="col-md-4">
-        <label class="form-label" for="add-member">Member</label>
-        <select id="add-member" name="user_id" class="form-select" required>
-          {{range .Addable}}<option value="{{.UserID}}">{{.Name}} (@{{.Username}})</option>{{end}}
-        </select>
+    <form method="post" action="{{.SessionURL}}/acks">
+      <div class="mb-2">
+        <label class="visually-hidden" for="add-search">Find a member</label>
+        <input type="search" id="add-search" name="q" class="form-control" placeholder="Find a member…" autocomplete="off"
+               hx-get="{{.SessionURL}}/members" hx-trigger="input changed delay:250ms, search" hx-target="#add-results" data-testid="add-search">
       </div>
-      <div class="col-md-6">
-        <label class="form-label" for="add-note">Note (optional)</label>
-        <input type="text" id="add-note" name="note" class="form-control" maxlength="140" placeholder="with traffic, mobile…">
+      <div class="mb-2">
+        <label class="visually-hidden" for="add-note">Note</label>
+        <input type="text" id="add-note" name="note" class="form-control" maxlength="140" placeholder="Note (optional): with traffic, mobile…">
       </div>
-      <div class="col-md-2">
-        <button type="submit" class="btn btn-primary w-100">Add</button>
-      </div>
+      <div id="add-results">{{template "member-search" .}}</div>
     </form>
   </div>
 </div>
 {{end}}
-{{end}}
 
-{{/* roster-card is the roster itself. While the session is in progress it
-     reloads itself every 10 seconds (htmx, same-origin; the handler returns
-     just this card for an HX-Request), so net control sees adverts arrive. The
-     "add a check-in" form lives outside it, so a refresh never clears what net
-     control is typing. */}}
-{{define "roster-card"}}
-<div class="card" id="roster-card" data-testid="roster-card"
-     {{if .InProgress}}hx-get="{{.SessionURL}}" hx-trigger="every 10s" hx-swap="outerHTML"{{end}}>
-  <div class="card-header">
-    <h2 class="card-title" data-testid="roster-summary">{{.CheckedIn}} of {{len .Roster}} members checked in</h2>
-    <div class="card-actions text-secondary small">{{.ObserversOnline}} of {{.Observers}} observers online now</div>
-  </div>
-  {{if .Roster}}
-  <div class="table-responsive">
-    <table class="table card-table table-vcenter" data-testid="roster">
-      <thead><tr><th>Member</th><th>Checked in</th><th title="Repeaters seen relaying the member's best check-in">Spread</th><th>Observers</th>{{if .NetControl}}<th></th>{{end}}</tr></thead>
-      <tbody>
-        {{range .Roster}}
-        <tr>
-          <td>{{.MemberName}}</td>
-          {{if .Heard}}
-          <td>
-            {{ts .HeardAt "time"}} <span class="text-secondary">on <a href="/companions/{{.CompanionPublicID}}">{{.CompanionName}}</a></span>
-            {{if .ZeroHopOnly}}<span class="badge bg-yellow-lt" title="Only heard as a zero-hop advert, which reaches radios in direct range">Zero-hop</span>{{end}}
-            {{if .Aired}}<span class="badge bg-green-lt" data-testid="aired" title="Net control's modem acknowledged this check-in on the air">On air {{ts .AiredAt "time"}}</span>{{end}}
-            {{if $.Net.ManualAck}}
-              {{if .Acked}}<div class="text-secondary small" data-testid="acked">acknowledged by {{template "net-control-name" .AckedBy}}{{if .AckNote}} · {{.AckNote}}{{end}}</div>
-              {{else}}<div><span class="badge bg-orange-lt" data-testid="awaiting">Awaiting acknowledgement</span></div>{{end}}
-            {{end}}
-          </td>
-          <td>{{if .Spread}}{{.Spread}} repeater{{if ne .Spread 1}}s{{end}}{{else}}<span class="text-secondary">—</span>{{end}}</td>
-          <td>{{.Observers}}</td>
-          {{else if .Acked}}
-          <td data-testid="added-by-hand">
-            {{ts .AckedAt "time"}} <span class="text-secondary">by {{template "net-control-name" .AckedBy}}</span>
-            {{if .Aired}}<span class="badge bg-green-lt" data-testid="aired" title="Net control's modem acknowledged this check-in on the air">On air {{ts .AiredAt "time"}}</span>{{end}}
-            {{if .AckNote}}<div class="text-secondary small">{{.AckNote}}</div>{{end}}
-          </td>
-          <td><span class="text-secondary">—</span></td>
-          <td><span class="text-secondary">—</span></td>
-          {{else}}
-          <td colspan="3" class="text-secondary">Not heard</td>
-          {{end}}
-          {{if $.NetControl}}
-          <td class="text-end">
-            {{if .Acked}}
-            <form method="post" action="{{$.SessionURL}}/acks/{{.MemberID}}/delete" class="m-0">
-              <button type="submit" class="btn btn-sm btn-ghost-secondary">Undo</button>
-            </form>
-            {{else if and .Heard $.Net.ManualAck}}
-            <form method="post" action="{{$.SessionURL}}/acks" class="m-0">
-              <input type="hidden" name="user_id" value="{{.MemberID}}">
-              <button type="submit" class="btn btn-sm btn-primary" data-testid="acknowledge">Acknowledge</button>
-            </form>
-            {{end}}
-          </td>
-          {{end}}
-        </tr>
-        {{end}}
-      </tbody>
-    </table>
-  </div>
-  {{else}}
-  <div class="card-body text-secondary">No member has a confirmed companion yet. Members register theirs under Companions and send a flood advert.</div>
-  {{end}}
-  {{if .Messages}}
-  <div class="card-body border-top" data-testid="channel-log">
-    <h3 class="h4">Channel log</h3>
-    <p class="text-secondary small">Messages heard on the net's channel, by net control's modem or the organization's observers. Channel messages aren't signed, so each name is whatever its sender typed.</p>
-    <ul class="list-unstyled mb-0">
-      {{range .Messages}}<li class="mb-1"><span class="text-secondary">{{ts .HeardAt "time"}}</span> <strong>{{.Sender}}</strong> {{.Body}}</li>{{end}}
-    </ul>
+{{/* member-search is the "Add a check-in" results: each matching member with
+     their status in the session, and Add for those not checked in yet. */}}
+{{define "member-search"}}
+{{if .Matches}}
+<div class="list-group list-group-flush" data-testid="add-results">
+  {{range .Matches}}
+  <div class="list-group-item px-0 d-flex align-items-center gap-2">
+    <div class="flex-fill" style="min-width:0">
+      <div class="text-truncate">{{.Name}} <span class="text-secondary">@{{.Username}}</span></div>
+      <div class="small text-secondary" data-testid="add-status">
+        {{with .Entry}}{{if .Heard}}checked in {{ts .HeardAt "time"}}{{if .Acked}} · acknowledged{{end}}{{else if .Acked}}added {{ts .AckedAt "time"}}{{else}}not heard{{end}}{{else}}not heard · no companion{{end}}
+      </div>
+    </div>
+    {{if not .CheckedIn}}<button type="submit" name="user_id" value="{{.UserID}}" class="btn btn-sm" data-testid="add-member">Add</button>{{end}}
   </div>
   {{end}}
-  <div class="card-footer text-secondary small">A member checks in by sending an advert from any of their companions during the session; "on" names the one heard first. Net control can also add a check-in by hand ("by"). Zero-hop check-ins are marked because only nearby observers can hear them. Spread and Observers are from the member's best check-in: how many repeaters were seen relaying the advert and how many observers heard it. Spread is a minimum, since a relay whose copies never reached an observer can't be seen. "Not heard" means no observer heard one, not that the member is absent.</div>
 </div>
+{{else if .Query}}
+<div class="text-secondary small">No member matches “{{.Query}}”.</div>
+{{else}}
+<div class="text-secondary small">For a member MeshTender didn't hear: search, then Add.</div>
+{{end}}
 {{end}}
 
 {{/* net-control-name names who acknowledged a check-in: their @username, or

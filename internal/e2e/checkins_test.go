@@ -253,6 +253,62 @@ func TestE2ENetControlAcknowledgesAndRosterRefreshes(t *testing.T) {
 	watch.assertClean(t)
 }
 
+// TestE2ENetControlAddsCheckIn: net control finds a member who wasn't heard
+// with the "Add a check-in" search (htmx, under the CSP), sees their status, and
+// adds them; the session log shows the hand-added check-in.
+func TestE2ENetControlAddsCheckIn(t *testing.T) {
+	srv := newE2EServer(t)
+	user, cookie := srv.login(t, "e2enetadd")
+	org, err := srv.store.CreateOrg(srv.ctx, "Add Org", user.ID)
+	if err != nil {
+		t.Fatalf("create org: %v", err)
+	}
+	radioless, err := srv.store.CreateUser(srv.ctx, "e2eradioless", "Radioless Rita")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := srv.store.AddOrgMember(srv.ctx, org.ID, radioless.ID, "member"); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	net, err := srv.store.CreateNet(srv.ctx, org.ID, store.NetInput{Name: "Add Net", Weekday: now.Weekday(),
+		StartMinute: max(0, now.Hour()*60+now.Minute()-10), DurationMinutes: 120, Timezone: "UTC", Active: true}, user.ID, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sess, err := srv.store.NextNetSession(srv.ctx, net.ID, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bctx, cancel, watch := startBrowser(t)
+	defer cancel()
+	var status, added string
+	if err := chromedp.Run(bctx,
+		network.Enable(),
+		cdplog.Enable(),
+		setSessionCookie(cookie),
+		chromedp.Navigate(fmt.Sprintf("%s/orgs/%s/nets/%d/sessions/%d", srv.appURL, org.Slug, net.ID, sess.ID)),
+		chromedp.WaitVisible(`[data-testid="add-search"]`, chromedp.ByQuery),
+		chromedp.SendKeys(`[data-testid="add-search"]`, "rita", chromedp.ByQuery),
+		chromedp.WaitVisible(`[data-testid="add-member"]`, chromedp.ByQuery),
+		chromedp.Text(`[data-testid="add-status"]`, &status, chromedp.ByQuery),
+		chromedp.SetValue(`#add-note`, "on the phone", chromedp.ByQuery),
+		chromedp.Click(`[data-testid="add-member"]`, chromedp.ByQuery),
+		chromedp.WaitVisible(`[data-testid="added-by-hand"]`, chromedp.ByQuery),
+		chromedp.Text(`[data-testid="roster"]`, &added, chromedp.ByQuery),
+	); err != nil {
+		t.Fatalf("add a check-in: %v", err)
+	}
+	if !strings.Contains(status, "no companion") {
+		t.Errorf("search status = %q", status)
+	}
+	if !strings.Contains(added, "Radioless Rita") || !strings.Contains(added, "on the phone") {
+		t.Errorf("session log = %q", added)
+	}
+	watch.assertClean(t)
+}
+
 // TestE2ENetAirSettings: an admin saves a net's on-air settings through the
 // real form in Settings › Nets — choosing Hashtag reveals only the hashtag
 // field — and the net's page summarizes them.
@@ -375,7 +431,7 @@ func TestE2ENetModemPanel(t *testing.T) {
 	if !connectShown {
 		t.Error("connect button or MeshBridge missing")
 	}
-	if !strings.Contains(roster, "On air") {
+	if !strings.Contains(roster, "copied on air") {
 		t.Errorf("roster: %q", roster)
 	}
 	if !strings.Contains(channelLog, "Bob") || !strings.Contains(channelLog, "road closed") || strings.Contains(channelLog, "unverified") {

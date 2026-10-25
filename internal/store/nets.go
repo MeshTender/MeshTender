@@ -416,6 +416,20 @@ func (e *RosterEntry) Aired() bool { return e.AiredAt != nil }
 // checked-in members first (by when), then the rest by name. Unpaginated:
 // bounded by the org's membership, and a roster is read as a whole.
 func (s *Store) NetSessionRoster(ctx context.Context, orgID int64, session *NetSession) ([]RosterEntry, error) {
+	return s.netSessionRoster(ctx, orgID, session, nil)
+}
+
+// NetSessionRosterFor is the roster rows of just the given members (those with
+// a confirmed companion or a check-in logged by hand).
+func (s *Store) NetSessionRosterFor(ctx context.Context, orgID int64, session *NetSession, memberIDs []int64) ([]RosterEntry, error) {
+	if len(memberIDs) == 0 {
+		return nil, nil
+	}
+	return s.netSessionRoster(ctx, orgID, session, memberIDs)
+}
+
+// netSessionRoster is the roster, of every member when memberIDs is nil.
+func (s *Store) netSessionRoster(ctx context.Context, orgID int64, session *NetSession, memberIDs []int64) ([]RosterEntry, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT u.id, COALESCE(NULLIF(u.display_name, ''), u.username),
 		       COALESCE(h.companion_public_id, ''), COALESCE(h.companion_name, ''),
@@ -438,11 +452,12 @@ func (s *Store) NetSessionRoster(ctx context.Context, orgID int64, session *NetS
 			WHERE c.owner_id = u.id AND c.confirmed_at IS NOT NULL
 			  AND k.first_heard_at >= $2 AND k.first_heard_at < $3
 			HAVING count(*) > 0) h ON TRUE
-		WHERE a.user_id IS NOT NULL
-		   OR EXISTS (SELECT 1 FROM companions c WHERE c.owner_id = u.id AND c.confirmed_at IS NOT NULL)
+		WHERE (a.user_id IS NOT NULL
+		       OR EXISTS (SELECT 1 FROM companions c WHERE c.owner_id = u.id AND c.confirmed_at IS NOT NULL))
+		  AND ($5::bigint[] IS NULL OR u.id = ANY($5))
 		ORDER BY LEAST(h.first_heard, a.acked_at) NULLS LAST,
 		         lower(COALESCE(NULLIF(u.display_name, ''), u.username)), u.id`,
-		orgID, session.StartsAt, session.EndsAt, session.ID)
+		orgID, session.StartsAt, session.EndsAt, session.ID, memberIDs)
 	if err != nil {
 		return nil, fmt.Errorf("net session roster: %w", err)
 	}

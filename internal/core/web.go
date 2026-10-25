@@ -263,6 +263,7 @@ func (s *Handlers) appRouter() chi.Router {
 			r.Post("/orgs/{id}/nets/{nid}/air", s.handleUpdateNetAir)
 			r.Post("/orgs/{id}/nets/{nid}/ack", s.handleSetNetAck)
 			r.Get("/orgs/{id}/nets/{nid}/sessions/{sid}", s.pageNetSession)
+			r.Get("/orgs/{id}/nets/{nid}/sessions/{sid}/members", s.pageSessionMemberSearch)
 			r.Post("/orgs/{id}/nets/{nid}/controls", s.handleAddNetControl)
 			r.Post("/orgs/{id}/nets/{nid}/controls/{uid}/delete", s.handleRemoveNetControl)
 			r.Post("/orgs/{id}/nets/{nid}/sessions/{sid}/acks", s.handleAcknowledge)

@@ -176,18 +176,42 @@ func TestNetSessionRosterPage(t *testing.T) {
 
 	path := "/orgs/" + org.Slug + "/nets/" + strconv.FormatInt(net.ID, 10) + "/sessions/" + strconv.FormatInt(cur.ID, 10)
 	body := getBody(t, ts, h.app, path, sess)
-	for _, want := range []string{"rosterpageadmin", "on <a href=\"/companions/" + heard.PublicID + "\">Heard T1</a>",
-		"Quiet Member", "Not heard", "In progress", "1 of 2 members checked in", ">Spread<", "2 repeaters"} {
+	for _, want := range []string{"rosterpageadmin", "checked in on <a href=\"/companions/" + heard.PublicID + "\">Heard T1</a>",
+		"In progress", "1 of 2 members checked in", "heard by 1 observer, relayed by 2 repeaters"} {
 		if !strings.Contains(body, want) {
-			t.Errorf("roster lacks %q", want)
+			t.Errorf("session log lacks %q", want)
 		}
 	}
-	// By member, not device: the quiet member's companion and the admin's
-	// spare aren't rows of their own.
-	for _, absent := range []string{"Quiet T2", "Spare T3"} {
+	// The log is check-ins, by member, not device: no row for the member not
+	// heard, the quiet member's companion, or the admin's spare.
+	for _, absent := range []string{"Quiet Member", "Quiet T2", "Spare T3"} {
 		if strings.Contains(body, absent) {
-			t.Errorf("roster lists the device %q", absent)
+			t.Errorf("session log lists %q", absent)
 		}
+	}
+	// A news message: in All and News, not in Check-ins; check-ins the other way.
+	if _, err := st.AddNetSessionMessage(ctx, cur.ID, []byte("news-1"), "KD2ABC", "road closed at exit 5", time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	for filter, want := range map[string][2]bool{"": {true, true}, "?log=checkins": {true, false}, "?log=news": {false, true}} {
+		body := getBody(t, ts, h.app, path+filter, sess)
+		if got := [2]bool{strings.Contains(body, `data-testid="log-checkin"`), strings.Contains(body, "road closed at exit 5")}; got != want {
+			t.Errorf("log %q: check-in, news shown = %v, want %v", filter, got, want)
+		}
+	}
+
+	// Net control's member search shows where each match stands, and only
+	// offers Add for members not checked in.
+	search := func(q string) string { return getBody(t, ts, h.app, path+"/members?q="+url.QueryEscape(q), sess) }
+	if body := search("quiet"); !strings.Contains(body, "Quiet Member") || !strings.Contains(body, "not heard") ||
+		!strings.Contains(body, `name="user_id" value="`+strconv.FormatInt(quietUser.ID, 10)+`"`) {
+		t.Errorf("search for the quiet member: %.300s", body)
+	}
+	if body := search("rosterpage"); !strings.Contains(body, "checked in") || strings.Contains(body, `data-testid="add-member"`) {
+		t.Errorf("search for a checked-in member: %.300s", body)
+	}
+	if body := search("nobody"); !strings.Contains(body, "No member matches") {
+		t.Errorf("search with no match: %.300s", body)
 	}
 	if !strings.Contains(getBody(t, ts, h.app, "/orgs/"+org.Slug+"/nets/"+strconv.FormatInt(net.ID, 10), sess), `data-testid="net-live-roster"`) {
 		t.Error("net page doesn't link the live roster")
@@ -299,7 +323,7 @@ func TestNetControlAcknowledgements(t *testing.T) {
 	redirectTo(t, post(t, ts, h.app, sessPath+"/acks", url.Values{"user_id": {strconv.FormatInt(radioless.ID, 10)}, "note": {"with traffic"}}, controlSess), sessPath)
 
 	body = getBody(t, ts, h.app, sessPath, adminSess)
-	for _, want := range []string{"acknowledged by @ackcontrol", "Radioless Member", "by @ackcontrol", "with traffic", "2 of 2 members checked in"} {
+	for _, want := range []string{"acknowledged by @ackcontrol", "Radioless Member", "by @ackcontrol", "with traffic", "2 of 4 members checked in"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("roster lacks %q", want)
 		}
@@ -308,7 +332,7 @@ func TestNetControlAcknowledgements(t *testing.T) {
 		t.Error("still awaiting after acknowledgement")
 	}
 
-	// The htmx poll gets just the roster card, no page chrome.
+	// The htmx poll gets just the live part, no page chrome or rail.
 	req, _ := http.NewRequest(http.MethodGet, ts.URL+sessPath, nil)
 	req.Host = h.app
 	req.Header.Set("HX-Request", "true")
@@ -318,8 +342,8 @@ func TestNetControlAcknowledgements(t *testing.T) {
 		t.Fatal(err)
 	}
 	fb := readBody(t, frag)
-	if !strings.Contains(fb, `id="roster-card"`) || strings.Contains(fb, "<html") || strings.Contains(fb, `data-testid="add-checkin"`) {
-		t.Errorf("htmx roster response isn't just the card: %.200s", fb)
+	if !strings.HasPrefix(strings.TrimSpace(fb), `<div id="session-live"`) || strings.Contains(fb, "<html") || strings.Contains(fb, `data-testid="add-checkin"`) {
+		t.Errorf("htmx poll response isn't just the live part: %.200s", fb)
 	}
 	if !strings.Contains(body, `hx-trigger="every 10s"`) {
 		t.Error("in-progress roster doesn't poll")

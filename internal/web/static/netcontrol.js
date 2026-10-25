@@ -1,9 +1,20 @@
-// netcontrol.js — net control's modem panel on a live net session. It connects
+// netcontrol.js — net control's rail on a live net session. The modem panel connects
 // the user's KISS modem through mesh-bridge.js to the session's modem socket
 // (the path is the panel's data-ws-path) and drives the announcement buttons;
 // everything on the air happens server-side.
 (function () {
   "use strict";
+
+  // "Add a check-in": Enter in the member search shouldn't submit the form
+  // without a member picked (each result's Add button submits it).
+  var search = document.querySelector("[data-testid='add-search']");
+  if (search) {
+    search.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") e.preventDefault();
+    });
+  }
+
+  var MAX_LOG = 100; // the modem log is a scrolling tail, not a history
   var panel = document.querySelector("[data-net-modem]");
   if (!panel) return;
   var connectBtn = panel.querySelector("[data-nc-connect]");
@@ -11,6 +22,7 @@
   var controls = panel.querySelector("[data-nc-controls]");
   var sayForm = panel.querySelector("[data-nc-say]");
   var sayInput = sayForm ? sayForm.querySelector("input") : null;
+  var stateBadge = panel.querySelector("[data-nc-state]");
   var bridge = null;
 
   if (!window.MeshBridge || !window.MeshBridge.supported) {
@@ -25,12 +37,17 @@
     li.className = "ev ev-" + String(state);
     li.textContent = String(message);
     log.appendChild(li);
+    while (log.children.length > MAX_LOG) log.removeChild(log.firstChild);
     log.scrollTop = log.scrollHeight;
   }
 
   function setReady(on) {
     controls.hidden = !on;
     connectBtn.hidden = on;
+    if (stateBadge) {
+      stateBadge.textContent = on ? "Connected" : "Not connected";
+      stateBadge.className = "badge " + (on ? "bg-green-lt" : "bg-secondary-lt");
+    }
   }
 
   function send(obj) {

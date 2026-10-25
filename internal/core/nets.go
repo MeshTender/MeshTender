@@ -12,8 +12,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/MeshTender/MeshTender/internal/mesh"
-	"github.com/MeshTender/MeshTender/internal/netair"
 	"github.com/MeshTender/MeshTender/internal/store"
 	"github.com/MeshTender/MeshTender/internal/web"
 )
@@ -478,100 +476,6 @@ func (s *Handlers) loadNetSession(w http.ResponseWriter, r *http.Request) (netSe
 
 func sessionURL(r *http.Request) string {
 	return netURL(r) + "/sessions/" + chi.URLParam(r, "sid")
-}
-
-func (s *Handlers) pageNetSession(w http.ResponseWriter, r *http.Request) {
-	c, ok := s.loadNetSession(w, r)
-	if !ok {
-		return
-	}
-	ctx := r.Context()
-	now := time.Now()
-	roster, err := s.Store.NetSessionRoster(ctx, c.org.ID, c.session)
-	if err != nil {
-		s.ServerError(w, r, "Couldn't load the roster.", err)
-		return
-	}
-	observers, err := s.Store.ListOrgObservers(ctx, c.org.ID)
-	if err != nil {
-		s.ServerError(w, r, "Couldn't load observers.", err)
-		return
-	}
-	online := 0
-	for _, o := range observers {
-		if o.OnlineAt(now) {
-			online++
-		}
-	}
-	checkedIn := 0
-	in := map[int64]bool{}
-	for _, e := range roster {
-		if e.CheckedIn() {
-			checkedIn++
-			in[e.MemberID] = true
-		}
-	}
-	data := map[string]any{
-		"Org":             c.org,
-		"Nav":             s.orgNav(ctx, c.org, "nets", c.isAdmin),
-		"Net":             c.net,
-		"Session":         c.session,
-		"SessionURL":      sessionURL(r),
-		"InProgress":      !now.Before(c.session.StartsAt) && now.Before(c.session.EndsAt),
-		"NetControl":      c.netControl,
-		"Roster":          roster,
-		"CheckedIn":       checkedIn,
-		"Observers":       len(observers),
-		"ObserversOnline": online,
-		"Error":           r.URL.Query().Get("error"),
-	}
-	messages, err := s.Store.ListNetSessionMessages(ctx, c.session.ID)
-	if err != nil {
-		s.ServerError(w, r, "Couldn't load the channel log.", err)
-		return
-	}
-	data["Messages"] = messages
-	if c.netControl && data["InProgress"] == true {
-		air, err := s.Store.GetNetAir(ctx, c.org.ID, c.net.ID)
-		if err != nil {
-			s.ServerError(w, r, "Couldn't load the on-air settings.", err)
-			return
-		}
-		radio, err := s.Store.OrgRadio(ctx, c.org.ID)
-		if err != nil {
-			s.ServerError(w, r, "Couldn't load the radio settings.", err)
-			return
-		}
-		sender := netair.Sender(air, c.net.Name)
-		data["Modem"] = map[string]any{
-			"WSPath":  sessionURL(r) + "/modem/ws",
-			"Channel": channelLabel(air),
-			"Sender":  sender,
-			"SayMax":  mesh.GroupTextRoom(sender),
-			"Radio":   radio,
-		}
-	}
-	if c.netControl {
-		// Who net control can log by hand: any member not yet checked in.
-		members, err := s.Store.ListOrgMembers(ctx, c.org.ID)
-		if err != nil {
-			s.ServerError(w, r, "Couldn't load members.", err)
-			return
-		}
-		var addable []store.OrgMemberInfo
-		for _, m := range members {
-			if !in[m.UserID] {
-				addable = append(addable, m)
-			}
-		}
-		data["Addable"] = addable
-	}
-	// The in-progress roster polls itself (htmx) so net control sees adverts
-	// arrive; that request gets just the roster card.
-	if r.Header.Get("HX-Request") != "" {
-		data["Layout"] = "roster-card"
-	}
-	s.Render(w, r, "net_session.html", data)
 }
 
 // handleAcknowledge records net control acknowledging a member for the session:

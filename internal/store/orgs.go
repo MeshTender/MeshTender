@@ -424,6 +424,27 @@ func (s *Store) ListOrgMembers(ctx context.Context, orgID int64) ([]OrgMemberInf
 	})
 }
 
+// SearchOrgMembers returns up to limit of an org's members whose username or
+// display name contains q (case-insensitively), by name. It scans the org's
+// membership, which is bounded and read through org_members' org key.
+func (s *Store) SearchOrgMembers(ctx context.Context, orgID int64, q string, limit int) ([]OrgMemberInfo, error) {
+	pattern := "%" + escapeLikePattern(q) + "%"
+	rows, err := s.pool.Query(ctx, `
+		SELECT u.id, u.username, u.display_name, m.role
+		FROM org_members m JOIN users u ON u.id = m.user_id
+		WHERE m.org_id = $1 AND (u.username ILIKE $2 OR u.display_name ILIKE $2)
+		ORDER BY lower(COALESCE(NULLIF(u.display_name, ''), u.username)), u.id
+		LIMIT $3`, orgID, pattern, limit)
+	if err != nil {
+		return nil, fmt.Errorf("search members: %w", err)
+	}
+	return collectRows(rows, func(r pgx.Row) (OrgMemberInfo, error) {
+		var m OrgMemberInfo
+		err := r.Scan(&m.UserID, &m.Username, &m.DisplayName, &m.Role)
+		return m, err
+	})
+}
+
 // ListOrgAdmins returns an org's admins (id, username, display name) ordered for
 // display. The public org page links each admin to their public profile, so it
 // needs the username alongside the display name. It avoids loading every member

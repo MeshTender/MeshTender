@@ -649,6 +649,16 @@ func TestNetSessionRoster(t *testing.T) {
 		t.Errorf("quiet member = %+v", q)
 	}
 
+	// Just some members' rows: the same rows, and none for a member without a
+	// confirmed companion or an outsider.
+	some, err := st.NetSessionRosterFor(ctx, org, sess, []int64{member, pending, outsider})
+	if err != nil || len(some) != 1 || some[0].MemberID != member || some[0].Spread != 4 {
+		t.Fatalf("roster for some = %+v, %v", some, err)
+	}
+	if none, err := st.NetSessionRosterFor(ctx, org, sess, nil); err != nil || len(none) != 0 {
+		t.Fatalf("roster for no one = %+v, %v", none, err)
+	}
+
 	sessions, _, err := st.ListNetSessionsPage(ctx, org, net.ID, sess.EndsAt, nil)
 	if err != nil || len(sessions) != 1 || sessions[0].CheckedIn != 2 {
 		t.Fatalf("sessions = %+v, %v; want 2 members checked in (not 3 companions)", sessions, err)
