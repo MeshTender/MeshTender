@@ -74,6 +74,11 @@
           <dt class="col-sm-4">Radio</dt>
           <dd class="col-sm-8">{{with .Radio}}{{.MHz}} MHz · BW{{.KHz}} · SF{{.SF}} · CR{{.CR}}{{else}}<span class="text-danger" data-testid="net-air-no-radio">Not set — an admin sets the organization's radio on the Configuration tab.</span>{{end}}</dd>
         </dl>
+        {{if .Air.UnjoinableHashtag}}
+        <div class="alert alert-warning mt-3 mb-0" role="alert" data-testid="net-air-uppercase">
+          <div>The channel name <code>#{{.Air.ChannelName}}</code> has uppercase letters. The companion app only lets members type lowercase hashtag names, and the channel's key comes from the exact name, so they can't join this one. Use <code>#{{.Air.LowerChannelName}}</code> instead.</div>
+        </div>
+        {{end}}
         {{if .IsAdmin}}
         <form method="post" action="/orgs/{{.Org.Slug}}/nets/{{.Net.ID}}/air" class="mt-3 border-top pt-3">
           <div class="row g-2 mb-3">
@@ -88,7 +93,7 @@
             <div class="col-md-8">
               <label class="form-label" for="air-name">Channel name</label>
               <input type="text" id="air-name" name="channel_name" class="form-control" maxlength="31" value="{{.Air.ChannelName}}" placeholder="wnynet">
-              <div class="form-hint">A hashtag channel's name (exactly as members join it — case matters), or a label for a private channel.</div>
+              <div class="form-hint">A hashtag channel's name, in lowercase as the companion app requires (the key comes from the exact name), or a label for a private channel.</div>
             </div>
           </div>
           <div class="mb-3">

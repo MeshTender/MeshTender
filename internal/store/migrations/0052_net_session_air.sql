@@ -12,8 +12,8 @@ CREATE TABLE net_session_aired (
 );
 
 -- Channel messages the modem heard on the net's channel that start with the
--- net's log prefix. The sender is the name the message claims — channel
--- messages aren't signed, so it's shown as unverified. A message repeated by
+-- net's log prefix, stored without it. The sender is the name the message
+-- claims — channel messages aren't signed. A message repeated by
 -- several repeaters is one row: msg_hash is SHA-256 of the packet payload,
 -- which repeaters don't change.
 CREATE TABLE net_session_messages (

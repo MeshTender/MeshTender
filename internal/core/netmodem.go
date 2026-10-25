@@ -467,21 +467,28 @@ func (r *netModemRun) receive(rx <-chan []byte) {
 }
 
 // logMessage logs a channel message on the net's channel that starts with the
-// log prefix — except our own, repeated back to us by the mesh.
+// log prefix, without the prefix — except our own, repeated back to us by the
+// mesh.
 func (r *netModemRun) logMessage(raw []byte, now time.Time) {
 	if r.air.LogPrefix == "" {
 		return
 	}
 	gt, ok := mesh.DecodeGroupText(raw, r.ch)
-	if !ok || gt.Sender == r.sender || !strings.HasPrefix(gt.Text, r.air.LogPrefix) {
+	if !ok || gt.Sender == r.sender {
+		return
+	}
+	// The prefix only marks a message for the log; it isn't part of it.
+	body, ok := strings.CutPrefix(gt.Text, r.air.LogPrefix)
+	body = strings.TrimSpace(body)
+	if !ok || body == "" {
 		return
 	}
 	pkt, err := meshcore.PacketFromBytes(raw)
 	if err != nil {
 		return
 	}
-	added, err := r.s.Store.AddNetSessionMessage(r.ctx, r.c.session.ID, pkt.Payload, gt.Sender, gt.Text, now)
+	added, err := r.s.Store.AddNetSessionMessage(r.ctx, r.c.session.ID, pkt.Payload, gt.Sender, body, now)
 	if err == nil && added {
-		r.status("message", gt.Sender+": "+gt.Text)
+		r.status("message", gt.Sender+": "+body)
 	}
 }

@@ -141,9 +141,9 @@
   {{if .Messages}}
   <div class="card-body border-top" data-testid="channel-log">
     <h3 class="h4">Channel log</h3>
-    <p class="text-secondary small">Messages net control's modem heard on the net's channel. Channel messages aren't signed: the names are what each sender typed, unverified.</p>
+    <p class="text-secondary small">Messages net control's modem heard on the net's channel. Channel messages aren't signed, so each name is whatever its sender typed.</p>
     <ul class="list-unstyled mb-0">
-      {{range .Messages}}<li class="mb-1"><span class="text-secondary">{{ts .HeardAt "time"}}</span> <strong>{{.Sender}}</strong> <span class="badge bg-secondary-lt">unverified</span> {{.Body}}</li>{{end}}
+      {{range .Messages}}<li class="mb-1"><span class="text-secondary">{{ts .HeardAt "time"}}</span> <strong>{{.Sender}}</strong> {{.Body}}</li>{{end}}
     </ul>
   </div>
   {{end}}

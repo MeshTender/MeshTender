@@ -329,7 +329,7 @@ func TestE2ENetModemPanel(t *testing.T) {
 	if err := srv.store.MarkAired(srv.ctx, sess.ID, []int64{user.ID}, at); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := srv.store.AddNetSessionMessage(srv.ctx, sess.ID, []byte("p"), "Bob", "news: road closed", at); err != nil {
+	if _, err := srv.store.AddNetSessionMessage(srv.ctx, sess.ID, []byte("p"), "Bob", "road closed", at); err != nil {
 		t.Fatal(err)
 	}
 
@@ -355,7 +355,7 @@ func TestE2ENetModemPanel(t *testing.T) {
 	if !strings.Contains(roster, "On air") {
 		t.Errorf("roster: %q", roster)
 	}
-	if !strings.Contains(channelLog, "Bob") || !strings.Contains(channelLog, "news: road closed") || !strings.Contains(channelLog, "unverified") {
+	if !strings.Contains(channelLog, "Bob") || !strings.Contains(channelLog, "road closed") || strings.Contains(channelLog, "unverified") {
 		t.Errorf("channel log: %q", channelLog)
 	}
 	watch.assertClean(t)

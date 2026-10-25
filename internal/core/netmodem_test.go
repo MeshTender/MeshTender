@@ -333,7 +333,7 @@ func TestNetModemSession(t *testing.T) {
 	m.hear(news)
 	m.hear(news)
 	m.hear(chatter)
-	if msg := m.waitStatus("message"); msg != "Bob: news: road closed on Main" {
+	if msg := m.waitStatus("message"); msg != "Bob: road closed on Main" {
 		t.Errorf("message status %q", msg)
 	}
 
@@ -354,7 +354,7 @@ func TestNetModemSession(t *testing.T) {
 		t.Fatalf("unexpected transmission %+v", gt)
 	case <-time.After(time.Second):
 	}
-	if msgs, err := st.ListNetSessionMessages(ctx, sess.ID); err != nil || len(msgs) != 1 || msgs[0].Sender != "Bob" {
+	if msgs, err := st.ListNetSessionMessages(ctx, sess.ID); err != nil || len(msgs) != 1 || msgs[0].Sender != "Bob" || msgs[0].Body != "road closed on Main" {
 		t.Fatalf("channel log = %+v, %v", msgs, err)
 	}
 

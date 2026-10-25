@@ -93,6 +93,15 @@ func TestNetAirSettings(t *testing.T) {
 	if a := air(); a.ChannelName != "WNYnet" || a.ScopeToken != "us-ny" || a.OnAirName != "Net Control" {
 		t.Fatalf("hashtag settings = %+v", a)
 	}
+	// Saved as typed, but the uppercase name gets a standing warning.
+	if page := readBody(t, do(t, ts, h.app, netPath, memberSess)); !strings.Contains(page, `data-testid="net-air-uppercase"`) ||
+		!strings.Contains(page, "#wnynet") {
+		t.Error("no warning about an uppercase hashtag channel name")
+	}
+	save(adminSess, url.Values{"channel_kind": {"hashtag"}, "channel_name": {"wnynet"}})
+	if page := readBody(t, do(t, ts, h.app, netPath, memberSess)); strings.Contains(page, `data-testid="net-air-uppercase"`) {
+		t.Error("warned about a lowercase hashtag channel name")
+	}
 
 	// A private channel: the key is sealed, and leaving the field blank keeps it.
 	key := "00112233445566778899aabbccddeeff"
