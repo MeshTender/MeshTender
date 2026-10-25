@@ -269,9 +269,9 @@ THE SOFTWARE.
 
 - Homepage: <https://tabler.io/icons>
 - Source: https://github.com/tabler/tabler-icons (icon path data, various versions)
-- File: `internal/web/templates/icons.html` (sha256 `2f23e95b43f6c6bba164f7c470ddc5f69d5376f20b088dc919b74a27dd74e20e`)
+- File: `internal/web/templates/icons.html` (sha256 `486dfb7759469a49c3a16ec5ba5f4e227f533a337a7201713dd389f28085c536`)
 - Modified: Icon path data copied into Go template definitions rather than vendored as SVG files; the transparent 24x24 guard path upstream emits is dropped.
-- Note: All 45 icons in icons.html are Tabler Icons; several are renamed locally (antenna<-antenna-bars-5, copy<-squares, list<-list-details, plug<-plug-connected, terminal<-terminal-2, alert<-alert-triangle, brand-signal<-message-circle-2). Version is unpinned because the set was collected across releases.
+- Note: All 49 icons in icons.html are Tabler Icons; several are renamed locally (antenna<-antenna-bars-5, copy<-squares, list<-list-details, plug<-plug-connected, terminal<-terminal-2, alert<-alert-triangle, brand-signal<-message-circle-2). Version is unpinned because the set was collected across releases.
 
 ```
 MIT License

@@ -43,8 +43,8 @@ host (anonymous). */}}
   <li class="nav-item"><a class="nav-link{{if eq .Active "home"}} active{{end}}" href="/orgs/{{.Slug}}">{{template "icon-world" "me-1"}}Home</a></li>
   {{if .IsMember}}<li class="nav-item"><a class="nav-link{{if eq .Active "members"}} active{{end}}" href="/orgs/{{.Slug}}/members">{{template "icon-users" "me-1"}}Members</a></li>{{end}}
   <li class="nav-item"><a class="nav-link{{if eq .Active "repeaters"}} active{{end}}" href="/orgs/{{.Slug}}/repeaters">{{template "icon-antenna" "me-1"}}Repeaters</a></li>
-  {{if .IsMember}}<li class="nav-item"><a class="nav-link{{if eq .Active "activity"}} active{{end}}" href="/orgs/{{.Slug}}/activity" data-testid="org-tab-activity">{{template "icon-check" "me-1"}}Activity</a></li>{{end}}
-  {{if .IsMember}}<li class="nav-item"><a class="nav-link{{if eq .Active "observers"}} active{{end}}" href="/orgs/{{.Slug}}/observers" data-testid="org-tab-observers">{{template "icon-eye" "me-1"}}Observers</a></li>{{end}}
+  {{if .IsMember}}<li class="nav-item"><a class="nav-link{{if eq .Active "activity"}} active{{end}}" href="/orgs/{{.Slug}}/activity" data-testid="org-tab-activity">{{template "icon-activity" "me-1"}}Activity</a></li>{{end}}
+  {{if .IsMember}}<li class="nav-item"><a class="nav-link{{if eq .Active "observers"}} active{{end}}" href="/orgs/{{.Slug}}/observers" data-testid="org-tab-observers">{{template "icon-access-point" "me-1"}}Observers</a></li>{{end}}
   {{if .ShowConfig}}<li class="nav-item"><a class="nav-link{{if eq .Active "config"}} active{{end}}" href="/orgs/{{.Slug}}/config">{{template "icon-settings" "me-1"}}Configuration</a></li>{{end}}
 </ul>
 {{end}}
