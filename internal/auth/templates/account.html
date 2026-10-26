@@ -21,7 +21,7 @@
      keep it off your page"). Four right-aligned repeats of the same word read as
      clutter, not information. */}}
 {{define "content"}}
-{{if .Error}}<div class="alert alert-danger">{{.Error}}</div>{{end}}
+{{if .Error}}<div class="alert alert-danger" role="alert"><div>{{.Error}}</div></div>{{end}}
 
 <div class="card">
   <div class="card-header">
@@ -39,7 +39,7 @@
       <div class="mb-3">
         <label class="form-label" for="acct_display_name">Display name</label>
         <input type="text" class="form-control" id="acct_display_name" name="display_name" maxlength="64" value="{{if .DisplayName}}{{.DisplayName}}{{end}}" placeholder="Shown to people you share with">
-        <small class="form-hint">What other people see — on shares and in organizations. It can be anything, and it isn't tied to sign-in.</small>
+        <small class="form-hint">Shown on shares, in organizations and on your public page. It isn't used to sign in.</small>
       </div>
       <div class="mb-3">
         <label class="form-label" for="acct_bio">Bio</label>
@@ -59,7 +59,7 @@
       <hr class="my-4">
 
       <h3 class="mb-1">Links</h3>
-      <p class="text-secondary">Ways to reach or find you — social media, a website, or your MeshCore public key (shown as a QR code). Mark one non-MeshCore link as your <strong>primary contact</strong> so people know the best way to reach you.</p>
+      <p class="text-secondary">Ways to reach you. Mark one as your <strong>primary contact</strong>; a MeshCore key shows as a QR code.</p>
       <div data-link-rows>
         {{range $i, $l := .Links}}
         <div class="link-row row g-2 mb-2 align-items-center">
@@ -82,7 +82,7 @@
             </label>
           </div>
           <div class="col-auto">
-            <button type="button" class="btn btn-ghost-danger btn-icon remove-link" aria-label="Remove link">{{template "icon-trash" ""}}</button>
+            <button type="button" class="btn btn-ghost-secondary btn-icon remove-link" aria-label="Remove link">{{template "icon-trash" ""}}</button>
           </div>
         </div>
         {{end}}
@@ -110,7 +110,7 @@
             </label>
           </div>
           <div class="col-auto">
-            <button type="button" class="btn btn-ghost-danger btn-icon remove-link" aria-label="Remove link">{{template "icon-trash" ""}}</button>
+            <button type="button" class="btn btn-ghost-secondary btn-icon remove-link" aria-label="Remove link">{{template "icon-trash" ""}}</button>
           </div>
         </div>
       </template>
@@ -125,7 +125,7 @@
   <div class="card-header">
     <div>
       <h2 class="card-title fs-2 fw-bold">Preferences</h2>
-      <p class="card-subtitle">How MeshTender presents things to you.</p>
+      <p class="card-subtitle">How MeshTender shows things to you.</p>
     </div>
   </div>
   {{/* Same shape as Public profile — fields in the body, one Save in the footer —
@@ -166,7 +166,7 @@
   <div class="card-header">
     <div>
       <h2 class="card-title fs-2 fw-bold">Sign-in &amp; security</h2>
-      <p class="card-subtitle">How you get into this account, and how you get back in. Keep at least one sign-in method that works.</p>
+      <p class="card-subtitle">How you sign in, and how you get back in. Keep at least one way that works.</p>
     </div>
   </div>
   <div class="list-group list-group-flush">
@@ -260,7 +260,7 @@
             {{end}}
             <form method="post" action="/account/email" class="m-0" data-confirm="Remove your email address? If you forget your password, it can't be reset without one.">
               <input type="hidden" name="remove" value="1">
-              <button type="submit" class="btn btn-sm btn-ghost-danger" data-testid="email-remove">Remove</button>
+              <button type="submit" class="btn btn-sm text-danger-emphasis" data-testid="email-remove">Remove</button>
             </form>
           </div>
           {{end}}
@@ -324,7 +324,7 @@
             <button type="button" class="btn btn-sm" data-bs-toggle="modal" data-bs-target="#rename-passkey" data-id="{{.ID}}" data-name="{{.Name}}">Rename</button>
             <form method="post" action="/account/passkeys/delete" class="m-0" data-confirm="Remove this passkey? You won't be able to sign in with it anymore.">
               <input type="hidden" name="credential_id" value="{{.ID}}">
-              <button type="submit" class="btn btn-sm btn-ghost-danger">Remove</button>
+              <button type="submit" class="btn btn-sm text-danger-emphasis">Remove</button>
             </form>
           </div>
           {{end}}
@@ -408,13 +408,13 @@
             <input type="hidden" name="remove" value="1">
           </form>
           {{if .Passkeys}}
-          <button type="button" class="btn btn-ghost-danger" data-reauth
+          <button type="button" class="btn text-danger-emphasis" data-reauth
                   data-form="remove-password-form" data-status="remove-pw-status" data-testid="remove-password">
             {{template "icon-key" "me-1"}}Verify with passkey and remove password
           </button>
           <div class="text-secondary small mt-2" id="remove-pw-status" role="status" aria-live="polite" style="min-height:1.2em"></div>
           {{else}}
-          <button type="button" class="btn btn-ghost-danger" disabled>Remove password</button>
+          <button type="button" class="btn text-danger-emphasis" disabled>Remove password</button>
           <small class="form-hint mt-1">Add a passkey first — it would otherwise be your only way to sign in.</small>
           {{end}}
           {{end}}
@@ -427,17 +427,13 @@
 
 {{/* Deletion is a page, not a button here: what it removes depends on what you
      own, and that has to be shown before anyone commits to it. */}}
-<div class="card mt-3 border-danger">
-  <div class="card-header"><h2 class="card-title fs-2 fw-bold text-danger">Delete account</h2></div>
-  <div class="card-body">
-    <p class="text-secondary">
-      Permanently delete your account, your public profile, and the repeaters you own. This can't be
-      undone — the next page shows exactly what would go, and lets you hand any repeater to a steward
-      first.
-    </p>
-    <a class="btn btn-outline-danger" href="/account/delete" data-testid="delete-account">
-      {{template "icon-trash" "me-1"}}Delete my account…
-    </a>
+<div class="card border-danger mt-3" id="danger" data-testid="danger-zone">
+  <div class="card-body d-flex flex-wrap align-items-center gap-3">
+    <div class="flex-fill">
+      <div class="fw-bold">Delete your account</div>
+      <div class="text-secondary small">Your profile and the repeaters you own go with it. The next page shows exactly what, and lets you hand repeaters to a steward first.</div>
+    </div>
+    <a class="btn btn-outline-danger" href="/account/delete" data-testid="delete-account">Delete account…</a>
   </div>
 </div>
 

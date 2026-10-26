@@ -4,6 +4,11 @@
   <div class="col"><h1 class="page-title fs-1">Repeater invite</h1></div>
 </div>
 {{end}}
+
+{{/* invite-what says what accepting gives you, and what using it takes. */}}
+{{define "invite-what"}}
+<p>Accepting lets you send <strong>{{.Repeater.Name}}</strong> the commands {{.Repeater.OwnerName}} chose for you, from the repeater's console here. To use it you'll need a <a href="{{.RootURL}}/docs#kiss">KISS modem</a> connected to your computer.</p>
+{{end}}
 {{define "content"}}
 <div class="row justify-content-center">
   <div class="col-12 col-md-7 col-lg-5">
@@ -15,12 +20,12 @@
                shouldn't learn whether it ever existed, was already claimed, or just
                lapsed. Expiry is listed as a possibility so the message stays
                accurate now that links have a shelf life. */}}
-          <p class="text-secondary">This share link is no longer valid — links are single-use and expire after {{.InviteTTLDays}} days, so it may have already been used, been revoked, or timed out. Ask the owner for a new one.</p>
-          <a class="back-link" href="/">{{template "icon-arrow-left" "me-1"}}Go to dashboard</a>
+          <p class="text-secondary">Share links work once and expire after {{.InviteTTLDays}} days, so this one may have been used, revoked or timed out. Ask the owner for a new one.</p>
+          <a class="btn" href="/">Go to your dashboard</a>
 
         {{else if eq .State "auth_required"}}
-          <h2 class="card-title">You've been invited</h2>
-          <p>You've been invited to control <strong>{{.Repeater.Name}}</strong>, shared by {{.Repeater.OwnerName}}.</p>
+          <h2 class="card-title">{{.Repeater.OwnerName}} invited you to help run {{.Repeater.Name}}</h2>
+          {{template "invite-what" .}}
           <p class="text-secondary">Sign in or create an account to accept.</p>
           <div class="btn-list">
             <a class="btn btn-primary" href="/login?next={{.Next}}">Sign in</a>
@@ -38,11 +43,11 @@
         {{else if eq .State "already"}}
           <h2 class="card-title">Already shared with you</h2>
           <p>You already have access to <strong>{{.Repeater.Name}}</strong>.</p>
-          <a class="back-link" href="/">{{template "icon-arrow-left" "me-1"}}Go to dashboard</a>
+          <a class="btn" href="/repeaters/{{.Repeater.PublicID}}">Go to {{.Repeater.Name}}</a>
 
         {{else}}{{/* confirm */}}
-          <h2 class="card-title">Accept invite</h2>
-          <p>Accept access to <strong>{{.Repeater.Name}}</strong>, shared by {{.Repeater.OwnerName}}?</p>
+          <h2 class="card-title">{{.Repeater.OwnerName}} invited you to help run {{.Repeater.Name}}</h2>
+          {{template "invite-what" .}}
           <p class="text-secondary">You're signed in as <strong>{{.UserName}}</strong>.</p>
           <div class="btn-list">
             <form method="post" action="/invite/{{.Token}}/accept" class="m-0">

@@ -1,7 +1,10 @@
 {{define "title"}}Delete your account · MeshTender{{end}}
 {{define "header"}}
 <div class="row g-2 align-items-center">
-  <div class="col"><h1 class="page-title fs-1">Delete your account?</h1></div>
+  <div class="col">
+    <ol class="breadcrumb mb-2" aria-label="Breadcrumb"><li class="breadcrumb-item"><a href="/account">Account settings</a></li><li class="breadcrumb-item active" aria-current="page">Delete account</li></ol>
+    <h1 class="page-title fs-1">Delete your account?</h1>
+  </div>
 </div>
 {{end}}
 {{define "content"}}
@@ -51,7 +54,6 @@
     {{end}}
   </div>
 </div>
-<a class="back-link mt-3" href="/account">{{template "icon-arrow-left" "me-1"}}Back to account</a>
 
 {{else}}
 
@@ -184,7 +186,6 @@
   </div>
 </div>
 
-<a class="back-link mt-3" href="/account">{{template "icon-arrow-left" "me-1"}}Back to account</a>
 {{end}}
 
   </div>
