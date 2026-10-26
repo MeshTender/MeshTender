@@ -289,6 +289,7 @@ var FirstPartyStatic = []string{
 	"netcontrol.js",
 	"radio-preset.js",
 	"regionmap.js",
+	"serial-cli.js",
 	"serial-port.js",
 	"serial-setup.js",
 	"timezone-picker.js",

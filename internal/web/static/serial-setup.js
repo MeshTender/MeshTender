@@ -1,7 +1,7 @@
 // Drives the "set up a brand-new repeater over USB" step of the add-repeater
 // wizard. Unlike console.js (which bridges a KISS modem's raw bytes to the server
 // over a WebSocket), this talks the repeater's own plain-text serial CLI
-// DIRECTLY: it writes "command\n" and reads the text the device echoes back.
+// DIRECTLY, through serial-cli.js.
 //
 // The repeater's identity is generated here, in the browser, with WebCrypto
 // Ed25519. The private key NEVER leaves the page — only the public key is posted
@@ -47,18 +47,37 @@
   }
 
   // --- identity (WebCrypto Ed25519) --------------------------------------
-  // A MeshCore private key is the 64-byte Ed25519 key (32-byte seed ‖ 32-byte
-  // public key), so `set prv.key` wants 128 hex chars. We build that from the
-  // JWK's `d` (seed) and `x` (public key). state holds the resolved keypair.
+  // `set prv.key` takes MeshCore's 64-byte private key, which is the EXPANDED
+  // Ed25519 key: SHA-512(seed) with the scalar clamped (firmware
+  // lib/ed25519/keypair.c ed25519_create_keypair; meshcore-go
+  // NewLocalIdentityFromExpandedKey). The firmware derives the public key from
+  // its first 32 bytes. state holds the resolved keypair; pubHex is null for a
+  // pasted expanded key until the repeater reports it (WebCrypto can't derive a
+  // public key from a raw scalar).
   var state = { privHex: null, pubHex: null, radio: null, identityPlaceholder: null };
+
+  // expandSeed returns the 128-hex expanded private key for a 32-byte seed.
+  async function expandSeed(seed) {
+    var h = new Uint8Array(await crypto.subtle.digest("SHA-512", seed));
+    h[0] &= 248;
+    h[31] &= 63;
+    h[31] |= 64;
+    return hex(h);
+  }
+
+  // The firmware refuses a key whose public key starts with 00 or ff
+  // (LocalIdentity::validatePrivateKey), so never offer one.
+  function usablePub(pub) { return pub[0] !== 0x00 && pub[0] !== 0xff; }
 
   // generateKeyPair returns {privHex(128), pubHex(64)} for a fresh random key.
   async function generateKeyPair() {
-    var kp = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]);
-    var jwk = await crypto.subtle.exportKey("jwk", kp.privateKey);
-    var seed = b64urlToBytes(jwk.d);   // 32 bytes
-    var pub = b64urlToBytes(jwk.x);    // 32 bytes
-    return { privHex: hex(seed) + hex(pub), pubHex: hex(pub) };
+    for (;;) {
+      var kp = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]);
+      var jwk = await crypto.subtle.exportKey("jwk", kp.privateKey);
+      var seed = b64urlToBytes(jwk.d);   // 32 bytes
+      var pub = b64urlToBytes(jwk.x);    // 32 bytes
+      if (usablePub(pub)) return { privHex: await expandSeed(seed), pubHex: hex(pub) };
+    }
   }
 
   // pubFromSeed derives the 32-byte public key from a 32-byte seed by importing
@@ -79,16 +98,19 @@
   }
   function clearKey() { state.privHex = null; state.pubHex = null; setPubKey(null); }
 
-  // Parse a pasted key: 128 hex = full 64-byte key (last 32 bytes are the pubkey);
-  // 64 hex = a 32-byte seed (derive the pubkey).
+  // Parse a pasted key: 128 hex = MeshCore's 64-byte expanded key, the form the
+  // firmware stores (its public key comes back from the repeater when it's
+  // written); 64 hex = a 32-byte seed (derive both).
   async function applyPastedKey() {
     var raw = ($("privkey").value || "").trim().toLowerCase().replace(/\s+/g, "");
     if (!/^[0-9a-f]+$/.test(raw)) { clearKey(); return; }
     if (raw.length === 128) {
-      setKeyState(raw, raw.slice(64));
+      state.privHex = raw; state.pubHex = null;
+      setPubKey("Read from the repeater when the key is written");
     } else if (raw.length === 64) {
-      var pub = await pubFromSeed(hexToBytes(raw));
-      setKeyState(raw + hex(pub), hex(pub));
+      var seed = hexToBytes(raw);
+      var pub = await pubFromSeed(seed);
+      setKeyState(await expandSeed(seed), hex(pub));
     } else {
       clearKey();
     }
@@ -198,7 +220,7 @@
   var commands = null; // resolved command list with the real key spliced in
 
   async function generate() {
-    if (!state.privHex || !state.pubHex) {
+    if (!state.privHex) {
       alert("Generate or enter a key first.");
       return;
     }
@@ -244,25 +266,10 @@
     $("log").scrollTop = $("log").scrollHeight;
   }
 
-  // readForDevice reads decoded text from the port until it goes quiet for
-  // `idleMs` or `maxMs` elapses — repeater CLI replies are short and terminated
-  // by a prompt/newline, but we don't depend on an exact terminator.
-  async function readForDevice(reader, decoder, idleMs, maxMs) {
-    var out = "";
-    var deadline = performance.now() + maxMs;
-    while (performance.now() < deadline) {
-      var timer;
-      var idle = new Promise(function (res) { timer = setTimeout(function () { res("__idle__"); }, idleMs); });
-      var chunk;
-      try {
-        chunk = await Promise.race([reader.read(), idle]);
-      } finally { clearTimeout(timer); }
-      if (chunk === "__idle__") break;
-      if (chunk.done) break;
-      if (chunk.value) out += decoder.decode(chunk.value, { stream: true });
-    }
-    return out.trim();
-  }
+  // The firmware saves its access list 5 s after a `setperm`
+  // (simple_repeater MyMesh.cpp LAZY_CONTACTS_WRITE_DELAY) and `reboot` restarts
+  // at once, so rebooting sooner would lose MeshTender's admin grant.
+  var ACL_SAVE_MS = 6000;
 
   async function run() {
     if (!commands) return;
@@ -271,40 +278,66 @@
       return;
     }
     $("run").disabled = true;
-    var port, writer, reader;
-    var encoder = new TextEncoder();
-    var decoder = new TextDecoder();
+    var cli;
+    var ok = false;
     try {
-      addLog("info", "Requesting serial port…");
-      port = await MeshSerial.requestPort();
-      await port.open({ baudRate: 115200 });
-      writer = port.writable.getWriter();
-      reader = port.readable.getReader();
-      addLog("info", "Connected (115200 8N1). Running setup…");
+      addLog("info", "Choose the repeater's USB port…");
+      cli = await SerialCLI.open(await MeshSerial.requestPort());
+      addLog("info", "Connected. Waiting for the repeater to answer…");
+      var ready = await cli.waitReady(function (n) {
+        if (n === 1) addLog("info", "No answer yet; it may be starting up.");
+      });
+      if (!ready) throw new Error("The repeater didn't answer. Check it's a repeater with MeshCore firmware, unplug it and plug it back in, then try again.");
 
+      var permAt = 0;
+      var problems = 0;
       for (var i = 0; i < commands.length; i++) {
         var cmd = commands[i];
         var shown = maskKeyLine(cmd);
-        var isReboot = /^reboot\b/.test(cmd);
-        addLog("sent", "→ " + shown);
-        await writer.write(encoder.encode(cmd + "\n"));
-        if (isReboot) {
-          addLog("info", "Reboot sent — the device will restart to apply its new identity and radio.");
+        if (/^reboot\b/.test(cmd)) {
+          var wait = permAt ? ACL_SAVE_MS - (performance.now() - permAt) : 0;
+          if (wait > 0) {
+            addLog("info", "Waiting for the repeater to save MeshTender's access…");
+            await new Promise(function (res) { setTimeout(res, wait); });
+          }
+          addLog("sent", "→ " + shown);
+          await cli.send(cmd);
+          addLog("info", "Rebooting to apply its new identity and radio.");
           break;
         }
-        var reply = await readForDevice(reader, decoder, 400, 3000);
-        if (reply) addLog("reply", reply);
-        else addLog("noreply", "(no reply)");
+        addLog("sent", "→ " + shown);
+        var r = await cli.command(cmd);
+        if (r.reply === null) addLog("noreply", "(no reply)");
+        else addLog(r.error ? "error" : "reply", r.reply);
+
+        if (/^set prv\.key\b/.test(cmd)) {
+          // The firmware answers with the public key it derived; that, not ours,
+          // is the identity the record must carry.
+          var m = /new pubkey:\s*([0-9a-f]{64})/i.exec(r.reply || "");
+          if (!m) throw new Error("The repeater didn't take the new identity, so nothing was saved.");
+          var got = m[1].toLowerCase();
+          if (state.pubHex && got !== state.pubHex) {
+            throw new Error("The repeater derived a different public key (" + got.slice(0, 8) + "…) than expected, so nothing was saved.");
+          }
+          setKeyState(state.privHex, got);
+        } else if (/^setperm\b/.test(cmd)) {
+          if (r.reply === null || r.error) throw new Error("The repeater didn't grant MeshTender access, so nothing was saved.");
+          permAt = performance.now();
+        } else if (r.reply === null || r.error) {
+          problems++;
+        }
       }
-      addLog("info", "Setup commands sent. Saving repeater…");
-      await complete();
+      if (problems) addLog("error", problems + " setting(s) didn't apply; check them in the console once it's saved.");
+      ok = true;
     } catch (e) {
       addLog("error", e.message);
       $("run").disabled = false;
     } finally {
-      try { if (reader) { await reader.cancel(); reader.releaseLock(); } } catch (_) {}
-      try { if (writer) writer.releaseLock(); } catch (_) {}
-      try { if (port) await port.close(); } catch (_) {}
+      if (cli) await cli.close();
+    }
+    if (ok) {
+      addLog("info", "Saving the repeater…");
+      await complete();
     }
   }
 
