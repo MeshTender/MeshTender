@@ -1,0 +1,43 @@
+{{define "title"}}Register a companion · MeshTender{{end}}
+{{define "header"}}
+<div class="row g-2 align-items-center">
+  <div class="col">
+    <ol class="breadcrumb mb-2" aria-label="Breadcrumb"><li class="breadcrumb-item"><a href="/companions">Companions</a></li><li class="breadcrumb-item active" aria-current="page">Register</li></ol>
+    <h1 class="page-title fs-1">Register a companion</h1>
+  </div>
+</div>
+{{end}}
+{{define "content"}}
+<div class="card" style="max-width:40rem">
+  <div class="card-body">
+    {{if .AtLimit}}
+    <p class="mb-0">You've registered the most companions you can ({{.Max}}). Remove one to register another.</p>
+    {{else}}
+    <form method="post" action="/companions" data-testid="companion-form">
+      <div class="mb-3">
+        <label class="form-label" for="companion-name">Name</label>
+        <input type="text" id="companion-name" name="name" class="form-control" maxlength="64" required autofocus placeholder="e.g. Pocket T-Deck">
+      </div>
+      <div class="mb-3">
+        <label class="form-label" for="companion-key">Public key</label>
+        <input type="text" id="companion-key" name="public_key" class="form-control font-monospace" required
+               pattern="[0-9A-Fa-f]{64}" autocomplete="off" spellcheck="false">
+        <div class="form-hint">From the companion app's contact sharing: 64 hex characters.</div>
+      </div>
+      <label class="form-check mb-3">
+        <input class="form-check-input" type="checkbox" name="public" value="1">
+        <span class="form-check-label">Show on my public profile</span>
+        <span class="form-hint mt-0">With a QR code so people can add you as a contact. Its check-ins stay with your organizations.</span>
+      </label>
+      <div class="alert alert-info" role="alert">
+        <div>Next, send a <strong>flood advert</strong> from the companion. It's confirmed when one of your organizations hears it; a registration that's never heard is removed after {{.TTLHours}} hours.</div>
+      </div>
+      <div class="btn-list">
+        <button type="submit" class="btn btn-primary">Register</button>
+        <a class="btn" href="/companions">Cancel</a>
+      </div>
+    </form>
+    {{end}}
+  </div>
+</div>
+{{end}}

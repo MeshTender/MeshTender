@@ -3,67 +3,38 @@
 <div class="row g-2 align-items-center">
   <div class="col">
     <h1 class="page-title fs-1">Companions</h1>
+    <div class="text-secondary mt-1">The MeshCore radios you carry. Their adverts count as check-ins with your organizations.</div>
   </div>
+  {{if lt (len .Companions) .Max}}
+  <div class="col-auto ms-auto d-print-none">
+    <a class="btn btn-primary" href="/companions/new" data-testid="companion-new">{{template "icon-plus" "me-1"}}Register companion</a>
+  </div>
+  {{end}}
 </div>
 {{end}}
 {{define "content"}}
-
-<div class="row row-cards">
-  <div class="col-lg-8">
-    {{if .Companions}}
-    <div class="card">
-      <div class="list-group list-group-flush" data-testid="companion-list">
-        {{range .Companions}}
-        <a class="list-group-item list-group-item-action" href="/companions/{{.PublicID}}">
-          <div class="d-flex align-items-center flex-wrap gap-2">
-            <span class="fw-bold">{{.Name}}</span>
-            {{if .Confirmed}}<span class="badge bg-green-lt">Confirmed</span>{{else}}<span class="badge bg-yellow-lt">Waiting for an advert</span>{{end}}
-            {{if .Public}}<span class="badge bg-blue-lt" title="Shown on your public profile">Public</span>{{end}}
-            <span class="ms-auto text-secondary">
-              {{if .LastHeardAt}}Last heard {{ts .LastHeardAt "relative"}}{{else}}Not heard yet{{end}}
-            </span>
-          </div>
-          <div class="text-secondary font-monospace small">{{slice .PublicKeyHex 0 16}}…</div>
-        </a>
-        {{end}}
+{{if .Companions}}
+<div class="card">
+  <div class="list-group list-group-flush" data-testid="companion-list">
+    {{range .Companions}}
+    <div class="list-group-item d-flex align-items-center gap-3 position-relative">
+      <span class="avatar bg-blue-lt">{{template "icon-radio" ""}}</span>
+      <div class="flex-fill" style="min-width:0">
+        <div class="d-flex align-items-center flex-wrap gap-2">
+          <a class="fw-bold text-reset stretched-link" href="/companions/{{.PublicID}}">{{.Name}}</a>
+          {{if not .Confirmed}}<span class="badge bg-orange-lt" title="Send a flood advert from it to confirm it">Not heard yet</span>{{end}}
+          {{if .Public}}<span class="badge bg-blue-lt" title="Shown on your public profile">Public</span>{{end}}
+        </div>
+        <div class="small text-secondary">{{template "pubkey" .PublicKeyHex}}</div>
       </div>
-    </div>
-    {{else}}
-    <div class="empty">
-      <p class="empty-title">No companions yet</p>
-      <p class="empty-subtitle text-secondary">Register your companion radio so the adverts you send count as check-ins with your organizations.</p>
+      <div class="text-secondary small text-end text-nowrap">{{if .LastHeardAt}}Heard {{ts .LastHeardAt "relative"}}{{end}}</div>
     </div>
     {{end}}
   </div>
-
-  <div class="col-lg-4">
-    <div class="card">
-      <div class="card-header"><h2 class="card-title">Register a companion</h2></div>
-      <div class="card-body">
-        {{if ge (len .Companions) .Max}}
-        <p class="text-secondary m-0">You've registered the maximum of {{.Max}} companions.</p>
-        {{else}}
-        <form method="post" action="/companions">
-          <div class="mb-3">
-            <label class="form-label" for="companion-name">Name</label>
-            <input type="text" id="companion-name" name="name" class="form-control" maxlength="64" required>
-          </div>
-          <div class="mb-3">
-            <label class="form-label" for="companion-key">Public key</label>
-            <input type="text" id="companion-key" name="public_key" class="form-control font-monospace" required
-                   pattern="[0-9A-Fa-f]{64}" autocomplete="off" spellcheck="false">
-            <div class="form-hint">The 64 hex characters from your companion app's contact sharing.</div>
-          </div>
-          <label class="form-check mb-3">
-            <input class="form-check-input" type="checkbox" name="public" value="1">
-            <span class="form-check-label">Show on my public profile</span>
-          </label>
-          <p class="text-secondary small">After registering, send a <strong>flood</strong> advert from the companion. It's confirmed once one of your organization's observers hears it. Unconfirmed registrations are removed after {{.TTLHours}} hours.</p>
-          <button type="submit" class="btn btn-primary w-100">{{template "icon-plus" "me-1"}}Register</button>
-        </form>
-        {{end}}
-      </div>
-    </div>
-  </div>
 </div>
+{{else}}
+<div class="card">
+  {{template "empty-state" (dict "Title" "No companions yet" "Line" "Register the radio you carry, then send a flood advert from it to check in to your organizations' nets." "ActionHref" "/companions/new" "ActionLabel" "Register companion")}}
+</div>
+{{end}}
 {{end}}

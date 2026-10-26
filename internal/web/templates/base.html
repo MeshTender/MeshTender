@@ -246,9 +246,9 @@
 {{/* repstatus renders confirmation provenance + access badges for a *store.Repeater. */}}
 {{define "repstatus"}}
 {{- if not .Confirmed -}}
-  <span class="badge bg-yellow-lt" title="No one has reached this repeater through MeshTender yet">Unconfirmed</span>
+  <span class="badge bg-orange-lt" title="No one has reached it over the air through MeshTender yet">Not confirmed</span>
 {{- end -}}
-{{- if and .AccessKnown (not .IsAdmin)}}<span class="badge bg-warning-lt">guest only</span>{{end -}}
+{{- if and .AccessKnown (not .IsAdmin)}}<span class="badge bg-red-lt" title="MeshTender hasn't been given admin on it">Guest access only</span>{{end -}}
 {{end}}
 
 {{/* map-styles / map-scripts are the vendored map stack, in one place rather than

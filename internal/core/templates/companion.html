@@ -2,16 +2,13 @@
 {{define "header"}}
 <div class="row g-2 align-items-center">
   <div class="col">
-    <div class="page-pretitle">{{if .IsOwner}}Your companion{{else}}Companion · {{.Companion.OwnerName}}{{end}}</div>
+    {{if .IsOwner}}
+    <ol class="breadcrumb mb-2" aria-label="Breadcrumb"><li class="breadcrumb-item"><a href="/companions">Companions</a></li><li class="breadcrumb-item active" aria-current="page">{{.Companion.Name}}</li></ol>
+    {{else}}
+    <div class="page-pretitle">Companion · {{.Companion.OwnerName}}</div>
+    {{end}}
     <h1 class="page-title fs-1">{{.Companion.Name}}</h1>
   </div>
-  {{if .IsOwner}}
-  <div class="col-auto ms-auto d-print-none">
-    <form method="post" action="/companions/{{.Companion.PublicID}}/delete" class="m-0" data-confirm="Remove {{.Companion.Name}}? Its check-in history is deleted too.">
-      <button type="submit" class="btn btn-outline-danger">{{template "icon-trash" "me-1"}}Remove</button>
-    </form>
-  </div>
-  {{end}}
 </div>
 {{end}}
 {{define "content"}}
@@ -26,44 +23,10 @@
   <div>An advert heard {{ts .LastRejectedAt "datetime"}} didn't count: the companion's clock was off by more than {{$.MaxSkew}} minutes ({{.LastRejectedSkew}}). Sync the clock from the companion app and advert again.</div>
 </div>
 {{end}}
-
-{{if $.IsOwner}}
-<div class="card mb-3" data-testid="companion-visibility">
-  <div class="card-body">
-    <form method="post" action="/companions/{{.PublicID}}/visibility" class="m-0">
-      <label class="form-check form-switch m-0">
-        <input class="form-check-input" type="checkbox" name="public" value="1"{{if .Public}} checked{{end}} data-autosubmit data-testid="companion-public">
-        <span class="form-check-label">Show on my public profile</span>
-        <span class="form-hint mt-0">Anyone can see its name and key there, and scan it to add you as a contact. Its check-ins stay visible only to your organizations.</span>
-      </label>
-    </form>
-  </div>
-</div>
 {{end}}
 
-<div class="row row-cards mb-3">
-  <div class="col-md-4">
-    <div class="card"><div class="card-body">
-      <div class="subheader">Status</div>
-      <div class="h3 m-0">{{if .Confirmed}}Confirmed{{else}}Waiting for an advert{{end}}</div>
-      {{with .AdvertName}}<div class="text-secondary small mt-1" data-testid="companion-advert-name">Advertises as <strong>{{.}}</strong></div>{{end}}
-    </div></div>
-  </div>
-  <div class="col-md-4">
-    <div class="card"><div class="card-body">
-      <div class="subheader">Last heard</div>
-      <div class="h3 m-0">{{if .LastHeardAt}}{{ts .LastHeardAt "datetime"}}{{else}}Not yet{{end}}</div>
-    </div></div>
-  </div>
-  <div class="col-md-4">
-    <div class="card"><div class="card-body">
-      <div class="subheader">Public key</div>
-      <div class="font-monospace small text-break">{{.PublicKeyHex}}</div>
-    </div></div>
-  </div>
-</div>
-{{end}}
-
+<div class="row row-cards">
+  <div class="col-lg-8">
 {{/* Check-ins are counts only: when each advert was first heard, how many
      observers heard it, and how many repeaters were seen relaying it. Which
      repeaters, and in what order, isn't kept (that would say roughly where the
@@ -89,5 +52,45 @@
   {{else}}
   <div class="card-body text-secondary">No adverts heard yet.</div>
   {{end}}
+</div>
+  </div>
+
+  <div class="col-lg-4 d-flex flex-column gap-3">
+    <div class="card" data-testid="companion-details">
+      <div class="list-group list-group-flush">
+        <div class="list-group-item d-flex align-items-center gap-2"><span class="text-secondary">Status</span>
+          <span class="ms-auto">{{if .Companion.Confirmed}}<span class="badge bg-green-lt">Confirmed</span>{{else}}<span class="badge bg-orange-lt">Not heard yet</span>{{end}}</span></div>
+        <div class="list-group-item d-flex align-items-center gap-2"><span class="text-secondary">Last heard</span>
+          <span class="ms-auto">{{with .Companion.LastHeardAt}}{{ts . "relative"}}{{else}}<span class="text-secondary">Not yet</span>{{end}}</span></div>
+        <div class="list-group-item d-flex align-items-center gap-2"><span class="text-secondary">Public key</span><span class="ms-auto">{{template "pubkey" .Companion.PublicKeyHex}}</span></div>
+        <div class="list-group-item" data-testid="companion-advert-name">
+          <div class="d-flex align-items-center gap-2"><span class="text-secondary">Advertises as</span>
+            <span class="ms-auto fw-bold">{{with .Companion.AdvertName}}{{.}}{{else}}<span class="text-secondary fw-normal">Not heard yet</span>{{end}}</span></div>
+          <div class="small text-secondary mt-1">The name other radios list it under. Net control's on-air acknowledgements mention it by this name.</div>
+        </div>
+      </div>
+    </div>
+    {{if .IsOwner}}
+    <div class="card" data-testid="companion-visibility">
+      <div class="card-body">
+        <form method="post" action="/companions/{{.Companion.PublicID}}/visibility" class="m-0">
+          <label class="form-check form-switch m-0">
+            <input class="form-check-input" type="checkbox" name="public" value="1"{{if .Companion.Public}} checked{{end}} data-autosubmit data-testid="companion-public">
+            <span class="form-check-label">Show on my public profile</span>
+            <span class="form-hint mt-0">Its name and key, with a QR code to add you as a contact. Its check-ins stay with your organizations.</span>
+          </label>
+        </form>
+      </div>
+    </div>
+    <div class="card border-danger" data-testid="danger-zone">
+      <div class="card-body d-flex flex-wrap align-items-center gap-3">
+        <div class="flex-fill"><div class="fw-bold">Remove this companion</div><div class="text-secondary small">Its check-in history goes with it.</div></div>
+        <form method="post" action="/companions/{{.Companion.PublicID}}/delete" class="m-0" data-confirm="Remove {{.Companion.Name}}? Its check-in history is deleted too.">
+          <button type="submit" class="btn btn-outline-danger" data-testid="companion-remove">Remove</button>
+        </form>
+      </div>
+    </div>
+    {{end}}
+  </div>
 </div>
 {{end}}

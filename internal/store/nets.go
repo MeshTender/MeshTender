@@ -229,6 +229,48 @@ func (s *Store) ListOrgNetSummaries(ctx context.Context, orgID int64, now time.T
 	})
 }
 
+// UserNetSummary is a net in one of a user's organizations, with its org.
+type UserNetSummary struct {
+	NetSummary
+	OrgSlug, OrgName string
+}
+
+// ListUserNetSummaries returns the active nets of every org the user belongs
+// to, each with its next session that hasn't ended, in one query (a LATERAL per
+// net on the (net_id, starts_at) key). Bounded by the user's orgs ×
+// MaxNetsPerOrg.
+func (s *Store) ListUserNetSummaries(ctx context.Context, userID int64, now time.Time) ([]UserNetSummary, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT n.id, n.org_id, n.name, n.description, n.weekday, n.start_minute, n.duration_minutes,
+		       n.timezone, n.active, n.manual_ack, n.created_at, ns.id, ns.starts_at, ns.ends_at,
+		       o.slug, o.name
+		FROM org_members m
+		JOIN organizations o ON o.id = m.org_id
+		JOIN check_in_nets n ON n.org_id = m.org_id AND n.active
+		LEFT JOIN LATERAL (
+			SELECT id, starts_at, ends_at FROM net_sessions
+			WHERE net_id = n.id AND ends_at > $2 ORDER BY starts_at LIMIT 1) ns ON TRUE
+		WHERE m.user_id = $1
+		ORDER BY ns.starts_at NULLS LAST, lower(n.name), n.id`, userID, now)
+	if err != nil {
+		return nil, fmt.Errorf("list user net summaries: %w", err)
+	}
+	return collectRows(rows, func(r pgx.Row) (UserNetSummary, error) {
+		var ns UserNetSummary
+		var weekday, startMinute int16
+		var sid *int64
+		var starts, ends *time.Time
+		err := r.Scan(&ns.ID, &ns.OrgID, &ns.Name, &ns.Description, &weekday, &startMinute,
+			&ns.DurationMinutes, &ns.Timezone, &ns.Active, &ns.ManualAck, &ns.CreatedAt, &sid, &starts, &ends,
+			&ns.OrgSlug, &ns.OrgName)
+		ns.Weekday, ns.StartMinute = time.Weekday(weekday), int(startMinute)
+		if sid != nil {
+			ns.Next = &NetSession{ID: *sid, NetID: ns.ID, StartsAt: *starts, EndsAt: *ends}
+		}
+		return ns, err
+	})
+}
+
 // materializeNetSessions inserts the net's sessions overlapping the horizon.
 // Idempotent: existing sessions are kept. Inactive nets get none.
 func materializeNetSessions(ctx context.Context, tx pgx.Tx, net *Net, now time.Time) error {

@@ -245,6 +245,7 @@ func (s *Handlers) appRouter() chi.Router {
 
 			// Companions and check-ins.
 			r.Get("/companions", s.pageCompanions)
+			r.Get("/companions/new", s.pageNewCompanion)
 			r.Post("/companions", s.handleAddCompanion)
 			r.Get("/companions/{id}", s.pageCompanion)
 			r.Post("/companions/{id}/delete", s.handleDeleteCompanion)
@@ -390,32 +391,52 @@ type onboardingStep struct {
 	Done   bool
 }
 
-// pageDashboard renders the signed-in overview: summary stats, a getting-started
-// checklist, a map of owned repeaters, and recent activity.
+// dashboardOrg is one of the user's organizations on the dashboard, with the
+// net that's in session or starts soonest (nil when it has none scheduled).
+type dashboardOrg struct {
+	store.OrgMembership
+	Net *store.UserNetSummary
+}
+
+// pageDashboard renders the signed-in overview: nets in session across the
+// user's organizations, a getting-started checklist while anything's pending,
+// their organizations with the next net of each, their radios, and — for
+// repeater owners — recent commands and a map.
 func (s *Handlers) pageDashboard(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	uid := s.Auth.CurrentUserID(ctx)
+	now := time.Now()
+	fail := func(what string, err error) { s.ServerError(w, r, "could not load "+what, err) }
 
 	repeaters, err := s.Store.ListRepeatersForUser(ctx, uid)
 	if err != nil {
-		s.ServerError(w, r, "could not load repeaters", err)
+		fail("repeaters", err)
 		return
 	}
 	owned, shared := splitOwnedShared(repeaters)
-
-	orgs, err := s.Store.ListOrgsForUser(ctx, uid)
+	companions, err := s.Store.ListCompanionsForUser(ctx, uid)
 	if err != nil {
-		s.ServerError(w, r, "could not load organizations", err)
+		fail("companions", err)
+		return
+	}
+	memberships, err := s.Store.ListOrgsForUser(ctx, uid)
+	if err != nil {
+		fail("organizations", err)
+		return
+	}
+	nets, err := s.Store.ListUserNetSummaries(ctx, uid, now)
+	if err != nil {
+		fail("nets", err)
 		return
 	}
 	recent, err := s.Store.ListRecentCommandsForOwner(ctx, uid, 8)
 	if err != nil {
-		s.ServerError(w, r, "could not load activity", err)
+		fail("activity", err)
 		return
 	}
 	user, err := s.Store.GetUserByID(ctx, uid)
 	if err != nil {
-		s.ServerError(w, r, "could not load account", err)
+		fail("account", err)
 		return
 	}
 	// Drives the passkey checklist step below. Someone who signed up with a password
@@ -423,56 +444,81 @@ func (s *Handlers) pageDashboard(w http.ResponseWriter, r *http.Request) {
 	// place that follows up.
 	passkeys, err := s.Store.ListCredentials(ctx, uid)
 	if err != nil {
-		s.ServerError(w, r, "could not load passkeys", err)
+		fail("passkeys", err)
 		return
 	}
 
-	confirmed, unconfirmed := 0, 0
+	// Nets in session, and each org's soonest net. nets is soonest-first.
+	var live []store.UserNetSummary
+	soonest := map[int64]*store.UserNetSummary{}
+	for i := range nets {
+		n := &nets[i]
+		if n.Next == nil {
+			continue
+		}
+		if !now.Before(n.Next.StartsAt) {
+			live = append(live, *n)
+		}
+		if _, ok := soonest[n.OrgID]; !ok {
+			soonest[n.OrgID] = n
+		}
+	}
+	orgs := make([]dashboardOrg, len(memberships))
+	for i, m := range memberships {
+		orgs[i] = dashboardOrg{OrgMembership: m, Net: soonest[m.Org.ID]}
+	}
+
+	unconfirmed := 0
 	var mapped []*store.Repeater
 	for _, rp := range owned {
-		if rp.Confirmed {
-			confirmed++
-		} else {
+		if !rp.Confirmed {
 			unconfirmed++
 		}
 		if rp.Latitude != nil && rp.Longitude != nil {
 			mapped = append(mapped, rp)
 		}
 	}
+	unheard := 0
+	for _, c := range companions {
+		if !c.Confirmed() {
+			unheard++
+		}
+	}
 
+	// The checklist is about taking part — an organization and a companion come
+	// first; running a repeater is optional, so it lives in the Your radios card
+	// instead of here.
 	steps := []onboardingStep{
 		{
+			Title:  "Join an organization",
+			Desc:   "Find your local mesh group: its members, nets and recommended setup.",
+			Action: "Find organizations",
+			Href:   s.Origin(r, s.Cfg.RootHost) + "/orgs",
+			Done:   len(memberships) > 0,
+		},
+		{
+			Title:  "Register your companion",
+			Desc:   "The MeshCore radio you carry, so your adverts count as check-ins.",
+			Action: "Register companion",
+			Href:   "/companions/new",
+			Done:   len(companions) > 0,
+		},
+		{
 			Title:  "Set up your profile",
-			Desc:   "Add a display name so teammates recognize you.",
+			Desc:   "Add a display name so people recognize you.",
 			Action: "Edit profile",
 			Href:   s.Origin(r, s.Cfg.AuthHost) + "/account",
 			Done:   user.DisplayName != nil && *user.DisplayName != "",
 		},
 		{
-			// Grouped with the profile step (both are account setup) and ahead of the
-			// mesh steps. Always listed rather than shown only to password users: a
-			// passkey holder sees it already satisfied, which reads as progress instead
-			// of a scold, and it keeps the list identical for everyone.
-			Title: "Add a passkey",
-			Desc: "Sign in with a fingerprint, face, PIN, or a security key — " +
-				"nothing to remember, and nothing to type on a shared computer.",
+			// Always listed rather than shown only to password users: a passkey
+			// holder sees it already satisfied, which reads as progress instead of a
+			// scold, and it keeps the list identical for everyone.
+			Title:  "Add a passkey",
+			Desc:   "Sign in with a fingerprint, face or PIN: nothing to remember or type.",
 			Action: "Add passkey",
 			Href:   s.Origin(r, s.Cfg.AuthHost) + "/account",
 			Done:   len(passkeys) > 0,
-		},
-		{
-			Title:  "Add a repeater",
-			Desc:   "Connect a repeater to MeshTender and test it with a modem.",
-			Action: "Add repeater",
-			Href:   "/repeaters/add",
-			Done:   len(owned) > 0,
-		},
-		{
-			Title:  "Join an organization",
-			Desc:   "Find a local mesh community to share repeaters and coordinate.",
-			Action: "Browse organizations",
-			Href:   s.Origin(r, s.Cfg.RootHost) + "/orgs",
-			Done:   len(orgs) > 0,
 		},
 	}
 	// Only password holders are nudged, and only while mail is configured. A
@@ -494,41 +540,44 @@ func (s *Handlers) pageDashboard(w http.ResponseWriter, r *http.Request) {
 	// they set a primary contact link.
 	publicRole, err := s.Store.UserHasPublicRole(ctx, uid)
 	if err != nil {
-		s.ServerError(w, r, "could not load account", err)
+		fail("account", err)
 		return
 	}
 	if publicRole {
 		links, err := s.Store.ListUserLinks(ctx, uid)
 		if err != nil {
-			s.ServerError(w, r, "could not load account", err)
+			fail("account", err)
 			return
 		}
 		steps = append(steps, onboardingStep{
 			Title:  "Add a contact link",
-			Desc:   "You're listed publicly as an admin or steward — add a way for people to reach you.",
+			Desc:   "You're listed publicly as an admin or steward; add a way for people to reach you.",
 			Action: "Edit profile",
 			Href:   s.Origin(r, s.Cfg.AuthHost) + "/account",
 			Done:   store.PrimaryUserLink(links) != nil,
 		})
 	}
-	total := len(steps)
 	doneCount := 0
 	for _, st := range steps {
 		if st.Done {
 			doneCount++
 		}
 	}
+	total := len(steps)
 	// Hide the checklist entirely once everything's done.
 	if doneCount == total {
 		steps = nil
 	}
 
 	s.Render(w, r, "dashboard.html", map[string]any{
+		"Now":             now,
+		"LiveNets":        live,
+		"Orgs":            orgs,
 		"OwnedCount":      len(owned),
-		"SharedCount":     len(shared),
-		"OrgCount":        len(orgs),
-		"Confirmed":       confirmed,
 		"Unconfirmed":     unconfirmed,
+		"SharedCount":     len(shared),
+		"CompanionCount":  len(companions),
+		"Unheard":         unheard,
 		"Mapped":          mapped,
 		"Recent":          recent,
 		"Onboarding":      steps,

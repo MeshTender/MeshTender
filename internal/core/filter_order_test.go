@@ -56,7 +56,7 @@ func TestFilterControlsPrecedeTheList(t *testing.T) {
 		sidebar bool
 	}{
 		{"public org directory", h.root, "/orgs", `id="org-q"`, `id="org-list"`, false},
-		{"your repeaters", h.app, "/repeaters", `data-filter-search`, `data-filter-item`, true},
+		{"your repeaters", h.app, "/repeaters", `data-filter-search`, `data-filter-item`, false},
 		{"admin user list", h.app, "/admin/users", `id="user-q"`, `data-testid="user-row"`, true},
 	} {
 		resp := do(t, ts, page.host, page.path, cookies...)

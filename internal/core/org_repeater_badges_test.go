@@ -11,8 +11,8 @@ import (
 )
 
 // TestOrgRepeatersPageBadgesStatus: the org's repeaters page flags nodes a member can
-// actually do something about — one nobody has reached ("Unconfirmed"), and one where
-// MeshTender holds only guest access ("guest only") and therefore cannot run any
+// actually do something about — one nobody has reached ("Not confirmed"), and one where
+// MeshTender holds only guest access ("Guest access only") and therefore cannot run any
 // command at all.
 //
 // The same test pins the boundary: the PUBLIC org page must show neither. Which of an
@@ -63,16 +63,16 @@ func TestOrgRepeatersPageBadgesStatus(t *testing.T) {
 
 	// Member view: both problems are flagged, and the healthy repeater carries neither.
 	member := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/repeaters", sess))
-	for _, want := range []string{adminRep, guestRep, newRep, "Unconfirmed", "guest only"} {
+	for _, want := range []string{adminRep, guestRep, newRep, "Not confirmed", "Guest access only"} {
 		if !strings.Contains(member, want) {
 			t.Errorf("member repeaters page missing %q", want)
 		}
 	}
-	if got := strings.Count(member, "Unconfirmed"); got != 1 {
-		t.Errorf("Unconfirmed badge appears %d times, want 1 (only the unreached repeater)", got)
+	if got := strings.Count(member, "Not confirmed"); got != 1 {
+		t.Errorf("Not confirmed badge appears %d times, want 1 (only the unreached repeater)", got)
 	}
-	if got := strings.Count(member, "guest only"); got != 1 {
-		t.Errorf("guest only badge appears %d times, want 1 (only the guest-access repeater)", got)
+	if got := strings.Count(member, "Guest access only"); got != 1 {
+		t.Errorf("Guest access only badge appears %d times, want 1 (only the guest-access repeater)", got)
 	}
 
 	// Public view: the repeaters are listed, their access state is not.
@@ -80,7 +80,7 @@ func TestOrgRepeatersPageBadgesStatus(t *testing.T) {
 	if !strings.Contains(public, adminRep) {
 		t.Fatal("public repeaters page lists no repeaters, so the assertions below prove nothing")
 	}
-	for _, leak := range []string{"Unconfirmed", "guest only"} {
+	for _, leak := range []string{"Not confirmed", "Guest access only"} {
 		if strings.Contains(public, leak) {
 			t.Errorf("public repeaters page exposes %q; a repeater's access state is not public", leak)
 		}

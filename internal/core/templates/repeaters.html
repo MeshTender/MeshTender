@@ -10,98 +10,69 @@
 </div>
 {{end}}
 {{define "content"}}
-
 {{if .Repeaters}}
-<div class="row row-cards" data-filter-root>
-  {{/* Search/filters come FIRST in the DOM and move to the right of the list at lg
-       (order-lg-last). Source order governs both the mobile stack and the tab order,
-       so ordering with CSS alone would leave keyboard and screen-reader users
-       traversing every row to reach the control that exists to avoid exactly that. */}}
-  <div class="col-lg-3 order-lg-last">
-    <div class="card">
-      <div class="card-body">
-        <div class="mb-3">
-          <label class="form-label" for="rep-search">Search</label>
-          <input type="search" id="rep-search" class="form-control" data-filter-search placeholder="Repeater name" aria-label="Search your repeaters">
-        </div>
-        <div class="mb-3">
-          <label class="form-label" for="rep-access">Access</label>
-          <select id="rep-access" class="form-select" data-filter-key="access" aria-label="Filter by access">
-            <option value="">All</option>
-            <option value="owned">Owned</option>
-            <option value="shared">Shared with me</option>
-          </select>
-        </div>
-        <div class="mb-3">
-          <label class="form-label" for="rep-status">Status</label>
-          <select id="rep-status" class="form-select" data-filter-key="status" aria-label="Filter by confirmation status">
-            <option value="">Any status</option>
-            <option value="confirmed">Confirmed</option>
-            <option value="unconfirmed">Unconfirmed</option>
-          </select>
-        </div>
-        <label class="form-check">
-          <input class="form-check-input" type="checkbox" data-filter-flag="sharedout">
-          <span class="form-check-label">Shared with others</span>
-          <span class="form-hint mt-0">Repeaters you own and have shared to at least one person or organization.</span>
-        </label>
+<div class="card" data-filter-root>
+  {{/* The filters sit in a bar above the list, so they come first on a phone and
+       in tab order (TestFilterControlsPrecedeTheList). */}}
+  <div class="card-header">
+    <div class="d-flex flex-wrap gap-2 w-100" role="search">
+      <div class="input-icon flex-fill" style="min-width:12rem">
+        <span class="input-icon-addon">{{template "icon-search" ""}}</span>
+        <input type="search" id="rep-search" class="form-control" data-filter-search placeholder="Search by name" aria-label="Search your repeaters">
       </div>
+      <select id="rep-access" class="form-select w-auto" data-filter-key="access" aria-label="Filter by access">
+        <option value="">Owned and shared</option>
+        <option value="owned">Owned by me</option>
+        <option value="shared">Shared with me</option>
+      </select>
+      <select id="rep-status" class="form-select w-auto" data-filter-key="status" aria-label="Filter by confirmation">
+        <option value="">Any status</option>
+        <option value="confirmed">Confirmed</option>
+        <option value="unconfirmed">Not confirmed</option>
+      </select>
+      <label class="form-check m-0 align-self-center" title="Repeaters you own and have shared with at least one person or organization">
+        <input class="form-check-input" type="checkbox" data-filter-flag="sharedout">
+        <span class="form-check-label">Shared with others</span>
+      </label>
     </div>
   </div>
-
-  <!-- The repeater cards -->
-  <div class="col-lg-9">
-    <div class="row row-cards">
-      {{range .Repeaters}}
-      {{$shareCounts := index $.ShareCounts .ID}}
-      <div class="col-12" data-filter-item
-           data-name="{{.Name}}"
-           data-access="{{if .Shared}}shared{{else}}owned{{end}}"
-           data-status="{{if .Confirmed}}confirmed{{else}}unconfirmed{{end}}"
-           data-sharedout="{{if and (not .Shared) (or (gt $shareCounts.Users 0) (gt $shareCounts.Orgs 0))}}1{{else}}0{{end}}">
-        <a class="card card-link card-link-pop text-reset" href="/repeaters/{{.PublicID}}">
-          <div class="card-body py-3">
-            <div class="d-flex align-items-center gap-3">
-              <span class="avatar bg-blue-lt d-none d-sm-flex">{{template "icon-antenna" ""}}</span>
-              <div class="flex-fill" style="min-width:0">
-                <div class="d-flex align-items-center flex-wrap gap-2">
-                  <h2 class="m-0 fs-3">{{.Name}}</h2>
-                  {{if .Shared}}<span class="badge bg-purple-lt">Shared with me</span>{{else}}<span class="badge bg-blue-lt">Owned</span>{{end}}
-                  {{template "repstatus" .}}
-                </div>
-                <div class="d-flex align-items-center flex-wrap gap-2 mt-1 text-secondary">
-                  <span class="font-monospace">{{slice .PublicKeyHex 0 8}}…</span>
-                  <span class="ms-1">·</span>
-                  {{if .Shared}}<span>Shared by {{.OwnerName}}</span>{{else}}<span>{{template "sharetext" $shareCounts}}</span>{{end}}
-                </div>
-              </div>
-            </div>
-            {{if and (not .Shared) .Confirmed .AccessKnown (not .IsAdmin)}}
-            <div class="alert alert-warning mt-3 mb-0">
-              <div>
-                MeshTender only has <strong>guest</strong> access here. Guest is available to anyone with a blank password, so there's no point operating at this level — re-run <code>setperm &lt;your key&gt; 3</code> on the repeater to grant admin, then re-test.
-              </div>
-            </div>
-            {{end}}
+  <div class="list-group list-group-flush">
+    {{range .Repeaters}}
+    {{$shareCounts := index $.ShareCounts .ID}}
+    <div class="list-group-item position-relative" data-filter-item
+         data-name="{{.Name}}"
+         data-access="{{if .Shared}}shared{{else}}owned{{end}}"
+         data-status="{{if .Confirmed}}confirmed{{else}}unconfirmed{{end}}"
+         data-sharedout="{{if and (not .Shared) (or (gt $shareCounts.Users 0) (gt $shareCounts.Orgs 0))}}1{{else}}0{{end}}">
+      <div class="d-flex align-items-center gap-3">
+        <span class="avatar bg-blue-lt d-none d-sm-flex">{{template "icon-antenna" ""}}</span>
+        <div class="flex-fill" style="min-width:0">
+          <div class="d-flex align-items-center flex-wrap gap-2">
+            <a class="fw-bold text-reset stretched-link" href="/repeaters/{{.PublicID}}">{{.Name}}</a>
+            {{template "repstatus" .}}
           </div>
-        </a>
+          <div class="d-flex align-items-center flex-wrap gap-2 small text-secondary">
+            {{template "pubkey" .PublicKeyHex}}
+            <span>·</span>
+            {{if .Shared}}<span>Shared with you by {{.OwnerName}}</span>{{else}}<span>{{template "sharetext" $shareCounts}}</span>{{end}}
+          </div>
+        </div>
+      </div>
+      {{if and (not .Shared) .Confirmed .AccessKnown (not .IsAdmin)}}
+      <div class="alert alert-danger mt-3 mb-0 position-relative" style="z-index:2" role="alert">
+        <div>MeshTender only has <strong>guest</strong> access, which anyone gets with a blank password, so it can't manage this repeater. Grant it admin with <a href="{{$.RootURL}}/docs#setperm"><code>setperm</code></a>, then connect again.</div>
       </div>
       {{end}}
     </div>
-    <div class="empty py-4" data-filter-empty hidden>
-      <p class="empty-title">No matches</p>
-      <p class="empty-subtitle text-secondary">No repeaters match your search and filters.</p>
-    </div>
+    {{end}}
+  </div>
+  <div data-filter-empty hidden>
+    {{template "empty-state" (dict "Compact" true "Title" "No matches" "Line" "No repeaters match your search and filters.")}}
   </div>
 </div>
 {{else}}
-<div class="empty">
-  <div class="empty-icon">{{template "icon-antenna" ""}}</div>
-  <p class="empty-title">No repeaters yet</p>
-  <p class="empty-subtitle text-secondary">Add one to grant MeshTender access and test it with a modem.</p>
-  <div class="empty-action">
-    <a href="/repeaters/add" class="btn btn-primary">{{template "icon-plus" "me-1"}}Add repeater</a>
-  </div>
+<div class="card">
+  {{template "empty-state" (dict "Title" "No repeaters yet" "Line" "Set up a new repeater over USB to your organization's spec, or register one that's already on the air." "ActionHref" "/repeaters/add" "ActionLabel" "Add repeater")}}
 </div>
 {{end}}
 {{end}}
@@ -109,4 +80,4 @@
 {{/* sharetext renders a repeater's sharing summary as plain text: e.g.
      "Shared with 3 users, 2 organizations", omitting a zero count, or
      "Not shared" when both are zero. Dot is a *store.ShareCount {Users, Orgs}. */}}
-{{define "sharetext"}}{{if and (eq .Users 0) (eq .Orgs 0)}}Not shared{{else}}Shared with{{if gt .Users 0}} {{.Users}} user{{if ne .Users 1}}s{{end}}{{end}}{{if and (gt .Users 0) (gt .Orgs 0)}},{{end}}{{if gt .Orgs 0}} {{.Orgs}} organization{{if ne .Orgs 1}}s{{end}}{{end}}{{end}}{{end}}
+{{define "sharetext"}}{{if and (eq .Users 0) (eq .Orgs 0)}}Not shared{{else}}Shared with{{if gt .Users 0}} {{.Users}} {{if eq .Users 1}}person{{else}}people{{end}}{{end}}{{if and (gt .Users 0) (gt .Orgs 0)}},{{end}}{{if gt .Orgs 0}} {{.Orgs}} organization{{if ne .Orgs 1}}s{{end}}{{end}}{{end}}{{end}}

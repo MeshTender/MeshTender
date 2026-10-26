@@ -114,8 +114,8 @@ code.pubkey {
    Tabler's light "-lt" badges set their text to the full-strength brand color
    over a 10%-opacity tint, which is too dark for this small status text on the dark
    theme. The list below is maintained by TestContrastMeetsWCAGAA rather than by eye,
-   and re-checked on Tabler 1.7.1: without these, purple measures 2.88:1 and azure and
-   teal about 4.25:1. (1.7's palette fixed links and inactive tabs, whose overrides
+   and re-checked on Tabler 1.7.1: without these, purple measures 2.88:1 and azure,
+   teal and orange about 4.25:1. (1.7's palette fixed links and inactive tabs, whose overrides
    are gone.)
 
    Where Tabler defines a dark-theme *-text-emphasis value, use it; the rest are mixed
@@ -126,6 +126,7 @@ code.pubkey {
 .badge.bg-blue-lt { color: var(--tblr-primary-text-emphasis) !important; }
 .badge.bg-azure-lt { color: color-mix(in srgb, var(--tblr-azure) 80%, #fff) !important; }
 .badge.bg-teal-lt { color: color-mix(in srgb, var(--tblr-teal) 80%, #fff) !important; }
+.badge.bg-orange-lt { color: color-mix(in srgb, var(--tblr-orange) 80%, #fff) !important; }
 
 /* Tabler's danger button pairs its off-white foreground (#f9fafb) with the danger red,
    which measures 4.46:1 — just under the 4.5:1 floor. Pure white reaches 4.66:1 without

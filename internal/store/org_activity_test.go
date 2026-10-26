@@ -136,3 +136,44 @@ func TestGetOrgConfigSummary(t *testing.T) {
 		t.Fatalf("summary = %+v", sum)
 	}
 }
+
+// TestListUserNetSummaries: a user's nets span their orgs (active ones only, not
+// other orgs'), soonest session first, each tagged with its org.
+func TestListUserNetSummaries(t *testing.T) {
+	t.Parallel()
+	st, ctx := orgTestStore(t)
+	alice := mustUser(t, st, ctx, "usernetsalice")
+	bob := mustUser(t, st, ctx, "usernetsbob")
+	a := mustOrg(t, st, ctx, "UserNets A", alice)
+	b := mustOrg(t, st, ctx, "UserNets B", alice)
+	other := mustOrg(t, st, ctx, "UserNets Other", bob)
+	ny, _ := time.LoadLocation("America/New_York")
+	now := time.Date(2026, 10, 30, 12, 0, 0, 0, ny) // Friday
+	mk := func(org int64, name string, day time.Weekday, active bool) {
+		t.Helper()
+		in := testNetInput()
+		in.Name, in.Weekday, in.Active = name, day, active
+		if _, err := st.CreateNet(ctx, org, in, alice, now); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mk(a, "Sunday A", time.Sunday, true)
+	mk(b, "Saturday B", time.Saturday, true)
+	mk(b, "Paused B", time.Monday, false)
+	mk(other, "Not Mine", time.Saturday, true)
+
+	got, err := st.ListUserNetSummaries(ctx, alice, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, n := range got {
+		names = append(names, n.Name+"@"+n.OrgName)
+	}
+	if strings.Join(names, ",") != "Saturday B@UserNets B,Sunday A@UserNets A" {
+		t.Fatalf("nets = %v", names)
+	}
+	if got[0].Next == nil || got[0].OrgSlug == "" {
+		t.Fatalf("first = %+v", got[0])
+	}
+}

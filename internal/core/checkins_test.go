@@ -65,7 +65,7 @@ func TestCompanionRegistration(t *testing.T) {
 		"no name":   {"name": {"  "}, "public_key": {key}},
 		"duplicate": {"name": {"Mine now"}, "public_key": {key}},
 	} {
-		q := redirectTo(t, post(t, ts, h.app, "/companions", form, bobSess), "/companions")
+		q := redirectTo(t, post(t, ts, h.app, "/companions", form, bobSess), "/companions/new")
 		if q.Get("error") == "" {
 			t.Errorf("%s: no error message", name)
 		}

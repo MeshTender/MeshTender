@@ -32,7 +32,20 @@ func (s *Handlers) pageCompanions(w http.ResponseWriter, r *http.Request) {
 	s.Render(w, r, "companions.html", map[string]any{
 		"Companions": companions,
 		"Max":        store.MaxCompanionsPerUser,
-		"TTLHours":   int(store.UnconfirmedCompanionTTL.Hours()),
+	})
+}
+
+// pageNewCompanion is the register-a-companion form.
+func (s *Handlers) pageNewCompanion(w http.ResponseWriter, r *http.Request) {
+	companions, err := s.Store.ListCompanionsForUser(r.Context(), s.Auth.CurrentUserID(r.Context()))
+	if err != nil {
+		s.ServerError(w, r, "Couldn't load your companions.", err)
+		return
+	}
+	s.Render(w, r, "companion_new.html", map[string]any{
+		"AtLimit":  len(companions) >= store.MaxCompanionsPerUser,
+		"Max":      store.MaxCompanionsPerUser,
+		"TTLHours": int(store.UnconfirmedCompanionTTL.Hours()),
 	})
 }
 
@@ -51,7 +64,7 @@ func normalizeCompanionKey(raw string) (string, bool) {
 
 func (s *Handlers) handleAddCompanion(w http.ResponseWriter, r *http.Request) {
 	uid := s.Auth.CurrentUserID(r.Context())
-	addErr := func(msg string) { web.RedirectErr(w, r, "/companions", msg) }
+	addErr := func(msg string) { web.RedirectErr(w, r, "/companions/new", msg) }
 
 	name := strings.TrimSpace(r.FormValue("name"))
 	if name == "" || utf8.RuneCountInString(name) > maxCompanionName {

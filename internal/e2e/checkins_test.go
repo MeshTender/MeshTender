@@ -41,6 +41,8 @@ func TestE2ECompanionRegistrationAndOrgPages(t *testing.T) {
 		cdplog.Enable(),
 		setSessionCookie(cookie),
 		chromedp.Navigate(srv.appURL+"/companions"),
+		chromedp.Click(`[data-testid="companion-new"]`, chromedp.ByQuery),
+		chromedp.WaitVisible(`#companion-name`, chromedp.ByQuery),
 		chromedp.SendKeys(`#companion-name`, "My T1", chromedp.ByQuery),
 		chromedp.SendKeys(`#companion-key`, key, chromedp.ByQuery),
 		chromedp.Submit(`#companion-name`, chromedp.ByQuery),
