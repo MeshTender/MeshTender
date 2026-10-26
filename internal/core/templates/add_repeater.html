@@ -140,125 +140,142 @@
 {{else if eq .Step "serial"}}
 {{/* ---- Step 3 (serial): configure a brand-new repeater and run over USB ---- */}}
 <div id="unsupported" class="alert alert-danger" role="alert" hidden>
-  <div>
-    This browser can't connect to USB devices. Use Chrome or Edge, or Firefox 151 or later,
-    on desktop — or Chrome on Android — over HTTPS or on localhost.
-  </div>
+  <div>This browser can't reach USB devices. Use one that supports Web Serial, over HTTPS.</div>
 </div>
 
-<div class="card">
-  <div class="card-body">
-    <h2 class="card-title">Step 3 · Configure your repeater</h2>
-    <p class="text-secondary">Fill in the details below. MeshTender will generate the exact command list, show it to
-      you, and then run it over USB.</p>
-
-    <div class="mb-3">
-      <label class="form-label" for="name">Name</label>
-      <input type="text" class="form-control" id="name" placeholder="Hilltop repeater" autofocus>
-    </div>
-
-    {{/* Identity / key */}}
-    <div class="mb-2"><label class="form-label">Identity (private key)</label></div>
-    <div class="mb-2">
-      <label class="form-check"><input class="form-check-input" type="radio" name="keymode" value="random" checked>
-        <span class="form-check-label">Generate a new random key</span></label>
-      <label class="form-check"><input class="form-check-input" type="radio" name="keymode" value="prefix">
-        <span class="form-check-label">Generate a key whose public key starts with a prefix (vanity)</span></label>
-      <label class="form-check"><input class="form-check-input" type="radio" name="keymode" value="paste">
-        <span class="form-check-label">Use an existing private key</span></label>
-    </div>
-
-    <div id="key-random" class="mb-2">
-      <button type="button" class="btn" id="regen">Regenerate</button>
-    </div>
-    <div id="key-prefix" class="mb-2" hidden>
-      <div class="input-group">
-        <input type="text" class="form-control font-monospace" id="prefix" placeholder="e.g. beef" pattern="[0-9a-fA-F]*"
-               aria-label="Desired public key prefix (hex)">
-        <button type="button" class="btn" id="grind">Generate</button>
-        <button type="button" class="btn btn-link" id="grind-stop" hidden>Stop</button>
+{{/* One card per decision, in the order you'd make them. Every id here is read by
+serial-setup.js (or radio-preset.js / regionmap.js); keep them. */}}
+<div class="d-flex flex-column gap-3">
+  <div class="card">
+    <div class="card-header"><h2 class="card-title">Repeater</h2></div>
+    <div class="card-body">
+      <div class="mb-3">
+        <label class="form-label" for="name">Name</label>
+        <input type="text" class="form-control" id="name" placeholder="Hilltop" maxlength="31" autofocus>
       </div>
-      <small class="form-hint">Hex only (0-9, a-f). Each extra character takes ~16× longer to find — long prefixes may take a very long time.</small>
-    </div>
-    <div id="key-paste" class="mb-2" hidden>
-      <textarea class="form-control font-monospace" id="privkey" rows="2" placeholder="128 hex chars (64-byte key) or 64 hex chars (32-byte seed)"
-                aria-label="Existing private key or seed (hex)"></textarea>
-    </div>
-
-    <div class="mb-3">
-      <div class="form-label">Resulting public key</div>
-      <code class="pubkey" id="pubkey">—</code>
-      <div id="grind-status" class="form-hint"></div>
-    </div>
-
-    {{/* Passwords: spliced into the commands by serial-setup.js, never sent to
-    MeshTender. The firmware holds 15 bytes of each and cuts longer ones short,
-    so the script checks the length in bytes; maxlength is only a first stop. */}}
-    <div class="row g-3 mb-3">
-      <div class="col-sm-6">
-        <label class="form-label" for="admin_password">Admin password <span class="form-label-description">optional</span></label>
-        <input type="password" class="form-control" id="admin_password" maxlength="15" autocomplete="new-password" data-testid="admin-password">
-        <div class="form-text">Anyone with it can change every setting. Leave it blank to keep the repeater's current one; a newly flashed repeater's is <code>password</code>.</div>
-      </div>
-      <div class="col-sm-6">
-        <label class="form-label" for="guest_password">Guest password <span class="form-label-description">optional</span></label>
-        <input type="password" class="form-control" id="guest_password" maxlength="15" autocomplete="new-password" data-testid="guest-password">
-        <div class="form-text">Lets people log in to read its status. Leave it blank to keep the current one.</div>
-      </div>
-    </div>
-
-    {{/* Configuration source */}}
-    <div class="mb-3">
-      <label class="form-label" for="org">Organization configuration</label>
-      <select class="form-select" id="org">
-        <option value="0">None — use a radio preset</option>
-      </select>
-      <small class="form-hint">An organization configuration supplies the radio settings, base settings, and location-based region.</small>
-    </div>
-
-    <div class="mb-3" id="profile-wrap" hidden>
-      <label class="form-label" for="profile">Configuration profile</label>
-      <select class="form-select" id="profile"></select>
-    </div>
-
-    <div id="preset-wrap">
-      {{template "radio-fields" .RadioSerial}}
-    </div>
-
-    {{/* Location */}}
-    <div class="mt-3">
-      <label class="form-label">Location</label>
-      <p class="form-hint mt-0">Click the map to place this repeater. Used for its coordinates and (with an organization
-        configuration) to pick the right region.</p>
-      <div id="map" style="height:320px" class="rounded border"></div>
-      <div class="form-hint" id="loc-status">No location selected.</div>
-    </div>
-
-    <label class="form-check mt-3">
-      <input class="form-check-input" type="checkbox" id="show_on_public_org">
-      <span class="form-check-label">Show this repeater on your organizations' <strong>public map</strong>.</span>
-    </label>
-    <label class="form-check mt-2">
-      <input class="form-check-input" type="checkbox" id="expose_public_page">
-      <span class="form-check-label">Publish a <strong>public page</strong> for this repeater with its docs, stewards, and location.</span>
-    </label>
-
-    <div class="btn-list mt-3">
-      <button type="button" class="btn btn-primary" id="generate">Generate command list →</button>
-      <a class="btn" href="/repeaters/add?step=consent&method=serial">← Back</a>
+      <div class="form-label">Location</div>
+      <div id="map" style="height:300px" class="rounded border" role="region" aria-label="Click to place the repeater"></div>
+      <div class="form-text" id="loc-status">Click the map where the repeater stands. Organizations use it to pick its region.</div>
     </div>
   </div>
-</div>
 
-{{/* Review + run */}}
-<div class="card mt-3" id="review-card" hidden>
-  <div class="card-header"><h2 class="card-title">Step 4 · Review &amp; run</h2></div>
-  <div class="card-body">
-    <p class="text-secondary">These commands will be sent to your repeater over USB, in order. The private key and
-      passwords are hidden here and never leave your browser.</p>
-    <pre class="mb-3"><code id="cmdlist"></code></pre>
-    <button id="run" class="btn btn-primary" type="button">{{template "icon-plug" "me-1"}}Connect over USB &amp; run</button>
-    <ul id="log" class="evlog console mt-3" role="log" aria-live="polite" aria-label="Setup activity"></ul>
+  <div class="card">
+    <div class="card-header"><h2 class="card-title">Configuration</h2></div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label" for="org">Organization</label>
+          <select class="form-select" id="org">
+            <option value="0">None: pick a radio preset</option>
+          </select>
+          <div class="form-text">Your organization's radio, settings and region, applied in one go.</div>
+        </div>
+        <div class="col-md-6" id="profile-wrap" hidden>
+          <label class="form-label" for="profile">Profile</label>
+          <select class="form-select" id="profile"></select>
+        </div>
+      </div>
+      <div id="preset-wrap" class="mt-3">
+        {{template "radio-fields" .RadioSerial}}
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div>
+        <h2 class="card-title">Identity</h2>
+        <div class="card-subtitle">The key the repeater is known by on the mesh. It's made in your browser and its private half never leaves it.</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="btn-group mb-3" role="group" aria-label="Where the key comes from">
+        <input type="radio" class="btn-check" name="keymode" id="keymode-random" value="random" autocomplete="off" checked>
+        <label class="btn btn-sm" for="keymode-random">New key</label>
+        <input type="radio" class="btn-check" name="keymode" id="keymode-prefix" value="prefix" autocomplete="off">
+        <label class="btn btn-sm" for="keymode-prefix">Choose how it starts</label>
+        <input type="radio" class="btn-check" name="keymode" id="keymode-paste" value="paste" autocomplete="off">
+        <label class="btn btn-sm" for="keymode-paste">Use an existing key</label>
+      </div>
+      <div id="key-prefix" class="mb-3" hidden>
+        <label class="form-label" for="prefix">Public key starts with</label>
+        <div class="input-group">
+          <input type="text" class="form-control font-monospace" id="prefix" placeholder="e.g. beef" pattern="[0-9a-fA-F]*" autocomplete="off" spellcheck="false">
+          <button type="button" class="btn" id="grind">Find a key</button>
+          <button type="button" class="btn btn-link" id="grind-stop" hidden>Stop</button>
+        </div>
+        <div class="form-text">Hex digits (0–9, a–f). Each one makes the search about 16 times longer.</div>
+      </div>
+      <div id="key-paste" class="mb-3" hidden>
+        <label class="form-label" for="privkey">Private key</label>
+        <textarea class="form-control font-monospace" id="privkey" rows="2" placeholder="128 hex characters, or a 64-character seed" autocomplete="off" spellcheck="false"></textarea>
+      </div>
+      <div class="form-label">Public key</div>
+      <div class="d-flex align-items-center gap-2">
+        <code class="pubkey flex-fill text-truncate" id="pubkey">—</code>
+        <button type="button" class="btn btn-sm" id="regen">{{template "icon-refresh" "me-1"}}New key</button>
+      </div>
+      <div id="grind-status" class="form-text"></div>
+    </div>
+  </div>
+
+  {{/* Passwords: spliced into the commands by serial-setup.js, never sent to
+  MeshTender. The firmware holds 15 bytes of each and cuts longer ones short,
+  so the script checks the length in bytes; maxlength is only a first stop. */}}
+  <div class="card">
+    <div class="card-header">
+      <div>
+        <h2 class="card-title">Passwords</h2>
+        <div class="card-subtitle">Optional. Leave one blank to keep what the repeater has; a newly flashed repeater's admin password is <code>password</code>.</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-sm-6">
+          <label class="form-label" for="admin_password">Admin password</label>
+          <input type="password" class="form-control" id="admin_password" maxlength="15" autocomplete="new-password" data-testid="admin-password">
+          <div class="form-text">Anyone with it can change every setting.</div>
+        </div>
+        <div class="col-sm-6">
+          <label class="form-label" for="guest_password">Guest password</label>
+          <input type="password" class="form-control" id="guest_password" maxlength="15" autocomplete="new-password" data-testid="guest-password">
+          <div class="form-text">Lets people log in to read its status.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><h2 class="card-title">Visibility</h2></div>
+    <div class="card-body">
+      <label class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" id="show_on_public_org">
+        <span class="form-check-label">Show it on your organizations' public maps</span>
+      </label>
+      <label class="form-check form-switch mb-0">
+        <input class="form-check-input" type="checkbox" id="expose_public_page">
+        <span class="form-check-label">Publish a public page with its docs, stewards and location</span>
+      </label>
+    </div>
+  </div>
+
+  <div class="btn-list">
+    <a class="btn" href="/repeaters/add?step=consent&method=serial">{{template "icon-arrow-left" "me-1"}}Back</a>
+    <button type="button" class="btn btn-primary ms-auto" id="generate">Review the commands{{template "icon-arrow-right" "ms-1"}}</button>
+  </div>
+
+  <div class="card" id="review-card" hidden>
+    <div class="card-header">
+      <div>
+        <h2 class="card-title">Review and run</h2>
+        <div class="card-subtitle">Sent to the repeater over USB, in this order. The private key and passwords are hidden here and never leave your browser.</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <pre class="mb-3"><code id="cmdlist"></code></pre>
+      <button id="run" class="btn btn-primary" type="button">{{template "icon-plug" "me-1"}}Connect and run</button>
+      <ul id="log" class="evlog console mt-3" role="log" aria-live="polite" aria-label="Setup activity"></ul>
+    </div>
   </div>
 </div>
 

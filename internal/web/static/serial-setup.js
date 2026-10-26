@@ -124,7 +124,7 @@
   }
   function refreshKeyMode() {
     var mode = selectedKeyMode();
-    $("key-random").hidden = mode !== "random";
+    $("regen").hidden = mode !== "random";
     $("key-prefix").hidden = mode !== "prefix";
     $("key-paste").hidden = mode !== "paste";
     grinding = false; $("grind-stop").hidden = true;
@@ -199,7 +199,7 @@
     regionMapView("map", {
       onPick: function (lat, lon) {
         loc.lat = lat; loc.lon = lon;
-        $("loc-status").textContent = "Location: " + lat.toFixed(5) + ", " + lon.toFixed(5);
+        $("loc-status").textContent = "Placed at " + lat.toFixed(5) + ", " + lon.toFixed(5) + ".";
       },
     });
   }

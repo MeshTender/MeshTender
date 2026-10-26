@@ -81,6 +81,16 @@ code.pubkey {
   transform: rotate(180deg);
 }
 
+/* Segmented controls (a .btn-group of .btn-check radios): Tabler marks the
+   chosen segment with a background barely lighter than the rest, which is hard
+   to pick out, especially in the dark theme. Tint it with the primary color. */
+.btn-group > .btn-check:checked + .btn {
+  background-color: var(--tblr-primary-lt);
+  border-color: var(--tblr-primary);
+  color: var(--tblr-primary);
+  z-index: 1;
+}
+
 /* ---------- Live event / console log ---------- */
 .evlog {
   list-style: none;
