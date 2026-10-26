@@ -28,7 +28,7 @@ import (
 	"github.com/MeshTender/MeshTender/internal/store"
 )
 
-//go:embed templates/base.html templates/icons.html templates/brand.html templates/org_tabs.html templates/repeater_tabs.html templates/command_grid.html templates/org_access.html templates/radio_fields.html templates/net_form.html templates/org_config_parts.html templates/org_public.html templates/org_config.html templates/org_repeaters.html templates/error.html
+//go:embed templates/base.html templates/icons.html templates/brand.html templates/org_tabs.html templates/repeater_tabs.html templates/command_grid.html templates/org_access.html templates/radio_fields.html templates/net_form.html templates/org_config_parts.html templates/ui_parts.html templates/org_public.html templates/org_config.html templates/org_repeaters.html templates/error.html
 var sharedTemplatesFS embed.FS
 
 // sharedPages are full content pages (not just layout partials) that more than
@@ -247,6 +247,8 @@ var tsFallbackLayouts = map[string]string{
 	"datetime":     "Jan 2, 2006, 15:04 UTC",
 	"time":         "15:04 UTC",
 	"time-seconds": "15:04:05 UTC",
+	// relative ("5 min ago", exact time on hover) falls back to the full time.
+	"relative": "Jan 2, 2006, 15:04 UTC",
 }
 
 // TimeElement renders an instant as
@@ -254,8 +256,9 @@ var tsFallbackLayouts = map[string]string{
 //	<time datetime="2006-01-02T15:04:05Z" data-fmt="datetime">Jan 2, 2006, 15:04 UTC</time>
 //
 // The machine-readable datetime is always a full RFC3339 UTC timestamp; kind
-// (date|datetime|time|time-seconds) selects which parts ui.js shows once it
-// localizes the element. A zero time renders nothing (call sites guard nil).
+// (date|datetime|time|time-seconds|relative) selects which parts ui.js shows
+// once it localizes the element; relative reads "5 min ago", with the exact time
+// on hover. A zero time renders nothing (call sites guard nil).
 //
 // The result is template.HTML because it's server-controlled markup: the only
 // interpolated values are a formatted timestamp and a fixed, validated kind — no
@@ -281,7 +284,7 @@ func TimeElement(t time.Time, kind string) template.HTML {
 }
 
 func NewRenderer(cfg *config.Config, surfaceTemplates fs.FS) (*Renderer, error) {
-	base, err := template.New("").Funcs(templateFuncs).ParseFS(sharedTemplatesFS, "templates/base.html", "templates/icons.html", "templates/brand.html", "templates/org_tabs.html", "templates/repeater_tabs.html", "templates/command_grid.html", "templates/org_access.html", "templates/radio_fields.html", "templates/net_form.html", "templates/org_config_parts.html")
+	base, err := template.New("").Funcs(templateFuncs).ParseFS(sharedTemplatesFS, "templates/base.html", "templates/icons.html", "templates/brand.html", "templates/org_tabs.html", "templates/repeater_tabs.html", "templates/command_grid.html", "templates/org_access.html", "templates/radio_fields.html", "templates/net_form.html", "templates/org_config_parts.html", "templates/ui_parts.html")
 	if err != nil {
 		return nil, err
 	}
@@ -364,6 +367,13 @@ func (rn *Renderer) render(w http.ResponseWriter, r *http.Request, status int, p
 			data["UserTZ"] = tz
 		}
 	}
+	// NavActive marks the current section in the top nav (navSection).
+	data["NavActive"] = navSection(rn.cfg, r)
+	// FlashOK / FlashError are the one-shot messages a redirect carries
+	// (RedirectFlash's ?ok= / ?error=). The layout shows them above every page's
+	// content, so no page renders — or forgets — its own.
+	q := r.URL.Query()
+	data["FlashOK"], data["FlashError"] = q.Get("ok"), q.Get("error")
 	// LiveReload pulls in livereload.js (see WithLiveReload). Dev only.
 	data["LiveReload"] = rn.cfg.LiveReload
 	// Per-request CSP nonce for inline <script nonce="{{.Nonce}}"> blocks.
@@ -528,6 +538,12 @@ func RedirectFlash(w http.ResponseWriter, r *http.Request, path, key, msg string
 		sep = "&"
 	}
 	http.Redirect(w, r, path+sep+key+"="+url.QueryEscape(msg), http.StatusSeeOther)
+}
+
+// RedirectOK is RedirectFlash with the "ok" key: a success message the layout
+// shows above the next page.
+func RedirectOK(w http.ResponseWriter, r *http.Request, path, msg string) {
+	RedirectFlash(w, r, path, "ok", msg)
 }
 
 // RedirectErr is RedirectFlash with the conventional "error" key.

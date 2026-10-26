@@ -3,11 +3,9 @@
 <div class="card card-md">
   <div class="card-body">
     <h1 class="card-title text-center mb-4">Sign in to your account</h1>
-    {{if .Error}}<div class="alert alert-danger">{{.Error}}</div>{{end}}
     {{/* Success flash: a completed password reset and a confirmed email address both
          land here, and both need to say so — otherwise the visitor can't tell whether
          what they just did worked. */}}
-    {{if .OK}}<div class="alert alert-success">{{.OK}}</div>{{end}}
 
     <form method="post" action="/login/password" id="signin-form">
       {{if .Next}}<input type="hidden" name="next" value="{{.Next}}">{{end}}

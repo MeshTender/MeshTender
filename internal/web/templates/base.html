@@ -1,104 +1,14 @@
+{{/* The four page layouts — base (app and auth hosts), rootbase (public pages),
+     landingbase (the landing page) and authbase (sign-in) — share one <head>
+     (htmlhead), one top nav (topnav), the redirect messages (flash) and the
+     footer (footerbody), so no surface can drift from the others. */}}
+
 {{define "base"}}<!doctype html>
-<html lang="en" data-bs-theme="dark" data-bs-theme-base="zinc" data-bs-theme-primary="blue" data-tz="{{.UserTZ}}" data-carto-key="{{.CartoKey}}" data-maplibre-worker="{{ asset "/static/maplibre-gl-worker.js" }}">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <link rel="icon" href="{{ asset "/static/favicon.svg" }}" type="image/svg+xml">
-  <title>{{block "title" .}}MeshTender{{end}}</title>
-  <link rel="stylesheet" href="{{ asset "/static/tabler.min.css" }}">
-  {{/* tabler-themes.min.css supplies the palette chosen on <html>:
-       data-bs-theme-base="zinc" (Tabler 1.6+ defaults to neutral) and blue primary. */}}
-  <link rel="stylesheet" href="{{ asset "/static/tabler-themes.min.css" }}">
-  <link rel="stylesheet" href="{{ asset "/static/app.css" }}">
-  <script src="{{ asset "/static/tabler.min.js" }}" defer></script>
-  <script src="{{ asset "/static/htmx.min.js" }}" defer></script>
-  <script src="{{ asset "/static/ui.js" }}" defer></script>
-  {{template "livereload" .}}
-  <script src="{{ asset "/static/listfilter.js" }}" defer></script>
-</head>
+{{template "htmlopen" .}}
 <body>
-  <a href="#main-content" class="visually-hidden-focusable btn btn-primary position-absolute top-0 start-0 m-2" style="z-index:1080">Skip to main content</a>
+  {{template "skiplink"}}
   <div class="page">
-    <header class="navbar navbar-expand-md d-print-none">
-      <div class="container-xl">
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar-menu" aria-controls="navbar-menu" aria-expanded="false" aria-label="Toggle navigation">
-          <span class="navbar-toggler-icon"></span>
-        </button>
-        <a href="{{if .UserName}}{{.AppURL}}{{else}}{{.RootURL}}{{end}}/" class="navbar-brand navbar-brand-autodark d-flex align-items-center text-reset text-decoration-none pe-0 pe-md-3">
-          {{template "icon-logo" "me-1"}}<span class="fw-bold fs-3">MeshTender</span>
-        </a>
-        <div class="navbar-nav flex-row order-md-last align-items-center gap-2">
-          {{if .UserName}}
-          <div class="nav-item dropdown">
-            {{/* A real <button>, not an anchor: it opens a menu rather than going
-                 anywhere. As an <a href="#"> it was announced as a link, appended #
-                 to the URL when used, and ignored the Space key (links only respond
-                 to Enter). .nav-link already zeroes background/border, so it needs no
-                 reset classes. */}}
-            <button type="button" class="nav-link d-flex lh-1 p-0 px-2" data-bs-toggle="dropdown" aria-label="Open user menu">
-              <span class="avatar avatar-sm">{{template "icon-user" ""}}</span>
-              <div class="d-none d-xl-block ps-2"><div>{{.UserName}}</div></div>
-            </button>
-            <div class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
-              <a class="dropdown-item" href="{{.AuthURL}}/account">{{template "icon-settings" "dropdown-item-icon"}}Account settings</a>
-              {{if .LogoutURL}}
-              <div class="dropdown-divider"></div>
-              <form method="post" action="{{.LogoutURL}}" class="m-0" data-testid="logout-form">
-                <button type="submit" class="dropdown-item text-danger">{{template "icon-logout" "dropdown-item-icon"}}Sign out</button>
-              </form>
-              {{end}}
-            </div>
-          </div>
-          {{else}}
-          <a href="{{.AppURL}}/login" class="btn btn-primary">{{template "icon-login" "me-1"}}Sign in</a>
-          {{end}}
-        </div>
-        <div class="collapse navbar-collapse" id="navbar-menu">
-          <ul class="navbar-nav">
-            {{if .UserName}}
-            <li class="nav-item">
-              <a class="nav-link" href="{{.AppURL}}/">
-                <span class="nav-link-icon d-md-none d-lg-inline-block">{{template "icon-home" ""}}</span>
-                <span class="nav-link-title">Dashboard</span>
-              </a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="{{.AppURL}}/repeaters">
-                <span class="nav-link-icon d-md-none d-lg-inline-block">{{template "icon-antenna" ""}}</span>
-                <span class="nav-link-title">Repeaters</span>
-              </a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="{{.AppURL}}/companions">
-                <span class="nav-link-icon d-md-none d-lg-inline-block">{{template "icon-radio" ""}}</span>
-                <span class="nav-link-title">Companions</span>
-              </a>
-            </li>
-            {{end}}
-            <li class="nav-item">
-              <a class="nav-link" href="{{if .UserName}}{{.AppURL}}{{else}}{{.RootURL}}{{end}}/orgs">
-                <span class="nav-link-icon d-md-none d-lg-inline-block">{{template "icon-world" ""}}</span>
-                <span class="nav-link-title">Organizations</span>
-              </a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="{{.RootURL}}/docs">
-                <span class="nav-link-icon d-md-none d-lg-inline-block">{{template "icon-help" ""}}</span>
-                <span class="nav-link-title">Docs</span>
-              </a>
-            </li>
-            {{if .CanAdmin}}
-            <li class="nav-item">
-              <a class="nav-link" href="{{.AppURL}}/admin">
-                <span class="nav-link-icon d-md-none d-lg-inline-block">{{template "icon-settings" ""}}</span>
-                <span class="nav-link-title">Admin</span>
-              </a>
-            </li>
-            {{end}}
-          </ul>
-        </div>
-      </div>
-    </header>
+    {{template "topnav" .}}
     <div class="page-wrapper">
       <div class="page-header d-print-none" aria-label="Page header">
         <div class="container-xl">
@@ -113,6 +23,7 @@
       </div>
       <div class="page-body">
         <div class="container-xl" id="main-content" tabindex="-1">
+          {{template "flash" .}}
           {{block "content" .}}{{end}}
         </div>
       </div>
@@ -124,96 +35,14 @@
 </body>
 </html>{{end}}
 
-{{/* footerbody is the one footer used by every layout, so the legal links can't
-     go missing on a surface. /privacy and /terms are served by the root host
-     only, hence absolute URLs: the app and auth hosts have no such routes.
-     The source link is the AGPL section 13 offer — the source of the program
-     you are interacting with, reachable from every page. */}}
-{{/* livereload pulls in the dev server's auto-refresh (web.WithLiveReload). It
-     renders nothing unless MESHTENDER_LIVE_RELOAD is set, which only the dev
-     mise task does. */}}
-{{define "livereload"}}{{if .LiveReload}}<script src="{{ asset "/static/livereload.js" }}" defer></script>{{end}}{{end}}
-
-{{define "footerbody"}}
-<div class="row text-center align-items-center flex-row-reverse gy-2">
-  <div class="col-12 col-lg-auto">
-    <span class="text-secondary">MeshTender &mdash; tend your mesh.</span>
-  </div>
-  <div class="col-12 col-lg-auto">
-    <ul class="list-inline list-inline-dots mb-0">
-      <li class="list-inline-item"><a class="link-secondary" href="{{.RootURL}}/docs">Docs</a></li>
-      <li class="list-inline-item"><a class="link-secondary" href="{{.RootURL}}/privacy">Privacy</a></li>
-      <li class="list-inline-item"><a class="link-secondary" href="{{.RootURL}}/terms">Terms</a></li>
-      <li class="list-inline-item"><a class="link-secondary" href="{{.SourceURL}}" rel="noopener">Source</a></li>
-    </ul>
-  </div>
-</div>
-{{end}}
-
-{{/* rootnav is the public/root-host topbar: brand + Organizations, with the
-     sign-in/create-account actions collapsing to a single Dashboard button once
-     signed in (the root identity beacon sets .UserName). Shared by rootbase and
-     landingbase so every root page has an identical topbar. */}}
-{{define "rootnav"}}
-<header class="navbar navbar-expand-md d-print-none">
-  <div class="container-xl">
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar-menu" aria-controls="navbar-menu" aria-expanded="false" aria-label="Toggle navigation">
-      <span class="navbar-toggler-icon"></span>
-    </button>
-    <a href="/" class="navbar-brand navbar-brand-autodark d-flex align-items-center text-reset text-decoration-none pe-0 pe-md-3">
-      {{template "icon-logo" "me-1"}}<span class="fw-bold fs-3">MeshTender</span>
-    </a>
-    <div class="navbar-nav flex-row order-md-last align-items-center gap-2">
-      {{if .UserName}}
-      <a href="{{.AppURL}}/" class="btn">{{template "icon-home" "me-1"}}Dashboard</a>
-      {{else}}
-      <a href="{{.AppURL}}/login" class="btn">{{template "icon-login" "me-1"}}Sign in</a>
-      <a href="{{.AppURL}}/signup" class="btn btn-primary">Create account</a>
-      {{end}}
-    </div>
-    <div class="collapse navbar-collapse" id="navbar-menu">
-      <ul class="navbar-nav">
-        <li class="nav-item">
-          <a class="nav-link" href="/orgs">
-            <span class="nav-link-icon d-md-none d-lg-inline-block">{{template "icon-world" ""}}</span>
-            <span class="nav-link-title">Organizations</span>
-          </a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" href="/docs">
-            <span class="nav-link-icon d-md-none d-lg-inline-block">{{template "icon-help" ""}}</span>
-            <span class="nav-link-title">Docs</span>
-          </a>
-        </li>
-      </ul>
-    </div>
-  </div>
-</header>
-{{end}}
-
-{{/* rootbase is the public/root-host page layout: the shared rootnav topbar plus
-     the standard page chrome (header block, content, footer). The marketing
-     surface defaults to this so every root page matches the rest of the site. */}}
+{{/* rootbase is the public/root-host page layout: the standard page chrome
+     (header block, content, footer). The marketing surface defaults to it. */}}
 {{define "rootbase"}}<!doctype html>
-<html lang="en" data-bs-theme="dark" data-bs-theme-base="zinc" data-bs-theme-primary="blue" data-tz="{{.UserTZ}}" data-carto-key="{{.CartoKey}}" data-maplibre-worker="{{ asset "/static/maplibre-gl-worker.js" }}">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <link rel="icon" href="{{ asset "/static/favicon.svg" }}" type="image/svg+xml">
-  <title>{{template "title" .}}</title>
-  <link rel="stylesheet" href="{{ asset "/static/tabler.min.css" }}">
-  <link rel="stylesheet" href="{{ asset "/static/tabler-themes.min.css" }}">
-  <link rel="stylesheet" href="{{ asset "/static/app.css" }}">
-  <script src="{{ asset "/static/tabler.min.js" }}" defer></script>
-  <script src="{{ asset "/static/htmx.min.js" }}" defer></script>
-  <script src="{{ asset "/static/ui.js" }}" defer></script>
-  {{template "livereload" .}}
-  <script src="{{ asset "/static/listfilter.js" }}" defer></script>
-</head>
+{{template "htmlopen" .}}
 <body>
-  <a href="#main-content" class="visually-hidden-focusable btn btn-primary position-absolute top-0 start-0 m-2" style="z-index:1080">Skip to main content</a>
+  {{template "skiplink"}}
   <div class="page">
-    {{template "rootnav" .}}
+    {{template "topnav" .}}
     <div class="page-wrapper">
       <div class="page-header d-print-none" aria-label="Page header">
         <div class="container-xl">
@@ -222,6 +51,7 @@
       </div>
       <div class="page-body">
         <div class="container-xl" id="main-content" tabindex="-1">
+          {{template "flash" .}}
           {{template "content" .}}
         </div>
       </div>
@@ -235,24 +65,12 @@
 
 {{/* authbase is a standalone, centered layout for the sign-in / sign-up pages —
      no navbar or page chrome, just a brand logo above the page's content card.
-     Pages opt in with {{define "base"}}{{template "authbase" .}}{{end}}.
-     It still carries footerbody: the legal links and the AGPL section 13 source
-     offer are owed on every surface, and someone signing in is as much a user of
-     this server as someone already signed in. */}}
+     Pages opt in with the "Layout":"authbase" render key. It still carries
+     footerbody: the legal links and the AGPL section 13 source offer are owed on
+     every surface, and someone signing in is as much a user of this server as
+     someone already signed in. */}}
 {{define "authbase"}}<!doctype html>
-<html lang="en" data-bs-theme="dark" data-bs-theme-base="zinc" data-bs-theme-primary="blue" data-tz="{{.UserTZ}}" data-carto-key="{{.CartoKey}}" data-maplibre-worker="{{ asset "/static/maplibre-gl-worker.js" }}">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <link rel="icon" href="{{ asset "/static/favicon.svg" }}" type="image/svg+xml">
-  <title>{{template "title" .}}</title>
-  <link rel="stylesheet" href="{{ asset "/static/tabler.min.css" }}">
-  <link rel="stylesheet" href="{{ asset "/static/tabler-themes.min.css" }}">
-  <link rel="stylesheet" href="{{ asset "/static/app.css" }}">
-  <script src="{{ asset "/static/tabler.min.js" }}" defer></script>
-  <script src="{{ asset "/static/ui.js" }}" defer></script>
-  {{template "livereload" .}}
-</head>
+{{template "htmlopen" .}}
 <body class="d-flex flex-column">
   <div class="page page-center">
     <div class="container container-tight py-4">
@@ -261,6 +79,7 @@
           {{template "icon-logo" "me-1"}}<span class="fw-bold fs-2">MeshTender</span>
         </a>
       </div>
+      {{template "flash" .}}
       {{template "content" .}}
       <footer class="footer footer-transparent d-print-none mt-4 footer-centered">{{template "footerbody" .}}</footer>
     </div>
@@ -268,31 +87,144 @@
 </body>
 </html>{{end}}
 
-{{/* landingbase is the public marketing layout: a transparent navbar with
-     sign-in / sign-up actions, the page content, and a simple footer. Pages opt
-     in via the "Layout":"landingbase" render key. */}}
+{{/* landingbase is the public marketing layout: the top nav, the page content,
+     and the footer. Pages opt in via the "Layout":"landingbase" render key. */}}
 {{define "landingbase"}}<!doctype html>
-<html lang="en" data-bs-theme="dark" data-bs-theme-base="zinc" data-bs-theme-primary="blue" data-tz="{{.UserTZ}}" data-carto-key="{{.CartoKey}}" data-maplibre-worker="{{ asset "/static/maplibre-gl-worker.js" }}">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <link rel="icon" href="{{ asset "/static/favicon.svg" }}" type="image/svg+xml">
-  <title>{{template "title" .}}</title>
-  <link rel="stylesheet" href="{{ asset "/static/tabler.min.css" }}">
-  <link rel="stylesheet" href="{{ asset "/static/tabler-themes.min.css" }}">
-  <link rel="stylesheet" href="{{ asset "/static/app.css" }}">
-  <script src="{{ asset "/static/tabler.min.js" }}" defer></script>
-  <script src="{{ asset "/static/ui.js" }}" defer></script>
-  {{template "livereload" .}}
-</head>
+{{template "htmlopen" .}}
 <body>
-  {{template "rootnav" .}}
+  {{template "topnav" .}}
+  {{if or .FlashOK .FlashError}}<div class="container-xl mt-3">{{template "flash" .}}</div>{{end}}
   {{template "content" .}}
   <footer class="footer footer-transparent">
     <div class="container">{{template "footerbody" .}}</div>
   </footer>
 </body>
 </html>{{end}}
+
+{{/* htmlopen is every layout's <html> element and <head>. The theme attributes
+     pick the palette tabler-themes.min.css supplies: data-bs-theme-base="zinc"
+     (Tabler 1.6+ defaults to neutral) and a blue primary. */}}
+{{define "htmlopen"}}<html lang="en" data-bs-theme="dark" data-bs-theme-base="zinc" data-bs-theme-primary="blue" data-tz="{{.UserTZ}}" data-carto-key="{{.CartoKey}}" data-maplibre-worker="{{ asset "/static/maplibre-gl-worker.js" }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <link rel="icon" href="{{ asset "/static/favicon.svg" }}" type="image/svg+xml">
+  <title>{{block "title" .}}MeshTender{{end}}</title>
+  <link rel="stylesheet" href="{{ asset "/static/tabler.min.css" }}">
+  <link rel="stylesheet" href="{{ asset "/static/tabler-themes.min.css" }}">
+  <link rel="stylesheet" href="{{ asset "/static/app.css" }}">
+  <script src="{{ asset "/static/tabler.min.js" }}" defer></script>
+  <script src="{{ asset "/static/htmx.min.js" }}" defer></script>
+  <script src="{{ asset "/static/ui.js" }}" defer></script>
+  {{template "livereload" .}}
+  <script src="{{ asset "/static/listfilter.js" }}" defer></script>
+</head>{{end}}
+
+{{define "skiplink"}}<a href="#main-content" class="visually-hidden-focusable btn btn-primary position-absolute top-0 start-0 m-2" style="z-index:1080">Skip to main content</a>{{end}}
+
+{{/* topnav is the one top bar on every host. Signed in, it's the app's sections
+     (links are absolute, since sessions are per host) with the current one
+     marked (.NavActive, from web.navSection) and the user menu; signed out, it's
+     the public pages and sign-in. The root host has no /logout (it's GET-only, see
+     docs/auth-cross-host.md), so there the user menu has no Sign out. */}}
+{{define "topnav"}}
+<header class="navbar navbar-expand-md d-print-none">
+  <div class="container-xl">
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar-menu" aria-controls="navbar-menu" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <a href="{{if .UserName}}{{.AppURL}}{{else}}{{.RootURL}}{{end}}/" class="navbar-brand navbar-brand-autodark d-flex align-items-center text-reset text-decoration-none pe-0 pe-md-3">
+      {{template "icon-logo" "me-1"}}<span class="fw-bold fs-3">MeshTender</span>
+    </a>
+    <div class="navbar-nav flex-row order-md-last align-items-center gap-2">
+      {{if .UserName}}
+      <div class="nav-item dropdown">
+        {{/* A real <button>, not an anchor: it opens a menu rather than going
+             anywhere. As an <a href="#"> it was announced as a link, appended # to
+             the URL when used, and ignored the Space key (links only respond to
+             Enter). .nav-link already zeroes background/border. */}}
+        <button type="button" class="nav-link d-flex lh-1 p-0 px-2" data-bs-toggle="dropdown" aria-label="Open user menu">
+          <span class="avatar avatar-sm">{{template "icon-user" ""}}</span>
+          <div class="d-none d-xl-block ps-2"><div>{{.UserName}}</div></div>
+        </button>
+        <div class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
+          <a class="dropdown-item" href="{{.AuthURL}}/account">{{template "icon-settings" "dropdown-item-icon"}}Account settings</a>
+          {{if .LogoutURL}}
+          <div class="dropdown-divider"></div>
+          <form method="post" action="{{.LogoutURL}}" class="m-0" data-testid="logout-form">
+            <button type="submit" class="dropdown-item">{{template "icon-logout" "dropdown-item-icon"}}Sign out</button>
+          </form>
+          {{end}}
+        </div>
+      </div>
+      {{else}}
+      <a href="{{.AppURL}}/login" class="btn">{{template "icon-login" "me-1"}}Sign in</a>
+      <a href="{{.AppURL}}/signup" class="btn btn-primary d-none d-sm-inline-flex">Create account</a>
+      {{end}}
+    </div>
+    <div class="collapse navbar-collapse" id="navbar-menu">
+      <ul class="navbar-nav" data-testid="topnav">
+        {{if .UserName}}
+        {{template "topnav-item" (dict "Page" . "Section" "dashboard" "Href" (printf "%s/" .AppURL) "Icon" "home" "Label" "Dashboard")}}
+        {{template "topnav-item" (dict "Page" . "Section" "repeaters" "Href" (printf "%s/repeaters" .AppURL) "Icon" "antenna" "Label" "Repeaters")}}
+        {{template "topnav-item" (dict "Page" . "Section" "companions" "Href" (printf "%s/companions" .AppURL) "Icon" "radio" "Label" "Companions")}}
+        {{template "topnav-item" (dict "Page" . "Section" "organizations" "Href" (printf "%s/orgs" .AppURL) "Icon" "world" "Label" "Organizations")}}
+        {{else}}
+        {{template "topnav-item" (dict "Page" . "Section" "organizations" "Href" (printf "%s/orgs" .RootURL) "Icon" "world" "Label" "Organizations")}}
+        {{end}}
+        {{template "topnav-item" (dict "Page" . "Section" "docs" "Href" (printf "%s/docs" .RootURL) "Icon" "help" "Label" "Docs")}}
+        {{if .CanAdmin}}
+        {{template "topnav-item" (dict "Page" . "Section" "admin" "Href" (printf "%s/admin" .AppURL) "Icon" "settings" "Label" "Admin")}}
+        {{end}}
+      </ul>
+    </div>
+  </div>
+</header>
+{{end}}
+
+{{/* topnav-item is one top-nav link, marked active (Tabler underlines an active
+     .nav-item) when .Section is the page's. Data: dict Page, Section, Href, Icon,
+     Label. */}}
+{{define "topnav-item"}}
+{{$active := eq .Page.NavActive .Section}}
+<li class="nav-item{{if $active}} active{{end}}">
+  <a class="nav-link" href="{{.Href}}"{{if $active}} aria-current="page"{{end}}>
+    <span class="nav-link-icon d-md-none d-lg-inline-block">{{template "topnav-icon" .Icon}}</span>
+    <span class="nav-link-title">{{.Label}}</span>
+  </a>
+</li>
+{{end}}
+
+{{/* topnav-icon picks a nav icon by name (template names can't be computed). */}}
+{{define "topnav-icon"}}{{if eq . "home"}}{{template "icon-home" ""}}{{else if eq . "antenna"}}{{template "icon-antenna" ""}}{{else if eq . "radio"}}{{template "icon-radio" ""}}{{else if eq . "world"}}{{template "icon-world" ""}}{{else if eq . "help"}}{{template "icon-help" ""}}{{else if eq . "settings"}}{{template "icon-settings" ""}}{{end}}{{end}}
+
+{{/* flash shows a redirect's one-shot message (web.RedirectOK / RedirectErr:
+     ?ok= / ?error=, read by the renderer into .FlashOK / .FlashError) above the
+     page content, on every layout. A form's own validation error is the form's
+     to show, next to it. */}}
+{{define "flash"}}
+{{with .FlashError}}<div class="alert alert-danger alert-dismissible" role="alert" data-testid="flash-error"><div>{{.}}</div><a class="btn-close" data-bs-dismiss="alert" aria-label="Close"></a></div>{{end}}
+{{with .FlashOK}}<div class="alert alert-success alert-dismissible" role="alert" data-testid="flash-ok"><div>{{.}}</div><a class="btn-close" data-bs-dismiss="alert" aria-label="Close"></a></div>{{end}}
+{{end}}
+
+{{/* livereload pulls in the dev server's auto-refresh (web.WithLiveReload). It
+     renders nothing unless MESHTENDER_LIVE_RELOAD is set, which only the dev
+     mise task does. */}}
+{{define "livereload"}}{{if .LiveReload}}<script src="{{ asset "/static/livereload.js" }}" defer></script>{{end}}{{end}}
+
+{{/* footerbody is the one footer used by every layout, so the legal links can't
+     go missing on a surface. /privacy and /terms are served by the root host
+     only, hence absolute URLs: the app and auth hosts have no such routes.
+     The source link is the AGPL section 13 offer — the source of the program
+     you are interacting with, reachable from every page. */}}
+{{define "footerbody"}}
+<ul class="list-inline list-inline-dots mb-0 text-center">
+  <li class="list-inline-item"><a class="link-secondary" href="{{.RootURL}}/docs">Docs</a></li>
+  <li class="list-inline-item"><a class="link-secondary" href="{{.RootURL}}/privacy">Privacy</a></li>
+  <li class="list-inline-item"><a class="link-secondary" href="{{.RootURL}}/terms">Terms</a></li>
+  <li class="list-inline-item"><a class="link-secondary" href="{{.SourceURL}}" rel="noopener">Source</a></li>
+</ul>
+{{end}}
 
 {{/* revokedoc explains how to revoke MeshTender's access. Dot is the revoke command string. */}}
 {{define "revokedoc"}}

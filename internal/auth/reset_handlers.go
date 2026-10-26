@@ -15,7 +15,6 @@ import (
 func (s *Handlers) pageForgot(w http.ResponseWriter, r *http.Request) {
 	s.Render(w, r, "forgot.html", map[string]any{
 		"Layout": "authbase",
-		"Error":  r.URL.Query().Get("error"),
 		// Sent switches the page to the confirmation panel. It's a query flag rather
 		// than a distinct URL so the POST can redirect (no re-submit on refresh) and
 		// still say the same thing regardless of what was submitted.
@@ -48,7 +47,7 @@ func (s *Handlers) handleForgot(addrLimit web.KeyLimiter) http.HandlerFunc {
 			// nothing about whether the account exists: we'd show it just the same for
 			// an address with no account if the provider were down.
 			web.LogError(r, "password reset send failed", err)
-			web.RedirectFlash(w, r, "/forgot", "error",
+			web.RedirectErr(w, r, "/forgot",
 				"We couldn't send the email just now. Please try again in a few minutes.")
 			return
 		}
@@ -121,7 +120,7 @@ func (s *Handlers) handleReset(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, ErrResetNotAllowed):
 		// The account shed its password between the link being sent and used, so there
 		// is nothing to reset and email must not create one.
-		web.RedirectFlash(w, r, "/login", "error",
+		web.RedirectErr(w, r, "/login",
 			"That account no longer has a password — sign in with your passkey instead.")
 		return
 	case err != nil:
@@ -133,7 +132,7 @@ func (s *Handlers) handleReset(w http.ResponseWriter, r *http.Request) {
 	// Deliberately not signed in here: every login was just revoked, and landing on
 	// the sign-in page proves the new password actually works while the user still has
 	// it in mind.
-	web.RedirectFlash(w, r, "/login", "ok",
+	web.RedirectOK(w, r, "/login",
 		"Password updated. Sign in with your new password.")
 }
 

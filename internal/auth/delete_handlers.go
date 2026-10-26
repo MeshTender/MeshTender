@@ -42,7 +42,6 @@ func (s *Handlers) pageDeleteAccount(w http.ResponseWriter, r *http.Request) {
 		"HasPasskeys": preview.Passkeys > 0,
 		// Repeater transfer lives on the app host, so links out need its origin.
 		"AppOrigin": s.Auth.AppOrigin(r),
-		"Error":     r.URL.Query().Get("error"),
 	})
 }
 
@@ -101,5 +100,5 @@ func (s *Handlers) handleDeleteAccount(w http.ResponseWriter, r *http.Request) {
 // holding a cookie for an account that no longer exists.
 func (s *Handlers) finishDeletion(w http.ResponseWriter, r *http.Request) {
 	_ = s.Auth.Logout(r.Context())
-	web.RedirectFlash(w, r, "/login", "ok", "Your account and everything in it have been deleted.")
+	web.RedirectOK(w, r, "/login", "Your account and everything in it have been deleted.")
 }

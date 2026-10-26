@@ -59,4 +59,8 @@ func TestTimeElement(t *testing.T) {
 	if s := string(TimeElement(ts, "time-seconds")); !strings.Contains(s, "20:04:05 UTC") {
 		t.Errorf("time-seconds kind = %q", s)
 	}
+	// relative keeps its kind for ui.js and falls back to the full time.
+	if r := string(TimeElement(ts, "relative")); !strings.Contains(r, `data-fmt="relative"`) || !strings.Contains(r, "Jul 5, 2026, 20:04 UTC") {
+		t.Errorf("relative kind = %q", r)
+	}
 }

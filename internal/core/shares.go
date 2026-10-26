@@ -65,7 +65,6 @@ func (s *Handlers) pageShare(w http.ResponseWriter, r *http.Request) {
 		// Stated in the copy so an owner knows a link is time-boxed before handing it
 		// out. Derived from the store's TTL so the two can't disagree.
 		"InviteTTLDays": inviteTTLDays,
-		"Error":         r.URL.Query().Get("error"),
 	})
 }
 

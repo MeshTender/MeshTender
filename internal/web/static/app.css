@@ -261,3 +261,8 @@ code.pubkey {
 :root {
   scrollbar-gutter: stable;
 }
+
+/* A copy button (ui.js data-copy*) that just copied: green for a moment. */
+[data-copied] {
+  color: var(--tblr-success) !important;
+}

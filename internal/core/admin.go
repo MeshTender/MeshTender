@@ -164,7 +164,6 @@ func (s *Handlers) pageUsers(w http.ResponseWriter, r *http.Request) {
 	data := map[string]any{
 		"Users": users,
 		"Self":  s.Auth.CurrentUserID(r.Context()),
-		"Error": q.Get("error"),
 		"Sort":  string(sortKey),
 		"Cap":   string(capFilter),
 		"Query": query,

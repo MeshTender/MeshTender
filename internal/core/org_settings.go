@@ -102,8 +102,6 @@ func (s *Handlers) settingsData(ctx context.Context, r *http.Request, org *store
 		"Org":     org,
 		"Nav":     s.orgNav(ctx, org, "settings-"+section, true),
 		"Section": section,
-		"Error":   r.URL.Query().Get("error"),
-		"OK":      r.URL.Query().Get("ok"),
 	}
 	switch section {
 	case "profile":

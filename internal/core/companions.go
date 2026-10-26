@@ -33,7 +33,6 @@ func (s *Handlers) pageCompanions(w http.ResponseWriter, r *http.Request) {
 		"Companions": companions,
 		"Max":        store.MaxCompanionsPerUser,
 		"TTLHours":   int(store.UnconfirmedCompanionTTL.Hours()),
-		"Error":      r.URL.Query().Get("error"),
 	})
 }
 

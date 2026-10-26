@@ -36,16 +36,13 @@ func (s *Handlers) pageMyOrgs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Render(w, r, "my_orgs.html", map[string]any{
-		"Orgs":  mine,
-		"Error": r.URL.Query().Get("error"),
+		"Orgs": mine,
 	})
 }
 
 // pageNewOrg renders the standalone "create an organization" form.
 func (s *Handlers) pageNewOrg(w http.ResponseWriter, r *http.Request) {
-	s.Render(w, r, "new_org.html", map[string]any{
-		"Error": r.URL.Query().Get("error"),
-	})
+	s.Render(w, r, "new_org.html", map[string]any{})
 }
 
 // handleCreateOrg creates an org with the current user as its first admin.
@@ -177,7 +174,6 @@ func (s *Handlers) pageOrgMembers(w http.ResponseWriter, r *http.Request) {
 		"IsAdmin": role == "admin",
 		"Members": members,
 		"Self":    uid,
-		"Error":   r.URL.Query().Get("error"),
 	})
 }
 
@@ -257,7 +253,7 @@ func (s *Handlers) handleEditOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// The slug may have changed; land on the new canonical URL.
-	web.RedirectFlash(w, r, settingsURL(entered.Slug, "profile"), "ok", "Profile saved.")
+	web.RedirectOK(w, r, settingsURL(entered.Slug, "profile"), "Profile saved.")
 }
 
 // handleSetOrgLinks replaces an org's whole set of social/site links from the
@@ -360,7 +356,7 @@ func (s *Handlers) handleSetOrgLinks(w http.ResponseWriter, r *http.Request) {
 		fail("Could not save links.")
 		return
 	}
-	web.RedirectFlash(w, r, settingsURL(orgParam(r), "profile"), "ok", "Links saved.")
+	web.RedirectOK(w, r, settingsURL(orgParam(r), "profile"), "Links saved.")
 }
 
 // requireOrgAdmin resolves {id} and verifies the current user is an org admin.

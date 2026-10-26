@@ -2,8 +2,6 @@
 {{define "header"}}{{template "org-header" .}}{{end}}
 {{define "content"}}
 {{template "org-tabs" .Nav}}
-{{if .Error}}<div class="alert alert-danger" role="alert"><div>{{.Error}}</div></div>{{end}}
-{{if .OK}}<div class="alert alert-success" role="alert"><div>{{.OK}}</div></div>{{end}}
 
 <ol class="breadcrumb mb-2" aria-label="Breadcrumb">
   <li class="breadcrumb-item"><a href="/orgs/{{.Org.Slug}}/nets">Nets</a></li>

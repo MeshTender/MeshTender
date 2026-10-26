@@ -175,8 +175,6 @@ func (s *Handlers) pageLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	s.Render(w, r, "login.html", map[string]any{
 		"Layout": "authbase",
-		"Error":  r.URL.Query().Get("error"),
-		"OK":     r.URL.Query().Get("ok"),
 		"Next":   r.URL.Query().Get("next"),
 		// Gates the "Forgot password?" link — there's no point offering recovery on a
 		// deployment that can't send mail.
@@ -194,7 +192,6 @@ func (s *Handlers) pageSignup(w http.ResponseWriter, r *http.Request) {
 	}
 	s.Render(w, r, "signup.html", map[string]any{
 		"Layout": "authbase",
-		"Error":  r.URL.Query().Get("error"),
 		"Next":   r.URL.Query().Get("next"),
 		// Stated in the form and used as minlength, so the client hint can't drift
 		// from the server's floor.

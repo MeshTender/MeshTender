@@ -2,13 +2,11 @@
 {{define "header"}}
 <div class="row g-2 align-items-center">
   <div class="col">
-    <div class="page-pretitle">Your radios</div>
     <h1 class="page-title fs-1">Companions</h1>
   </div>
 </div>
 {{end}}
 {{define "content"}}
-{{if .Error}}<div class="alert alert-danger" role="alert"><div>{{.Error}}</div></div>{{end}}
 
 <div class="row row-cards">
   <div class="col-lg-8">
@@ -21,7 +19,7 @@
             <span class="fw-bold">{{.Name}}</span>
             {{if .Confirmed}}<span class="badge bg-green-lt">Confirmed</span>{{else}}<span class="badge bg-yellow-lt">Waiting for an advert</span>{{end}}
             <span class="ms-auto text-secondary">
-              {{if .LastHeardAt}}Last heard {{ts .LastHeardAt "datetime"}}{{else}}Not heard yet{{end}}
+              {{if .LastHeardAt}}Last heard {{ts .LastHeardAt "relative"}}{{else}}Not heard yet{{end}}
             </span>
           </div>
           <div class="text-secondary font-monospace small">{{slice .PublicKeyHex 0 16}}…</div>

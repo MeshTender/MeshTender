@@ -56,7 +56,6 @@
 {{define "users-frag"}}{{template "user-rows" .}}{{if .NextCursor}}{{template "user-more" .}}{{end}}{{end}}
 
 {{define "content"}}
-{{if .Error}}<div class="alert alert-danger">{{.Error}}</div>{{end}}
 <div class="row row-cards">
   {{/* Search/filters come FIRST in the DOM and move to the right of the list at lg
        (order-lg-last). Source order governs both the mobile stack and the tab order,

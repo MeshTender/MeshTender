@@ -38,7 +38,7 @@ func (s *Handlers) handleSetRadio(w http.ResponseWriter, r *http.Request) {
 			s.ServerError(w, r, "could not clear radio settings", err)
 			return
 		}
-		web.RedirectFlash(w, r, back, "ok", "Radio settings cleared.")
+		web.RedirectOK(w, r, back, "Radio settings cleared.")
 		return
 	}
 	radio, ok := parseRadio(r)
@@ -53,5 +53,5 @@ func (s *Handlers) handleSetRadio(w http.ResponseWriter, r *http.Request) {
 		s.ServerError(w, r, "could not save radio settings", err)
 		return
 	}
-	web.RedirectFlash(w, r, back, "ok", "Radio settings saved.")
+	web.RedirectOK(w, r, back, "Radio settings saved.")
 }

@@ -53,7 +53,6 @@ func (s *Handlers) pageAddRepeater(w http.ResponseWriter, r *http.Request) {
 		"RevokeCommand":  s.Identity.RevokePermCommand(),
 		"Radio":          newRadioFields(defaultRadio(), true),
 		"RadioSerial":    newRadioFields(defaultRadio(), false), // serial-setup.js reads the fields by id
-		"Error":          r.URL.Query().Get("error"),
 	}
 	if step == "serial" {
 		orgs := s.setupOrgOptions(r)
@@ -102,8 +101,6 @@ func (s *Handlers) pageRepeater(w http.ResponseWriter, r *http.Request) {
 		"Nav":        web.RepeaterNav(rep.PublicID, rep.Name, rep.OwnerName(), isOwner, "overview"),
 		"Radio":      radio,
 		"ContactURI": contactURI,
-		"Error":      r.URL.Query().Get("error"),
-		"OK":         r.URL.Query().Get("ok"),
 	}
 	// When the owner has published a public page, surface its link plus a QR code
 	// for it.
@@ -260,7 +257,6 @@ func (s *Handlers) pageEditRepeater(w http.ResponseWriter, r *http.Request) {
 		"Repeater":      rep,
 		"Radio":         newRadioFields(config.RadioDefaults{FreqHz: uint32(rep.RadioFreqHz), BwHz: uint32(rep.RadioBwHz), SF: uint8(rep.RadioSF), CR: uint8(rep.RadioCR)}, true), //nolint:gosec // G115: radio config value is bounded (preset-constrained)
 		"RevokeCommand": s.Identity.RevokePermCommand(),
-		"Error":         r.URL.Query().Get("error"),
 	})
 }
 

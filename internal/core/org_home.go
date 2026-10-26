@@ -113,7 +113,6 @@ func (s *Handlers) renderOrgHome(w http.ResponseWriter, r *http.Request, org *st
 		"Radio":         radio,
 		"Config":        config,
 		"MapPoints":     reps.MapPoints,
-		"Error":         r.URL.Query().Get("error"),
 	}
 	if radio != nil {
 		data["Preset"] = presetName(*radio)

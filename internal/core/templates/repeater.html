@@ -2,8 +2,6 @@
 {{define "header"}}{{template "repeater-header" .Nav}}{{end}}
 {{define "content"}}
 {{template "repeater-tabs" .Nav}}
-{{if .Error}}<div class="alert alert-danger">{{.Error}}</div>{{end}}
-{{if .OK}}<div class="alert alert-success">{{.OK}}</div>{{end}}
 
 <div class="row row-cards">
   <!-- Left column -->

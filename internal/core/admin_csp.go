@@ -59,7 +59,6 @@ func (s *Handlers) pageCSPReports(w http.ResponseWriter, r *http.Request) {
 		// Clearing is destructive, so the button only renders for the capability
 		// that already governs granting capabilities (see the route table).
 		"CanClear": u.CapManageUsers,
-		"Flash":    r.URL.Query().Get("flash"),
 	})
 }
 
@@ -93,5 +92,5 @@ func (s *Handlers) handleClearCSPReports(w http.ResponseWriter, r *http.Request)
 	if n == 1 {
 		noun = "violation"
 	}
-	web.RedirectFlash(w, r, back, "flash", fmt.Sprintf("%d %s cleared.", n, noun))
+	web.RedirectOK(w, r, back, fmt.Sprintf("%d %s cleared.", n, noun))
 }

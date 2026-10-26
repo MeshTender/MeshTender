@@ -109,7 +109,7 @@ func (s *Handlers) handleSaveOrgBroker(w http.ResponseWriter, r *http.Request) {
 		s.ServerError(w, r, "Couldn't save the broker.", err)
 		return
 	}
-	web.RedirectFlash(w, r, mqttURL(r), "ok", "Broker saved. MeshTender connects within a minute.")
+	web.RedirectOK(w, r, mqttURL(r), "Broker saved. MeshTender connects within a minute.")
 }
 
 func (s *Handlers) handleDeleteOrgBroker(w http.ResponseWriter, r *http.Request) {
@@ -121,7 +121,7 @@ func (s *Handlers) handleDeleteOrgBroker(w http.ResponseWriter, r *http.Request)
 		s.ServerError(w, r, "Couldn't remove the broker.", err)
 		return
 	}
-	web.RedirectFlash(w, r, mqttURL(r), "ok", "Broker removed.")
+	web.RedirectOK(w, r, mqttURL(r), "Broker removed.")
 }
 
 // handleTestOrgBroker connects to the saved broker once (address guard and all)
@@ -157,7 +157,7 @@ func (s *Handlers) handleTestOrgBroker(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	client.Disconnect(250)
-	web.RedirectFlash(w, r, mqttURL(r), "ok", "Connected to the broker.")
+	web.RedirectOK(w, r, mqttURL(r), "Connected to the broker.")
 }
 
 func (s *Handlers) handleAddOrgObserver(w http.ResponseWriter, r *http.Request) {

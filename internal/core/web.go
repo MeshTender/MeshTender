@@ -372,7 +372,6 @@ func (s *Handlers) pageRepeaters(w http.ResponseWriter, r *http.Request) {
 	s.Render(w, r, "repeaters.html", map[string]any{
 		"Repeaters":   combined,
 		"ShareCounts": shareCounts,
-		"Error":       r.URL.Query().Get("error"),
 	})
 }
 
@@ -531,7 +530,6 @@ func (s *Handlers) pageDashboard(w http.ResponseWriter, r *http.Request) {
 		"Onboarding":      steps,
 		"OnboardingDone":  doneCount,
 		"OnboardingTotal": total,
-		"Error":           r.URL.Query().Get("error"),
 	})
 }
 

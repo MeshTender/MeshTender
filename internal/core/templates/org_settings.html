@@ -7,8 +7,6 @@
 {{define "header"}}{{template "org-header" .}}{{end}}
 {{define "content"}}
 {{template "settings-layout-open" .Nav}}
-{{if .Error}}<div class="alert alert-danger" role="alert"><div>{{.Error}}</div></div>{{end}}
-{{if .OK}}<div class="alert alert-success" role="alert" data-testid="settings-ok"><div>{{.OK}}</div></div>{{end}}
 {{if eq .Section "profile"}}{{template "settings-profile" .}}
 {{else if eq .Section "regions"}}{{template "settings-regions" .}}
 {{else if eq .Section "profiles"}}{{template "settings-profiles" .}}

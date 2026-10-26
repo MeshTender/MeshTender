@@ -45,7 +45,6 @@ func (s *Handlers) pageTransferRepeater(w http.ResponseWriter, r *http.Request) 
 		"Repeater": rep,
 		"Nav":      web.RepeaterNav(rep.PublicID, rep.Name, rep.OwnerName(), true, "sharing"),
 		"Stewards": stewards,
-		"Error":    r.URL.Query().Get("error"),
 	}
 	if r.Header.Get("HX-Request") != "" {
 		data["Layout"] = "transfer-modal"
@@ -83,7 +82,7 @@ func (s *Handlers) handleTransferRepeater(w http.ResponseWriter, r *http.Request
 	default:
 		// The outgoing owner keeps access as a steward, so the repeater page still
 		// renders for them — the right place to see the handover took effect.
-		web.RedirectFlash(w, r, "/repeaters/"+repeaterParam(r), "ok",
+		web.RedirectOK(w, r, "/repeaters/"+repeaterParam(r),
 			"Ownership transferred. You're now a steward of this repeater.")
 	}
 }

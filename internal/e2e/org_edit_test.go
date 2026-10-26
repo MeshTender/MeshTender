@@ -36,7 +36,7 @@ func TestE2EOrgProfileSettingsSave(t *testing.T) {
 		chromedp.Value(`#org_name`, &name, chromedp.ByQuery),
 		chromedp.SetValue(`#org_region`, "Buffalo, NY", chromedp.ByQuery),
 		chromedp.Click(`[data-testid="save-profile-settings"]`, chromedp.ByQuery),
-		chromedp.WaitVisible(`[data-testid="settings-ok"]`, chromedp.ByQuery),
+		chromedp.WaitVisible(`[data-testid="flash-ok"]`, chromedp.ByQuery),
 	); err != nil {
 		t.Fatalf("browser run against %s: %v", settingsURL, err)
 	}
@@ -121,7 +121,7 @@ func TestE2EOrgLinksSettingsAddRow(t *testing.T) {
 		chromedp.Evaluate(countRows, &after),
 		chromedp.SetValue(`[data-testid="settings-links"] .link-row:last-child .link-value`, "https://example.org", chromedp.ByQuery),
 		chromedp.Click(`[data-testid="save-links"]`, chromedp.ByQuery),
-		chromedp.WaitVisible(`[data-testid="settings-ok"]`, chromedp.ByQuery),
+		chromedp.WaitVisible(`[data-testid="flash-ok"]`, chromedp.ByQuery),
 	); err != nil {
 		t.Fatalf("browser run against %s: %v", settingsURL, err)
 	}

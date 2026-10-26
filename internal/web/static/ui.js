@@ -68,7 +68,7 @@
 
   // --- timestamp localization ---------------------------------------------
   // The server emits <time datetime="<RFC3339 UTC>" data-fmt="date|datetime|
-  // time|time-seconds">UTC fallback</time>. We reformat each into the viewer's
+  // time|time-seconds|relative">UTC fallback</time>. We reformat each into the viewer's
   // locale (via Intl, with an undefined locale = the browser's) and time zone:
   // the user's saved IANA zone from <html data-tz>, or — when unset — the
   // browser's own zone (achieved by omitting timeZone so Intl uses local).
@@ -110,9 +110,43 @@
       var el = els[i];
       var d = new Date(el.getAttribute("datetime"));
       if (isNaN(d.getTime())) continue; // leave the server fallback in place
-      el.textContent = tsFormatter(el.getAttribute("data-fmt")).format(d);
+      var kind = String(el.getAttribute("data-fmt"));
+      if (kind === "relative") {
+        el.textContent = relativeText(d);
+        el.title = tsFormatter("datetime").format(d);
+      } else {
+        el.textContent = tsFormatter(kind).format(d);
+      }
     }
   }
+
+  // relativeText is "just now", "5 min ago", "in 2 hours", "yesterday"… for a
+  // recent or near-future instant, and the date once it's more than a week
+  // away, where "23 days ago" stops being useful.
+  var RELATIVE_STEPS = [
+    ["second", 60], ["minute", 60], ["hour", 24], ["day", 7],
+  ];
+  var relativeFmt = null;
+  function relativeText(d) {
+    var secs = (d.getTime() - Date.now()) / 1000;
+    if (Math.abs(secs) < 45) return "just now";
+    if (!relativeFmt && window.Intl && Intl.RelativeTimeFormat) {
+      relativeFmt = new Intl.RelativeTimeFormat(undefined, { numeric: "auto", style: "short" });
+    }
+    var value = secs;
+    for (var i = 0; i < RELATIVE_STEPS.length; i++) {
+      var unit = RELATIVE_STEPS[i][0], size = RELATIVE_STEPS[i][1];
+      if (Math.abs(value) < size && relativeFmt) return relativeFmt.format(Math.round(value), unit);
+      value /= size;
+    }
+    return tsFormatter("date").format(d);
+  }
+
+  // Relative times drift as the page sits open; refresh them each minute.
+  setInterval(function () {
+    var els = document.querySelectorAll('time[data-fmt="relative"][datetime]');
+    if (els.length) formatTimes(document);
+  }, 60000);
 
   // Exposed so views that inject timestamped nodes outside htmx (e.g. a
   // WebSocket log) can localize them: window.MeshtenderFormatTimes(node).
@@ -217,7 +251,13 @@
           text = target.tagName === "INPUT" || target.tagName === "TEXTAREA" ? target.value : target.textContent;
         }
       }
-      if (text != null && navigator.clipboard) navigator.clipboard.writeText(text);
+      if (text != null && navigator.clipboard) {
+        navigator.clipboard.writeText(text).then(function () {
+          // Brief confirmation: the button turns green (app.css [data-copied]).
+          copyBtn.setAttribute("data-copied", "");
+          setTimeout(function () { copyBtn.removeAttribute("data-copied"); }, 1500);
+        });
+      }
     }
   });
 

@@ -82,3 +82,51 @@ func TestE2ETimestampLocalizesToUserZone(t *testing.T) {
 	}
 	watch.assertClean(t)
 }
+
+// TestE2ERelativeTimestamp: a "relative" <time> reads like "3 min. ago" (what
+// the browser's own Intl.RelativeTimeFormat says, so the assertion is
+// locale-independent), with the exact time as its hover title.
+func TestE2ERelativeTimestamp(t *testing.T) {
+	srv := newE2EServer(t)
+	user, cookie := srv.login(t, "reltime")
+	c, err := srv.store.CreateCompanion(srv.ctx, user.ID, "Rel T1", strings.Repeat("cd", 32))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := srv.store.Pool().Exec(srv.ctx, `UPDATE companions SET last_heard_at = $2 WHERE id = $1`,
+		c.ID, time.Now().Add(-3*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+
+	bctx, cancel, watch := startBrowser(t)
+	defer cancel()
+	var res struct {
+		Text     string `json:"text"`
+		Expected string `json:"expected"`
+		Title    string `json:"title"`
+	}
+	if err := chromedp.Run(bctx,
+		network.Enable(),
+		cdplog.Enable(),
+		setSessionCookie(cookie),
+		chromedp.Navigate(srv.appURL+"/companions"),
+		chromedp.WaitReady(`time[data-fmt="relative"]`, chromedp.ByQuery),
+		chromedp.Evaluate(`(function () {
+			var el = document.querySelector('time[data-fmt="relative"]');
+			return {
+				text: el.textContent,
+				title: el.title,
+				expected: new Intl.RelativeTimeFormat(undefined, {numeric: 'auto', style: 'short'}).format(-3, 'minute')
+			};
+		})()`, &res),
+	); err != nil {
+		t.Fatal(err)
+	}
+	if res.Text != res.Expected {
+		t.Errorf("relative time reads %q, want %q", res.Text, res.Expected)
+	}
+	if res.Title == "" || res.Title == res.Text {
+		t.Errorf("hover title = %q, want the exact time", res.Title)
+	}
+	watch.assertClean(t)
+}

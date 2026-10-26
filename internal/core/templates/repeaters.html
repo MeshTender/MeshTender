@@ -2,7 +2,6 @@
 {{define "header"}}
 <div class="row g-2 align-items-center">
   <div class="col">
-    <div class="page-pretitle">Your equipment</div>
     <h1 class="page-title fs-1">Repeaters</h1>
   </div>
   <div class="col-auto ms-auto d-print-none">
@@ -11,7 +10,6 @@
 </div>
 {{end}}
 {{define "content"}}
-{{if .Error}}<div class="alert alert-danger" role="alert">{{.Error}}</div>{{end}}
 
 {{if .Repeaters}}
 <div class="row row-cards" data-filter-root>

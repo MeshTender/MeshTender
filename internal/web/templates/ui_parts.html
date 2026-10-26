@@ -1,0 +1,29 @@
+{{/* Small shared pieces of UI, so each kind of thing looks the same on every
+     page. */}}
+
+{{/* empty-state is what a page or list shows when it has nothing yet: a title,
+     one line saying what goes here (or what to do), and optionally the action
+     that fills it. Compact suits the inside of a card; without it, it's Tabler's
+     full-size .empty for an empty page. Data: dict Title, Line, and optionally
+     ActionHref, ActionLabel, Compact, TestID. */}}
+{{define "empty-state"}}
+{{if .Compact}}
+<div class="card-body text-center py-4"{{with .TestID}} data-testid="{{.}}"{{end}}>
+  <div class="fw-bold">{{.Title}}</div>
+  {{with .Line}}<div class="text-secondary small">{{.}}</div>{{end}}
+  {{with .ActionHref}}<a class="btn btn-sm mt-2" href="{{.}}">{{template "icon-plus" "me-1"}}{{$.ActionLabel}}</a>{{end}}
+</div>
+{{else}}
+<div class="empty"{{with .TestID}} data-testid="{{.}}"{{end}}>
+  <p class="empty-title">{{.Title}}</p>
+  {{with .Line}}<p class="empty-subtitle text-secondary">{{.}}</p>{{end}}
+  {{with .ActionHref}}<div class="empty-action"><a class="btn btn-primary" href="{{.}}">{{template "icon-plus" "me-1"}}{{$.ActionLabel}}</a></div>{{end}}
+</div>
+{{end}}
+{{end}}
+
+{{/* pubkey shows a MeshCore public key the same way everywhere: its first 8 hex
+     digits (enough to tell keys apart at a glance; the full key is the title)
+     and a copy button for the whole key. The button sits above a row's
+     .stretched-link, so it can live in a clickable row. Pass the 64-hex key. */}}
+{{define "pubkey"}}<span class="d-inline-flex align-items-center"><span class="font-monospace" title="{{.}}">{{if gt (len .) 8}}{{slice . 0 8}}…{{else}}{{.}}{{end}}</span><button type="button" class="btn btn-sm btn-ghost-secondary btn-icon position-relative ms-1 p-0" style="z-index:2" data-copy="{{.}}" aria-label="Copy public key" title="Copy public key">{{template "icon-copy" ""}}</button></span>{{end}}

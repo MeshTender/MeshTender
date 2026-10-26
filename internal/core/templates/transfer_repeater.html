@@ -76,7 +76,6 @@
   <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
 </div>
 <div class="modal-body">
-  {{if .Error}}<div class="alert alert-danger">{{.Error}}</div>{{end}}
   {{template "transfer-intro" .}}
   <form method="post" action="/repeaters/{{.Repeater.PublicID}}/transfer" id="transfer-form"
         data-confirm="Transfer this repeater? The new owner controls it from then on, and you can't undo this yourself.">
@@ -98,7 +97,6 @@
 {{define "header"}}{{template "repeater-header" .Nav}}{{end}}
 {{define "content"}}
 {{template "repeater-tabs" .Nav}}
-{{if .Error}}<div class="alert alert-danger">{{.Error}}</div>{{end}}
 
 <div class="row justify-content-center">
   <div class="col-12 col-lg-8">

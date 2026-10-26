@@ -2,7 +2,6 @@
 {{define "header"}}
 <div class="row g-2 align-items-center">
   <div class="col">
-    <div class="page-pretitle">Your account</div>
     <h1 class="page-title fs-1">Account settings</h1>
   </div>
 </div>
@@ -23,7 +22,6 @@
      clutter, not information. */}}
 {{define "content"}}
 {{if .Error}}<div class="alert alert-danger">{{.Error}}</div>{{end}}
-{{if .OK}}<div class="alert alert-success">{{.OK}}</div>{{end}}
 
 <div class="card">
   <div class="card-header">

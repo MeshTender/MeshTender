@@ -102,7 +102,6 @@ func (s *Handlers) pageOrgNets(w http.ResponseWriter, r *http.Request) {
 		"IsAdmin": isAdmin,
 		"Nets":    views,
 		"Now":     now,
-		"Error":   r.URL.Query().Get("error"),
 	})
 }
 
@@ -228,8 +227,6 @@ func (s *Handlers) pageOrgNet(w http.ResponseWriter, r *http.Request) {
 		"Now":         now,
 		"Sessions":    sessions,
 		"SettingsURL": netSettingsURL(org.Slug, net.ID),
-		"Error":       r.URL.Query().Get("error"),
-		"OK":          r.URL.Query().Get("ok"),
 	}
 	if hasMore && len(sessions) > 0 {
 		data["NextBefore"] = web.EncodeCursor(sessions[len(sessions)-1].StartsAt)
@@ -384,7 +381,7 @@ func (s *Handlers) handleUpdateNet(w http.ResponseWriter, r *http.Request) {
 		s.ServerError(w, r, "Couldn't save the net.", err)
 		return
 	}
-	web.RedirectFlash(w, r, netSettingsURL(org.Slug, net.ID), "ok", "Schedule saved. Sessions that have already started keep their original times.")
+	web.RedirectOK(w, r, netSettingsURL(org.Slug, net.ID), "Schedule saved. Sessions that have already started keep their original times.")
 }
 
 // handleSetNetAck saves how a net's check-ins are acknowledged.
@@ -400,7 +397,7 @@ func (s *Handlers) handleSetNetAck(w http.ResponseWriter, r *http.Request) {
 		s.ServerError(w, r, "Couldn't save the net.", err)
 		return
 	}
-	web.RedirectFlash(w, r, netSettingsURL(org.Slug, net.ID), "ok", "Check-in settings saved.")
+	web.RedirectOK(w, r, netSettingsURL(org.Slug, net.ID), "Check-in settings saved.")
 }
 
 func (s *Handlers) handleDeleteNet(w http.ResponseWriter, r *http.Request) {
@@ -420,7 +417,7 @@ func (s *Handlers) handleDeleteNet(w http.ResponseWriter, r *http.Request) {
 		s.ServerError(w, r, "Couldn't delete the net.", err)
 		return
 	}
-	web.RedirectFlash(w, r, settingsURL(orgParam(r), "nets"), "ok", "Net deleted.")
+	web.RedirectOK(w, r, settingsURL(orgParam(r), "nets"), "Net deleted.")
 }
 
 // netSessionContext is what every session page and action resolves first.

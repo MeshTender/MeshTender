@@ -33,7 +33,6 @@ func (s *Handlers) pageRepeaterDocs(w http.ResponseWriter, r *http.Request) {
 		"Repeater": rep,
 		"Nav":      web.RepeaterNav(rep.PublicID, rep.Name, rep.OwnerName(), isOwner, "docs"),
 		"IsOwner":  isOwner,
-		"Error":    r.URL.Query().Get("error"),
 	})
 }
 
@@ -71,7 +70,6 @@ func (s *Handlers) pageRepeaterMaintenance(w http.ResponseWriter, r *http.Reques
 		"IsOwner":  isOwner,
 		"Entries":  entries,
 		"Today":    time.Now().Format("2006-01-02"),
-		"Error":    r.URL.Query().Get("error"),
 	})
 }
 

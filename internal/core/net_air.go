@@ -168,5 +168,5 @@ func (s *Handlers) handleUpdateNetAir(w http.ResponseWriter, r *http.Request) {
 		s.ServerError(w, r, "Couldn't save the on-air settings.", err)
 		return
 	}
-	web.RedirectFlash(w, r, netSettingsURL(org.Slug, net.ID), "ok", "On-air settings saved.")
+	web.RedirectOK(w, r, netSettingsURL(org.Slug, net.ID), "On-air settings saved.")
 }

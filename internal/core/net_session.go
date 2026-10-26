@@ -134,7 +134,6 @@ func (s *Handlers) pageNetSession(w http.ResponseWriter, r *http.Request) {
 		"Members":         members,
 		"Observers":       len(observers),
 		"ObserversOnline": online,
-		"Error":           r.URL.Query().Get("error"),
 	}
 	if c.netControl && inProgress {
 		air, err := s.Store.GetNetAir(ctx, c.org.ID, c.net.ID)

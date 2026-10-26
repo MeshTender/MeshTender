@@ -103,8 +103,6 @@ func (s *Handlers) renderAccount(w http.ResponseWriter, r *http.Request, uid int
 		"MinPasswordLen": MinPasswordLen,
 		"Passkeys":       views,
 		"NextRename":     nextRename, // nil when a rename is allowed now
-		"Error":          r.URL.Query().Get("error"),
-		"OK":             r.URL.Query().Get("ok"),
 		"PKMsg":          r.URL.Query().Get("pk"),
 		"PKErr":          r.URL.Query().Get("pkerr"),
 		"EmMsg":          r.URL.Query().Get(flashEmail),

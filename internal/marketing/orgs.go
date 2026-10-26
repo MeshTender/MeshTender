@@ -43,7 +43,6 @@ func (s *Handlers) pageOrgs(w http.ResponseWriter, r *http.Request) {
 	}
 	data := map[string]any{
 		"All":   all,
-		"Error": q.Get("error"),
 		"Sort":  string(sortKey),
 		"Query": query,
 	}

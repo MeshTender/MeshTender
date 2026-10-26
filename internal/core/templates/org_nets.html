@@ -3,7 +3,6 @@
 {{define "content"}}
 {{template "org-tabs" .Nav}}
 {{template "org-checkins-nav" .Nav}}
-{{if .Error}}<div class="alert alert-danger" role="alert"><div>{{.Error}}</div></div>{{end}}
 
 {{if .Nets}}
 {{template "net-list" .}}

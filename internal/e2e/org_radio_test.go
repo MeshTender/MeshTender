@@ -54,7 +54,7 @@ func TestE2EOrgRadioSettings(t *testing.T) {
 		editRadioField("radio_sf", "9"),
 		chromedp.Evaluate(radioState, &afterEdit),
 		chromedp.Click(`[data-testid="save-radio"]`, chromedp.ByQuery),
-		chromedp.WaitVisible(`[data-testid="settings-ok"]`, chromedp.ByQuery),
+		chromedp.WaitVisible(`[data-testid="flash-ok"]`, chromedp.ByQuery),
 		chromedp.Evaluate(radioState, &saved),
 	); err != nil {
 		t.Fatalf("set org radio: %v", err)

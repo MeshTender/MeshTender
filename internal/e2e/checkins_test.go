@@ -348,7 +348,7 @@ func TestE2ENetAirSettings(t *testing.T) {
 		chromedp.Evaluate(`(() => { const s = document.getElementById("air-scope"); s.value = s.options[1].value; })()`, nil),
 		chromedp.SetValue(`#air-sender`, "Net Control", chromedp.ByQuery),
 		chromedp.Click(`[data-testid="net-air-save"]`, chromedp.ByQuery),
-		chromedp.WaitVisible(`[data-testid="settings-ok"]`, chromedp.ByQuery),
+		chromedp.WaitVisible(`[data-testid="flash-ok"]`, chromedp.ByQuery),
 		chromedp.Navigate(fmt.Sprintf("%s/orgs/%s/nets/%d", srv.appURL, org.Slug, net.ID)),
 		chromedp.WaitVisible(`[data-testid="net-air-summary"]`, chromedp.ByQuery),
 		chromedp.Text(`[data-testid="net-air-summary"]`, &summary, chromedp.ByQuery),

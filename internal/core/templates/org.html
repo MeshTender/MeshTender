@@ -2,7 +2,6 @@
 {{define "header"}}{{template "org-header" .}}{{end}}
 {{define "content"}}
 {{template "org-tabs" .Nav}}
-{{if .Error}}<div class="alert alert-danger" role="alert"><div>{{.Error}}</div></div>{{end}}
 
 {{/* A banner for each net in session: the thing to do right now. */}}
 {{range .LiveNets}}
@@ -125,13 +124,13 @@
           {{if eq .Kind "repeater_added"}}
           <span class="text-secondary d-flex">{{template "icon-antenna" ""}}</span>
           <div><div><strong>{{.Name}}</strong> joined the organization</div>
-            <div class="text-secondary small">{{ts .At "datetime"}}</div></div>
+            <div class="text-secondary small">{{ts .At "relative"}}</div></div>
           {{else}}
           <span class="text-secondary d-flex">{{template "icon-calendar-event" ""}}</span>
           <div>
             <div><a href="/orgs/{{$.Org.Slug}}/nets/{{.NetID}}/sessions/{{.SessionID}}">{{.Name}}</a>
               {{if eq .Kind "net_started"}}started{{else}}ended · {{.CheckedIn}} checked in{{end}}</div>
-            <div class="text-secondary small">{{ts .At "datetime"}}</div>
+            <div class="text-secondary small">{{ts .At "relative"}}</div>
           </div>
           {{end}}
         </div>
