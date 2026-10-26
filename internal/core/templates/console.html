@@ -2,17 +2,19 @@
 {{define "header"}}
 <div class="row g-2 align-items-center">
   <div class="col">
-    <div class="page-pretitle">Console</div>
-    <h1 class="page-title fs-1">{{.Repeater.Name}}</h1>
+    <ol class="breadcrumb mb-2" aria-label="Breadcrumb"><li class="breadcrumb-item"><a href="/repeaters">Repeaters</a></li><li class="breadcrumb-item"><a href="/repeaters/{{.Repeater.PublicID}}">{{.Repeater.Name}}</a></li><li class="breadcrumb-item active" aria-current="page">Console</li></ol>
+    <h1 class="page-title fs-1">Console</h1>
+  </div>
+  <div class="col-auto ms-auto d-print-none">
+    {{if .Debug}}
+    <a class="btn btn-ghost-secondary btn-sm" href="/repeaters/{{.Repeater.PublicID}}/console" data-testid="console-debug">Hide raw frames</a>
+    {{else}}
+    <a class="btn btn-ghost-secondary btn-sm" href="/repeaters/{{.Repeater.PublicID}}/console?debug=1" data-testid="console-debug">Show raw frames</a>
+    {{end}}
   </div>
 </div>
 {{end}}
 {{define "content"}}
-<div class="alert alert-info" role="alert">
-  Connect a MeshCore KISS modem and send commands to this repeater. You can run the commands in the
-  Allowed commands list; the server enforces what you're allowed to send.
-</div>
-
 {{/* Confirm/location prompts. Connecting the modem sends a signed login that
 confirms access (server-side). These reflect the state at page load; console.js
 then updates them live — hiding the confirm prompt and revealing the location
@@ -23,20 +25,19 @@ swap needs no new markup. The flex row is nested so the [hidden] attribute wins
 (Bootstrap's .d-flex is display:flex !important and would otherwise show it). */}}
 {{if not .Repeater.Confirmed}}
 <div class="alert alert-warning" role="alert" data-testid="confirm-banner">
-  This repeater hasn't been confirmed yet. Connect your modem below — MeshTender will send a signed login
-  to verify it has access. Confirming happens automatically as soon as the repeater replies.
+  <div>Not confirmed yet. Connect your modem and MeshTender sends the repeater a signed login; it's confirmed as soon as the repeater replies.</div>
 </div>
 {{end}}
 {{if not .Repeater.Latitude}}
 <div class="alert alert-info" role="alert" data-testid="location-banner"{{if not (and .Repeater.Confirmed .Repeater.IsAdmin)}} hidden{{end}}>
   <div class="d-flex align-items-center justify-content-between">
-    <div class="me-3">This repeater's location isn't known yet.</div>
+    <div class="me-3">The repeater's location isn't known yet, so region settings can't be worked out for it.</div>
     {{/* Fetching transmits "get lat"/"get lon", so it's offered only to someone
     permitted to run them — the server checks again before sending. The banner
     still shows either way: an unknown location affects region configuration, so
     it's worth knowing about even if you can't be the one to fix it. */}}
     {{if .CanFetchLocation}}
-    <button type="button" class="btn btn-sm btn-primary flex-shrink-0" data-fetch-location data-testid="fetch-location">{{template "icon-map-pin" "me-1"}}Fetch location</button>
+    <button type="button" class="btn btn-sm btn-primary flex-shrink-0" data-fetch-location data-testid="fetch-location">{{template "icon-map-pin" "me-1"}}Read it from the repeater</button>
     {{else}}
     <div class="text-secondary flex-shrink-0" data-testid="fetch-location-denied">Reading it needs permission to run <code>get lat</code> and <code>get lon</code>.</div>
     {{end}}
@@ -45,56 +46,53 @@ swap needs no new markup. The flex row is nested so the [hidden] attribute wins
 {{end}}
 
 {{if and .Repeater.Confirmed .Repeater.AccessKnown (not .Repeater.IsAdmin)}}
-<div class="alert alert-warning" role="alert" data-testid="guest-banner">
-  <div>
-    MeshTender only has <strong>guest</strong> access here. Guest is available to anyone with a blank password,
-    so there's no point operating at this level — re-run <code>setperm &lt;your key&gt; 3</code> on the repeater
-    to grant admin, then reconnect.
-  </div>
+<div class="alert alert-danger" role="alert" data-testid="guest-banner">
+  <div>MeshTender only has <strong>guest</strong> access, which anyone gets with a blank password, so it can't manage this repeater. Grant it admin with <a href="{{.RootURL}}/docs#setperm"><code>setperm</code></a>, then connect again.</div>
 </div>
 {{end}}
 
 <div class="row row-cards">
   <div class="col-12 col-lg-8">
     <div class="card">
-      <div class="card-header"><h2 class="card-title">Console</h2></div>
+      <div class="card-header">
+        <div>
+          <h2 class="card-title">{{.Repeater.Name}}</h2>
+          <div class="card-subtitle">Commands go over the air through a <a href="{{.RootURL}}/docs#kiss">KISS modem</a> plugged into this computer.</div>
+        </div>
+      </div>
       <div class="card-body">
         <div id="unsupported" class="alert alert-danger" role="alert" hidden>
-          <div>
-            This browser can't connect to USB devices. Use Chrome or Edge, or Firefox 151 or later,
-            on desktop — or Chrome on Android — over HTTPS or on localhost.
-          </div>
-        </div>
-        <div class="mb-3">
-          <label class="form-label" for="path">Path <span class="form-label-description">optional</span></label>
-          <input type="text" class="form-control font-monospace" id="path" placeholder="e.g. 11, 22, 33" autocomplete="off" spellcheck="false">
-          <small class="form-hint">Hex hops from your modem to the repeater, in order, same length each (e.g. <code>11, 22, 33</code>). Leave blank to reach it by flood.</small>
+          <div>This browser can't reach USB devices. Use one that supports Web Serial, over HTTPS.</div>
         </div>
         <div class="btn-list">
           <button id="connect" class="btn btn-primary" type="button">{{template "icon-plug" "me-1"}}Connect modem</button>
           {{if .ShowConfig}}
-          <button type="button" class="btn btn-outline-primary" data-bs-toggle="collapse" data-bs-target="#config-panel" aria-expanded="false" aria-controls="config-panel" data-testid="apply-config">{{template "icon-settings" "me-1"}}Apply organization configuration…</button>
+          <button type="button" class="btn" data-bs-toggle="collapse" data-bs-target="#config-panel" aria-expanded="false" aria-controls="config-panel" data-testid="apply-config">{{template "icon-settings" "me-1"}}Apply organization configuration</button>
           {{end}}
+          <button type="button" class="btn btn-ghost-secondary ms-auto" data-bs-toggle="collapse" data-bs-target="#route" aria-expanded="false" aria-controls="route" data-testid="console-route">Set a route</button>
         </div>
-        <ul id="log" class="evlog console mt-3" role="log" aria-live="polite" aria-label="Console activity"></ul>
+        <div class="collapse" id="route">
+          <div class="mt-3">
+            <label class="form-label" for="path">Route through repeaters</label>
+            <input type="text" class="form-control font-monospace" id="path" placeholder="e.g. 11, 22, 33" autocomplete="off" spellcheck="false">
+            <div class="form-text">The hex prefix of each repeater between your modem and this one, in order and all the same length. Leave it blank to flood.</div>
+          </div>
+        </div>
+        <ul id="log" class="evlog console mt-3" role="log" aria-live="polite" aria-label="Console activity" data-empty="Not connected. Plug in your modem and press Connect modem."></ul>
         <form id="cmdform" class="input-group mt-3" autocomplete="off" hidden>
-          <input type="text" id="cmdinput" class="form-control font-monospace" placeholder="type a command, e.g. ver" aria-label="Command to send">
+          <input type="text" id="cmdinput" class="form-control font-monospace" placeholder="Type a command, e.g. ver" aria-label="Command to send">
           <button type="submit" id="cmdsend" class="btn btn-primary">Send</button>
         </form>
       </div>
     </div>
-    {{if .ShowConfig}}
+{{if .ShowConfig}}
     <div class="collapse mt-3" id="config-panel"
          data-config-url="/repeaters/{{.Repeater.PublicID}}/config.json"
          data-location-url="/repeaters/{{.Repeater.PublicID}}/location">
       <div class="card">
         <div class="card-header"><h2 class="card-title">Apply organization configuration</h2></div>
         <div class="card-body">
-          <p class="text-secondary">
-            Pick an organization and profile to see its recommended configuration for this repeater. Every command is
-            listed; the ones you're allowed to send show a Run button. Connect the modem to run them — results appear in
-            the console log above and next to each command.
-          </p>
+          <p class="text-secondary">Pick a profile to see the commands it sets on this repeater. Commands you're allowed to send get a Run button; replies show next to each one and in the log above.</p>
           <div class="row g-2 mb-3">
             <div class="col-sm-6">
               <label class="form-label" for="cfg-org">Organization</label>
@@ -122,7 +120,12 @@ swap needs no new markup. The flex row is nested so the [hidden] attribute wins
   </div>
   <div class="col-12 col-lg-4">
     <div class="card" data-testid="allowed-commands">
-      <div class="card-header"><h2 class="card-title">Allowed commands</h2></div>
+      <div class="card-header">
+        <div>
+          <h2 class="card-title">Allowed commands</h2>
+          <div class="card-subtitle">Click one to fill it in. Red ones can lock you out of the repeater or take it off the air.</div>
+        </div>
+      </div>
       <div class="card-body">
         {{if .Commands}}
         <div class="d-flex flex-wrap gap-1" style="max-height:360px;overflow-y:auto">
@@ -136,15 +139,6 @@ swap needs no new markup. The flex row is nested so the [hidden] attribute wins
       </div>
     </div>
   </div>
-</div>
-
-<div class="mt-3 d-flex align-items-center">
-  <a class="back-link" href="/">{{template "icon-arrow-left" "me-1"}}Back to dashboard</a>
-  {{if .Debug}}
-  <a class="text-secondary ms-2" href="/repeaters/{{.Repeater.PublicID}}/console">Disable debug</a>
-  {{else}}
-  <a class="text-secondary ms-2" href="/repeaters/{{.Repeater.PublicID}}/console?debug=1">Debug: show raw frames</a>
-  {{end}}
 </div>
 
 {{if .ShowConfig}}

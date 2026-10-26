@@ -96,6 +96,13 @@ code.pubkey {
 }
 .evlog:empty { display: none; }
 .evlog.console { max-height: 320px; }
+/* The console log stays visible before connecting, with a hint in place of entries. */
+.evlog.console[data-empty]:empty { display: block; }
+.evlog.console[data-empty]:empty::before {
+  content: attr(data-empty);
+  color: var(--tblr-secondary);
+  font-family: var(--tblr-font-sans-serif);
+}
 .ev { padding: 0.15rem 0; border-bottom: 1px solid var(--tblr-border-color-translucent); }
 .ev:last-child { border-bottom: none; }
 /* Colors chosen for WCAG AA (≥4.5:1) on the near-black log background:
