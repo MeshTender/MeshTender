@@ -268,8 +268,9 @@ code.pubkey {
 }
 
 /* ---------- Landing page ---------- */
-/* A section label over the feature rows ("For repeater owners"). */
-.landing-kicker {
+/* A section label over a group of content ("For repeater owners"), on the
+   landing page and in the docs. */
+.section-kicker {
   font-size: 0.8125rem;
   font-weight: var(--tblr-font-weight-bold);
   letter-spacing: 0.04em;

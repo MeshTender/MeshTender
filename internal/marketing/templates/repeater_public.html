@@ -13,55 +13,35 @@
 </div>
 {{end}}
 {{define "content"}}
+{{/* A repeater's public page: what its owner wrote about it first, then the
+     facts — status, radio, key, where it is — and who looks after it. */}}
 <div class="row row-cards">
-  <!-- Left column -->
   <div class="col-lg-8">
-    <div class="card">
-      <div class="card-header"><h2 class="card-title">Details</h2></div>
-      <div class="card-body">
-        <div class="datagrid">
-          <div class="datagrid-item">
-            <div class="datagrid-title">Status</div>
-            <div class="datagrid-content">
-              {{if .Repeater.Confirmed}}<span class="badge bg-success-lt">Confirmed</span>{{else}}<span class="badge bg-yellow-lt">Unconfirmed</span>{{end}}
-            </div>
-          </div>
-          <div class="datagrid-item">
-            <div class="datagrid-title">Added</div>
-            <div class="datagrid-content">{{ts .Repeater.CreatedAt "date"}}</div>
-          </div>
-        </div>
-        <div class="mt-3">
-          <div class="form-label">Radio settings</div>
-          <div class="font-monospace">{{.Radio}}</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="card mt-3">
-      <div class="card-header"><h2 class="card-title">Documentation</h2></div>
+    <div class="card" data-testid="public-repeater-doc">
+      <div class="card-header"><h2 class="card-title">About this repeater</h2></div>
       <div class="card-body">
         {{if .DocPublicHTML}}
         <div class="markdown">{{.DocPublicHTML}}</div>
         {{else}}
-        <p class="text-secondary mb-0">No documentation has been published for this node.</p>
+        <p class="text-secondary mb-0">Its owner hasn't written anything about it yet.</p>
         {{end}}
       </div>
     </div>
   </div>
 
-  <!-- Right column -->
-  <div class="col-lg-4">
-    <div class="card">
-      <div class="card-header"><h2 class="card-title">Identity</h2></div>
-      <div class="card-body">
-        <div class="form-label">Public key</div>
-        <code class="pk d-block">{{.Repeater.PublicKeyHex}}</code>
+  <div class="col-lg-4 d-flex flex-column gap-3">
+    <div class="card" data-testid="public-repeater-details">
+      <div class="list-group list-group-flush">
+        <div class="list-group-item d-flex align-items-center gap-2"><span class="text-secondary">Status</span>
+          <span class="ms-auto">{{if .Repeater.Confirmed}}<span class="badge bg-green-lt">Confirmed</span>{{else}}<span class="badge bg-orange-lt" title="No one has reached it over the air through MeshTender yet">Not confirmed</span>{{end}}</span></div>
+        <div class="list-group-item d-flex align-items-center gap-2"><span class="text-secondary">Added</span><span class="ms-auto">{{ts .Repeater.CreatedAt "date"}}</span></div>
+        <div class="list-group-item d-flex align-items-center gap-2"><span class="text-secondary">Radio</span><span class="ms-auto font-monospace small">{{.Radio}}</span></div>
+        <div class="list-group-item d-flex align-items-center gap-2"><span class="text-secondary">Public key</span><span class="ms-auto">{{template "pubkey" .Repeater.PublicKeyHex}}</span></div>
       </div>
     </div>
 
     {{if .Repeater.Latitude}}
-    <div class="card mt-3">
+    <div class="card">
       <div class="card-header"><h2 class="card-title">Location</h2></div>
       <div class="card-body p-2">
         {{template "map-styles"}}
@@ -76,26 +56,26 @@
     </div>
     {{end}}
 
-    <div class="card mt-3">
-      <div class="card-header"><h2 class="card-title">Stewards</h2></div>
+    <div class="card" data-testid="public-repeater-people">
+      <div class="card-header"><h2 class="card-title">Looked after by</h2></div>
       <div class="list-group list-group-flush">
         <div class="list-group-item d-flex align-items-center gap-2">
           <span class="text-secondary">{{template "icon-user" ""}}</span>
-          <div class="flex-fill"><a class="fw-bold" href="{{$.RootURL}}/u/{{.Repeater.OwnerUsername}}">{{.Repeater.OwnerName}}</a></div>
-          <span class="badge bg-success-lt">Primary</span>
+          <div class="flex-fill"><a href="{{$.RootURL}}/u/{{.Repeater.OwnerUsername}}">{{.Repeater.OwnerName}}</a></div>
+          <span class="badge bg-blue-lt">Owner</span>
         </div>
         {{range .Stewards}}
         <div class="list-group-item d-flex align-items-center gap-2">
           <span class="text-secondary">{{template "icon-user" ""}}</span>
-          <div class="flex-fill"><a class="fw-bold" href="{{$.RootURL}}/u/{{.Username}}">{{.Name}}</a></div>
-          <span class="badge bg-azure-lt">Backup</span>
+          <div class="flex-fill"><a href="{{$.RootURL}}/u/{{.Username}}">{{.Name}}</a></div>
+          <span class="badge bg-blue-lt" title="Can run every command on it and stands in for the owner">Steward</span>
         </div>
         {{end}}
       </div>
     </div>
 
     {{if .Orgs}}
-    <div class="card mt-3">
+    <div class="card">
       <div class="card-header"><h2 class="card-title">Organizations</h2></div>
       <div class="list-group list-group-flush">
         {{range .Orgs}}

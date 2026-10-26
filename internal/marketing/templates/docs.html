@@ -15,14 +15,18 @@
     <div class="card">
       <div class="card-header"><h2 class="card-title">On this page</h2></div>
       <div class="list-group list-group-flush">
-        <a class="list-group-item list-group-item-action" href="#setperm">Granting admin (setperm)</a>
-        <a class="list-group-item list-group-item-action" href="#add">Adding a repeater</a>
-        <a class="list-group-item list-group-item-action" href="#kiss">What's a KISS modem?</a>
+        <div class="list-group-header">For members</div>
         <a class="list-group-item list-group-item-action" href="#config">Organizations</a>
-        <a class="list-group-item list-group-item-action" href="#sharing">Sharing &amp; stewards</a>
         <a class="list-group-item list-group-item-action" href="#companions">Companions &amp; check-ins</a>
-        <a class="list-group-item list-group-item-action" href="#observers">Observers</a>
         <a class="list-group-item list-group-item-action" href="#nets">Check-in nets</a>
+        <div class="list-group-header">For repeater owners</div>
+        <a class="list-group-item list-group-item-action" href="#add">Adding a repeater</a>
+        <a class="list-group-item list-group-item-action" href="#setperm">Granting admin (setperm)</a>
+        <a class="list-group-item list-group-item-action" href="#sharing">Sharing &amp; stewards</a>
+        <div class="list-group-header">For organization admins</div>
+        <a class="list-group-item list-group-item-action" href="#observers">Observers</a>
+        <div class="list-group-header">With a KISS modem</div>
+        <a class="list-group-item list-group-item-action" href="#kiss">What's a KISS modem?</a>
         <a class="list-group-item list-group-item-action" href="#on-air">Running a net on the air</a>
       </div>
     </div>
@@ -41,8 +45,54 @@
 
     <div class="card">
       <div class="card-body">
-        <p>MeshTender helps you register, configure, and maintain your <a href="https://meshcore.io" target="_blank" rel="noopener">MeshCore</a> repeaters, and share them with your community. It talks to your repeaters <strong>over the mesh</strong> under its own identity (a "server identity"), so once a repeater grants it access, you can manage that repeater remotely from here.</p>
-        <p class="mb-0">The one thing MeshTender needs from each repeater is <strong>admin access</strong> — otherwise it can only read public info. That's the <a href="#setperm">setperm</a> step below.</p>
+        <p>MeshTender is a home for a MeshCore mesh: an <a href="#config">organization's</a> members, repeaters, recommended configuration and weekly <a href="#nets">check-in nets</a>, in one place. What you need depends on what you do:</p>
+        <ul class="mb-0">
+          <li><strong>Members</strong> need only the companion app they already use: register their companion and check in to nets.</li>
+          <li><strong>Repeater owners</strong> can set up a new repeater over USB to their organization's spec, document it, and share it, with no extra hardware.</li>
+          <li><strong>Admins, stewards and net control</strong> can add a <a href="#kiss">KISS modem</a> to manage repeaters and run nets over the air.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2 class="section-kicker mt-5 mb-0" id="for-members">For members</h2>
+    <div class="card mt-3" id="config">
+      <div class="card-header"><h2 class="card-title">Organizations</h2></div>
+      <div class="card-body">
+        <p>An <strong>organization</strong> is a community that runs a mesh together: its members, their repeaters, its recommended configuration, and its check-in nets. Join yours from the <a href="/orgs">directory</a>, or start one.</p>
+        <p>Its admins publish a <strong>recommended configuration</strong>: configuration profiles (the settings a repeater should run) and regions drawn on a map, so each member sees the exact commands for where their repeater stands. A new repeater set up over USB gets them automatically.</p>
+        <p class="mb-0">An organization can also set the <strong>radio settings</strong> its mesh runs on (frequency, bandwidth, spreading factor and coding rate). Its profiles can use them instead of hard-coding values — <code>set radio {{"{{ radio.freq }}"}},{{"{{ radio.bw }}"}},{{"{{ radio.sf }}"}},{{"{{ radio.cr }}"}}</code> — and a repeater set up with a profile that doesn't set its radio gets them too.</p>
+      </div>
+    </div>
+
+    <div class="card mt-3" id="companions">
+      <div class="card-header"><h2 class="card-title">Companions &amp; check-ins</h2></div>
+      <div class="card-body">
+        <p>A <strong>companion</strong> is the MeshCore radio you carry and use with the companion app — all a member needs to take part in nets. Register yours under <strong>Companions</strong> with its public key (the app shows it), then send a <strong>flood advert</strong> from it within 24 hours. When an organization's <a href="#observers">observer</a> (or net control's modem) hears that advert, the companion is confirmed; a registration that's never heard expires.</p>
+        <p>From then on, every advert your companion sends is a <strong>check-in</strong>: MeshTender checks the advert's signature, so nobody else can check in as you, and records when it was heard, how many observers heard it, and how many repeaters were seen passing it on. It deliberately <strong>doesn't keep which repeaters</strong> those were — that would show roughly where you are — so your check-ins look the same to you and to the members of your organizations.</p>
+        <p class="mb-0">An advert carries the time on your companion's clock, and one more than ten minutes off doesn't count (that's what stops an old advert from being replayed). The app sets the clock from your phone; if the companion's page says an advert was too far off, sync the clock and advert again. A <strong>zero-hop</strong> advert counts too, but only reaches observers in direct range, so the roster marks it.</p>
+      </div>
+    </div>
+
+    <div class="card mt-3" id="nets">
+      <div class="card-header"><h2 class="card-title">Check-in nets</h2></div>
+      <div class="card-body">
+        <p>A <strong>net</strong> is a weekly window for members to check in, like a ham radio net. Admins schedule one in <strong>Settings › Nets</strong> with a day, start time, length and time zone; it keeps its local start time across daylight-saving changes.</p>
+        <p>During the window, a member checks in by sending a flood advert from any of their companions. Each session's log shows who checked in and when, how widely each advert was heard, and the channel news.</p>
+        <p class="mb-0"><strong>Net control</strong> runs the net: the organization's admins, plus any members designated in the net's settings. A net either counts every heard advert as acknowledged, or waits for net control to <strong>acknowledge</strong> each one — usually after replying on the air. Net control can also add a check-in by hand, with a note, for someone MeshTender didn't hear.</p>
+      </div>
+    </div>
+
+    <h2 class="section-kicker mt-5 mb-0" id="for-owners">For repeater owners</h2>
+    <div class="card mt-3" id="add">
+      <div class="card-header"><h2 class="card-title">Adding a repeater</h2></div>
+      <div class="card-body">
+        <p>There are two ways in, matching how you reach the repeater:</p>
+        <ul class="mb-2">
+          <li><strong>Set up a brand-new repeater (USB)</strong> — connect a freshly-flashed repeater over USB serial and MeshTender runs the whole setup for you from your organization's configuration profile: identity, radio, region, name, and the admin grant. You need only the repeater and a USB cable — no modem, not even a companion.</li>
+          <li><strong>Add one that's already on the network (over the air)</strong> — for a repeater you've already configured, MeshTender reaches it over the air through a <a href="#kiss">KISS modem</a> attached to your browser. You grant MeshTender admin with the <a href="#setperm"><code>setperm</code></a> command yourself first, then register it here.</li>
+        </ul>
+        <p>A registered repeater shows as <strong>confirmed</strong> once MeshTender has actually reached it. There's nothing to click for that: open the repeater's <strong>console</strong> and connect your modem, and the signed login that opens every session doubles as the proof — it confirms the repeater the first time it replies. If the reply reports guest access, the <code>setperm</code> grant hasn't been applied yet; run it, then connect again.</p>
+        <p class="mb-0">Either way, the device must already be running MeshCore's <strong>Repeater</strong> firmware — MeshTender configures repeaters, it doesn't flash them. A MeshCore device runs one firmware at a time (Repeater, a Companion variant, or KISS modem), so switching roles means re-flashing.</p>
       </div>
     </div>
 
@@ -64,38 +114,6 @@
       </div>
     </div>
 
-    <div class="card mt-3" id="add">
-      <div class="card-header"><h2 class="card-title">Adding a repeater</h2></div>
-      <div class="card-body">
-        <p>There are two ways in, matching how you reach the repeater:</p>
-        <ul class="mb-2">
-          <li><strong>Set up a brand-new repeater (USB)</strong> — connect a freshly-flashed repeater over USB serial and MeshTender runs the whole setup for you: identity, radio, region, name, and the admin grant. Best for a repeater that isn't on the mesh yet.</li>
-          <li><strong>Add one that's already on the network (over the air)</strong> — for a repeater you've already configured, MeshTender reaches it over the air through a <a href="#kiss">KISS modem</a> attached to your browser. You grant MeshTender admin with the <a href="#setperm"><code>setperm</code></a> command yourself first, then register it here.</li>
-        </ul>
-        <p>A registered repeater shows as <strong>confirmed</strong> once MeshTender has actually reached it. There's nothing to click for that: open the repeater's <strong>console</strong> and connect your modem, and the signed login that opens every session doubles as the proof — it confirms the repeater the first time it replies. If the reply reports guest access, the <code>setperm</code> grant hasn't been applied yet; run it, then connect again.</p>
-        <p class="mb-0">Either way, the device must already be running MeshCore's <strong>Repeater</strong> firmware — MeshTender configures repeaters, it doesn't flash them. A MeshCore device runs one firmware at a time (Repeater, a Companion variant, or KISS modem), so switching roles means re-flashing.</p>
-      </div>
-    </div>
-
-    <div class="card mt-3" id="kiss">
-      <div class="card-header"><h2 class="card-title">What's a KISS modem?</h2></div>
-      <div class="card-body">
-        <p>A <strong>KISS modem</strong> turns a MeshCore device into a plain radio for a host to drive: instead of acting as a repeater or companion, it just relays raw packets to and from whatever's connected to it. That's how MeshTender talks to your mesh <strong>over the air</strong> — you attach a KISS-modem device to your browser over USB serial, and MeshTender uses it as its radio to reach repeaters that are already deployed (the <a href="#add">over-the-air</a> flow above).</p>
-        <p>It's a relatively new addition to MeshCore, and it's a <strong>standard firmware variant</strong> — you flash it right from the standard MeshCore flasher, the same place you'd flash a Repeater or a Companion. It's available for a <strong>large number</strong> of MeshCore devices, though <strong>not all</strong> of them — check the flasher for your specific board.</p>
-        <p>Remember that firmware variants are exclusive: a device running KISS-modem firmware is your radio interface, not a repeater. To turn that same device into a repeater later, you'd re-flash it with Repeater firmware.</p>
-        <p class="mb-0">Net control uses the same kind of modem to <a href="#on-air">run a check-in net on the air</a>.</p>
-      </div>
-    </div>
-
-    <div class="card mt-3" id="config">
-      <div class="card-header"><h2 class="card-title">Organizations</h2></div>
-      <div class="card-body">
-        <p>An <strong>organization</strong> is a community that coordinates repeaters together. It helps you generate the commands to run to configure your repeater properly, and share settings with others in your area.</p>
-        <p>An organization can also set the <strong>radio settings</strong> its mesh runs on (frequency, bandwidth, spreading factor and coding rate). Its profiles can use them instead of hard-coding values — <code>set radio {{"{{ radio.freq }}"}},{{"{{ radio.bw }}"}},{{"{{ radio.sf }}"}},{{"{{ radio.cr }}"}}</code> — and a repeater set up with a profile that doesn't set its radio gets them too.</p>
-        <p class="mb-0">Browse communities on the <a href="/orgs">Organizations</a> page.</p>
-      </div>
-    </div>
-
     <div class="card mt-3" id="sharing">
       <div class="card-header"><h2 class="card-title">Sharing &amp; stewards</h2></div>
       <div class="card-body">
@@ -103,29 +121,24 @@
       </div>
     </div>
 
-    <div class="card mt-3" id="companions">
-      <div class="card-header"><h2 class="card-title">Companions &amp; check-ins</h2></div>
-      <div class="card-body">
-        <p>A <strong>companion</strong> is the MeshCore radio you carry and use with the companion app. Register yours under <strong>Companions</strong> with its public key (the app shows it), then send a <strong>flood advert</strong> from it within 24 hours. When an organization's <a href="#observers">observer</a> (or net control's modem) hears that advert, the companion is confirmed; a registration that's never heard expires.</p>
-        <p>From then on, every advert your companion sends is a <strong>check-in</strong>: MeshTender checks the advert's signature, so nobody else can check in as you, and records when it was heard, how many observers heard it, and how many repeaters were seen passing it on. It deliberately <strong>doesn't keep which repeaters</strong> those were — that would show roughly where you are — so your check-ins look the same to you and to the members of your organizations.</p>
-        <p class="mb-0">An advert carries the time on your companion's clock, and one more than ten minutes off doesn't count (that's what stops an old advert from being replayed). The app sets the clock from your phone; if the companion's page says an advert was too far off, sync the clock and advert again. A <strong>zero-hop</strong> advert counts too, but only reaches observers in direct range, so the roster marks it.</p>
-      </div>
-    </div>
-
+    <h2 class="section-kicker mt-5 mb-0" id="for-admins">For organization admins</h2>
     <div class="card mt-3" id="observers">
       <div class="card-header"><h2 class="card-title">Observers</h2></div>
       <div class="card-body">
-        <p>An <strong>observer</strong> is a MeshCore node that uploads the packets it hears to an MQTT broker. An organization's admins point MeshTender at that broker on the organization's <strong>Observers</strong> tab — a <code>wss://</code> address for a broker behind HTTPS, or <code>tls://</code> / <code>tcp://</code> for raw MQTT, on the public internet — and register each observer they vouch for by its public key.</p>
-        <p class="mb-0">MeshTender only listens. It counts what the <em>registered</em> observers upload, so an unknown uplink on the same broker can't check anyone in. More observers in more places means more of your members' adverts are heard.</p>
+        <p>An <strong>observer</strong> is a MeshCore radio that uploads the packets it hears to an MQTT broker. An organization's admins point MeshTender at that broker in <strong>Settings › MQTT</strong> — a <code>wss://</code> address for a broker behind HTTPS, or <code>tls://</code> / <code>tcp://</code> for raw MQTT, on the public internet.</p>
+        <p>Observers that report their status on the broker show up there by themselves; an admin <strong>approves</strong> the ones the organization vouches for, or adds one by its public key. MeshTender only listens, and only counts what <em>approved</em> observers upload, so an unknown uplink on the same broker can't check anyone in.</p>
+        <p class="mb-0">More observers in more places means more of your members' adverts are heard.</p>
       </div>
     </div>
 
-    <div class="card mt-3" id="nets">
-      <div class="card-header"><h2 class="card-title">Check-in nets</h2></div>
+    <h2 class="section-kicker mt-5 mb-0" id="with-modem">With a KISS modem</h2>
+    <div class="card mt-3" id="kiss">
+      <div class="card-header"><h2 class="card-title">What's a KISS modem?</h2></div>
       <div class="card-body">
-        <p>A <strong>net</strong> is a weekly window for members to check in, like a ham radio net. Admins schedule one on the organization's <strong>Nets</strong> tab with a day, start time, length and time zone; it keeps its local start time across daylight-saving changes.</p>
-        <p>During the window, a member checks in by sending a flood advert from any of their companions. Each session's roster lists members, who's checked in and when, and how widely the advert was heard.</p>
-        <p class="mb-0"><strong>Net control</strong> runs the net: the organization's admins, plus any members designated on the net's page. A net either counts every heard advert as acknowledged, or waits for net control to <strong>acknowledge</strong> each one — usually after replying on the air. Net control can also add a check-in by hand, with a note, for someone MeshTender didn't hear.</p>
+        <p>You only need one to manage repeaters over the air or to run a net on the air; members, and owners who set up their repeater over USB, don't. A <strong>KISS modem</strong> turns a MeshCore device into a plain radio for a host to drive: instead of acting as a repeater or companion, it just relays raw packets to and from whatever's connected to it. That's how MeshTender talks to your mesh <strong>over the air</strong> — you attach a KISS-modem device to your browser over USB serial, and MeshTender uses it as its radio to reach repeaters that are already deployed (the <a href="#add">over-the-air</a> flow above).</p>
+        <p>It's a relatively new addition to MeshCore, and it's a <strong>standard firmware variant</strong> — you flash it right from the standard MeshCore flasher, the same place you'd flash a Repeater or a Companion. It's available for a <strong>large number</strong> of MeshCore devices, though <strong>not all</strong> of them — check the flasher for your specific board.</p>
+        <p>Remember that firmware variants are exclusive: a device running KISS-modem firmware is your radio interface, not a repeater. To turn that same device into a repeater later, you'd re-flash it with Repeater firmware.</p>
+        <p class="mb-0">Net control uses the same kind of modem to <a href="#on-air">run a check-in net on the air</a>.</p>
       </div>
     </div>
 
@@ -139,8 +152,8 @@
           <li><strong>counts the adverts the modem hears</strong>, as one more observer.</li>
         </ul>
         <p>MeshTender sends one message at a time and waits for the mesh to pass each on before the next, so a net never floods it. One modem can be connected to a session at a time.</p>
-        <p>The net's page sets where its messages go: the <strong>channel</strong> (Public, a hashtag channel, or a private channel and its key), a <strong>region</strong> to scope them to, so repeaters that only carry scoped traffic still repeat them, and the <strong>name</strong> they're sent as. Hashtag channel names should be lowercase, since that's all the companion app lets members type.</p>
-        <p class="mb-0">Messages on the net's channel that start with its <strong>log prefix</strong> (<code>news:</code> by default) are kept in the session's <strong>channel log</strong>, without the prefix — whether net control's modem or one of the organization's observers heard them. Channel messages aren't signed, so a name in the log is whatever its sender typed.</p>
+        <p>The net's settings say where its messages go: the <strong>channel</strong> (Public, a hashtag channel, or a private channel and its key), a <strong>region</strong> to scope them to, so repeaters that only carry scoped traffic still repeat them, and the <strong>name</strong> they're sent as. Hashtag channel names should be lowercase, since that's all the companion app lets members type.</p>
+        <p class="mb-0">Messages on the net's channel that start with its <strong>log prefix</strong> (<code>news:</code> by default) are kept in the session log under <strong>News</strong>, without the prefix — whether net control's modem or one of the organization's observers heard them. Channel messages aren't signed, so a name in the log is whatever its sender typed.</p>
       </div>
     </div>
 

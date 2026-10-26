@@ -10,10 +10,11 @@ import (
 	"github.com/MeshTender/MeshTender/internal/store"
 )
 
-// TestFilterControlsPrecedeTheList pins audit U2 across every list page that has a
-// search/filter sidebar.
+// TestFilterControlsPrecedeTheList pins audit U2 across every list page with
+// search/filter controls: they come before the list in the DOM. A filter bar
+// above the list gets that for free; a sidebar has to work for it.
 //
-// The sidebar renders to the right of the list at ≥lg, but it must come FIRST in the
+// A sidebar renders to the right of the list at ≥lg, but it must come FIRST in the
 // DOM, with `order-lg-last` doing the visual placement. Source order is what governs
 // both the mobile stack (columns stack in DOM order, so a trailing sidebar lands below
 // ~50 rows) and the tab / screen-reader order. Fixing only the visuals with CSS would
@@ -50,10 +51,13 @@ func TestFilterControlsPrecedeTheList(t *testing.T) {
 		label, host, path string
 		// searchMarker identifies the filter control; listMarker the list container.
 		searchMarker, listMarker string
+		// sidebar: the filters are a column beside the list (rather than a bar
+		// above it), so desktop placement needs order-lg-last.
+		sidebar bool
 	}{
-		{"public org directory", h.root, "/orgs", `id="org-q"`, `id="org-list"`},
-		{"your repeaters", h.app, "/repeaters", `data-filter-search`, `data-filter-item`},
-		{"admin user list", h.app, "/admin/users", `id="user-q"`, `data-testid="user-row"`},
+		{"public org directory", h.root, "/orgs", `id="org-q"`, `id="org-list"`, false},
+		{"your repeaters", h.app, "/repeaters", `data-filter-search`, `data-filter-item`, true},
+		{"admin user list", h.app, "/admin/users", `id="user-q"`, `data-testid="user-row"`, true},
 	} {
 		resp := do(t, ts, page.host, page.path, cookies...)
 		body, err := io.ReadAll(resp.Body)
@@ -85,7 +89,7 @@ func TestFilterControlsPrecedeTheList(t *testing.T) {
 		}
 		// And the visual desktop placement must be preserved by the ordering utility,
 		// not by source order.
-		if !strings.Contains(html, "order-lg-last") {
+		if page.sidebar && !strings.Contains(html, "order-lg-last") {
 			t.Errorf("%s: missing order-lg-last, so the sidebar will render above the list "+
 				"on desktop instead of beside it", page.label)
 		}

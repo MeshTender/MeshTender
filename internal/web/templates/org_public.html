@@ -2,70 +2,34 @@
 {{define "header"}}{{template "org-header" .}}{{end}}
 {{define "content"}}
 {{template "org-tabs" .Nav}}
-<!-- Summary stats -->
+{{/* The public face of an organization, laid out like the members' Home: About
+     (with its region and links) first, then a sidebar with how big it is, how to
+     set up a repeater for it, where its public repeaters are, and who runs it. */}}
 <div class="row row-cards">
-  <div class="col-sm-6 col-lg-3">
-    <div class="card card-sm">
-      <div class="card-body">
-        <div class="row align-items-center">
-          <div class="col-auto"><span class="bg-primary text-white avatar">{{template "icon-users" ""}}</span></div>
-          <div class="col"><div class="h1 mb-0">{{.MemberCount}}</div><div class="text-secondary">Member{{if ne .MemberCount 1}}s{{end}}</div></div>
-        </div>
+  <div class="col-lg-8 d-flex flex-column gap-3">
+    <div class="card" data-testid="public-about">
+      <div class="card-header">
+        <h2 class="card-title">About</h2>
+        {{with .Org.Region}}<div class="card-actions text-secondary d-flex align-items-center">{{template "icon-map-pin" "me-1"}}{{.}}</div>{{end}}
       </div>
-    </div>
-  </div>
-  <div class="col-sm-6 col-lg-3">
-    <div class="card card-sm">
-      <div class="card-body">
-        <div class="row align-items-center">
-          <div class="col-auto"><span class="bg-green text-white avatar">{{template "icon-user" ""}}</span></div>
-          <div class="col"><div class="h1 mb-0">{{len .Admins}}</div><div class="text-secondary">Admin{{if ne (len .Admins) 1}}s{{end}}</div></div>
-        </div>
-      </div>
-    </div>
-  </div>
-  <div class="col-sm-6 col-lg-3">
-    <div class="card card-sm">
-      <div class="card-body">
-        <div class="row align-items-center">
-          <div class="col-auto"><span class="bg-azure text-white avatar">{{template "icon-antenna" ""}}</span></div>
-          <div class="col"><div class="h1 mb-0">{{.RepeaterCount}}</div><div class="text-secondary">Repeater{{if ne .RepeaterCount 1}}s{{end}}</div></div>
-        </div>
-      </div>
-    </div>
-  </div>
-  <div class="col-sm-6 col-lg-3">
-    <div class="card card-sm">
-      <div class="card-body">
-        <div class="row align-items-center">
-          <div class="col-auto"><span class="bg-purple text-white avatar">{{template "icon-map-pin" ""}}</span></div>
-          <div class="col text-truncate">
-            <div class="h1 mb-0 text-truncate">{{if .Org.Region}}{{.Org.Region}}{{else}}<span class="text-secondary fw-normal">Not set</span>{{end}}</div>
-            <div class="text-secondary">Region</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<div class="row row-cards mt-1">
-  <!-- Left column: description (grows with content) -->
-  <div class="col-lg-8">
-    <div class="card">
-      <div class="card-header"><h2 class="card-title">About</h2></div>
       <div class="card-body">
         {{if .Org.Description}}<div class="markdown">{{markdown .Org.Description}}</div>{{else}}<p class="text-secondary mb-0">This organization hasn't added a description yet.</p>{{end}}
       </div>
+      {{if .Links}}{{template "org-links-list" .Links}}{{end}}
     </div>
   </div>
 
-  <!-- Right column: repeater setup, repeater map, admins, links -->
-  <div class="col-lg-4">
+  <div class="col-lg-4 d-flex flex-column gap-3">
+    <div class="card" data-testid="public-counts">
+      <div class="list-group list-group-flush">
+        <div class="list-group-item d-flex align-items-center">{{template "icon-users" "me-2 text-secondary"}}Members<span class="ms-auto fw-bold">{{.MemberCount}}</span></div>
+        <a class="list-group-item list-group-item-action d-flex align-items-center" href="{{.RootURL}}/orgs/{{.Org.Slug}}/repeaters">{{template "icon-antenna" "me-2 text-secondary"}}Repeaters<span class="ms-auto fw-bold">{{.RepeaterCount}}</span></a>
+      </div>
+    </div>
     {{template "org-config-card" .Nav}}
+    {{if .HasMap}}
     <div class="card">
-      <div class="card-header"><h2 class="card-title">Repeaters</h2></div>
-      {{if .HasMap}}
+      <div class="card-header"><h2 class="card-title">Where its repeaters are</h2></div>
       <div class="card-body p-2">
         {{template "map-styles"}}
         <div id="map" style="height:260px" role="region" aria-label="Map of organization repeater locations"></div>
@@ -77,34 +41,21 @@
           ]);{{end}}
         </script>
       </div>
-      {{else}}
-      <div class="card-body"><p class="text-secondary mb-0">No repeaters are shown publicly.</p></div>
-      {{end}}
     </div>
-
-    <div class="card mt-3">
+    {{end}}
+    {{if .Admins}}
+    <div class="card">
       <div class="card-header"><h2 class="card-title">Admins</h2></div>
-      {{if .Admins}}
       <div class="list-group list-group-flush">
         {{range .Admins}}
         <a class="list-group-item list-group-item-action d-flex align-items-center gap-2" href="{{$.RootURL}}/u/{{.Username}}">
           <span class="text-secondary d-flex">{{template "icon-user" ""}}</span>
           <span class="flex-fill text-truncate">{{.Name}}</span>
-          <span class="text-secondary d-flex">{{template "icon-arrow-right" ""}}</span>
         </a>
         {{end}}
       </div>
-      {{else}}<div class="card-body"><p class="text-secondary mb-0">No admins listed.</p></div>{{end}}
-    </div>
-
-    {{if .Links}}
-    <div class="card mt-3">
-      <div class="card-header"><h2 class="card-title">Links</h2></div>
-      {{template "org-links-list" .Links}}
     </div>
     {{end}}
   </div>
 </div>
-
-<a class="back-link mt-3" href="{{.RootURL}}/orgs">{{template "icon-arrow-left" "me-1"}}All organizations</a>
 {{end}}
