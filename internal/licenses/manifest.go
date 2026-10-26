@@ -293,6 +293,7 @@ var FirstPartyStatic = []string{
 	"serial-port.js",
 	"serial-setup.js",
 	"timezone-picker.js",
+	"usb-console.js",
 	"ui.js",
 	"webauthn.js",
 }

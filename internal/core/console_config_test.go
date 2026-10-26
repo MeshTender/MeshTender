@@ -2,6 +2,7 @@ package core
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -256,5 +257,118 @@ func TestSetRepeaterLocation(t *testing.T) {
 	}
 	if got.Latitude == nil || got.Longitude == nil || *got.Latitude != 42.5 || *got.Longitude != -78.5 {
 		t.Fatalf("stored location = %v,%v, want 42.5,-78.5", got.Latitude, got.Longitude)
+	}
+}
+
+// TestConsoleConfigOverUSB: with ?usb=1 every complete line is runnable, even
+// ones the caller may not have MeshTender send over the air and ones the catalog
+// doesn't know, because over USB the browser writes to a repeater in the user's
+// own hands and MeshTender sends nothing. Without it, permissions apply as before.
+func TestConsoleConfigOverUSB(t *testing.T) {
+	t.Parallel()
+	st, ctx, ts, h := splitServer(t)
+
+	owner, _ := appLogin(t, ts, st, ctx, h.app, "usb-owner")
+	rep, err := st.CreateRepeater(ctx, &store.Repeater{
+		OwnerID: owner.ID, Name: "R", PublicKeyHex: strings.Repeat("d", 64),
+		RadioFreqHz: 1, RadioBwHz: 1, RadioSF: 11, RadioCR: 5,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	org, err := st.CreateOrg(ctx, "UsbOrg", owner.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	profiles := []store.ProfileInput{{Name: "Base", Steps: []store.ConfigStep{
+		{CommandLine: "set tx 22"},
+		{CommandLine: "set bridge.enabled on"}, // not in the catalog
+		{Comment: "a note"},
+	}}}
+	if err := st.ReplaceOrgConfig(ctx, org.ID, profiles, nil); err != nil {
+		t.Fatal(err)
+	}
+	member, memberCookie := appLogin(t, ts, st, ctx, h.app, "usb-member")
+	if err := st.AddOrgMember(ctx, org.ID, member.ID, "member"); err != nil {
+		t.Fatal(err)
+	}
+
+	base := "/repeaters/" + rep.PublicID + "/config.json"
+	runnable := func(cc consoleConfig) map[string]bool {
+		out := map[string]bool{}
+		for _, c := range cc.Commands {
+			if c.Line != "" {
+				out[c.Line] = c.Runnable
+			}
+		}
+		return out
+	}
+
+	air := runnable(getConsoleConfig(t, ts, h.app, base, memberCookie))
+	if air["set tx 22"] || air["set bridge.enabled on"] {
+		t.Fatalf("over the air a plain member may run %v; want neither line", air)
+	}
+	usb := getConsoleConfig(t, ts, h.app, base+"?usb=1", memberCookie)
+	if got := runnable(usb); !got["set tx 22"] || !got["set bridge.enabled on"] {
+		t.Fatalf("over USB runnable = %v, want every command line", got)
+	}
+	for _, c := range usb.Commands {
+		if c.Line == "" && c.Runnable {
+			t.Errorf("note %q runnable over USB", c.Comment)
+		}
+	}
+}
+
+// TestRepeaterUSBPage: the apply-over-USB page is for people with access to the
+// repeater, carries its public key for the device check, and says so plainly
+// when there's no configuration to apply.
+func TestRepeaterUSBPage(t *testing.T) {
+	t.Parallel()
+	st, ctx, ts, h := splitServer(t)
+
+	owner, ownerCookie := appLogin(t, ts, st, ctx, h.app, "usbpage-owner")
+	key := strings.Repeat("c", 64)
+	rep, err := st.CreateRepeater(ctx, &store.Repeater{
+		OwnerID: owner.ID, Name: "R", PublicKeyHex: key,
+		RadioFreqHz: 1, RadioBwHz: 1, RadioSF: 11, RadioCR: 5,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := "/repeaters/" + rep.PublicID + "/usb"
+
+	body := func(resp *http.Response) string {
+		defer resp.Body.Close()
+		var b strings.Builder
+		_, _ = io.Copy(&b, resp.Body)
+		return b.String()
+	}
+
+	resp := do(t, ts, h.app, path, ownerCookie)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("owner GET %s = %d", path, resp.StatusCode)
+	}
+	if page := body(resp); !strings.Contains(page, "No configuration to apply") || strings.Contains(page, `id="config-panel"`) {
+		t.Fatal("a repeater with no organization configuration should get the empty state, not the panel")
+	}
+
+	org, err := st.CreateOrg(ctx, "UsbPageOrg", owner.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.ReplaceOrgConfig(ctx, org.ID, []store.ProfileInput{{Name: "P", Steps: []store.ConfigStep{{CommandLine: "set tx 20"}}}}, nil); err != nil {
+		t.Fatal(err)
+	}
+	page := body(do(t, ts, h.app, path, ownerCookie))
+	if !strings.Contains(page, `data-pubkey="`+key+`"`) || !strings.Contains(page, `data-usb="1"`) {
+		t.Fatal("the page should carry the repeater's key and ask for the USB configuration")
+	}
+
+	_, strangerCookie := appLogin(t, ts, st, ctx, h.app, "usbpage-stranger")
+	if resp := do(t, ts, h.app, path, strangerCookie); resp.StatusCode != http.StatusNotFound {
+		resp.Body.Close()
+		t.Fatalf("stranger GET %s = %d, want 404", path, resp.StatusCode)
+	} else {
+		resp.Body.Close()
 	}
 }

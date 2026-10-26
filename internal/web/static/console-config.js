@@ -1,6 +1,9 @@
-// Drives the "Apply organization configuration" panel on the repeater console.
-// The panel is an inline Bootstrap collapse (hidden until the user opens it) so
-// the console log above stays visible while commands run. It fetches the
+// Drives the "Apply organization configuration" panel (the
+// repeater-config-panel partial). On the console it's an inline Bootstrap
+// collapse, loaded when first opened, and commands go over the air through a KISS
+// modem; on the USB page (data-usb) it's shown open and loads at once, and
+// commands go to the repeater's own serial port. Either way it talks only to
+// window.MeshConsole (console.js or usb-console.js). It fetches the
 // recommended configuration for a chosen org/profile from
 // /repeaters/{id}/config.json, lists every command (marking which the user may
 // run), and runs them over the live console session via window.MeshConsole
@@ -24,6 +27,9 @@
   const connectBtn = q('[data-cfg="connect"]');
   const connectLabel = q('[data-cfg="connect-label"]');
   const hint = q('[data-cfg="hint"]');
+  const overUSB = panel.dataset.usb === "1";
+  const device = overUSB ? "repeater" : "modem";
+  const Device = overUSB ? "Repeater" : "Modem";
 
   let data = null; // last config payload
   let rows = []; // per-command row state: { line, runnable, statusEl }
@@ -32,17 +38,18 @@
 
   const consoleReady = () => !!(window.MeshConsole && window.MeshConsole.ready);
 
-  function queryURL() {
+  function queryURL(useSelectors) {
     const p = new URLSearchParams();
-    if (orgSel.value) p.set("org", orgSel.value);
-    if (profileSel.value) p.set("profile", profileSel.value);
+    if (useSelectors && orgSel.value) p.set("org", orgSel.value);
+    if (useSelectors && profileSel.value) p.set("profile", profileSel.value);
+    if (overUSB) p.set("usb", "1");
     const qs = p.toString();
     return qs ? configURL + "?" + qs : configURL;
   }
 
   async function load(useSelectors) {
     try {
-      const resp = await fetch(useSelectors ? queryURL() : configURL, {
+      const resp = await fetch(queryURL(useSelectors), {
         headers: { Accept: "application/json" },
       });
       if (!resp.ok) throw new Error("HTTP " + resp.status);
@@ -121,7 +128,7 @@
       locBox.appendChild(
         alertEl(
           "info",
-          "This organization's region settings depend on the repeater's location, which isn't known yet. Connect the modem and fetch it, or pick it on the map.",
+          "This organization's region settings depend on the repeater's location, which isn't known yet. Connect the " + device + " and read it from the repeater, or pick it on the map.",
         ),
       );
     }
@@ -134,9 +141,9 @@
       fetchBtn.type = "button";
       fetchBtn.className = "btn btn-sm";
       fetchBtn.dataset.loc = "fetch";
-      fetchBtn.textContent = "Fetch from device";
+      fetchBtn.textContent = "Read from the repeater";
       fetchBtn.disabled = !consoleReady();
-      if (fetchBtn.disabled) fetchBtn.title = "Connect the modem first";
+      if (fetchBtn.disabled) fetchBtn.title = "Connect the " + device + " first";
       fetchBtn.addEventListener("click", () => {
         if (window.MeshConsole && window.MeshConsole.getLocation()) {
           setHint("Fetching the location from the repeater…");
@@ -241,7 +248,7 @@
       } else if (c.line) {
         const badge = document.createElement("span");
         badge.className = "badge bg-secondary-lt";
-        badge.textContent = c.reason === "note" ? "note" : "not permitted";
+        badge.textContent = c.reason === "note" ? "note" : "can't run";
         if (c.reason && c.reason !== "note") badge.title = c.reason;
         row.appendChild(badge);
       }
@@ -344,15 +351,15 @@
     if (!supported) {
       connectBtn.disabled = true;
       connectBtn.title = "This browser can't connect to USB devices.";
-      if (connectLabel) connectLabel.textContent = "Modem unsupported";
+      if (connectLabel) connectLabel.textContent = "USB not supported";
     } else if (ready) {
       connectBtn.disabled = true;
       connectBtn.title = "";
-      if (connectLabel) connectLabel.textContent = "Modem connected";
+      if (connectLabel) connectLabel.textContent = Device + " connected";
     } else {
       connectBtn.disabled = running;
       connectBtn.title = "";
-      if (connectLabel) connectLabel.textContent = "Connect modem";
+      if (connectLabel) connectLabel.textContent = "Connect " + device;
     }
   }
 
@@ -366,7 +373,7 @@
     const fetchBtn = locBox.querySelector('button[data-loc="fetch"]');
     if (fetchBtn) {
       fetchBtn.disabled = running || !ready;
-      fetchBtn.title = ready ? "" : "Connect the modem first";
+      fetchBtn.title = ready ? "" : "Connect the " + device + " first";
     }
   }
 
@@ -374,7 +381,7 @@
   // in-progress run's status message.
   function refreshHint() {
     if (running) return;
-    setHint(consoleReady() ? "" : "Connect the modem to run commands.");
+    setHint(consoleReady() ? "" : "Connect the " + device + " to run commands.");
   }
 
   // helpers
@@ -415,7 +422,9 @@
       connectBtn.disabled = true;
     });
   }
-  // Load the config the first time the panel is expanded (not before — it's opt-in).
+  // Load the config the first time the panel is expanded (not before — it's
+  // opt-in), or at once when it isn't a collapse (the USB page).
+  if (!panel.classList.contains("collapse")) load(false);
   panel.addEventListener("shown.bs.collapse", () => {
     if (!data) load(false);
     if (mapView) mapView.resize();

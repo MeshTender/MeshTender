@@ -92,37 +92,8 @@ swap needs no new markup. The flex row is nested so the [hidden] attribute wins
         </form>
       </div>
     </div>
-{{if .ShowConfig}}
-    <div class="collapse mt-3" id="config-panel"
-         data-config-url="/repeaters/{{.Repeater.PublicID}}/config.json"
-         data-location-url="/repeaters/{{.Repeater.PublicID}}/location">
-      <div class="card">
-        <div class="card-header"><h2 class="card-title">Apply organization configuration</h2></div>
-        <div class="card-body">
-          <p class="text-secondary">Pick a profile to see the commands it sets on this repeater. Commands you're allowed to send get a Run button; replies show next to each one and in the log above.</p>
-          <div class="row g-2 mb-3">
-            <div class="col-sm-6">
-              <label class="form-label" for="cfg-org">Organization</label>
-              <select id="cfg-org" class="form-select" data-cfg="org"></select>
-            </div>
-            <div class="col-sm-6">
-              <label class="form-label" for="cfg-profile">Profile</label>
-              <select id="cfg-profile" class="form-select" data-cfg="profile"></select>
-            </div>
-          </div>
-          <div data-cfg="location"></div>
-          <div id="config-map" data-cfg="map" style="height:220px;display:none" class="mb-3 rounded" role="region" aria-label="Pick the repeater's location"></div>
-          <div data-cfg="commands" data-testid="config-commands"></div>
-        </div>
-        <div class="card-footer d-flex align-items-center">
-          <span data-cfg="hint" class="text-secondary small" data-testid="config-hint"></span>
-          <div class="btn-list ms-auto">
-            <button type="button" class="btn btn-primary" data-cfg="connect" data-testid="config-connect">{{template "icon-plug" "me-1"}}<span data-cfg="connect-label">Connect modem</span></button>
-            <button type="button" class="btn btn-primary" data-cfg="run-all" data-testid="config-run-all">Run all</button>
-          </div>
-        </div>
-      </div>
-    </div>
+    {{if .ShowConfig}}
+    {{template "repeater-config-panel" (dict "PublicID" .Repeater.PublicID "USB" false)}}
     {{end}}
   </div>
   <div class="col-12 col-lg-4">

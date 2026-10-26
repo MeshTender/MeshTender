@@ -44,6 +44,12 @@ type consoleConfigLocation struct {
 // consoleConfigJSON serves the recommended configuration for a repeater under a
 // chosen org/profile. Location defaults to the repeater's stored coordinates; a
 // ?lat=&lon= override lets the client preview a picked location before saving it.
+//
+// ?usb=1 is for applying it over USB (pageRepeaterUSB), where the browser writes
+// to a repeater plugged into the user's own computer and MeshTender sends
+// nothing. Permissions govern what MeshTender relays over the air; someone
+// holding the device can type any command into it already, so over USB every
+// complete command line is runnable, recognized by the catalog or not.
 func (s *Handlers) consoleConfigJSON(w http.ResponseWriter, r *http.Request) {
 	rep, id, ok := s.requireRepeaterAccess(w, r)
 	if !ok {
@@ -105,11 +111,15 @@ func (s *Handlers) consoleConfigJSON(w http.ResponseWriter, r *http.Request) {
 	for _, cid := range sendable {
 		allowed[cid] = true
 	}
+	overUSB := r.URL.Query().Get("usb") == "1"
 	runnable := func(line string) (bool, string) {
 		if store.HasPlaceholders(line) {
 			// BuildConfigView filled in everything it could; what's left needs
 			// radio settings the org hasn't set.
 			return false, "the organization's radio settings aren't set"
+		}
+		if overUSB {
+			return true, ""
 		}
 		cmd := resolveCommand(line, catalog)
 		if cmd == nil {
@@ -176,4 +186,24 @@ func (s *Handlers) handleSetRepeaterLocation(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// pageRepeaterUSB applies an organization's configuration to a repeater that's
+// already in MeshTender, over USB: the console's configuration panel, run
+// through the repeater's own serial CLI (static/usb-console.js) rather than a
+// KISS modem. For owners without a modem, and for anyone standing next to it.
+func (s *Handlers) pageRepeaterUSB(w http.ResponseWriter, r *http.Request) {
+	rep, _, ok := s.requireRepeaterAccess(w, r)
+	if !ok {
+		return
+	}
+	configOrgs, err := s.Store.ListRepeaterConfigOrgs(r.Context(), rep.ID)
+	if err != nil {
+		s.ServerError(w, r, "could not load organizations", err)
+		return
+	}
+	s.Render(w, r, "repeater_usb.html", map[string]any{
+		"Repeater":   rep,
+		"ShowConfig": len(configOrgs) > 0,
+	})
 }
