@@ -1,112 +1,202 @@
-{{define "title"}}MeshTender · Tend your mesh{{end}}
+{{define "title"}}MeshTender · MeshCore repeaters and nets, from your browser{{end}}
 {{define "content"}}
-<!-- Hero -->
-<div class="page-header">
-  <div class="container">
-    <div class="row align-items-center py-5">
-      <div class="col-lg-7">
-        <h1 class="display-5 fw-bold mb-3">Tend your MeshCore network.</h1>
-        <p class="fs-3 text-secondary mb-4">
-          MeshTender helps MeshCore repeater owners and regional mesh organizations keep their configurations
-          in sync without needing to share admin passwords.
-        </p>
-        <div class="btn-list">
-          <a href="{{.AppURL}}/signup" class="btn btn-primary btn-lg">{{template "icon-key" "me-2"}}Get started</a>
-          <a href="/orgs" class="btn btn-lg">Browse organizations</a>
-        </div>
-      </div>
-      <div class="col-lg-5 d-none d-lg-flex justify-content-center" aria-hidden="true">
-        <span class="text-primary" style="opacity:.85">
-          <svg xmlns="http://www.w3.org/2000/svg" width="360" height="205" viewBox="0 0 837.000000 477.000000" fill="currentColor" aria-hidden="true" focusable="false"><g transform="translate(0.000000,477.000000) scale(0.100000,-0.100000)" > <path d="M7140 4596 c-36 -20 -200 -205 -217 -244 -24 -58 -9 -91 95 -214 366 -430 561 -839 649 -1363 26 -156 26 -580 0 -745 -81 -515 -321 -1019 -659 -1385 -80 -86 -88 -101 -88 -162 0 -60 13 -82 129 -210 149 -167 161 -163 396 107 631 729 889 1696 695 2610 -119 563 -368 1039 -778 1487 -121 132 -159 153 -222 119z"/> <path d="M1041 4528 c-254 -265 -483 -611 -634 -958 -237 -545 -302 -1138 -191 -1746 101 -557 402 -1139 803 -1555 89 -92 99 -99 134 -99 53 0 64 7 149 107 152 178 154 211 22 354 -185 202 -381 511 -488 771 -245 596 -258 1286 -34 1888 120 323 283 595 531 883 120 140 117 168 -36 330 -91 96 -93 97 -139 97 -45 0 -50 -3 -117 -72z"/> <path d="M4105 4561 c-195 -90 -463 -377 -548 -589 l-33 -81 -42 19 c-129 58 -310 101 -502 120 -126 13 -162 6 -184 -39 -25 -48 -49 -215 -55 -376 l-6 -160 -55 -6 c-209 -23 -474 -160 -538 -279 -32 -61 -26 -170 17 -299 65 -194 159 -336 303 -456 l55 -47 -80 -77 c-181 -173 -300 -419 -301 -623 -1 -93 0 -97 30 -135 89 -111 331 -227 519 -249 l52 -6 6 -157 c9 -217 37 -368 73 -400 27 -22 33 -23 119 -17 174 12 342 50 498 112 49 20 90 34 91 32 2 -1 22 -43 44 -91 101 -217 287 -420 506 -551 76 -46 120 -47 194 -6 222 122 457 376 537 578 16 40 29 72 31 72 1 0 35 -13 76 -29 160 -64 344 -106 515 -118 88 -6 92 -5 116 19 39 39 76 257 77 451 0 95 2 107 18 107 55 0 238 56 327 100 227 111 278 189 240 367 -51 244 -213 492 -393 603 -15 9 -14 13 12 33 163 124 237 210 311 362 88 180 116 333 76 421 -50 110 -302 249 -518 285 l-70 11 -6 152 c-10 263 -41 393 -99 417 -68 28 -399 -25 -577 -92 -103 -38 -121 -40 -121 -14 0 26 -100 211 -149 275 -62 82 -206 221 -291 282 -140 99 -196 115 -275 79z m141 -182 c240 -168 390 -366 446 -589 25 -103 21 -220 -12 -320 -46 -138 -240 -474 -268 -466 -145 45 -287 51 -416 17 -63 -17 -82 -18 -88 -9 -45 68 -218 437 -233 496 -59 243 32 500 254 722 74 74 227 190 250 190 4 0 34 -19 67 -41z m-1182 -515 c116 -18 306 -73 375 -109 l48 -24 7 -94 c12 -174 54 -293 195 -558 45 -83 81 -155 81 -159 0 -4 -16 -20 -36 -35 -31 -24 -37 -25 -52 -12 -481 414 -595 500 -722 542 l-49 16 -7 56 c-7 61 0 204 18 320 12 84 1 79 142 57z m2368 -18 c14 -55 30 -270 23 -326 l-6 -56 -88 -21 c-195 -46 -400 -175 -696 -438 -47 -42 -85 -74 -85 -72 0 3 29 51 66 108 151 240 212 401 221 586 l6 112 67 30 c89 39 223 78 335 95 127 20 147 18 157 -18z m303 -566 c92 -23 223 -86 291 -137 l46 -35 -7 -52 c-33 -244 -193 -478 -397 -582 l-48 -24 -392 2 -391 3 -13 60 c-17 83 -40 138 -91 219 -52 80 -60 63 87 191 399 348 618 432 915 355z m-2895 9 c122 -27 234 -104 535 -364 109 -93 204 -175 213 -182 13 -11 11 -20 -15 -80 -17 -37 -38 -101 -48 -140 l-18 -73 -414 0 -414 0 -58 39 c-169 115 -312 354 -337 562 l-6 56 48 35 c159 116 376 179 514 147z m1433 -414 c332 -70 504 -439 344 -738 -196 -369 -712 -359 -893 16 -180 376 147 807 549 722z m-750 -648 c17 -67 52 -148 90 -212 l24 -40 -171 -162 c-273 -260 -385 -336 -546 -369 -171 -36 -425 27 -587 145 -49 36 -53 57 -28 156 51 199 147 355 295 481 l75 64 416 0 417 0 15 -63z m2142 34 c195 -114 356 -358 390 -592 l7 -47 -62 -42 c-272 -185 -582 -191 -843 -16 -70 46 -405 313 -460 365 -17 16 -16 19 16 62 47 61 83 136 103 211 9 34 18 69 20 76 3 9 89 12 391 12 l388 0 50 -29z m-1896 -420 c11 -7 5 -25 -33 -90 -170 -295 -246 -504 -246 -677 l0 -63 -47 -21 c-124 -55 -345 -114 -463 -122 l-45 -3 -12 70 c-7 39 -14 130 -15 204 l-3 134 70 19 c201 55 348 157 661 460 104 100 109 104 133 89z m1176 -322 c174 -131 307 -198 459 -229 l59 -12 -6 -126 c-3 -70 -11 -165 -18 -210 l-12 -84 -46 7 c-164 22 -393 85 -483 131 -26 13 -28 19 -28 73 0 201 -68 377 -280 726 -21 33 -2 20 115 -81 77 -66 185 -154 240 -195z m-940 211 c50 -13 111 -20 170 -20 59 0 120 7 170 20 43 11 79 20 81 20 5 0 161 -274 197 -345 122 -244 112 -441 -34 -688 -90 -152 -379 -403 -433 -376 -81 42 -234 176 -313 274 -157 197 -217 420 -167 621 19 75 231 514 248 514 2 0 38 -9 81 -20z"/> <path d="M1715 3826 c-80 -35 -270 -302 -391 -549 -294 -605 -268 -1247 75 -1815 121 -202 258 -373 317 -398 123 -52 274 54 274 193 0 38 -19 74 -82 152 -527 652 -525 1389 6 2085 75 98 85 133 62 204 -36 109 -163 171 -261 128z"/> <path d="M6483 3815 c-74 -37 -113 -98 -113 -176 0 -54 3 -62 49 -121 206 -262 331 -515 393 -795 30 -133 32 -425 5 -553 -55 -258 -205 -570 -357 -742 -70 -80 -90 -117 -90 -167 1 -164 192 -269 306 -169 150 132 382 518 468 779 180 546 85 1145 -263 1670 -184 277 -272 338 -398 274z"/> </g></svg>
-        </span>
+{{/* The landing page shows what the site does rather than describing it: each
+     section pairs a short pitch with a small preview built from the same Tabler
+     pieces the app uses (sample data, marked aria-hidden; the text beside each
+     says the same thing). */}}
+<div class="container-xl">
+  <section class="row align-items-center g-5 py-5" data-testid="landing-hero">
+    <div class="col-lg-6">
+      <h1 class="display-6 fw-bold mb-3">A home for your MeshCore mesh.</h1>
+      <p class="fs-3 text-secondary mb-4">
+        Your organization's repeaters, settings and weekly nets in one place. Members check in with the companion
+        app they already use, repeater owners set up to the organization's spec, and operators with a KISS modem
+        can manage repeaters over the air.
+      </p>
+      <div class="btn-list">
+        <a href="{{.AppURL}}/signup" class="btn btn-primary btn-lg">Create an account</a>
+        <a href="{{.RootURL}}/orgs" class="btn btn-lg">Find your organization</a>
       </div>
     </div>
+    <div class="col-lg-6" aria-hidden="true">
+      {{template "landing-preview-net"}}
+    </div>
+  </section>
+
+  <h2 class="landing-kicker">For members</h2>
+  <section class="row align-items-center g-5 pb-5">
+    <div class="col-lg-5">
+      {{template "landing-tag" "companion"}}
+      <h3 class="h1 mb-3">Check in from the app you already use</h3>
+      <p class="fs-4 text-secondary">Register the companion you carry, then check in to your organization's weekly net by sending a flood advert. Follow the roster and the news as it comes in, and read your organization's docs and recommended setup any time.</p>
+    </div>
+    <div class="col-lg-7" aria-hidden="true">{{template "landing-preview-schedule"}}</div>
+  </section>
+
+  <h2 class="landing-kicker">For repeater owners</h2>
+  <section class="row align-items-center g-5 pb-5 flex-lg-row-reverse">
+    <div class="col-lg-5">
+      {{template "landing-tag" "usb"}}
+      <h3 class="h1 mb-3">Set up a new repeater to your organization's spec</h3>
+      <p class="fs-4 text-secondary">Plug a freshly flashed repeater into your computer and pick your organization's profile. MeshTender writes the radio, name, region for where it stands and settings in one pass, like the flasher's Repeater Setup, without typing any of it.</p>
+    </div>
+    <div class="col-lg-7" aria-hidden="true">{{template "landing-preview-setup"}}</div>
+  </section>
+  <section class="row align-items-center g-5 pb-5">
+    <div class="col-lg-5">
+      {{template "landing-tag" "none"}}
+      <h3 class="h1 mb-3">Document it, and share it without passwords</h3>
+      <p class="fs-4 text-secondary">Keep each repeater's notes and maintenance history, publish a public page with its stewards, and decide who may run which commands on it: a single-use invite, a trusted steward, or your organization.</p>
+    </div>
+    <div class="col-lg-7" aria-hidden="true">{{template "landing-preview-sharing"}}</div>
+  </section>
+
+  <h2 class="landing-kicker">For organizations</h2>
+  <section class="row align-items-center g-5 pb-5 flex-lg-row-reverse">
+    <div class="col-lg-5">
+      {{template "landing-tag" "none"}}
+      <h3 class="h1 mb-3">One configuration for the whole region</h3>
+      <p class="fs-4 text-secondary">Publish your radio settings and configuration profiles, and draw regions on a map. Members see the exact commands for where their repeater stands, and new repeaters get them at setup.</p>
+    </div>
+    <div class="col-lg-7" aria-hidden="true">{{template "landing-preview-config"}}</div>
+  </section>
+
+  <h2 class="landing-kicker">With a KISS modem</h2>
+  <section class="row align-items-center g-5 pb-5">
+    <div class="col-lg-5">
+      {{template "landing-tag" "modem"}}
+      <h3 class="h1 mb-3">Manage repeaters over the air</h3>
+      <p class="fs-4 text-secondary">For admins, stewards and net control: plug a MeshCore radio flashed as a KISS modem into your computer to run CLI commands on repeaters from the browser, confirm they're reachable, apply your organization's configuration, and run a net on the air. Every command and reply is logged.</p>
+    </div>
+    <div class="col-lg-7" aria-hidden="true">{{template "landing-preview-console"}}</div>
+  </section>
+
+  <section class="py-5" data-testid="landing-steps">
+    <h2 class="h1 text-center mb-4">Getting started</h2>
+    <div class="row row-cards">
+      {{template "landing-step" (dict "N" "1" "Title" "Create an account" "Text" "Use a passkey or a password. It's how your organization knows who checked in.")}}
+      {{template "landing-step" (dict "N" "2" "Title" "Find your organization" "Text" "Join your local organization from the directory, or start one and invite your members.")}}
+      {{template "landing-step" (dict "N" "3" "Title" "Add your radios" "Text" "Register the companion you carry, and set up or register your repeaters.")}}
+    </div>
+    <p class="text-center text-secondary mt-3 mb-0">Have a KISS modem? Connect it any time to manage repeaters over the air.</p>
+    <div class="text-center mt-4 btn-list justify-content-center">
+      <a href="{{.AppURL}}/signup" class="btn btn-primary btn-lg">Create an account</a>
+      <a href="{{.RootURL}}/docs" class="btn btn-lg">Read the docs</a>
+    </div>
+  </section>
+</div>
+{{end}}
+
+{{/* landing-tag says what a feature needs. Pass "companion", "usb", "none" or
+     "modem". */}}
+{{define "landing-tag"}}
+<div class="landing-tag mb-2" data-testid="landing-tag-{{.}}">
+  {{if eq . "companion"}}{{template "icon-radio" "me-1"}}Just your companion app
+  {{else if eq . "usb"}}{{template "icon-plug" "me-1"}}Just the repeater and a USB cable
+  {{else if eq . "modem"}}{{template "icon-antenna" "me-1"}}Needs a KISS modem
+  {{else}}{{template "icon-check" "me-1"}}No extra hardware{{end}}
+</div>
+{{end}}
+
+{{define "landing-step"}}
+<div class="col-md-4">
+  <div class="card h-100"><div class="card-body">
+    <span class="avatar avatar-sm landing-step-n fw-bold mb-3">{{.N}}</span>
+    <h3 class="mb-1">{{.Title}}</h3>
+    <p class="text-secondary mb-0">{{.Text}}</p>
+  </div></div>
+</div>
+{{end}}
+
+{{/* ---- Previews: sample data in the app's own components. Commands and
+     replies follow the firmware (CommonCLI: "> value" for a get, "OK" for a set)
+     and the region lines are what store.RegionDefCommands emits for a
+     us > ny > buf chain; keep them true if you change them. ---- */}}
+
+{{define "landing-preview-net"}}
+<div class="card landing-preview">
+  <div class="card-header">
+    <div>
+      <div class="card-title">Sunday Check-in <span class="badge bg-green-lt ms-1">In progress</span></div>
+      <div class="card-subtitle">12 of 31 members checked in</div>
+    </div>
+  </div>
+  <div class="list-group list-group-flush">
+    <div class="list-group-item d-flex gap-3"><span class="text-secondary">{{template "icon-check" ""}}</span>
+      <div class="flex-fill"><strong>Alice Ames</strong> checked in on Alice T-Deck
+        <div class="small text-secondary">heard by 3 observers, relayed by 9 repeaters · copied on air</div></div>
+      <span class="small text-secondary text-nowrap">7:21 PM</span></div>
+    <div class="list-group-item d-flex gap-3"><span class="text-secondary">{{template "icon-radio" ""}}</span>
+      <div class="flex-fill"><div><strong>KD2ABC</strong> <span class="small text-secondary">on the channel</span></div>
+        <div class="mt-1 px-3 py-2 rounded-3 bg-surface-secondary d-inline-block">Route 33 closed westbound at the Thruway.</div></div>
+      <span class="small text-secondary text-nowrap">7:20 PM</span></div>
+    <div class="list-group-item d-flex gap-3"><span class="text-secondary">{{template "icon-check" ""}}</span>
+      <div class="flex-fill"><strong>Bob Brown</strong> checked in on Bob T1000
+        <div class="small text-secondary">heard by 2 observers, relayed by 4 repeaters · <span class="text-orange">awaiting acknowledgement</span></div></div>
+      <span class="small text-secondary text-nowrap">7:19 PM</span></div>
   </div>
 </div>
+{{end}}
 
-<!-- Features -->
-<div class="page-body">
-  <div class="container">
-    <div class="row row-cards row-deck">
-      <div class="col-md-6 col-lg-4">
-        <div class="card h-100">
-          <div class="card-body">
-            <div class="d-flex align-items-center mb-2">
-              <span class="avatar bg-primary-lt text-primary me-3">{{template "icon-key" ""}}</span>
-              <h2 class="card-title m-0">No password sharing</h2>
-            </div>
-            <p class="text-secondary mb-0">Grant MeshTender access with its own public key — your repeater's admin password never leaves your hands.</p>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-6 col-lg-4">
-        <div class="card h-100">
-          <div class="card-body">
-            <div class="d-flex align-items-center mb-2">
-              <span class="avatar bg-primary-lt text-primary me-3">{{template "icon-settings" ""}}</span>
-              <h2 class="card-title m-0">Recommended configuration</h2>
-            </div>
-            <p class="text-secondary mb-0">Organizations publish recommended configuration profiles — including region-specific settings — so members can bring every repeater in spec and keep it there.</p>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-6 col-lg-4">
-        <div class="card h-100">
-          <div class="card-body">
-            <div class="d-flex align-items-center mb-2">
-              <span class="avatar bg-primary-lt text-primary me-3">{{template "icon-share" ""}}</span>
-              <h2 class="card-title m-0">Share with precision</h2>
-            </div>
-            <p class="text-secondary mb-0">Hand out single-use links with per-command permissions. Join an organization and your repeaters share automatically — opt any out anytime.</p>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-6 col-lg-4">
-        <div class="card h-100">
-          <div class="card-body">
-            <div class="d-flex align-items-center mb-2">
-              <span class="avatar bg-primary-lt text-primary me-3">{{template "icon-terminal" ""}}</span>
-              <h2 class="card-title m-0">A console in your browser</h2>
-            </div>
-            <p class="text-secondary mb-0">Connect a MeshCore KISS modem and run CLI commands straight from your browser — no drivers and nothing to install locally.</p>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-6 col-lg-4">
-        <div class="card h-100">
-          <div class="card-body">
-            <div class="d-flex align-items-center mb-2">
-              <span class="avatar bg-primary-lt text-primary me-3">{{template "icon-antenna" ""}}</span>
-              <h2 class="card-title m-0">Confirm reachability</h2>
-            </div>
-            <p class="text-secondary mb-0">Reach a repeater from your modem, and let others corroborate from theirs — proof it's really on the air, not just registered.</p>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-6 col-lg-4">
-        <div class="card h-100">
-          <div class="card-body">
-            <div class="d-flex align-items-center mb-2">
-              <span class="avatar bg-primary-lt text-primary me-3">{{template "icon-list" ""}}</span>
-              <h2 class="card-title m-0">Full audit log</h2>
-            </div>
-            <p class="text-secondary mb-0">Every command is logged and grouped by session — who ran what, when, and whether the repeater replied.</p>
-          </div>
-        </div>
-      </div>
-    </div>
+{{define "landing-preview-console"}}
+<div class="card landing-preview">
+  <div class="card-header"><div class="card-title">Hilltop <span class="badge bg-green-lt ms-1">Connected</span></div></div>
+  <ul class="evlog console border-0 rounded-0 mb-0">
+    <li class="ev ev-sent">get name</li>
+    <li class="ev ev-reply">&gt; Hilltop</li>
+    <li class="ev ev-sent">set advert.interval 240</li>
+    <li class="ev ev-reply">OK</li>
+    <li class="ev ev-sent">get lat</li>
+    <li class="ev ev-reply">&gt; 42.8810</li>
+  </ul>
+</div>
+{{end}}
 
-    <!-- CTA -->
-    <div class="card card-md mt-4">
-      <div class="card-body text-center py-5">
-        <h2 class="mb-3">Ready to tend your mesh?</h2>
-        <p class="text-secondary mb-4">Register a repeater in minutes and bring your team along.</p>
-        <div class="btn-list justify-content-center">
-          <a href="{{.AppURL}}/signup" class="btn btn-primary btn-lg">Create your account</a>
-          <a href="{{.AppURL}}/login" class="btn btn-lg">Sign in</a>
-        </div>
-      </div>
-    </div>
+{{define "landing-preview-sharing"}}
+<div class="card landing-preview">
+  <div class="card-header"><div class="card-title">People with access</div></div>
+  <div class="list-group list-group-flush">
+    <div class="list-group-item d-flex align-items-center gap-2"><span class="flex-fill"><strong>Carol Chen</strong> <span class="badge bg-blue-lt ms-1">Steward</span></span><span class="small text-secondary">Every command</span></div>
+    <div class="list-group-item d-flex align-items-center gap-2"><span class="flex-fill"><strong>Dan Diaz</strong></span><span class="small text-secondary">get radio, advert, clock</span></div>
+    <div class="list-group-item d-flex align-items-center gap-2"><span class="flex-fill"><strong>WNY MeshCore</strong> <span class="badge bg-secondary-lt ms-1">Organization</span></span><span class="small text-secondary">12 commands</span></div>
   </div>
+</div>
+{{end}}
+
+{{define "landing-preview-setup"}}
+<div class="card landing-preview">
+  <div class="card-header"><div><div class="card-title">Set up over USB</div><div class="card-subtitle">WNY MeshCore · Solar node · near Buffalo</div></div></div>
+  <div class="list-group list-group-flush">
+    <div class="list-group-item d-flex gap-2"><span class="text-green">{{template "icon-check" ""}}</span>New identity, made in your browser</div>
+    <div class="list-group-item d-flex gap-2"><span class="text-green">{{template "icon-check" ""}}</span>Radio 910.525 MHz · BW62.5 · SF7 · CR5</div>
+    <div class="list-group-item d-flex gap-2"><span class="text-green">{{template "icon-check" ""}}</span>Name “Hilltop” and the profile's settings</div>
+    <div class="list-group-item d-flex gap-2"><span class="text-green">{{template "icon-check" ""}}</span>Region us › ny › buf</div>
+    <div class="list-group-item d-flex gap-2"><span class="text-green">{{template "icon-check" ""}}</span>Admin access for MeshTender</div>
+  </div>
+</div>
+{{end}}
+
+{{define "landing-preview-config"}}
+<div class="card landing-preview">
+  <div class="card-header"><div><div class="card-title">Solar node</div><div class="card-subtitle">For a repeater in Buffalo</div></div></div>
+  <div class="card-body"><pre class="mb-0">set radio 910.525,62.5,7,5
+set advert.interval 240
+region def us ny buf
+region denyf *
+region allowf us
+region allowf ny
+region allowf buf
+region save</pre></div>
+</div>
+{{end}}
+
+{{define "landing-preview-schedule"}}
+<div class="card landing-preview">
+  <div class="card-header"><div class="card-title">Next nets</div></div>
+  <div class="list-group list-group-flush">
+    <div class="list-group-item d-flex align-items-center"><div class="flex-fill"><strong>Sunday Check-in</strong><div class="small text-secondary">Sundays, 7:00–8:00 PM · #wnynet</div></div><span class="badge bg-green-lt">In progress</span></div>
+    <div class="list-group-item d-flex align-items-center"><div class="flex-fill"><strong>Thursday Tech Net</strong><div class="small text-secondary">Thursdays, 8:00–9:00 PM · Public channel</div></div><span class="small text-secondary">in 4 days</span></div>
+  </div>
+  <div class="card-footer small text-secondary">On the air: “Copied: @[Alice T-Deck], @[KD2ABC Mobile]”</div>
 </div>
 {{end}}

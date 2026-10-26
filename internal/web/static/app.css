@@ -266,3 +266,33 @@ code.pubkey {
 [data-copied] {
   color: var(--tblr-success) !important;
 }
+
+/* ---------- Landing page ---------- */
+/* A section label over the feature rows ("For repeater owners"). */
+.landing-kicker {
+  font-size: 0.8125rem;
+  font-weight: var(--tblr-font-weight-bold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--tblr-primary-text-emphasis);
+  margin: 1rem 0 1.5rem;
+}
+/* The product previews: a touch of depth so they read as screenshots, and no
+   interaction (they're illustrations). */
+.landing-preview {
+  box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+/* Step numbers: the -lt tint behind emphasis blue (bg-primary-lt forces the
+   full-strength blue, which is 2.75:1 on the tint). */
+.landing-step-n {
+  background: var(--tblr-primary-lt);
+  color: var(--tblr-primary-text-emphasis);
+}
+/* What a landing feature needs ("Just your companion app", "Needs a KISS modem"). */
+.landing-tag {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.875rem;
+  color: var(--tblr-secondary-text-emphasis);
+}
