@@ -27,7 +27,7 @@ func TestUserLinksReplaceAndList(t *testing.T) {
 	links := []UserLink{
 		{Platform: "discord", URL: "cooluser"},
 		{Platform: "website", Label: "Home", URL: "https://example.org", IsPrimary: true},
-		{Platform: MeshCorePlatform, URL: strings.Repeat("a", 64)},
+		{Platform: SignalPlatform, URL: "alice.42"},
 	}
 	if err := st.ReplaceUserLinks(ctx, u.ID, links); err != nil {
 		t.Fatalf("replace: %v", err)
@@ -45,8 +45,12 @@ func TestUserLinksReplaceAndList(t *testing.T) {
 	if p := PrimaryUserLink(got); p == nil || p.URL != "https://example.org" {
 		t.Errorf("primary = %+v, want the website link", p)
 	}
-	if !got[2].IsMeshCore() {
-		t.Errorf("link[2] should be a MeshCore link")
+	if got[2].Platform != SignalPlatform {
+		t.Errorf("link[2] = %+v, want the Signal link", got[2])
+	}
+	// A MeshCore contact is a public companion now, not a link type.
+	if _, ok := UserLinkPlatform("meshcore"); ok {
+		t.Error(`"meshcore" is still a selectable link platform`)
 	}
 	// Discord is a text platform now: no custom label, so Display is the handle.
 	if d := got[0].Display(); d != "cooluser" {
@@ -62,7 +66,6 @@ func TestUserLinkHref(t *testing.T) {
 	}{
 		{UserLink{Platform: EmailPlatform, URL: "a@b.com"}, "mailto:a@b.com"},
 		{UserLink{Platform: SignalPlatform, URL: "alice.42"}, ""},
-		{UserLink{Platform: MeshCorePlatform, URL: "abcd"}, ""},
 		{UserLink{Platform: "website", URL: "https://example.org"}, "https://example.org"},
 	}
 	for _, c := range cases {

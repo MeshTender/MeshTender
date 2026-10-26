@@ -18,12 +18,26 @@
 {{with .Companion}}
 {{if and (not .Confirmed) $.IsOwner}}
 <div class="alert alert-info" role="alert" data-testid="companion-pending">
-  <div>Send a <strong>flood</strong> advert from this companion to confirm it. A zero-hop advert only reaches radios in direct range, so an observer may not hear it. Unconfirmed registrations are removed after {{$.TTLHours}} hours.</div>
+  <div>Send a <strong>flood</strong> advert from this companion to confirm it. A zero-hop advert only reaches radios in direct range, so an observer may not hear it.{{if not .KeepUnconfirmed}} Unconfirmed registrations are removed after {{$.TTLHours}} hours.{{end}}</div>
 </div>
 {{end}}
 {{if and .LastRejectedAt $.IsOwner}}
 <div class="alert alert-warning" role="alert" data-testid="companion-skew">
   <div>An advert heard {{ts .LastRejectedAt "datetime"}} didn't count: the companion's clock was off by more than {{$.MaxSkew}} minutes ({{.LastRejectedSkew}}). Sync the clock from the companion app and advert again.</div>
+</div>
+{{end}}
+
+{{if $.IsOwner}}
+<div class="card mb-3" data-testid="companion-visibility">
+  <div class="card-body">
+    <form method="post" action="/companions/{{.PublicID}}/visibility" class="m-0">
+      <label class="form-check form-switch m-0">
+        <input class="form-check-input" type="checkbox" name="public" value="1"{{if .Public}} checked{{end}} data-autosubmit data-testid="companion-public">
+        <span class="form-check-label">Show on my public profile</span>
+        <span class="form-hint mt-0">Anyone can see its name and key there, and scan it to add you as a contact. Its check-ins stay visible only to your organizations.</span>
+      </label>
+    </form>
+  </div>
 </div>
 {{end}}
 

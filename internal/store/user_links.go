@@ -12,21 +12,20 @@ import (
 const MaxUserLinks = 20
 
 // Platform keys whose values aren't plain http(s) URLs and so need their own
-// validation and rendering: a MeshCore public key (hex, shown as a QR), an email
-// address (a mailto: link), and a Signal username (shown as text — Signal has no
-// stable link-from-username).
+// validation and rendering: an email address (a mailto: link) and a Signal
+// username (shown as text — Signal has no stable link-from-username). A MeshCore
+// contact isn't a link: it's a public companion (Companion.Public), shown on the
+// profile with its QR.
 const (
-	MeshCorePlatform = "meshcore"
-	EmailPlatform    = "email"
-	SignalPlatform   = "signal"
+	EmailPlatform  = "email"
+	SignalPlatform = "signal"
 )
 
 // userLinkPlatforms is the curated set a user can choose from: direct contact
-// channels first (email, Signal, MeshCore), then the shared social platforms.
+// channels first (email, Signal), then the shared social platforms.
 var userLinkPlatforms = append([]LinkPlatform{
 	{Key: EmailPlatform, Name: "Email", Kind: KindEmail, Icon: "icon-mail", Placeholder: "you@example.com"},
 	{Key: SignalPlatform, Name: "Signal", Kind: KindText, Icon: "icon-brand-signal", Placeholder: "@username"},
-	{Key: MeshCorePlatform, Name: "MeshCore", Kind: KindKey, Icon: "icon-key", Placeholder: "64-character public key"},
 }, linkPlatforms...)
 
 var userLinkPlatformByKey = func() map[string]LinkPlatform {
@@ -69,10 +68,6 @@ func (l UserLink) Display() string {
 	return linkDisplay(userLinkPlatformByKey[l.Platform], l.Platform, l.URL)
 }
 
-// IsMeshCore reports whether this link carries a MeshCore public key (rendered as
-// a QR code) rather than an ordinary URL.
-func (l UserLink) IsMeshCore() bool { return l.Platform == MeshCorePlatform }
-
 // PlatformName is the platform's display name (e.g. "GitHub"), used as the icon's
 // hover title. Falls back to the raw key for an unknown platform.
 func (l UserLink) PlatformName() string {
@@ -83,8 +78,7 @@ func (l UserLink) PlatformName() string {
 }
 
 // Href is the hyperlink target for this link, or "" when it isn't directly
-// linkable (a MeshCore key renders as a QR; Signal/Discord handles as plain
-// text). An email becomes a mailto: link; handle/URL platforms use the stored
+// linkable (Signal/Discord handles show as plain text). An email becomes a mailto: link; handle/URL platforms use the stored
 // URL as-is.
 func (l UserLink) Href() string {
 	return linkHref(userLinkPlatformByKey[l.Platform], l.URL)

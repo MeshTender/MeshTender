@@ -129,7 +129,7 @@ func seedUserProfile(ctx context.Context, st *store.Store, f *gofakeit.Faker, u 
 
 // seedUserLinks builds a random, plausible set of profile links, all pre-stored
 // in canonical form (handle platforms hold their canonical profile URL, matching
-// what the editor produces). One non-MeshCore link is usually the primary contact.
+// what the editor produces). One link is usually the primary contact.
 func seedUserLinks(f *gofakeit.Faker) []store.UserLink {
 	var links []store.UserLink
 	if chance(f, 40) {
@@ -154,19 +154,9 @@ func seedUserLinks(f *gofakeit.Faker) []store.UserLink {
 	if chance(f, 25) {
 		links = append(links, store.UserLink{Platform: "discord", URL: seedHandle(f)})
 	}
-	if chance(f, 50) {
-		if pk, err := randomHex(32); err == nil {
-			links = append(links, store.UserLink{Platform: store.MeshCorePlatform, Label: f.City() + " Node", URL: pk})
-		}
-	}
-	// Promote the first reachable (non-MeshCore) link to primary contact.
-	if chance(f, 75) {
-		for i := range links {
-			if links[i].Platform != store.MeshCorePlatform {
-				links[i].IsPrimary = true
-				break
-			}
-		}
+	// Promote the first link to primary contact.
+	if chance(f, 75) && len(links) > 0 {
+		links[0].IsPrimary = true
 	}
 	return links
 }
@@ -184,7 +174,7 @@ func handleSeedURL(p store.LinkPlatform, f *gofakeit.Faker) (string, bool) {
 
 // seedOrgLinks builds a random set of public links for a seeded org: a website, a
 // community Discord, and a spread of social platforms, all in canonical form. Org
-// links have no email/Signal/MeshCore or primary contact.
+// links have no email/Signal or primary contact.
 func seedOrgLinks(f *gofakeit.Faker) []store.OrgLink {
 	var links []store.OrgLink
 	if chance(f, 70) {

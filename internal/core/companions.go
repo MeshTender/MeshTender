@@ -64,6 +64,9 @@ func (s *Handlers) handleAddCompanion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	c, err := s.Store.CreateCompanion(r.Context(), uid, name, key)
+	if err == nil && r.FormValue("public") == "1" {
+		err = s.Store.SetCompanionPublic(r.Context(), uid, c.PublicID, true)
+	}
 	switch {
 	case errors.Is(err, store.ErrDuplicate):
 		addErr("That companion is already registered. If it's yours and you didn't register it, ask a site admin.")
@@ -76,6 +79,28 @@ func (s *Handlers) handleAddCompanion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Redirect(w, r, "/companions/"+c.PublicID, http.StatusSeeOther) //nolint:gosec // G710: local path; PublicID is server-generated
+}
+
+// handleCompanionVisibility shows or hides the owner's companion on their
+// public profile.
+func (s *Handlers) handleCompanionVisibility(w http.ResponseWriter, r *http.Request) {
+	uid := s.Auth.CurrentUserID(r.Context())
+	id := chi.URLParam(r, "id")
+	public := r.FormValue("public") == "1"
+	err := s.Store.SetCompanionPublic(r.Context(), uid, id, public)
+	if errors.Is(err, store.ErrNotFound) {
+		s.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		s.ServerError(w, r, "Couldn't save the companion.", err)
+		return
+	}
+	msg := "Hidden from your public profile."
+	if public {
+		msg = "Shown on your public profile."
+	}
+	web.RedirectOK(w, r, "/companions/"+id, msg)
 }
 
 func (s *Handlers) handleDeleteCompanion(w http.ResponseWriter, r *http.Request) {

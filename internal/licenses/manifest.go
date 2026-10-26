@@ -205,7 +205,7 @@ var Deps = []Dep{
 		Source:      "https://github.com/tabler/tabler-icons (icon path data, various versions)",
 		LicenseText: "tabler-icons.txt",
 		Files: []File{
-			{Path: "internal/web/templates/icons.html", SHA256: "486dfb7759469a49c3a16ec5ba5f4e227f533a337a7201713dd389f28085c536", Notice: true},
+			{Path: "internal/web/templates/icons.html", SHA256: "857c64f66f7b3b91990acb4a61de1d90c2517f01da5c942d0533bd0a1a11dee7", Notice: true},
 		},
 		Modified: "Icon path data copied into Go template definitions rather than vendored as SVG files; the transparent 24x24 guard path upstream emits is dropped.",
 		Note:     "All 49 icons in icons.html are Tabler Icons; several are renamed locally (antenna<-antenna-bars-5, copy<-squares, list<-list-details, plug<-plug-connected, terminal<-terminal-2, alert<-alert-triangle, brand-signal<-message-circle-2). Version is unpinned because the set was collected across releases.",

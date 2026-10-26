@@ -30,9 +30,6 @@ const (
 	KindText LinkKind = "text"
 	// KindEmail is an email address, rendered as a mailto: link.
 	KindEmail LinkKind = "email"
-	// KindKey is a MeshCore public key (hex), rendered as a QR code rather than a
-	// link.
-	KindKey LinkKind = "key"
 )
 
 // LinkPlatform is a known destination a link can point at, plus the rules for how
@@ -320,7 +317,7 @@ func linkDisplay(p LinkPlatform, key, value string) string {
 		return value
 	case "":
 		return key // unknown platform — show the raw key defensively
-	default: // KindURL, KindKey — the platform name (or a custom label upstream)
+	default: // KindURL — the platform name (or a custom label upstream)
 		return p.Name
 	}
 }
@@ -331,8 +328,6 @@ func linkDisplay(p LinkPlatform, key, value string) string {
 // which we do link.
 func linkHref(p LinkPlatform, value string) string {
 	switch p.Kind {
-	case KindKey:
-		return ""
 	case KindText:
 		if isHTTPURL(value) {
 			return value

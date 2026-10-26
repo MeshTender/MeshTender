@@ -117,8 +117,6 @@ func TestHandleFromURLAndDisplay(t *testing.T) {
 		{UserLink{Platform: EmailPlatform, URL: "a@b.com"}, "a@b.com", "mailto:a@b.com"},
 		// URL platform with no label falls back to the platform name.
 		{UserLink{Platform: "website", URL: "https://example.org"}, "Website", "https://example.org"},
-		// MeshCore key: no href.
-		{UserLink{Platform: MeshCorePlatform, URL: "abcd"}, "MeshCore", ""},
 	}
 	for _, c := range cases {
 		if d := c.link.Display(); d != c.wantDisplay {

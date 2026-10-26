@@ -11,8 +11,6 @@ import (
 	"strings"
 	"time"
 
-	meshcore "github.com/meshcore-go/meshcore-go"
-
 	"github.com/MeshTender/MeshTender/internal/store"
 	"github.com/MeshTender/MeshTender/internal/web"
 )
@@ -204,9 +202,8 @@ func (s *Handlers) handleSetTimezone(w http.ResponseWriter, r *http.Request) {
 
 // parseUserLinks validates the repeatable link rows posted by the editor into
 // the set we'd persist. Rows with a blank value are dropped. Most rows carry an
-// http(s) URL; a "meshcore" row carries a MeshCore public key (validated as hex)
-// and renders as a QR code. The optional primary-contact radio flags one
-// non-MeshCore link as the preferred way to reach the user. It returns the first
+// http(s) URL (or an email address or handle, by platform). The optional
+// primary-contact radio flags one link as the preferred way to reach the user. It returns the first
 // validation problem as a message; an empty message means every row was fine.
 func parseUserLinks(form url.Values) ([]store.UserLink, string) {
 	// Index-aligned parallel arrays, one entry per row, in row order.
@@ -237,12 +234,6 @@ func parseUserLinks(form url.Values) ([]store.UserLink, string) {
 		// Validate and canonicalise the value according to the platform's kind. Each
 		// case leaves `val` as the string we'd persist.
 		switch p.Kind {
-		case store.KindKey:
-			val = strings.ToLower(val)
-			if !validMeshCoreKey(val) {
-				setIfEmpty(&errMsg, "Enter a valid MeshCore public key (64-character hex).")
-				continue
-			}
 		case store.KindEmail:
 			addr, err := mail.ParseAddress(val)
 			if err != nil || addr.Name != "" {
@@ -280,9 +271,7 @@ func parseUserLinks(form url.Values) ([]store.UserLink, string) {
 		}
 		val = web.Clip(val, 300)
 		label = web.Clip(label, 60)
-		// A MeshCore key is an identity, not a way to reach someone, so it can't be
-		// the primary contact (mirrors excluding callsign/node info).
-		primary := i == primaryIdx && p.Kind != store.KindKey
+		primary := i == primaryIdx
 		links = append(links, store.UserLink{Platform: platform, Label: label, URL: val, IsPrimary: primary})
 		if len(links) >= store.MaxUserLinks {
 			break
@@ -349,13 +338,6 @@ func boundedText(s string, max int) string {
 		s = s[:max]
 	}
 	return s
-}
-
-// validMeshCoreKey reports whether s is a valid MeshCore public key (a 32-byte
-// Ed25519 key, hex-encoded), using the MeshCore library's own parser.
-func validMeshCoreKey(s string) bool {
-	_, err := meshcore.NewIdentityFromHex(s)
-	return err == nil
 }
 
 // normalizeTextHandle validates and trims a KindText handle (a value shown as

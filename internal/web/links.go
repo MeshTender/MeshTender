@@ -26,9 +26,9 @@ func LinkPlatformsJS(ps []store.LinkPlatform) template.JS {
 		m[p.Key] = linkPlatformClient{
 			Kind:        string(p.Kind),
 			Placeholder: p.Placeholder,
-			// Website takes a free-text label; MeshCore's label is the node name.
-			// Branded platforms don't — their name/handle is the label.
-			Label: p.Kind == store.KindURL || p.Kind == store.KindKey,
+			// Website takes a free-text label. Branded platforms don't — their
+			// name/handle is the label.
+			Label: p.Kind == store.KindURL,
 		}
 	}
 	b, err := json.Marshal(m)

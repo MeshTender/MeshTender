@@ -440,3 +440,54 @@ func TestObserverApproval(t *testing.T) {
 		t.Fatal("unapproved observer still counts")
 	}
 }
+
+// TestCompanionOnPublicProfile: a companion is private until its owner shows it
+// (on registering, or later with the switch), and only the owner can.
+func TestCompanionOnPublicProfile(t *testing.T) {
+	t.Parallel()
+	st, ctx, ts, h := splitServer(t)
+	alice, aliceSess := appLogin(t, ts, st, ctx, h.app, "profilealice")
+	_, bobSess := appLogin(t, ts, st, ctx, h.app, "profilebob")
+
+	// Registered with "Show on my public profile" ticked.
+	shown := post(t, ts, h.app, "/companions", url.Values{"name": {"Shown T1"}, "public_key": {observetest.NewIdentity(t).String()}, "public": {"1"}}, aliceSess)
+	shown.Body.Close()
+	// Registered without it.
+	hidden := post(t, ts, h.app, "/companions", url.Values{"name": {"Hidden T2"}, "public_key": {observetest.NewIdentity(t).String()}}, aliceSess)
+	hidden.Body.Close()
+	hiddenPath := hidden.Header.Get("Location")
+
+	public := func() []string {
+		t.Helper()
+		cs, err := st.ListPublicCompanions(ctx, alice.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var names []string
+		for _, c := range cs {
+			names = append(names, c.Name)
+		}
+		return names
+	}
+	if got := public(); len(got) != 1 || got[0] != "Shown T1" {
+		t.Fatalf("public after registering = %v", got)
+	}
+	if body := getBody(t, ts, h.app, hiddenPath, aliceSess); !strings.Contains(body, `data-testid="companion-public"`) {
+		t.Error("the owner's companion page has no visibility switch")
+	}
+
+	// Someone else can't flip it; the owner can, both ways.
+	if got := status(t, post(t, ts, h.app, hiddenPath+"/visibility", url.Values{"public": {"1"}}, bobSess)); got != http.StatusNotFound {
+		t.Errorf("another user's visibility change = %d, want 404", got)
+	}
+	if q := redirectTo(t, post(t, ts, h.app, hiddenPath+"/visibility", url.Values{"public": {"1"}}, aliceSess), hiddenPath); q.Get("ok") == "" {
+		t.Error("no confirmation after showing it")
+	}
+	if got := public(); len(got) != 2 {
+		t.Fatalf("public after showing = %v", got)
+	}
+	redirectTo(t, post(t, ts, h.app, hiddenPath+"/visibility", nil, aliceSess), hiddenPath)
+	if got := public(); len(got) != 1 {
+		t.Fatalf("public after hiding = %v", got)
+	}
+}

@@ -18,6 +18,7 @@
           <div class="d-flex align-items-center flex-wrap gap-2">
             <span class="fw-bold">{{.Name}}</span>
             {{if .Confirmed}}<span class="badge bg-green-lt">Confirmed</span>{{else}}<span class="badge bg-yellow-lt">Waiting for an advert</span>{{end}}
+            {{if .Public}}<span class="badge bg-blue-lt" title="Shown on your public profile">Public</span>{{end}}
             <span class="ms-auto text-secondary">
               {{if .LastHeardAt}}Last heard {{ts .LastHeardAt "relative"}}{{else}}Not heard yet{{end}}
             </span>
@@ -53,6 +54,10 @@
                    pattern="[0-9A-Fa-f]{64}" autocomplete="off" spellcheck="false">
             <div class="form-hint">The 64 hex characters from your companion app's contact sharing.</div>
           </div>
+          <label class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" name="public" value="1">
+            <span class="form-check-label">Show on my public profile</span>
+          </label>
           <p class="text-secondary small">After registering, send a <strong>flood</strong> advert from the companion. It's confirmed once one of your organization's observers hears it. Unconfirmed registrations are removed after {{.TTLHours}} hours.</p>
           <button type="submit" class="btn btn-primary w-100">{{template "icon-plus" "me-1"}}Register</button>
         </form>

@@ -44,6 +44,12 @@ type Companion struct {
 	// AdvertName is the name its newest advert carries — what other companions
 	// list it as ("" until one is heard).
 	AdvertName string
+	// Public: shown on the owner's public profile, with a QR to add it as a
+	// contact. Off by default; its check-ins stay member-only either way.
+	Public bool
+	// KeepUnconfirmed: exempt from the cleanup of registrations never heard
+	// (it came from a profile link; migration 0054).
+	KeepUnconfirmed bool
 }
 
 // Confirmed reports whether an advert from this companion has been heard since
@@ -53,7 +59,7 @@ func (c *Companion) Confirmed() bool { return c.ConfirmedAt != nil }
 const companionSelect = `
 	SELECT c.id, c.public_id, c.owner_id, COALESCE(NULLIF(u.display_name, ''), u.username),
 	       c.name, c.public_key_hex, c.created_at, c.confirmed_at, c.last_heard_at,
-	       c.last_advert_ts, c.last_rejected_at, c.last_rejected_skew_s, c.advert_name
+	       c.last_advert_ts, c.last_rejected_at, c.last_rejected_skew_s, c.advert_name, c.public, c.keep_unconfirmed
 	FROM companions c JOIN users u ON u.id = c.owner_id`
 
 func scanCompanion(row pgx.Row) (*Companion, error) {
@@ -61,7 +67,7 @@ func scanCompanion(row pgx.Row) (*Companion, error) {
 	var advertTS *int64
 	var skewS *int32
 	err := row.Scan(&c.ID, &c.PublicID, &c.OwnerID, &c.OwnerName, &c.Name, &c.PublicKeyHex,
-		&c.CreatedAt, &c.ConfirmedAt, &c.LastHeardAt, &advertTS, &c.LastRejectedAt, &skewS, &c.AdvertName)
+		&c.CreatedAt, &c.ConfirmedAt, &c.LastHeardAt, &advertTS, &c.LastRejectedAt, &skewS, &c.AdvertName, &c.Public, &c.KeepUnconfirmed)
 	if err != nil {
 		return nil, err
 	}
@@ -133,6 +139,31 @@ func (s *Store) ListCompanionsForUser(ctx context.Context, ownerID int64) ([]*Co
 	return collectRows(rows, scanCompanion)
 }
 
+// ListPublicCompanions returns the companions a user shows on their public
+// profile, by name (at most MaxCompanionsPerUser).
+func (s *Store) ListPublicCompanions(ctx context.Context, ownerID int64) ([]*Companion, error) {
+	rows, err := s.pool.Query(ctx, companionSelect+`
+		WHERE c.owner_id = $1 AND c.public ORDER BY lower(c.name), c.id`, ownerID)
+	if err != nil {
+		return nil, fmt.Errorf("list public companions: %w", err)
+	}
+	return collectRows(rows, scanCompanion)
+}
+
+// SetCompanionPublic shows or hides the owner's companion on their public
+// profile. Returns ErrNotFound for anyone else's.
+func (s *Store) SetCompanionPublic(ctx context.Context, ownerID int64, publicID string, public bool) error {
+	tag, err := s.pool.Exec(ctx, `UPDATE companions SET public = $3 WHERE owner_id = $1 AND public_id = $2`,
+		ownerID, publicID, public)
+	if err != nil {
+		return fmt.Errorf("set companion public: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 // GetCompanionForViewer returns the companion if viewerID may see it: they own
 // it, or they share an org with its owner. Anything else is ErrNotFound, so a
 // guessed public id reveals nothing.
@@ -168,10 +199,12 @@ func (s *Store) CompanionIDForKey(ctx context.Context, publicKeyHex string) (int
 }
 
 // PruneUnconfirmedCompanions deletes registrations that never heard an advert
-// within UnconfirmedCompanionTTL. Signature fits the janitor.
+// within UnconfirmedCompanionTTL, except the ones carried over from profile links
+// (keep_unconfirmed, migration 0054). Signature fits the janitor.
 func (s *Store) PruneUnconfirmedCompanions(ctx context.Context) (int64, error) {
 	tag, err := s.pool.Exec(ctx, `
-		DELETE FROM companions WHERE confirmed_at IS NULL AND created_at < now() - make_interval(secs => $1)`,
+		DELETE FROM companions WHERE confirmed_at IS NULL AND NOT keep_unconfirmed
+		  AND created_at < now() - make_interval(secs => $1)`,
 		UnconfirmedCompanionTTL.Seconds())
 	if err != nil {
 		return 0, fmt.Errorf("prune unconfirmed companions: %w", err)

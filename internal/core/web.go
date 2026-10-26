@@ -248,6 +248,7 @@ func (s *Handlers) appRouter() chi.Router {
 			r.Post("/companions", s.handleAddCompanion)
 			r.Get("/companions/{id}", s.pageCompanion)
 			r.Post("/companions/{id}/delete", s.handleDeleteCompanion)
+			r.Post("/companions/{id}/visibility", s.handleCompanionVisibility)
 			r.Get("/orgs/{id}/activity", s.pageOrgActivity)
 			r.Get("/orgs/{id}/observers", s.redirectToObserverSettings)
 			r.Post("/orgs/{id}/observers", s.handleAddOrgObserver)

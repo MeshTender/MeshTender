@@ -68,8 +68,12 @@ func TestRunSeeds(t *testing.T) {
 	_ = st.Pool().QueryRow(ctx, `SELECT count(*) FROM user_links`).Scan(&totalLinks)
 	_ = st.Pool().QueryRow(ctx, `SELECT count(*) FROM user_links WHERE is_primary`).Scan(&primaryLinks)
 	_ = st.Pool().QueryRow(ctx, `SELECT count(*) FROM user_links WHERE platform = 'meshcore'`).Scan(&meshLinks)
-	if withProfile == 0 || totalLinks == 0 || primaryLinks == 0 || meshLinks == 0 {
-		t.Fatalf("seed profile data too sparse: withProfile=%d links=%d primary=%d mesh=%d", withProfile, totalLinks, primaryLinks, meshLinks)
+	if withProfile == 0 || totalLinks == 0 || primaryLinks == 0 {
+		t.Fatalf("seed profile data too sparse: withProfile=%d links=%d primary=%d", withProfile, totalLinks, primaryLinks)
+	}
+	// MeshCore contacts are public companions now, not a link type.
+	if meshLinks != 0 {
+		t.Fatalf("seeded %d MeshCore profile links", meshLinks)
 	}
 
 	// Orgs also get public links.
