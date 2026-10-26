@@ -61,8 +61,7 @@ func TestE2EConsoleSidebarOrgAdmin(t *testing.T) {
 
 	url := srv.appURL + "/repeaters/" + rep.PublicID + "/console"
 
-	// The "Allowed commands" sidebar is always rendered (unlike #cmdinput, which is
-	// hidden until a WebSerial modem connects). Command chips carry data-template
+	// The "Allowed commands" sidebar is always rendered, modem or not. Command chips carry data-template
 	// (the hook the console JS uses to fill the input); the empty state renders a
 	// "No commands allowed here yet" paragraph instead.
 	const countChips = `document.querySelectorAll('[data-testid="allowed-commands"] .chip[data-template]').length`

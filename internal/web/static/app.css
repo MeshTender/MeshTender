@@ -103,6 +103,30 @@ code.pubkey {
   color: var(--tblr-secondary);
   font-family: var(--tblr-font-sans-serif);
 }
+/* Console completion: opens upward over the log, so it never runs off the page. */
+.console-suggest {
+  position: absolute;
+  bottom: calc(100% + 0.25rem);
+  left: 0;
+  right: 0;
+  z-index: 10;
+  max-height: 14rem;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0.25rem;
+  list-style: none;
+  background: var(--tblr-bg-surface);
+  border: 1px solid var(--tblr-border-color);
+  border-radius: var(--tblr-border-radius);
+  box-shadow: var(--tblr-box-shadow-dropdown);
+}
+.console-suggest-item {
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--tblr-border-radius-sm);
+  cursor: pointer;
+}
+.console-suggest-item:hover,
+.console-suggest-item.active { background: var(--tblr-active-bg); }
 .ev { padding: 0.15rem 0; border-bottom: 1px solid var(--tblr-border-color-translucent); }
 .ev:last-child { border-bottom: none; }
 /* Colors chosen for WCAG AA (≥4.5:1) on the near-black log background:

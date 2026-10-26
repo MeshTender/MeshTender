@@ -277,6 +277,7 @@ var BrandAssets = []BrandAsset{
 var FirstPartyStatic = []string{
 	"app.css",
 	"basemap.js",
+	"console-complete.js",
 	"console-config.js",
 	"console.js",
 	"link-editor.js",

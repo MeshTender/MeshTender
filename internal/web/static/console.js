@@ -18,6 +18,8 @@
   const log = document.getElementById("log");
   const form = document.getElementById("cmdform");
   const input = document.getElementById("cmdinput");
+  const sendBtn = document.getElementById("cmdsend");
+  const hint = document.getElementById("cmdhint");
 
   let bridge = null;
 
@@ -30,7 +32,9 @@
     send(text) {
       const t = String(text || "").trim();
       if (!t || !api.ready || !bridge) return false;
-      return bridge.send({ type: "cmd", text: t });
+      if (!bridge.send({ type: "cmd", text: t })) return false;
+      window.dispatchEvent(new CustomEvent("console:sent", { detail: { text: t } }));
+      return true;
     },
     getLocation() {
       if (!api.ready || !bridge) return false;
@@ -54,6 +58,23 @@
     return url;
   }
 
+  // Chips fill the input (even with no modem here: it's how you browse them).
+  document.querySelectorAll(".chip").forEach((c) => {
+    c.addEventListener("click", () => {
+      // Strip the "<arg>" placeholder so the user can type the value.
+      input.value = c.dataset.template.replace(/\s*<.*>$/, " ").trimEnd() +
+        (/<.*>/.test(c.dataset.template) ? " " : "");
+      input.focus();
+      input.dispatchEvent(new Event("input")); // show its arguments
+    });
+  });
+
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    if (api.send(input.value)) input.value = "";
+    else if (!api.ready) hint.classList.add("text-danger");
+  });
+
   if (!api.supported) {
     const unsupportedEl = document.getElementById("unsupported");
     if (unsupportedEl) unsupportedEl.hidden = false;
@@ -72,27 +93,15 @@
 
   function setReady(on) {
     api.ready = on;
-    form.hidden = !on; // hide the command box until the modem is connected
+    // The input works offline (completion, chips); only sending needs the modem.
+    sendBtn.disabled = !on;
+    hint.hidden = on;
+    hint.classList.remove("text-danger");
     if (on) {
       input.focus();
       emit("mesh:ready", null);
     }
   }
-
-  // Chips fill the input.
-  document.querySelectorAll(".chip").forEach((c) => {
-    c.addEventListener("click", () => {
-      // Strip the "<arg>" placeholder so the user can type the value.
-      input.value = c.dataset.template.replace(/\s*<.*>$/, " ").trimEnd() +
-        (/<.*>/.test(c.dataset.template) ? " " : "");
-      input.focus();
-    });
-  });
-
-  form.addEventListener("submit", (e) => {
-    e.preventDefault();
-    if (api.send(input.value)) input.value = "";
-  });
 
   async function connect() {
     if (api.ready || connectBtn.disabled) return; // already connected / connecting

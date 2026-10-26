@@ -78,10 +78,17 @@ swap needs no new markup. The flex row is nested so the [hidden] attribute wins
             <div class="form-text">The hex prefix of each repeater between your modem and this one, in order and all the same length. Leave it blank to flood.</div>
           </div>
         </div>
-        <ul id="log" class="evlog console mt-3" role="log" aria-live="polite" aria-label="Console activity" data-empty="Not connected. Plug in your modem and press Connect modem."></ul>
-        <form id="cmdform" class="input-group mt-3" autocomplete="off" hidden>
-          <input type="text" id="cmdinput" class="form-control font-monospace" placeholder="Type a command, e.g. ver" aria-label="Command to send">
-          <button type="submit" id="cmdsend" class="btn btn-primary">Send</button>
+        <ul id="log" class="evlog console mt-3 mb-0" role="log" aria-live="polite" aria-label="Console activity" data-empty="Not connected. Plug in your modem and press Connect modem."></ul>
+        {{/* The input works before connecting: Tab completion (console-complete.js)
+        and the chips fill it; only Send waits for the modem. */}}
+        <form id="cmdform" class="position-relative mt-2" autocomplete="off">
+          <ul id="cmdsuggest" class="console-suggest" role="listbox" aria-label="Matching commands" data-testid="cmdsuggest" hidden></ul>
+          <div class="input-group">
+            <span class="input-group-text font-monospace" aria-hidden="true">&gt;</span>
+            <input type="text" id="cmdinput" class="form-control font-monospace" placeholder="Type a command" aria-label="Command to send" aria-describedby="cmdhelp" spellcheck="false">
+            <button type="submit" id="cmdsend" class="btn btn-primary" disabled>Send</button>
+          </div>
+          <div id="cmdhelp" class="form-text"><span id="cmdhint">Connect your modem to send. </span>Tab completes a command, ↑ and ↓ go back through what you've sent, and Esc then Tab moves on.</div>
         </form>
       </div>
     </div>
@@ -128,10 +135,14 @@ swap needs no new markup. The flex row is nested so the [hidden] attribute wins
       </div>
       <div class="card-body">
         {{if .Commands}}
-        <div class="d-flex flex-wrap gap-1" style="max-height:360px;overflow-y:auto">
-          {{range .Commands}}
-          <button type="button" class="chip btn btn-sm{{if .Risky}} btn-outline-danger{{end}}" data-template="{{.Template}}" title="{{.Args}}">{{.Template}}</button>
-          {{end}}
+        <div data-filter-root>
+          <input type="search" class="form-control form-control-sm mb-2" placeholder="Filter commands" aria-label="Filter commands" data-filter-search data-testid="command-filter">
+          <div class="d-flex flex-wrap gap-1" style="max-height:360px;overflow-y:auto">
+            {{range .Commands}}
+            <button type="button" class="chip btn btn-sm{{if .Risky}} btn-outline-danger{{end}}" data-template="{{.Template}}" data-description="{{or .Description .Args}}" title="{{or .Description .Args}}" data-filter-item data-name="{{.Template}} {{.Description}} {{.Args}}">{{.Template}}</button>
+            {{end}}
+          </div>
+          <p class="text-secondary small mb-0 mt-2" data-filter-empty hidden>No command matches.</p>
         </div>
         {{else}}
         <p class="text-secondary mb-0">No commands allowed here yet.</p>
@@ -154,4 +165,5 @@ swap needs no new markup. The flex row is nested so the [hidden] attribute wins
 <script src="{{ asset "/static/serial-port.js" }}"></script>
 <script src="{{ asset "/static/mesh-bridge.js" }}"></script>
 <script src="{{ asset "/static/console.js" }}"></script>
+<script src="{{ asset "/static/console-complete.js" }}"></script>
 {{end}}
