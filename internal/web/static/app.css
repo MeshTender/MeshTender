@@ -291,8 +291,9 @@ code.pubkey {
   background: var(--tblr-primary-lt);
   color: var(--tblr-primary-text-emphasis);
 }
-/* What a landing feature needs ("Just your companion app", "Needs a KISS modem"). */
-.landing-tag {
+/* What a feature needs ("Just your companion app", "Needs a KISS modem"), on the
+   landing page and the add-repeater wizard. */
+.need-tag {
   display: inline-flex;
   align-items: center;
   font-size: 0.875rem;

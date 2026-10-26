@@ -1,7 +1,10 @@
 {{define "title"}}Delete {{.Repeater.Name}} · MeshTender{{end}}
 {{define "header"}}
 <div class="row g-2 align-items-center">
-  <div class="col"><h1 class="page-title fs-1">Delete “{{.Repeater.Name}}”?</h1></div>
+  <div class="col">
+    <ol class="breadcrumb mb-2" aria-label="Breadcrumb"><li class="breadcrumb-item"><a href="/repeaters">Repeaters</a></li><li class="breadcrumb-item"><a href="/repeaters/{{.Repeater.PublicID}}">{{.Repeater.Name}}</a></li><li class="breadcrumb-item active" aria-current="page">Delete</li></ol>
+    <h1 class="page-title fs-1">Delete “{{.Repeater.Name}}”?</h1>
+  </div>
 </div>
 {{end}}
 {{define "content"}}

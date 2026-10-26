@@ -26,7 +26,7 @@
   <h2 class="section-kicker">For members</h2>
   <section class="row align-items-center g-5 pb-5">
     <div class="col-lg-5">
-      {{template "landing-tag" "companion"}}
+      {{template "need-tag" "companion"}}
       <h3 class="h1 mb-3">Check in from the app you already use</h3>
       <p class="fs-4 text-secondary">Register the companion you carry, then check in to your organization's weekly net by sending a flood advert. Follow the roster and the news as it comes in, and read your organization's docs and recommended setup any time.</p>
     </div>
@@ -36,7 +36,7 @@
   <h2 class="section-kicker">For repeater owners</h2>
   <section class="row align-items-center g-5 pb-5 flex-lg-row-reverse">
     <div class="col-lg-5">
-      {{template "landing-tag" "usb"}}
+      {{template "need-tag" "usb"}}
       <h3 class="h1 mb-3">Set up a new repeater to your organization's spec</h3>
       <p class="fs-4 text-secondary">Plug a freshly flashed repeater into your computer and pick your organization's profile. MeshTender writes the radio, name, region for where it stands and settings in one pass, like the flasher's Repeater Setup, without typing any of it.</p>
     </div>
@@ -44,7 +44,7 @@
   </section>
   <section class="row align-items-center g-5 pb-5">
     <div class="col-lg-5">
-      {{template "landing-tag" "none"}}
+      {{template "need-tag" "none"}}
       <h3 class="h1 mb-3">Document it, and share it without passwords</h3>
       <p class="fs-4 text-secondary">Keep each repeater's notes and maintenance history, publish a public page with its stewards, and decide who may run which commands on it: a single-use invite, a trusted steward, or your organization.</p>
     </div>
@@ -54,7 +54,7 @@
   <h2 class="section-kicker">For organizations</h2>
   <section class="row align-items-center g-5 pb-5 flex-lg-row-reverse">
     <div class="col-lg-5">
-      {{template "landing-tag" "none"}}
+      {{template "need-tag" "none"}}
       <h3 class="h1 mb-3">One configuration for the whole region</h3>
       <p class="fs-4 text-secondary">Publish your radio settings and configuration profiles, and draw regions on a map. Members see the exact commands for where their repeater stands, and new repeaters get them at setup.</p>
     </div>
@@ -64,7 +64,7 @@
   <h2 class="section-kicker">With a KISS modem</h2>
   <section class="row align-items-center g-5 pb-5">
     <div class="col-lg-5">
-      {{template "landing-tag" "modem"}}
+      {{template "need-tag" "modem"}}
       <h3 class="h1 mb-3">Manage repeaters over the air</h3>
       <p class="fs-4 text-secondary">For admins, stewards and net control: plug a MeshCore radio flashed as a KISS modem into your computer to run CLI commands on repeaters from the browser, confirm they're reachable, apply your organization's configuration, and run a net on the air. Every command and reply is logged.</p>
     </div>
@@ -87,10 +87,10 @@
 </div>
 {{end}}
 
-{{/* landing-tag says what a feature needs. Pass "companion", "usb", "none" or
+{{/* need-tag says what a feature needs. Pass "companion", "usb", "none" or
      "modem". */}}
-{{define "landing-tag"}}
-<div class="landing-tag mb-2" data-testid="landing-tag-{{.}}">
+{{define "need-tag"}}
+<div class="need-tag mb-2" data-testid="need-tag-{{.}}">
   {{if eq . "companion"}}{{template "icon-radio" "me-1"}}Just your companion app
   {{else if eq . "usb"}}{{template "icon-plug" "me-1"}}Just the repeater and a USB cable
   {{else if eq . "modem"}}{{template "icon-antenna" "me-1"}}Needs a KISS modem

@@ -10,11 +10,7 @@
       <h2 class="card-title">Public documentation {{if .Repeater.ExposePublicPage}}<span class="text-secondary">· visible on the public page</span>{{else}}<span class="text-secondary">· not published yet</span>{{end}}</h2>
     </div>
     <div class="card-body">
-      <p class="text-secondary">
-        What this node is and how to service it — safe for anyone who can reach the public page.
-        Shown on the public page when one is published.
-        <strong>Do not put gate codes, lock combinations, or other site-access secrets here</strong> — use the internal section below for those.
-      </p>
+      <p class="text-secondary">What it is and how to service it: hardware, antenna, power, firmware. Anyone can read it. <strong>Keep gate codes and other site-access secrets in the internal notes below.</strong> Markdown works.</p>
       <textarea class="form-control font-monospace" name="doc_public" rows="10" maxlength="20000" placeholder="Hardware, antenna, power/solar, firmware, how to service…"
                 aria-label="Public documentation (Markdown)">{{.Repeater.DocPublic}}</textarea>
     </div>
@@ -25,10 +21,7 @@
       <h2 class="card-title">Internal notes <span class="text-secondary">· people with access only</span></h2>
     </div>
     <div class="card-body">
-      <p class="text-secondary">
-        Sensitive site-access details — gate codes, lock combinations, landlord/contact info, climbing notes.
-        Only the owner, stewards, and people you've shared with can read this. <strong>Never shown on the public page.</strong>
-      </p>
+      <p class="text-secondary">Site access: gate codes, lock combinations, who to call. Only you, its stewards and people you share it with can read these; they're never public.</p>
       <textarea class="form-control font-monospace" name="doc_internal" rows="8" maxlength="20000" placeholder="Gate code, lock combo, who to call for site access…"
                 aria-label="Internal notes (Markdown, not public)">{{.Repeater.DocInternal}}</textarea>
     </div>

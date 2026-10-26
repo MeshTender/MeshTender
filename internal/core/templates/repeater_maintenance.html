@@ -6,10 +6,7 @@
 <div class="card">
   <div class="card-body">
     <h2 class="card-title">Log maintenance</h2>
-    <p class="text-secondary">
-      Record physical service work — antenna swaps, battery/solar changes, firmware updates, site visits —
-      so the history outlives any one person. Anyone with access can log an entry.
-    </p>
+    <p class="text-secondary">Antenna swaps, battery and solar work, firmware updates, site visits: a history that outlives any one person. Anyone with access can add to it.</p>
     <form method="post" action="/repeaters/{{.Repeater.PublicID}}/maintenance">
       <div class="row g-2">
         <div class="col-12 col-md-3">
@@ -56,7 +53,7 @@
 </ul>
 {{else}}
 <div class="card mt-3">
-  <div class="card-body"><p class="text-secondary mb-0">No maintenance has been logged yet.</p></div>
+  {{template "empty-state" (dict "Compact" true "Title" "Nothing logged yet" "Line" "Entries you add above show up here, newest first.")}}
 </div>
 {{end}}
 {{end}}

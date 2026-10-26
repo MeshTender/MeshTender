@@ -2,14 +2,7 @@
 {{define "header"}}{{template "repeater-header" .Nav}}{{end}}
 {{define "content"}}
 {{template "repeater-tabs" .Nav}}
-<div class="card">
-  <div class="card-body">
-    <p class="text-secondary mb-0">
-      Commands grouped by console session (one modem connection). “Confirmed” means a reply came back;
-      no reply doesn't mean the command failed — it may have run without us hearing the response.
-    </p>
-  </div>
-</div>
+<p class="text-secondary">Every command sent from the console, by session. No reply doesn't mean a command failed: it may have run without its reply reaching us.</p>
 {{if .Sessions}}
 <ul class="timeline mt-3">
   {{range .Sessions}}
@@ -46,8 +39,7 @@
 {{end}}
 {{else}}
 <div class="card mt-3">
-  <div class="card-body"><p class="text-secondary mb-0">No commands have been sent yet.</p></div>
+  {{template "empty-state" (dict "Compact" true "Title" "No commands yet" "Line" "Commands sent from the console show up here.")}}
 </div>
 {{end}}
-<a class="back-link mt-3" href="/">{{template "icon-arrow-left" "me-1"}}Back to dashboard</a>
 {{end}}
