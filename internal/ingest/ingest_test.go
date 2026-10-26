@@ -53,7 +53,7 @@ func newStore(t *testing.T) (*store.Store, context.Context) {
 
 func quietLog() *slog.Logger { return slog.New(slog.DiscardHandler) }
 
-// fixture is an org with one registered observer and one member companion.
+// fixture is an org with one approved observer and one member companion.
 type fixture struct {
 	st        *store.Store
 	org       int64
@@ -150,7 +150,7 @@ func TestIngesterIgnoresWhatItShould(t *testing.T) {
 	ts := uint32(now.Unix()) //nolint:gosec // test clock
 	good := observetest.AdvertPacket(t, f.companion, ts, "Owner T1", meshcore.RouteTypeFlood, 1, nil)
 
-	// An unregistered observer, and a registered one heard on another org's
+	// An unknown observer, and an approved one heard on another org's
 	// broker connection.
 	in.Handle(ctx, packetMsg(f.org, observetest.NewIdentity(t), good, now))
 	otherOrg, _ := st.CreateOrg(ctx, "Elsewhere", f.owner)
@@ -195,21 +195,64 @@ func TestIngesterRejectsReplayedAdvert(t *testing.T) {
 	}
 }
 
+// statusMsg is an observer's status report, published under region iata.
+func statusMsg(org int64, observer meshcore.LocalIdentity, iata, payload string, at time.Time) Message {
+	return Message{OrgID: org, Prefix: "meshcore", ReceivedAt: at, Payload: []byte(payload),
+		Topic: "meshcore/" + iata + "/" + strings.ToUpper(observer.String()) + "/status"}
+}
+
 func TestIngesterStatusAndLiveness(t *testing.T) {
 	t.Parallel()
 	st, ctx := newStore(t)
 	f := newFixture(t, st, ctx)
 	in := &Ingester{Store: st, Log: quietLog()}
-	now := time.Now()
-	topic := "meshcore/BUF/" + strings.ToUpper(f.observer.String()) + "/status"
-	in.Handle(ctx, Message{OrgID: f.org, Prefix: "meshcore", Topic: topic, ReceivedAt: now,
-		Payload: []byte(`{"status":"online","client_version":"meshcore-ha:3.0.3","stats":{"battery_mv":"4012"}}`)})
-	obs, err := st.ListOrgObservers(ctx, f.org)
+	in.Handle(ctx, statusMsg(f.org, f.observer, "BUF",
+		`{"status":"online","origin":"Rooftop","client_version":"meshcore-ha:3.0.3","stats":{"battery_mv":"4012"}}`, time.Now()))
+	obs, err := st.ListOrgObservers(ctx, f.org, store.ObserversAll)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if obs[0].LastSeenAt == nil || obs[0].ClientVersion != "meshcore-ha:3.0.3" || *obs[0].BatteryMV != 4012 {
-		t.Fatalf("observer = %+v", obs[0])
+	// An approved observer keeps the name the admin gave it.
+	if len(obs) != 1 || obs[0].LastSeenAt == nil || obs[0].ClientVersion != "meshcore-ha:3.0.3" || *obs[0].BatteryMV != 4012 ||
+		obs[0].IATA != "BUF" || obs[0].Name != "Roof" {
+		t.Fatalf("observers = %+v", obs)
+	}
+}
+
+// An observer the org doesn't have is discovered from its status report, by
+// its own name and region, but what it hears doesn't count until it's
+// approved. Packets alone don't discover it.
+func TestIngesterDiscoversObservers(t *testing.T) {
+	t.Parallel()
+	st, ctx := newStore(t)
+	f := newFixture(t, st, ctx)
+	in := &Ingester{Store: st, Log: quietLog()}
+	now := time.Now().Add(time.Second)
+	advert := observetest.AdvertPacket(t, f.companion, uint32(now.Unix()), "Owner T1", meshcore.RouteTypeFlood, 1, nil) //nolint:gosec // test clock
+
+	quiet := observetest.NewIdentity(t)
+	in.Handle(ctx, packetMsg(f.org, quiet, advert, now))
+	newcomer := observetest.NewIdentity(t)
+	in.Handle(ctx, statusMsg(f.org, newcomer, "SYR", `{"status":"online","origin":"🥒 Pickle"}`, now))
+	in.Handle(ctx, packetMsg(f.org, newcomer, advert, now))
+
+	list, err := st.ListOrgObservers(ctx, f.org, store.ObserversUnapproved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 1 || list[0].PublicKeyHex != newcomer.String() || list[0].Name != "🥒 Pickle" || list[0].IATA != "SYR" {
+		t.Fatalf("unapproved = %+v", list)
+	}
+	if got := f.checkins(t, ctx); len(got) != 0 {
+		t.Fatalf("an unapproved observer's advert counted: %+v", got)
+	}
+
+	if err := st.ApproveOrgObserver(ctx, f.org, list[0].ID, "Pickle", f.owner); err != nil {
+		t.Fatal(err)
+	}
+	in.Handle(ctx, packetMsg(f.org, newcomer, advert, now))
+	if got := f.checkins(t, ctx); len(got) != 1 {
+		t.Fatalf("check-ins after approval = %+v", got)
 	}
 }
 

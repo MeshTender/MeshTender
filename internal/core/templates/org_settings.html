@@ -2,7 +2,8 @@
      section. A singular thing is a form on its page, saved in place; a list has a
      New button and per-row actions, with creating and editing on pages of their
      own (config_profile_edit.html, config_region_edit.html). .Section picks the
-     section; .New shows a list's New page instead. */}}
+     section; .New shows a list's New page instead (.ObserverEdit / .NetEdit one
+     item's page). */}}
 {{define "title"}}Settings · {{.Org.Name}} · MeshTender{{end}}
 {{define "header"}}{{template "org-header" .}}{{end}}
 {{define "content"}}
@@ -11,6 +12,7 @@
 {{else if eq .Section "regions"}}{{template "settings-regions" .}}
 {{else if eq .Section "profiles"}}{{template "settings-profiles" .}}
 {{else if and (eq .Section "mqtt") .New}}{{template "settings-observer-new" .}}
+{{else if and (eq .Section "mqtt") .ObserverEdit}}{{template "settings-observer-edit" .}}
 {{else if eq .Section "mqtt"}}{{template "settings-mqtt" .}}
 {{else if and (eq .Section "nets") .New}}{{template "settings-net-new" .}}
 {{else if and (eq .Section "nets") .NetEdit}}{{template "settings-net-edit" .}}
@@ -237,7 +239,7 @@
 {{/* ======== MQTT: the broker (a form) and the observers (a list). ======== */}}
 {{define "settings-mqtt"}}
 {{template "settings-heading" (dict "Title" "MQTT")}}
-<p class="text-secondary">Observers upload the packets they hear to an MQTT broker; MeshTender listens to it and counts the adverts your registered observers heard as check-ins.</p>
+<p class="text-secondary">Observers upload the packets they hear to an MQTT broker; MeshTender listens to it and counts the adverts your approved observers heard as check-ins.</p>
 
 {{template "settings-subheading" (dict "Title" "Broker" "ID" "broker")}}
 <div data-testid="broker-card" style="max-width:40rem">
@@ -297,18 +299,25 @@
   {{end}}
 </div>
 
-{{template "settings-subheading" (dict "Title" "Observers" "ID" "observers" "Hint" "The uplinking nodes this organization vouches for. Only adverts a registered observer heard count as check-ins." "ActionURL" (printf "/orgs/%s/settings/mqtt/observers/new" .Org.Slug) "ActionLabel" "New observer" "ActionTestID" "observer-add")}}
+{{template "settings-subheading" (dict "Title" "Observers" "ID" "observers" "Hint" "Observers publishing to the broker appear here as they report in (every few minutes). Only adverts an approved observer heard count as check-ins." "ActionURL" (printf "/orgs/%s/settings/mqtt/observers/new" .Org.Slug) "ActionLabel" "New observer" "ActionTestID" "observer-add")}}
+<nav class="btn-group mb-3" aria-label="Show observers" data-testid="observer-filter">
+  {{range .ObserverFilters}}{{$on := eq (print .Value) $.ObserverFilter}}
+  <a class="btn{{if $on}} active{{end}}" href="/orgs/{{$.Org.Slug}}/settings/mqtt?observers={{.Value}}#observers"{{if $on}} aria-current="page"{{end}} data-testid="observer-filter-{{.Value}}">{{.Label}}<span class="badge bg-secondary-lt ms-2" data-testid="observer-count-{{.Value}}">{{.Count}}</span></a>
+  {{end}}
+</nav>
 {{if .Observers}}
 <div class="card">
   <div class="list-group list-group-flush" data-testid="observer-list">
     {{range .Observers}}
-    <div class="list-group-item d-flex align-items-center gap-3">
+    <div class="list-group-item d-flex align-items-center gap-3" data-testid="observer-row">
       <span class="text-secondary">{{template "icon-access-point" ""}}</span>
       <div class="flex-fill" style="min-width:0">
-        <div class="fw-bold">{{.Name}}
+        <div class="fw-bold">{{if .Name}}<span>{{.Name}}</span>{{else}}<span class="text-secondary">Unnamed</span>{{end}}
+          {{if not .Approved}}<span class="badge bg-orange-lt ms-1" data-testid="observer-unapproved">Unapproved</span>{{end}}
           {{if .OnlineAt $.Now}}<span class="badge bg-green-lt ms-1">Online</span>
           {{else if .LastSeenAt}}<span class="badge bg-secondary-lt ms-1">Offline</span>
           {{else}}<span class="badge bg-yellow-lt ms-1" title="No message from this observer has reached MeshTender since it was registered">Not heard yet</span>{{end}}
+          {{with .IATA}}<span class="badge bg-blue-lt ms-1" title="Region code from the observer's MQTT topic">{{.}}</span>{{end}}
         </div>
         <div class="text-secondary font-monospace small text-truncate">{{.PublicKeyHex}}</div>
         <div class="text-secondary small">
@@ -317,13 +326,62 @@
           {{if .BatteryMV}} · battery {{.BatteryMV}} mV{{end}}{{if .NoiseFloor}} · noise floor {{.NoiseFloor}} dBm{{end}}
         </div>
       </div>
-      {{template "settings-delete" (dict "Action" (printf "/orgs/%s/observers/%d/delete" $.Org.Slug .ID) "Confirm" (printf "Remove the observer “%s”?" .Name) "Label" (printf "Remove %s" .Name) "TestID" "observer-delete")}}
+      <div class="btn-list flex-shrink-0 flex-nowrap">
+        {{if .Approved}}
+        <a class="btn btn-sm" href="/orgs/{{$.Org.Slug}}/settings/mqtt/observers/{{.ID}}?from={{$.ObserverFilter}}" data-testid="observer-edit">Edit</a>
+        <form method="post" action="/orgs/{{$.Org.Slug}}/observers/{{.ID}}/unapprove" class="m-0" data-confirm="Unapprove the observer “{{.Name}}”? What it hears stops counting.">
+          <input type="hidden" name="from" value="{{$.ObserverFilter}}">
+          <button type="submit" class="btn btn-sm text-danger-emphasis" aria-label="Unapprove {{.Name}}" data-testid="observer-unapprove">Unapprove</button>
+        </form>
+        {{else}}
+        <a class="btn btn-sm btn-primary" href="/orgs/{{$.Org.Slug}}/settings/mqtt/observers/{{.ID}}?from={{$.ObserverFilter}}" data-testid="observer-approve">Approve</a>
+        <form method="post" action="/orgs/{{$.Org.Slug}}/observers/{{.ID}}/delete" class="m-0" data-confirm="Remove the observer “{{.Name}}”? It's listed again the next time it reports in.">
+          <input type="hidden" name="from" value="{{$.ObserverFilter}}">
+          <button type="submit" class="btn btn-sm text-danger-emphasis" aria-label="Remove {{.Name}}" data-testid="observer-delete">Remove</button>
+        </form>
+        {{end}}
+      </div>
     </div>
     {{end}}
   </div>
 </div>
 {{else}}
-<div class="card"><div class="card-body text-secondary">No observers registered yet.</div></div>
+<div class="card"><div class="card-body text-secondary" data-testid="observer-list-empty">
+  {{if eq .ObserverFilter "unapproved"}}No unapproved observers. Observers publishing to the broker show up here when they report in.
+  {{else if eq .ObserverFilter "approved"}}No approved observers yet. Approve one from <a href="/orgs/{{.Org.Slug}}/settings/mqtt?observers=unapproved#observers">Unapproved</a>, or add one with <strong>New observer</strong>.
+  {{else}}No observers yet.{{end}}
+</div></div>
+{{end}}
+{{end}}
+
+{{/* settings-observer-edit approves a discovered observer under a name (its
+     reported one by default), or renames an approved one. .From is the list
+     filter to return to. */}}
+{{define "settings-observer-edit"}}
+{{with .ObserverEdit}}
+<ol class="breadcrumb mb-2" aria-label="Breadcrumb">
+  <li class="breadcrumb-item"><a href="/orgs/{{$.Org.Slug}}/settings/mqtt?observers={{$.From}}#observers">MQTT</a></li>
+  <li class="breadcrumb-item active" aria-current="page">{{if .Approved}}Edit observer{{else}}Approve observer{{end}}</li>
+</ol>
+{{template "settings-heading" (dict "Title" (or (and .Approved "Edit observer") "Approve observer"))}}
+{{if not .Approved}}<p class="text-secondary">Approving the observer makes the adverts it hears count as check-ins, and the channel messages it hears count for net logs.</p>{{end}}
+<dl class="row mb-3" style="max-width:40rem">
+  <dt class="col-sm-3">Public key</dt><dd class="col-sm-9 font-monospace small text-break" data-testid="observer-key">{{.PublicKeyHex}}</dd>
+  {{with .IATA}}<dt class="col-sm-3">Region</dt><dd class="col-sm-9">{{.}}</dd>{{end}}
+  {{with .LastSeenAt}}<dt class="col-sm-3">Last heard</dt><dd class="col-sm-9">{{ts . "datetime"}}</dd>{{end}}
+</dl>
+<form method="post" action="/orgs/{{$.Org.Slug}}/observers/{{.ID}}" style="max-width:40rem" data-testid="observer-approve-form">
+  <input type="hidden" name="from" value="{{$.From}}">
+  <div class="mb-3">
+    <label class="form-label" for="observer-name">Name</label>
+    <input type="text" id="observer-name" name="name" class="form-control" maxlength="64" required autofocus value="{{.Name}}">
+    {{if not .Approved}}<div class="form-hint">The name the observer reports for itself. Once approved, the name you give it here stays.</div>{{end}}
+  </div>
+  <div class="btn-list">
+    <button type="submit" class="btn btn-primary" data-testid="observer-approve-submit">{{if .Approved}}Save{{else}}Approve{{end}}</button>
+    <a class="btn" href="/orgs/{{$.Org.Slug}}/settings/mqtt?observers={{$.From}}#observers">Cancel</a>
+  </div>
+</form>
 {{end}}
 {{end}}
 

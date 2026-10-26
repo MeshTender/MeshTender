@@ -90,7 +90,7 @@ func (s *Handlers) pageNetSession(w http.ResponseWriter, r *http.Request) {
 		fail("Couldn't load the organization.", err)
 		return
 	}
-	observers, err := s.Store.ListOrgObservers(ctx, c.org.ID)
+	observers, err := s.Store.ListOrgObservers(ctx, c.org.ID, store.ObserversApproved)
 	if err != nil {
 		fail("Couldn't load observers.", err)
 		return

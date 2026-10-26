@@ -2,6 +2,7 @@ package observe
 
 import (
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -221,7 +222,26 @@ func TestParseStatus(t *testing.T) {
 	}
 
 	s, err = ParseStatus([]byte(`{"status":"offline"}`))
-	if err != nil || s.Online || s.BatteryMV != nil {
+	if err != nil || s.Online || s.BatteryMV != nil || s.Name != "" {
 		t.Errorf("sparse: %+v %v", s, err)
+	}
+}
+
+// The node's name comes from origin, which meshcoretomqtt, meshcore-ha,
+// meshcore-packet-capture, RemoteTerm and the firmware's observer build all
+// send; it's trimmed and capped because it's shown and stored.
+func TestParseStatusName(t *testing.T) {
+	t.Parallel()
+	for origin, want := range map[string]string{
+		"Leighthaus":                      "Leighthaus",
+		"  👁️ WNY MESHCORE BOT 👁  ":       "👁️ WNY MESHCORE BOT 👁",
+		"":                                "",
+		strings.Repeat("é", MaxNameLen+5): strings.Repeat("é", MaxNameLen),
+	} {
+		payload, _ := json.Marshal(map[string]string{"status": "online", "origin": origin})
+		s, err := ParseStatus(payload)
+		if err != nil || s.Name != want {
+			t.Errorf("origin %q: name %q, %v; want %q", origin, s.Name, err, want)
+		}
 	}
 }

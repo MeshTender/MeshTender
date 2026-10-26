@@ -133,14 +133,19 @@ func (s *Store) RecordBrokerStatus(ctx context.Context, orgID int64, connectedAt
 	return nil
 }
 
-// OrgObserver is an uplinking node registered to an org, with its last
-// self-reported health.
+// OrgObserver is an uplinking node known to an org, with its last
+// self-reported health. Observers are added by hand (approved) or discovered
+// from their status reports (unapproved until an admin approves them); only
+// approved ones count for check-ins and net logs.
 type OrgObserver struct {
-	ID              int64
-	OrgID           int64
-	Name            string
-	PublicKeyHex    string
+	ID           int64
+	OrgID        int64
+	Name         string
+	PublicKeyHex string
+	// IATA is the region code from the observer's most recent status topic.
+	IATA            string
 	CreatedAt       time.Time
+	ApprovedAt      *time.Time
 	LastSeenAt      *time.Time
 	ClientVersion   string
 	FirmwareVersion string
@@ -148,6 +153,9 @@ type OrgObserver struct {
 	BatteryMV       *int
 	NoiseFloor      *int
 }
+
+// Approved reports whether an admin approved the observer.
+func (o OrgObserver) Approved() bool { return o.ApprovedAt != nil }
 
 // ObserverOnlineWindow is how recently an observer must have been heard from to
 // count as online. Busy observers uplink constantly; status reports come every
@@ -160,27 +168,77 @@ func (o OrgObserver) OnlineAt(now time.Time) bool {
 	return o.LastSeenAt != nil && now.Sub(*o.LastSeenAt) < ObserverOnlineWindow
 }
 
-// CreateOrgObserver registers an observer for the org. Returns ErrDuplicate if
-// the org already registered that key.
+// MaxUnapprovedObservers caps how many unapproved observers discovery keeps per
+// org. An org's broker may carry many uplinks that aren't its own; the cap
+// bounds the (unpaginated) observer list should it point at a busy public one.
+const MaxUnapprovedObservers = 500
+
+// ObserverFilter selects observers by approval.
+type ObserverFilter string
+
+const (
+	ObserversApproved   ObserverFilter = "approved"
+	ObserversUnapproved ObserverFilter = "unapproved"
+	ObserversAll        ObserverFilter = "all"
+)
+
+// ObserverCounts is how many of an org's observers are approved and not.
+type ObserverCounts struct {
+	Approved, Unapproved int
+}
+
+// CreateOrgObserver registers an observer for the org by hand, approved. An
+// observer already discovered under that key is approved and given the name
+// instead. Returns ErrDuplicate if the org already approved that key.
 func (s *Store) CreateOrgObserver(ctx context.Context, orgID int64, name, publicKeyHex string, createdBy int64) error {
-	_, err := s.pool.Exec(ctx, `
-		INSERT INTO org_observers (org_id, name, public_key_hex, created_by) VALUES ($1, $2, $3, $4)`,
+	tag, err := s.pool.Exec(ctx, `
+		INSERT INTO org_observers (org_id, name, public_key_hex, created_by, approved_at, approved_by)
+		VALUES ($1, $2, $3, $4, now(), $4)
+		ON CONFLICT (org_id, public_key_hex) DO UPDATE SET
+			name = EXCLUDED.name, approved_at = now(), approved_by = EXCLUDED.approved_by
+		WHERE org_observers.approved_at IS NULL`,
 		orgID, name, publicKeyHex, createdBy)
-	if isUniqueViolation(err) {
-		return ErrDuplicate
-	}
 	if err != nil {
 		return fmt.Errorf("create org observer: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrDuplicate
 	}
 	return nil
 }
 
+// ApproveOrgObserver approves one of the org's observers under the given name
+// (renaming it if it's already approved).
+func (s *Store) ApproveOrgObserver(ctx context.Context, orgID, observerID int64, name string, approvedBy int64) error {
+	return s.updateOrgObserver(ctx, "approve org observer", `
+		UPDATE org_observers SET name = $3,
+			approved_at = COALESCE(approved_at, now()),
+			approved_by = CASE WHEN approved_at IS NULL THEN $4 ELSE approved_by END
+		WHERE org_id = $1 AND id = $2`, orgID, observerID, name, approvedBy)
+}
+
+// UnapproveOrgObserver withdraws approval: the observer stays listed (it keeps
+// reporting) but no longer counts.
+func (s *Store) UnapproveOrgObserver(ctx context.Context, orgID, observerID int64) error {
+	return s.updateOrgObserver(ctx, "unapprove org observer", `
+		UPDATE org_observers SET approved_at = NULL, approved_by = NULL
+		WHERE org_id = $1 AND id = $2`, orgID, observerID)
+}
+
 // DeleteOrgObserver removes one of the org's observers. Its past sightings stay:
-// they're evidence about the companion, not the observer.
+// they're evidence about the companion, not the observer. One that's still
+// reporting is discovered again, unapproved.
 func (s *Store) DeleteOrgObserver(ctx context.Context, orgID, observerID int64) error {
-	tag, err := s.pool.Exec(ctx, `DELETE FROM org_observers WHERE org_id = $1 AND id = $2`, orgID, observerID)
+	return s.updateOrgObserver(ctx, "delete org observer",
+		`DELETE FROM org_observers WHERE org_id = $1 AND id = $2`, orgID, observerID)
+}
+
+// updateOrgObserver runs a write to one of the org's observers, returning
+// ErrNotFound if it matched none.
+func (s *Store) updateOrgObserver(ctx context.Context, what, sql string, args ...any) error {
+	tag, err := s.pool.Exec(ctx, sql, args...)
 	if err != nil {
-		return fmt.Errorf("delete org observer: %w", err)
+		return fmt.Errorf("%s: %w", what, err)
 	}
 	if tag.RowsAffected() == 0 {
 		return ErrNotFound
@@ -188,30 +246,63 @@ func (s *Store) DeleteOrgObserver(ctx context.Context, orgID, observerID int64) 
 	return nil
 }
 
-// ListOrgObservers returns the org's observers by name. Unpaginated: an org
-// registers a handful of uplinks, and only its admins can add them.
-func (s *Store) ListOrgObservers(ctx context.Context, orgID int64) ([]OrgObserver, error) {
-	rows, err := s.pool.Query(ctx, `
-		SELECT id, org_id, name, public_key_hex, created_at, last_seen_at,
-		       client_version, firmware_version, model, battery_mv, noise_floor
-		FROM org_observers WHERE org_id = $1
-		ORDER BY lower(name), id`, orgID)
+const orgObserverSelect = `
+	SELECT id, org_id, name, public_key_hex, iata, created_at, approved_at, last_seen_at,
+	       client_version, firmware_version, model, battery_mv, noise_floor
+	FROM org_observers`
+
+func scanOrgObserver(r pgx.Row) (OrgObserver, error) {
+	var o OrgObserver
+	err := r.Scan(&o.ID, &o.OrgID, &o.Name, &o.PublicKeyHex, &o.IATA, &o.CreatedAt, &o.ApprovedAt, &o.LastSeenAt,
+		&o.ClientVersion, &o.FirmwareVersion, &o.Model, &o.BatteryMV, &o.NoiseFloor)
+	return o, err
+}
+
+// GetOrgObserver returns one of the org's observers, or ErrNotFound.
+func (s *Store) GetOrgObserver(ctx context.Context, orgID, observerID int64) (*OrgObserver, error) {
+	o, err := scanOrgObserver(s.pool.QueryRow(ctx, orgObserverSelect+` WHERE org_id = $1 AND id = $2`, orgID, observerID))
+	if err != nil {
+		return nil, notFoundOr(err, "get org observer")
+	}
+	return &o, nil
+}
+
+// ListOrgObservers returns the org's observers matching filter, by name.
+// Unpaginated: an org approves a handful of uplinks, and discovery keeps at
+// most MaxUnapprovedObservers more.
+func (s *Store) ListOrgObservers(ctx context.Context, orgID int64, filter ObserverFilter) ([]OrgObserver, error) {
+	where := ` WHERE org_id = $1`
+	switch filter {
+	case ObserversApproved:
+		where += ` AND approved_at IS NOT NULL`
+	case ObserversUnapproved:
+		where += ` AND approved_at IS NULL`
+	}
+	rows, err := s.pool.Query(ctx, orgObserverSelect+where+` ORDER BY lower(name), id`, orgID)
 	if err != nil {
 		return nil, fmt.Errorf("list org observers: %w", err)
 	}
-	return collectRows(rows, func(r pgx.Row) (OrgObserver, error) {
-		var o OrgObserver
-		err := r.Scan(&o.ID, &o.OrgID, &o.Name, &o.PublicKeyHex, &o.CreatedAt, &o.LastSeenAt,
-			&o.ClientVersion, &o.FirmwareVersion, &o.Model, &o.BatteryMV, &o.NoiseFloor)
-		return o, err
-	})
+	return collectRows(rows, scanOrgObserver)
 }
 
-// IsOrgObserver reports whether key is registered as an observer of the org.
+// CountOrgObservers counts the org's approved and unapproved observers.
+func (s *Store) CountOrgObservers(ctx context.Context, orgID int64) (ObserverCounts, error) {
+	var c ObserverCounts
+	err := s.pool.QueryRow(ctx, `
+		SELECT count(*) FILTER (WHERE approved_at IS NOT NULL), count(*) FILTER (WHERE approved_at IS NULL)
+		FROM org_observers WHERE org_id = $1`, orgID).Scan(&c.Approved, &c.Unapproved)
+	if err != nil {
+		return c, fmt.Errorf("count org observers: %w", err)
+	}
+	return c, nil
+}
+
+// IsOrgObserver reports whether key is an approved observer of the org.
 func (s *Store) IsOrgObserver(ctx context.Context, orgID int64, publicKeyHex string) (bool, error) {
 	var ok bool
-	err := s.pool.QueryRow(ctx,
-		`SELECT EXISTS(SELECT 1 FROM org_observers WHERE org_id = $1 AND public_key_hex = $2)`,
+	err := s.pool.QueryRow(ctx, `
+		SELECT EXISTS(SELECT 1 FROM org_observers
+		              WHERE org_id = $1 AND public_key_hex = $2 AND approved_at IS NOT NULL)`,
 		orgID, publicKeyHex).Scan(&ok)
 	if err != nil {
 		return false, fmt.Errorf("is org observer: %w", err)
@@ -219,30 +310,58 @@ func (s *Store) IsOrgObserver(ctx context.Context, orgID int64, publicKeyHex str
 	return ok, nil
 }
 
-// TouchObserver marks the org's observer as heard at `at`, and when status is
-// non-nil also stores its self-reported health. Fields the uplink didn't report
-// keep their previous value.
-func (s *Store) TouchObserver(ctx context.Context, orgID int64, publicKeyHex string, at time.Time, status *observe.Status) error {
-	var err error
-	if status == nil {
-		_, err = s.pool.Exec(ctx, `
-			UPDATE org_observers SET last_seen_at = GREATEST(last_seen_at, $3)
-			WHERE org_id = $1 AND public_key_hex = $2`, orgID, publicKeyHex, at)
-	} else {
-		_, err = s.pool.Exec(ctx, `
-			UPDATE org_observers SET
-				last_seen_at = GREATEST(last_seen_at, $3),
-				client_version = COALESCE(NULLIF($4, ''), client_version),
-				firmware_version = COALESCE(NULLIF($5, ''), firmware_version),
-				model = COALESCE(NULLIF($6, ''), model),
-				battery_mv = COALESCE($7, battery_mv),
-				noise_floor = COALESCE($8, noise_floor)
-			WHERE org_id = $1 AND public_key_hex = $2`,
-			orgID, publicKeyHex, at, status.ClientVersion, status.FirmwareVersion, status.Model,
-			status.BatteryMV, status.NoiseFloor)
-	}
+// TouchObserver marks the org's observer as heard at `at`, from packet
+// traffic. It only updates an observer the org already has.
+func (s *Store) TouchObserver(ctx context.Context, orgID int64, publicKeyHex string, at time.Time) error {
+	_, err := s.pool.Exec(ctx, `
+		UPDATE org_observers SET last_seen_at = GREATEST(last_seen_at, $3)
+		WHERE org_id = $1 AND public_key_hex = $2`, orgID, publicKeyHex, at)
 	if err != nil {
 		return fmt.Errorf("touch observer: %w", err)
+	}
+	return nil
+}
+
+// ReportObserver records an observer's status report, heard at `at` under the
+// region code iata. It updates the observer if the org has it — health fields
+// the uplink didn't report keep their previous value, and the reported name
+// replaces the stored one only while the observer is unapproved — and
+// otherwise discovers it, unapproved, unless the org already has
+// MaxUnapprovedObservers of those. The region code is the observer's to choose,
+// so it's cut to 16 characters (they're IATA codes, three letters).
+func (s *Store) ReportObserver(ctx context.Context, orgID int64, publicKeyHex, iata string, at time.Time, status *observe.Status) error {
+	tag, err := s.pool.Exec(ctx, `
+		UPDATE org_observers SET
+			last_seen_at = GREATEST(last_seen_at, $3),
+			iata = left($4, 16),
+			name = CASE WHEN approved_at IS NULL AND $5 <> '' THEN $5 ELSE name END,
+			client_version = COALESCE(NULLIF($6, ''), client_version),
+			firmware_version = COALESCE(NULLIF($7, ''), firmware_version),
+			model = COALESCE(NULLIF($8, ''), model),
+			battery_mv = COALESCE($9, battery_mv),
+			noise_floor = COALESCE($10, noise_floor)
+		WHERE org_id = $1 AND public_key_hex = $2`,
+		orgID, publicKeyHex, at, iata, status.Name, status.ClientVersion, status.FirmwareVersion, status.Model,
+		status.BatteryMV, status.NoiseFloor)
+	if err != nil {
+		return fmt.Errorf("report observer: %w", err)
+	}
+	if tag.RowsAffected() > 0 {
+		return nil
+	}
+	// The cap check counts at most MaxUnapprovedObservers rows on the
+	// (org_id, public_key_hex) index. ON CONFLICT covers a row added since the
+	// UPDATE; the next report updates it.
+	_, err = s.pool.Exec(ctx, `
+		INSERT INTO org_observers (org_id, name, public_key_hex, iata, last_seen_at,
+		                           client_version, firmware_version, model, battery_mv, noise_floor)
+		SELECT $1, $5, $2, left($4, 16), $3, $6, $7, $8, $9, $10
+		WHERE (SELECT count(*) FROM org_observers WHERE org_id = $1 AND approved_at IS NULL) < $11
+		ON CONFLICT (org_id, public_key_hex) DO NOTHING`,
+		orgID, publicKeyHex, at, iata, status.Name, status.ClientVersion, status.FirmwareVersion, status.Model,
+		status.BatteryMV, status.NoiseFloor, MaxUnapprovedObservers)
+	if err != nil {
+		return fmt.Errorf("discover observer: %w", err)
 	}
 	return nil
 }

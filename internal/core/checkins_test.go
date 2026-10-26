@@ -2,12 +2,14 @@ package core
 
 import (
 	"encoding/hex"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/MeshTender/MeshTender/internal/observe"
 	"github.com/MeshTender/MeshTender/internal/observe/observetest"
 	"github.com/MeshTender/MeshTender/internal/secretbox"
 	"github.com/MeshTender/MeshTender/internal/store"
@@ -325,20 +327,116 @@ func TestObserverStatusBadges(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if err := st.TouchObserver(ctx, org.ID, keys["Quiet"], time.Now().Add(-time.Hour), nil); err != nil {
+	if err := st.TouchObserver(ctx, org.ID, keys["Quiet"], time.Now().Add(-time.Hour)); err != nil {
 		t.Fatal(err)
 	}
-	if err := st.TouchObserver(ctx, org.ID, keys["Busy"], time.Now(), nil); err != nil {
+	if err := st.TouchObserver(ctx, org.ID, keys["Busy"], time.Now()); err != nil {
 		t.Fatal(err)
 	}
 
 	body := getBody(t, ts, h.app, "/orgs/"+org.Slug+"/settings/mqtt", sess)
 	for name, want := range map[string]string{"Fresh": "Not heard yet", "Quiet": "Offline", "Busy": "Online"} {
-		// The status badge follows the observer's name in its row.
-		row := body[strings.Index(body, ">"+name):]
-		row = row[:strings.Index(row, "</span>")]
+		// The status badge follows the observer's name, on the same line.
+		row := body[strings.Index(body, ">"+name+"<"):]
+		row = row[:strings.Index(row, "</div>")]
 		if !strings.Contains(row, want) {
 			t.Errorf("%s observer row lacks %q: %s", name, want, row)
 		}
+	}
+}
+
+// Settings › MQTT lists approved observers by default, with a filter (and
+// counts) for the ones discovered from the broker; admins approve, rename and
+// unapprove them.
+func TestObserverApproval(t *testing.T) {
+	t.Parallel()
+	st, ctx, ts, h := splitServer(t)
+	admin, adminSess := appLogin(t, ts, st, ctx, h.app, "approveadmin")
+	member, memberSess := appLogin(t, ts, st, ctx, h.app, "approvemember")
+	org, err := st.CreateOrg(ctx, "Approve Org", admin.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.AddOrgMember(ctx, org.ID, member.ID, "member"); err != nil {
+		t.Fatal(err)
+	}
+	other, err := st.CreateOrg(ctx, "Approve Other", admin.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := "/orgs/" + org.Slug
+	roof := observetest.NewIdentity(t).String()
+	if err := st.CreateOrgObserver(ctx, org.ID, "Roof", roof, admin.ID); err != nil {
+		t.Fatal(err)
+	}
+	pickle := observetest.NewIdentity(t).String()
+	if err := st.ReportObserver(ctx, org.ID, pickle, "SYR", time.Now(), &observe.Status{Name: "Pickle"}); err != nil {
+		t.Fatal(err)
+	}
+	list, _ := st.ListOrgObservers(ctx, org.ID, store.ObserversUnapproved)
+	oid := fmt.Sprint(list[0].ID)
+	elsewhere := observetest.NewIdentity(t).String()
+	_ = st.ReportObserver(ctx, other.ID, elsewhere, "BUF", time.Now(), &observe.Status{Name: "Elsewhere"})
+	otherList, _ := st.ListOrgObservers(ctx, other.ID, store.ObserversAll)
+
+	// The filter: Approved by default; each option shows its count.
+	shows := func(query string, want, notWant []string) {
+		t.Helper()
+		body := getBody(t, ts, h.app, base+"/settings/mqtt"+query, adminSess)
+		for _, w := range want {
+			if !strings.Contains(body, w) {
+				t.Errorf("%q: missing %q", query, w)
+			}
+		}
+		for _, w := range notWant {
+			if strings.Contains(body, w) {
+				t.Errorf("%q: shows %q", query, w)
+			}
+		}
+	}
+	shows("", []string{">Roof<", `data-testid="observer-count-approved">1<`, `data-testid="observer-count-unapproved">1<`, `data-testid="observer-count-all">2<`},
+		[]string{">Pickle<", "Elsewhere"})
+	shows("?observers=unapproved", []string{">Pickle<", "SYR"}, []string{">Roof<"})
+	shows("?observers=all", []string{">Pickle<", ">Roof<"}, []string{"Elsewhere"})
+	shows("?observers=bogus", []string{">Roof<"}, []string{">Pickle<"})
+
+	// Only admins see the approve page or act on observers.
+	approvePage := base + "/settings/mqtt/observers/" + oid
+	if got := status(t, do(t, ts, h.app, approvePage, memberSess)); got != http.StatusNotFound {
+		t.Errorf("member GET approve page = %d", got)
+	}
+	for _, p := range []string{"", "/unapprove", "/delete"} {
+		if got := status(t, post(t, ts, h.app, base+"/observers/"+oid+p, url.Values{"name": {"x"}}, memberSess)); got != http.StatusNotFound {
+			t.Errorf("member POST %q = %d", p, got)
+		}
+	}
+	// Another org's observer isn't reachable through this org.
+	foreign := fmt.Sprint(otherList[0].ID)
+	if got := status(t, do(t, ts, h.app, base+"/settings/mqtt/observers/"+foreign, adminSess)); got != http.StatusNotFound {
+		t.Errorf("foreign approve page = %d", got)
+	}
+	if got := status(t, post(t, ts, h.app, base+"/observers/"+foreign, url.Values{"name": {"Mine"}}, adminSess)); got != http.StatusNotFound {
+		t.Errorf("foreign approve = %d", got)
+	}
+
+	// The approve page offers the reported name; a blank one is refused.
+	if body := getBody(t, ts, h.app, approvePage, adminSess); !strings.Contains(body, `value="Pickle"`) || !strings.Contains(body, pickle) {
+		t.Error("approve page lacks the reported name or key")
+	}
+	if q := redirectTo(t, post(t, ts, h.app, base+"/observers/"+oid, url.Values{"name": {"  "}}, adminSess), approvePage); q.Get("error") == "" {
+		t.Error("blank name accepted")
+	}
+	q := redirectTo(t, post(t, ts, h.app, base+"/observers/"+oid, url.Values{"name": {"Pickle's roof"}, "from": {"unapproved"}}, adminSess), base+"/settings/mqtt")
+	if q.Get("observers") != "unapproved" {
+		t.Errorf("approve returned to %v, want the list it came from", q)
+	}
+	if ok, _ := st.IsOrgObserver(ctx, org.ID, pickle); !ok {
+		t.Fatal("approved observer doesn't count")
+	}
+	shows("", []string{"Pickle&#39;s roof", `data-testid="observer-count-approved">2<`, `data-testid="observer-count-unapproved">0<`}, nil)
+
+	redirectTo(t, post(t, ts, h.app, base+"/observers/"+oid+"/unapprove", url.Values{"from": {"bogus"}}, adminSess), base+"/settings/mqtt")
+	if ok, _ := st.IsOrgObserver(ctx, org.ID, pickle); ok {
+		t.Fatal("unapproved observer still counts")
 	}
 }

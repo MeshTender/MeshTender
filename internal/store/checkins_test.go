@@ -145,23 +145,25 @@ func TestOrgObservers(t *testing.T) {
 
 	t1 := time.Now().Add(-time.Minute).Truncate(time.Microsecond)
 	mv, nf := 3999, -110
-	if err := st.TouchObserver(ctx, org, testKey(1), t1, nil); err != nil {
+	if err := st.TouchObserver(ctx, org, testKey(1), t1); err != nil {
 		t.Fatal(err)
 	}
-	if err := st.TouchObserver(ctx, org, testKey(1), t1.Add(-time.Hour), &observe.Status{ClientVersion: "ha:2.9", BatteryMV: &mv, NoiseFloor: &nf}); err != nil {
+	if err := st.ReportObserver(ctx, org, testKey(1), "BUF", t1.Add(-time.Hour), &observe.Status{Name: "Reported", ClientVersion: "ha:2.9", BatteryMV: &mv, NoiseFloor: &nf}); err != nil {
 		t.Fatal(err)
 	}
-	obs, err := st.ListOrgObservers(ctx, org)
+	obs, err := st.ListOrgObservers(ctx, org, ObserversApproved)
 	if err != nil || len(obs) != 1 {
 		t.Fatalf("list = %v, %v", obs, err)
 	}
 	o := obs[0]
-	// last_seen_at never moves backwards; status fields are stored.
-	if o.LastSeenAt == nil || !o.LastSeenAt.Equal(t1) || o.ClientVersion != "ha:2.9" || *o.BatteryMV != 3999 || *o.NoiseFloor != -110 {
+	// last_seen_at never moves backwards; status fields and region are stored;
+	// an approved observer keeps the name the admin gave it.
+	if o.LastSeenAt == nil || !o.LastSeenAt.Equal(t1) || o.ClientVersion != "ha:2.9" || *o.BatteryMV != 3999 ||
+		*o.NoiseFloor != -110 || o.IATA != "BUF" || o.Name != "Roof" || !o.Approved() {
 		t.Fatalf("observer = %+v", o)
 	}
 	// The other org's registration is untouched.
-	if obs, _ := st.ListOrgObservers(ctx, other); obs[0].LastSeenAt != nil {
+	if obs, _ := st.ListOrgObservers(ctx, other, ObserversAll); obs[0].LastSeenAt != nil {
 		t.Fatal("touch leaked across orgs")
 	}
 
@@ -170,6 +172,148 @@ func TestOrgObservers(t *testing.T) {
 	}
 	if err := st.DeleteOrgObserver(ctx, org, o.ID); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// An observer's status report adds it to every org whose broker carried it,
+// unapproved: it's listed, but doesn't count until an admin approves it.
+func TestObserverDiscoveryAndApproval(t *testing.T) {
+	t.Parallel()
+	st, ctx := orgTestStore(t)
+	admin := mustUser(t, st, ctx, "discadmin")
+	org := mustOrg(t, st, ctx, "DiscOrg", admin)
+	other := mustOrg(t, st, ctx, "DiscOther", admin)
+	now := time.Now().Truncate(time.Microsecond)
+
+	if err := st.ReportObserver(ctx, org, testKey(1), "SYR", now, &observe.Status{Name: "Pickle"}); err != nil {
+		t.Fatal(err)
+	}
+	if ok, _ := st.IsOrgObserver(ctx, org, testKey(1)); ok {
+		t.Fatal("unapproved observer counts")
+	}
+	// Packet traffic alone doesn't discover anything.
+	if err := st.TouchObserver(ctx, org, testKey(2), now); err != nil {
+		t.Fatal(err)
+	}
+	counts := func(orgID int64) ObserverCounts {
+		t.Helper()
+		c, err := st.CountOrgObservers(ctx, orgID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return c
+	}
+	if c := counts(org); c != (ObserverCounts{Unapproved: 1}) {
+		t.Fatalf("counts = %+v", c)
+	}
+	if c := counts(other); c != (ObserverCounts{}) {
+		t.Fatalf("discovery leaked across orgs: %+v", c)
+	}
+
+	// While unapproved, the name and region follow the reports; a report
+	// without a name keeps the last one.
+	_ = st.ReportObserver(ctx, org, testKey(1), "BUF", now.Add(time.Minute), &observe.Status{Name: "🥒 Pickle"})
+	_ = st.ReportObserver(ctx, org, testKey(1), "BUF", now.Add(2*time.Minute), &observe.Status{})
+	list, err := st.ListOrgObservers(ctx, org, ObserversUnapproved)
+	if err != nil || len(list) != 1 {
+		t.Fatalf("unapproved = %+v, %v", list, err)
+	}
+	o := list[0]
+	if o.Name != "🥒 Pickle" || o.IATA != "BUF" || o.Approved() || o.LastSeenAt == nil || !o.LastSeenAt.Equal(now.Add(2*time.Minute)) {
+		t.Fatalf("discovered = %+v", o)
+	}
+	if got, err := st.GetOrgObserver(ctx, org, o.ID); err != nil || got.PublicKeyHex != testKey(1) {
+		t.Fatalf("get = %+v, %v", got, err)
+	}
+	if _, err := st.GetOrgObserver(ctx, other, o.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("cross-org get: %v", err)
+	}
+
+	// Approval names it and makes it count; later reports don't rename it.
+	if err := st.ApproveOrgObserver(ctx, other, o.ID, "Mine", admin); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("cross-org approve: %v", err)
+	}
+	if err := st.ApproveOrgObserver(ctx, org, o.ID, "Pickle's roof", admin); err != nil {
+		t.Fatal(err)
+	}
+	_ = st.ReportObserver(ctx, org, testKey(1), "BUF", now.Add(3*time.Minute), &observe.Status{Name: "Renamed"})
+	if ok, _ := st.IsOrgObserver(ctx, org, testKey(1)); !ok {
+		t.Fatal("approved observer doesn't count")
+	}
+	if list, _ := st.ListOrgObservers(ctx, org, ObserversApproved); len(list) != 1 || list[0].Name != "Pickle's roof" {
+		t.Fatalf("approved = %+v", list)
+	}
+	if c := counts(org); c != (ObserverCounts{Approved: 1}) {
+		t.Fatalf("counts = %+v", c)
+	}
+
+	// Unapproving stops it counting and lets reports name it again.
+	if err := st.UnapproveOrgObserver(ctx, other, o.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("cross-org unapprove: %v", err)
+	}
+	if err := st.UnapproveOrgObserver(ctx, org, o.ID); err != nil {
+		t.Fatal(err)
+	}
+	_ = st.ReportObserver(ctx, org, testKey(1), "BUF", now.Add(4*time.Minute), &observe.Status{Name: "Renamed"})
+	if ok, _ := st.IsOrgObserver(ctx, org, testKey(1)); ok {
+		t.Fatal("unapproved observer still counts")
+	}
+	if list, _ := st.ListOrgObservers(ctx, org, ObserversAll); len(list) != 1 || list[0].Name != "Renamed" {
+		t.Fatalf("all = %+v", list)
+	}
+
+	// Adding a discovered observer by hand approves it rather than failing.
+	if err := st.CreateOrgObserver(ctx, org, "By hand", testKey(1), admin); err != nil {
+		t.Fatal(err)
+	}
+	if list, _ := st.ListOrgObservers(ctx, org, ObserversAll); len(list) != 1 || list[0].Name != "By hand" || !list[0].Approved() {
+		t.Fatalf("after manual add = %+v", list)
+	}
+}
+
+// Discovery stops adding observers at MaxUnapprovedObservers, but known ones
+// keep reporting.
+func TestObserverDiscoveryCap(t *testing.T) {
+	t.Parallel()
+	st, ctx := orgTestStore(t)
+	admin := mustUser(t, st, ctx, "capadmin")
+	org := mustOrg(t, st, ctx, "CapOrg", admin)
+	now := time.Now()
+	for i := range MaxUnapprovedObservers {
+		if err := st.ReportObserver(ctx, org, testKey(1000+i), "BUF", now, &observe.Status{Name: "n"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := st.ReportObserver(ctx, org, testKey(1), "BUF", now, &observe.Status{Name: "over"}); err != nil {
+		t.Fatal(err)
+	}
+	c, err := st.CountOrgObservers(ctx, org)
+	if err != nil || c.Unapproved != MaxUnapprovedObservers {
+		t.Fatalf("counts = %+v, %v", c, err)
+	}
+	if err := st.ReportObserver(ctx, org, testKey(1000), "YYZ", now.Add(time.Minute), &observe.Status{Name: "moved"}); err != nil {
+		t.Fatal(err)
+	}
+	list, _ := st.ListOrgObservers(ctx, org, ObserversUnapproved)
+	found := false
+	for _, o := range list {
+		if o.PublicKeyHex == testKey(1000) {
+			found = o.IATA == "YYZ" && o.Name == "moved"
+		}
+		if o.PublicKeyHex == testKey(1) {
+			t.Fatal("observer over the cap was added")
+		}
+	}
+	if !found {
+		t.Fatal("a known observer's report was dropped at the cap")
+	}
+	// Approving one frees a place: approved observers don't count toward the cap.
+	if err := st.CreateOrgObserver(ctx, org, "Mine", testKey(1001), admin); err != nil {
+		t.Fatal(err)
+	}
+	_ = st.ReportObserver(ctx, org, testKey(1), "BUF", now, &observe.Status{Name: "next"})
+	if ok, _ := st.CountOrgObservers(ctx, org); ok.Unapproved != MaxUnapprovedObservers || ok.Approved != 1 {
+		t.Fatalf("after approval = %+v", ok)
 	}
 }
 

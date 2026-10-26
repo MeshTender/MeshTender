@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
+	"unicode/utf8"
 )
 
 // Packet is the trusted part of a packets-topic message: the raw LoRa packet.
@@ -34,10 +36,18 @@ func ParsePacket(payload []byte) (Packet, error) {
 	return Packet{Raw: raw}, nil
 }
 
+// MaxNameLen caps an observer's reported name, in characters. MeshCore node
+// names fit well within it; the cap only bounds what a misbehaving uplink can
+// make us store and show.
+const MaxNameLen = 64
+
 // Status is an observer's self-reported health from its status topic. Every
 // field is optional: each uplink program reports a different subset.
 type Status struct {
-	Online          bool
+	Online bool
+	// Name is the node's own name (the envelope's origin), trimmed and capped
+	// at MaxNameLen characters.
+	Name            string
 	ClientVersion   string
 	FirmwareVersion string
 	Model           string
@@ -50,6 +60,7 @@ type Status struct {
 func ParseStatus(payload []byte) (Status, error) {
 	var env struct {
 		Status          string `json:"status"`
+		Origin          string `json:"origin"`
 		ClientVersion   string `json:"client_version"`
 		FirmwareVersion string `json:"firmware_version"`
 		Model           string `json:"model"`
@@ -64,6 +75,7 @@ func ParseStatus(payload []byte) (Status, error) {
 	}
 	return Status{
 		Online:          env.Status == "online",
+		Name:            truncateRunes(strings.TrimSpace(env.Origin), MaxNameLen),
 		ClientVersion:   env.ClientVersion,
 		FirmwareVersion: env.FirmwareVersion,
 		Model:           env.Model,
@@ -71,6 +83,14 @@ func ParseStatus(payload []byte) (Status, error) {
 		NoiseFloor:      env.Stats.NoiseFloor.int(),
 		UptimeSecs:      env.Stats.UptimeSecs.int(),
 	}, nil
+}
+
+// truncateRunes cuts s to at most n characters.
+func truncateRunes(s string, n int) string {
+	if utf8.RuneCountInString(s) <= n {
+		return s
+	}
+	return string([]rune(s)[:n])
 }
 
 // flexNumber accepts a JSON number or a numeric string (uplinks differ), and

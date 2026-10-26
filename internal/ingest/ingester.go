@@ -1,7 +1,8 @@
-// Package ingest connects to each org's MQTT broker and records verified
-// adverts from registered companions, as heard by the org's registered
-// observers, and the channel messages a running net logs (see netair). The Supervisor owns the broker connections (on one elected
-// replica); the Ingester turns each message into store writes.
+// Package ingest connects to each org's MQTT broker, discovers the observers
+// publishing to it, and records verified adverts from registered companions,
+// as heard by the org's approved observers, and the channel messages a running
+// net logs (see netair). The Supervisor owns the broker connections (on one
+// elected replica); the Ingester turns each message into store writes.
 package ingest
 
 import (
@@ -80,23 +81,25 @@ func (in *Ingester) Handle(ctx context.Context, m Message) {
 	observer := t.Observer.String()
 	switch t.Kind {
 	case observe.KindStatus:
-		in.handleStatus(ctx, m, observer)
+		in.handleStatus(ctx, m, observer, t.IATA)
 	case observe.KindPackets:
 		in.touch(ctx, m, observer)
 		in.handlePacket(ctx, m, observer)
 	}
 }
 
-func (in *Ingester) handleStatus(ctx context.Context, m Message, observer string) {
+// handleStatus records an observer's status report, discovering the observer
+// (unapproved) if the org doesn't have it yet. The broker only lets an uplink
+// publish under its own key, so the topic's key and region and the reported
+// name are the observer's own.
+func (in *Ingester) handleStatus(ctx context.Context, m Message, observer, iata string) {
 	st, err := observe.ParseStatus(m.Payload)
 	if err != nil {
 		in.Log.Debug("ingest: bad status", "org", m.OrgID, "observer", observer, "err", err)
 		return
 	}
-	// TouchObserver only updates a registered observer's row, so an
-	// unregistered one is a no-op without a separate lookup.
-	if err := in.Store.TouchObserver(ctx, m.OrgID, observer, m.ReceivedAt, &st); err != nil {
-		in.Log.Warn("ingest: touch observer", "org", m.OrgID, "err", err)
+	if err := in.Store.ReportObserver(ctx, m.OrgID, observer, iata, m.ReceivedAt, &st); err != nil {
+		in.Log.Warn("ingest: report observer", "org", m.OrgID, "err", err)
 	}
 }
 
@@ -117,7 +120,7 @@ func (in *Ingester) touch(ctx context.Context, m Message, observer string) {
 	if !due {
 		return
 	}
-	if err := in.Store.TouchObserver(ctx, m.OrgID, observer, m.ReceivedAt, nil); err != nil {
+	if err := in.Store.TouchObserver(ctx, m.OrgID, observer, m.ReceivedAt); err != nil {
 		in.Log.Warn("ingest: touch observer", "org", m.OrgID, "err", err)
 	}
 }

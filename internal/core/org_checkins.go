@@ -178,7 +178,7 @@ func (s *Handlers) handleAddOrgObserver(w http.ResponseWriter, r *http.Request) 
 	}
 	err := s.Store.CreateOrgObserver(r.Context(), id, name, key, s.Auth.CurrentUserID(r.Context()))
 	if errors.Is(err, store.ErrDuplicate) {
-		fail("That observer is already registered.")
+		fail("That observer is already approved.")
 		return
 	}
 	if err != nil {
@@ -188,24 +188,71 @@ func (s *Handlers) handleAddOrgObserver(w http.ResponseWriter, r *http.Request) 
 	http.Redirect(w, r, mqttURL(r), http.StatusSeeOther) //nolint:gosec // G710: local path
 }
 
-func (s *Handlers) handleDeleteOrgObserver(w http.ResponseWriter, r *http.Request) {
-	id, ok := s.requireOrgAdmin(w, r)
+// observerListURL is the MQTT settings page showing the observer list the
+// admin acted from (the form's "from"), so approving one after another keeps
+// them on the Unapproved list.
+func observerListURL(r *http.Request) string {
+	return mqttURL(r) + "?observers=" + string(observerFilter(r.FormValue("from"))) + "#observers"
+}
+
+// orgObserverAction resolves the org (admins only) and the observer id for a
+// POST on one of its observers. ok is false when a response was written.
+func (s *Handlers) orgObserverAction(w http.ResponseWriter, r *http.Request) (orgID, observerID int64, ok bool) {
+	orgID, ok = s.requireOrgAdmin(w, r)
+	if !ok {
+		return 0, 0, false
+	}
+	observerID, err := strconv.ParseInt(chi.URLParam(r, "oid"), 10, 64)
+	if err != nil {
+		s.NotFound(w, r)
+		return 0, 0, false
+	}
+	return orgID, observerID, true
+}
+
+// finishObserverAction answers an observer action's store result: 404 for an
+// observer the org doesn't have, else back to the list.
+func (s *Handlers) finishObserverAction(w http.ResponseWriter, r *http.Request, err error, failMsg string) {
+	if errors.Is(err, store.ErrNotFound) {
+		s.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		s.ServerError(w, r, failMsg, err)
+		return
+	}
+	http.Redirect(w, r, observerListURL(r), http.StatusSeeOther) //nolint:gosec // G710: local path
+}
+
+// handleApproveOrgObserver approves an observer under the given name, or
+// renames an approved one.
+func (s *Handlers) handleApproveOrgObserver(w http.ResponseWriter, r *http.Request) {
+	id, oid, ok := s.orgObserverAction(w, r)
 	if !ok {
 		return
 	}
-	oid, err := strconv.ParseInt(chi.URLParam(r, "oid"), 10, 64)
-	if err != nil {
-		s.NotFound(w, r)
+	name := strings.TrimSpace(r.FormValue("name"))
+	if name == "" || utf8.RuneCountInString(name) > maxCompanionName {
+		page := mqttURL(r) + "/observers/" + strconv.FormatInt(oid, 10) + "?from=" + string(observerFilter(r.FormValue("from")))
+		web.RedirectErr(w, r, page, "Give the observer a name (up to 64 characters).")
 		return
 	}
-	if err := s.Store.DeleteOrgObserver(r.Context(), id, oid); errors.Is(err, store.ErrNotFound) {
-		s.NotFound(w, r)
-		return
-	} else if err != nil {
-		s.ServerError(w, r, "Couldn't remove the observer.", err)
-		return
+	err := s.Store.ApproveOrgObserver(r.Context(), id, oid, name, s.Auth.CurrentUserID(r.Context()))
+	s.finishObserverAction(w, r, err, "Couldn't approve the observer.")
+}
+
+func (s *Handlers) handleUnapproveOrgObserver(w http.ResponseWriter, r *http.Request) {
+	id, oid, ok := s.orgObserverAction(w, r)
+	if ok {
+		s.finishObserverAction(w, r, s.Store.UnapproveOrgObserver(r.Context(), id, oid), "Couldn't unapprove the observer.")
 	}
-	http.Redirect(w, r, mqttURL(r), http.StatusSeeOther) //nolint:gosec // G710: local path
+}
+
+func (s *Handlers) handleDeleteOrgObserver(w http.ResponseWriter, r *http.Request) {
+	id, oid, ok := s.orgObserverAction(w, r)
+	if ok {
+		s.finishObserverAction(w, r, s.Store.DeleteOrgObserver(r.Context(), id, oid), "Couldn't remove the observer.")
+	}
 }
 
 func (s *Handlers) pageOrgActivity(w http.ResponseWriter, r *http.Request) {

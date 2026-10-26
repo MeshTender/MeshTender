@@ -119,7 +119,7 @@ func (s *Handlers) renderOrgHome(w http.ResponseWriter, r *http.Request, org *st
 	}
 	if isAdmin {
 		// Observer health is an admin's concern: they register and run them.
-		observers, err := s.Store.ListOrgObservers(ctx, org.ID)
+		observers, err := s.Store.ListOrgObservers(ctx, org.ID, store.ObserversApproved)
 		if err != nil {
 			fail(err)
 			return

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -68,11 +69,51 @@ func (s *Handlers) pageOrgSettings(w http.ResponseWriter, r *http.Request) {
 	s.renderSettings(w, r, org, section, nil)
 }
 
+// observerFilter reads the observer list's ?observers=, defaulting to the
+// approved ones: those are the org's, the rest were only discovered.
+func observerFilter(v string) store.ObserverFilter {
+	switch f := store.ObserverFilter(v); f {
+	case store.ObserversUnapproved, store.ObserversAll:
+		return f
+	}
+	return store.ObserversApproved
+}
+
+// observerFilterOption is one option of the observer list's filter.
+type observerFilterOption struct {
+	Value store.ObserverFilter
+	Label string
+	Count int
+}
+
 // pageNewObserver and pageNewNet are the "New" pages of their lists.
 func (s *Handlers) pageNewObserver(w http.ResponseWriter, r *http.Request) {
 	if org, ok := s.requireSettings(w, r); ok {
 		s.renderSettings(w, r, org, "mqtt", map[string]any{"New": true})
 	}
+}
+
+// pageObserver approves a discovered observer, or renames an approved one.
+func (s *Handlers) pageObserver(w http.ResponseWriter, r *http.Request) {
+	org, ok := s.requireSettings(w, r)
+	if !ok {
+		return
+	}
+	oid, err := strconv.ParseInt(chi.URLParam(r, "oid"), 10, 64)
+	if err != nil {
+		s.NotFound(w, r)
+		return
+	}
+	o, err := s.Store.GetOrgObserver(r.Context(), org.ID, oid)
+	if errors.Is(err, store.ErrNotFound) {
+		s.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		s.ServerError(w, r, "Couldn't load the observer.", err)
+		return
+	}
+	s.renderSettings(w, r, org, "mqtt", map[string]any{"ObserverEdit": o, "From": string(observerFilter(r.URL.Query().Get("from")))})
 }
 
 func (s *Handlers) pageNewNet(w http.ResponseWriter, r *http.Request) {
@@ -141,11 +182,22 @@ func (s *Handlers) settingsData(ctx context.Context, r *http.Request, org *store
 			data["Broker"] = broker
 			data["BrokerError"] = ingest.CategoryMessage(broker.LastError)
 		}
-		observers, err := s.Store.ListOrgObservers(ctx, org.ID)
+		filter := observerFilter(r.URL.Query().Get("observers"))
+		observers, err := s.Store.ListOrgObservers(ctx, org.ID, filter)
+		if err != nil {
+			return nil, err
+		}
+		counts, err := s.Store.CountOrgObservers(ctx, org.ID)
 		if err != nil {
 			return nil, err
 		}
 		data["Observers"] = observers
+		data["ObserverFilter"] = string(filter)
+		data["ObserverFilters"] = []observerFilterOption{
+			{store.ObserversApproved, "Approved", counts.Approved},
+			{store.ObserversUnapproved, "Unapproved", counts.Unapproved},
+			{store.ObserversAll, "All", counts.Approved + counts.Unapproved},
+		}
 		data["Now"] = time.Now()
 	case "nets":
 		now := time.Now()
