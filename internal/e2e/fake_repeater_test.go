@@ -54,6 +54,7 @@ const fakeRepeaterJS = `
       if (!pub || /^(00|ff)/.test(pub)) reply = "Error, bad key";
       else { fw.pub = pub; reply = "OK, reboot to apply! New pubkey: " + pub; }
     } else if (/^set radio /.test(cmd)) reply = "OK - reboot to apply";
+    else if ((m = /^password (.*)$/.exec(cmd))) reply = "password now: " + m[1];
     emit("\n");
     if (reply) emit("  -> " + reply + "\r\n");
   }

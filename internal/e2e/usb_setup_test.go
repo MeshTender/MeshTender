@@ -24,7 +24,9 @@ import (
 //   - run each command as its own line;
 //   - write MeshCore's expanded private key, so the repeater derives the public
 //     key MeshTender records (checked with meshcore-go);
-//   - leave the firmware time to save MeshTender's access before rebooting.
+//   - leave the firmware time to save MeshTender's access before rebooting;
+//   - set the admin and guest passwords typed, refusing one the firmware would
+//     cut short, and keep them out of the preview.
 func TestE2EUSBSetupRunsEachCommand(t *testing.T) {
 	srv := newE2EServer(t)
 	user, cookie := srv.login(t, "usb-setup")
@@ -36,7 +38,8 @@ func TestE2EUSBSetupRunsEachCommand(t *testing.T) {
 
 	runCtx, cancelRun := context.WithTimeout(bctx, 60*time.Second)
 	defer cancelRun()
-	var failure string
+	var failure, preview string
+	var refused bool
 	if err := chromedp.Run(runCtx,
 		setSessionCookie(cookie),
 		chromedp.Navigate(srv.appURL+"/repeaters/add?step=serial&method=serial"),
@@ -44,8 +47,17 @@ func TestE2EUSBSetupRunsEachCommand(t *testing.T) {
 		// The random key is generated asynchronously on load.
 		chromedp.Poll(`/^[0-9a-f]{64}$/.test(document.getElementById("pubkey").textContent)`, nil),
 		chromedp.SendKeys(`#name`, "MT Test", chromedp.ByQuery),
+		// 16 bytes in 15 characters: past the firmware's buffer, which would cut
+		// it short, so setup refuses it (the alert is auto-accepted).
+		chromedp.Evaluate(`document.getElementById("admin_password").value = "fifteen-chars-é"`, nil),
+		chromedp.Click(`#generate`, chromedp.ByQuery),
+		chromedp.Sleep(500*time.Millisecond),
+		chromedp.Evaluate(`document.getElementById("review-card").hidden`, &refused),
+		chromedp.Evaluate(`document.getElementById("admin_password").value = "s3cret admin"`, nil),
+		chromedp.SendKeys(`#guest_password`, "visitor", chromedp.ByQuery),
 		chromedp.Click(`#generate`, chromedp.ByQuery),
 		chromedp.WaitVisible(`#run`, chromedp.ByQuery),
+		chromedp.Text(`#cmdlist`, &preview, chromedp.ByQuery),
 		chromedp.Click(`#run`, chromedp.ByQuery),
 	); err != nil {
 		t.Fatalf("browser run: %v (the fake repeater ran %q)", err, fake.lines())
@@ -64,6 +76,12 @@ func TestE2EUSBSetupRunsEachCommand(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	if !refused {
+		t.Error("setup accepted an admin password longer than the firmware's 15 bytes")
+	}
+	if strings.Contains(preview, "s3cret") || strings.Contains(preview, "visitor") {
+		t.Errorf("the command preview shows a password: %q", preview)
+	}
 	got := fake.lines()
 	want := []*regexp.Regexp{
 		regexp.MustCompile(`^ver$`),
@@ -71,6 +89,8 @@ func TestE2EUSBSetupRunsEachCommand(t *testing.T) {
 		regexp.MustCompile(`^set prv\.key [0-9a-f]{128}$`),
 		regexp.MustCompile(`^set radio [0-9.]+,[0-9.]+,\d+,\d+$`),
 		regexp.MustCompile(`^setperm [0-9a-f]{64} 3$`),
+		regexp.MustCompile(`^password s3cret admin$`),
+		regexp.MustCompile(`^set guest\.password visitor$`),
 		regexp.MustCompile(`^reboot$`),
 	}
 	if len(got) != len(want) {

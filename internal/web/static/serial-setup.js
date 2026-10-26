@@ -213,11 +213,39 @@
       cr: parseInt($("radio_cr").value, 10),
     };
   }
-  function maskKeyLine(line) {
-    // Show only the first 8 hex chars of the private key in the preview.
-    return line.replace(/(set prv\.key\s+)([0-9a-f]{8})[0-9a-f]+/i, "$1$2… (hidden)");
+  // maskLine hides the secrets in a command for the preview and the log: all but
+  // the first 8 hex chars of the private key, and the passwords.
+  function maskLine(line) {
+    return line
+      .replace(/(set prv\.key\s+)([0-9a-f]{8})[0-9a-f]+/i, "$1$2… (hidden)")
+      .replace(/^(password |set guest\.password ).*$/, "$1•••••• (hidden)");
   }
-  var commands = null; // resolved command list with the real key spliced in
+  var commands = null; // resolved command list with the key and passwords spliced in
+
+  // The firmware keeps each password in a 16-byte buffer and silently cuts a
+  // longer one short (CommonCLI.cpp, StrHelper::strncpy), so refuse rather than
+  // let the repeater end up with a password nobody typed.
+  var PASSWORD_MAX_BYTES = 15;
+  function passwordProblem(label, pw) {
+    if (!pw) return "";
+    if (new TextEncoder().encode(pw).length > PASSWORD_MAX_BYTES) return label + " can be at most " + PASSWORD_MAX_BYTES + " characters.";
+    if (/[\u0000-\u001f\u007f]/.test(pw)) return label + " can't contain control characters.";
+    if (/^\s|\s$/.test(pw)) return label + " can't start or end with a space.";
+    return "";
+  }
+
+  // passwordCommands returns the lines that set the passwords the user typed.
+  // They're spliced in here, like the key, so they never reach MeshTender.
+  function passwordCommands() {
+    var admin = $("admin_password") ? $("admin_password").value : "";
+    var guest = $("guest_password") ? $("guest_password").value : "";
+    var problem = passwordProblem("The admin password", admin) || passwordProblem("The guest password", guest);
+    if (problem) return { problem: problem };
+    var lines = [];
+    if (admin) lines.push("password " + admin);
+    if (guest) lines.push("set guest.password " + guest);
+    return { lines: lines };
+  }
 
   async function generate() {
     if (!state.privHex) {
@@ -226,6 +254,8 @@
     }
     var name = ($("name").value || "").trim();
     if (!name) { alert("Name is required."); return; }
+    var passwords = passwordCommands();
+    if (passwords.problem) { alert(passwords.problem); return; }
     var org = currentOrg();
     var body = {
       name: name,
@@ -252,7 +282,10 @@
     commands = data.commands.map(function (c) {
       return c === data.identityPlaceholder ? idLine : c;
     });
-    $("cmdlist").textContent = commands.map(maskKeyLine).join("\n");
+    // Right after MeshTender's access, before the profile's own settings.
+    var after = commands.findIndex(function (c) { return /^setperm /.test(c); });
+    Array.prototype.splice.apply(commands, [after + 1, 0].concat(passwords.lines));
+    $("cmdlist").textContent = commands.map(maskLine).join("\n");
     $("review-card").hidden = false;
     $("review-card").scrollIntoView({ behavior: "smooth" });
   }
@@ -293,7 +326,7 @@
       var problems = 0;
       for (var i = 0; i < commands.length; i++) {
         var cmd = commands[i];
-        var shown = maskKeyLine(cmd);
+        var shown = maskLine(cmd);
         if (/^reboot\b/.test(cmd)) {
           var wait = permAt ? ACL_SAVE_MS - (performance.now() - permAt) : 0;
           if (wait > 0) {
@@ -307,7 +340,10 @@
         }
         addLog("sent", "→ " + shown);
         var r = await cli.command(cmd);
+        var isAdminPassword = /^password /.test(cmd);
         if (r.reply === null) addLog("noreply", "(no reply)");
+        // "password now: <pw>": the firmware echoes it back; keep it out of the log.
+        else if (isAdminPassword) addLog("reply", r.reply.replace(/^(password now:).*$/, "$1 (hidden)"));
         else addLog(r.error ? "error" : "reply", r.reply);
 
         if (/^set prv\.key\b/.test(cmd)) {
@@ -323,7 +359,7 @@
         } else if (/^setperm\b/.test(cmd)) {
           if (r.reply === null || r.error) throw new Error("The repeater didn't grant MeshTender access, so nothing was saved.");
           permAt = performance.now();
-        } else if (r.reply === null || r.error) {
+        } else if (r.reply === null || r.error || (isAdminPassword && !/^password now:/.test(r.reply))) {
           problems++;
         }
       }

@@ -191,6 +191,22 @@
       <div id="grind-status" class="form-hint"></div>
     </div>
 
+    {{/* Passwords: spliced into the commands by serial-setup.js, never sent to
+    MeshTender. The firmware holds 15 bytes of each and cuts longer ones short,
+    so the script checks the length in bytes; maxlength is only a first stop. */}}
+    <div class="row g-3 mb-3">
+      <div class="col-sm-6">
+        <label class="form-label" for="admin_password">Admin password <span class="form-label-description">optional</span></label>
+        <input type="password" class="form-control" id="admin_password" maxlength="15" autocomplete="new-password" data-testid="admin-password">
+        <div class="form-text">Anyone with it can change every setting. Leave it blank to keep the repeater's current one; a newly flashed repeater's is <code>password</code>.</div>
+      </div>
+      <div class="col-sm-6">
+        <label class="form-label" for="guest_password">Guest password <span class="form-label-description">optional</span></label>
+        <input type="password" class="form-control" id="guest_password" maxlength="15" autocomplete="new-password" data-testid="guest-password">
+        <div class="form-text">Lets people log in to read its status. Leave it blank to keep the current one.</div>
+      </div>
+    </div>
+
     {{/* Configuration source */}}
     <div class="mb-3">
       <label class="form-label" for="org">Organization configuration</label>
@@ -238,8 +254,8 @@
 <div class="card mt-3" id="review-card" hidden>
   <div class="card-header"><h2 class="card-title">Step 4 · Review &amp; run</h2></div>
   <div class="card-body">
-    <p class="text-secondary">These commands will be sent to your repeater over USB, in order. The private key is
-      shown masked; it never leaves your browser.</p>
+    <p class="text-secondary">These commands will be sent to your repeater over USB, in order. The private key and
+      passwords are hidden here and never leave your browser.</p>
     <pre class="mb-3"><code id="cmdlist"></code></pre>
     <button id="run" class="btn btn-primary" type="button">{{template "icon-plug" "me-1"}}Connect over USB &amp; run</button>
     <ul id="log" class="evlog console mt-3" role="log" aria-live="polite" aria-label="Setup activity"></ul>
