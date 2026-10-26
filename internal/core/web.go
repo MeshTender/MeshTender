@@ -223,7 +223,7 @@ func (s *Handlers) appRouter() chi.Router {
 			r.Get("/repeaters/{id}/console", s.pageConsole)
 			r.Get("/repeaters/{id}/console/ws", s.wsConsole)
 			r.Get("/repeaters/{id}/config.json", s.consoleConfigJSON)
-			r.Get("/repeaters/{id}/usb", s.pageRepeaterUSB)
+			r.Get("/repeaters/{id}/config", s.pageRepeaterConfig)
 			r.Post("/repeaters/{id}/location", s.handleSetRepeaterLocation)
 			r.Get("/repeaters/{id}/log", s.pageCommandLog)
 			r.Get("/repeaters/{id}/docs", s.pageRepeaterDocs)

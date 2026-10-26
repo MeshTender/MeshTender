@@ -300,9 +300,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 - Homepage: <https://tabler.io/icons>
 - Source: https://github.com/tabler/tabler-icons (icon path data, various versions)
-- File: `internal/web/templates/icons.html` (sha256 `a2fc5a94505048498e1232c2df58daf146e32eb29547b3c586e6e032db836f9d`)
+- File: `internal/web/templates/icons.html` (sha256 `850b13d6111676d1aea65b814a4a31f4f5f287a515403bf02ad83cdef829079a`)
 - Modified: Icon path data copied into Go template definitions rather than vendored as SVG files; the transparent 24x24 guard path upstream emits is dropped.
-- Note: All 50 icons in icons.html are Tabler Icons; several are renamed locally (antenna<-antenna-bars-5, copy<-squares, list<-list-details, plug<-plug-connected, terminal<-terminal-2, alert<-alert-triangle, brand-signal<-message-circle-2). Version is unpinned because the set was collected across releases.
+- Note: All 51 icons in icons.html are Tabler Icons; several are renamed locally (antenna<-antenna-bars-5, copy<-squares, list<-list-details, plug<-plug-connected, terminal<-terminal-2, alert<-alert-triangle, brand-signal<-message-circle-2). Version is unpinned because the set was collected across releases.
 
 ```
 MIT License

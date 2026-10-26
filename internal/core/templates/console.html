@@ -5,7 +5,8 @@
     <ol class="breadcrumb mb-2" aria-label="Breadcrumb"><li class="breadcrumb-item"><a href="/repeaters">Repeaters</a></li><li class="breadcrumb-item"><a href="/repeaters/{{.Repeater.PublicID}}">{{.Repeater.Name}}</a></li><li class="breadcrumb-item active" aria-current="page">Console</li></ol>
     <h1 class="page-title fs-1">Console</h1>
   </div>
-  <div class="col-auto ms-auto d-print-none">
+  <div class="col-auto ms-auto d-print-none btn-list">
+    <a class="btn" href="/repeaters/{{.Repeater.PublicID}}/config" data-testid="console-config-link">{{template "icon-adjustments" "me-1"}}Configuration</a>
     {{if .Debug}}
     <a class="btn btn-ghost-secondary btn-sm" href="/repeaters/{{.Repeater.PublicID}}/console" data-testid="console-debug">Hide raw frames</a>
     {{else}}
@@ -66,9 +67,6 @@ swap needs no new markup. The flex row is nested so the [hidden] attribute wins
         </div>
         <div class="btn-list">
           <button id="connect" class="btn btn-primary" type="button">{{template "icon-plug" "me-1"}}Connect modem</button>
-          {{if .ShowConfig}}
-          <button type="button" class="btn" data-bs-toggle="collapse" data-bs-target="#config-panel" aria-expanded="false" aria-controls="config-panel" data-testid="apply-config">{{template "icon-settings" "me-1"}}Apply organization configuration</button>
-          {{end}}
           <button type="button" class="btn btn-ghost-secondary ms-auto" data-bs-toggle="collapse" data-bs-target="#route" aria-expanded="false" aria-controls="route" data-testid="console-route">Set a route</button>
         </div>
         <div class="collapse" id="route">
@@ -92,9 +90,6 @@ swap needs no new markup. The flex row is nested so the [hidden] attribute wins
         </form>
       </div>
     </div>
-    {{if .ShowConfig}}
-    {{template "repeater-config-panel" (dict "PublicID" .Repeater.PublicID "USB" false)}}
-    {{end}}
   </div>
   <div class="col-12 col-lg-4">
     <div class="card" data-testid="allowed-commands">
@@ -123,18 +118,13 @@ swap needs no new markup. The flex row is nested so the [hidden] attribute wins
   </div>
 </div>
 
-{{if .ShowConfig}}
-{{template "map-styles"}}
-{{template "map-scripts"}}
-<script src="{{ asset "/static/regionmap.js" }}"></script>
-<script src="{{ asset "/static/console-config.js" }}"></script>
-{{end}}
 
 <script nonce="{{.Nonce}}">
   window.MESHTENDER_WS = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/repeaters/{{.Repeater.PublicID}}/console/ws{{if .Debug}}?debug=1{{end}}";
 </script>
 <script src="{{ asset "/static/serial-port.js" }}"></script>
 <script src="{{ asset "/static/mesh-bridge.js" }}"></script>
+<script src="{{ asset "/static/air-console.js" }}"></script>
 <script src="{{ asset "/static/console.js" }}"></script>
 <script src="{{ asset "/static/console-complete.js" }}"></script>
 {{end}}

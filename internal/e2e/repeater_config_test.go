@@ -13,12 +13,13 @@ import (
 	"github.com/MeshTender/MeshTender/internal/store"
 )
 
-// TestE2EConsoleConfigPanel drives the "Apply organization configuration" panel:
-// the button expands it, the recommended commands (profile base settings + region
+// TestE2ERepeaterConfigTab drives the repeater's Configuration tab with the KISS
+// modem chosen: the recommended commands (profile base settings + region
 // commands for the repeater's location) render, and — with no modem connected —
-// the Run controls are disabled with a prompt to connect. Also asserts the page
-// (Bootstrap collapse + MapLibre) runs clean under the strict CSP.
-func TestE2EConsoleConfigPanel(t *testing.T) {
+// the Run controls are disabled with a prompt to connect it. The console links
+// to the tab. Also asserts the page (MapLibre included) runs clean under the
+// strict CSP.
+func TestE2ERepeaterConfigTab(t *testing.T) {
 	srv := newE2EServer(t)
 	owner, cookie := srv.login(t, "cfg-owner")
 	rep := srv.newRepeater(t, owner.ID, "Owner Rep")
@@ -48,7 +49,7 @@ func TestE2EConsoleConfigPanel(t *testing.T) {
 	bctx, cancel, watch := startBrowser(t)
 	defer cancel()
 
-	url := srv.appURL + "/repeaters/" + rep.PublicID + "/console"
+	url := srv.appURL + "/repeaters/" + rep.PublicID + "/config"
 
 	// After the panel expands and config.json loads, count rendered command rows,
 	// Run buttons, region badges, and whether the Run controls are disabled.
@@ -86,9 +87,11 @@ func TestE2EConsoleConfigPanel(t *testing.T) {
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(url),
-		chromedp.WaitVisible(`[data-testid="apply-config"]`, chromedp.ByQuery),
-		chromedp.Click(`[data-testid="apply-config"]`, chromedp.ByQuery),
+		chromedp.Navigate(srv.appURL+"/repeaters/"+rep.PublicID+"/console"),
+		chromedp.Click(`[data-testid="console-config-link"]`, chromedp.ByQuery),
+		chromedp.WaitVisible(`[data-testid="config-commands"] .list-group-item`, chromedp.ByQuery),
+		chromedp.Click(`label[for="transport-air"]`, chromedp.ByQuery),
+		chromedp.Poll(`document.querySelector('[data-cfg="connect-label"]').textContent === "Connect modem"`, nil),
 		// The command rows render after config.json resolves.
 		chromedp.WaitVisible(`[data-testid="config-commands"] .list-group-item`, chromedp.ByQuery),
 		chromedp.Evaluate(summarize, &out),
@@ -112,8 +115,8 @@ func TestE2EConsoleConfigPanel(t *testing.T) {
 	if !out.RunAllDisabled {
 		t.Errorf("Run all should be disabled with no modem connected")
 	}
-	if out.Hint == "" {
-		t.Errorf("expected a hint prompting to connect the modem")
+	if out.Hint != "Connect the modem to run commands." {
+		t.Errorf("hint = %q, want a prompt to connect the modem", out.Hint)
 	}
 	if !out.HasConnect {
 		t.Errorf("config panel is missing a Connect button")

@@ -4,7 +4,8 @@
 // from the server go to the modem unchanged. KISS framing and every MeshCore
 // packet are handled server-side. Text messages are JSON: the page sends small
 // control messages, the server sends {state, message} statuses. Shared by the
-// repeater console (console.js) and the net control session (netcontrol.js).
+// repeater console and Configuration tab (air-console.js) and the net control
+// session (netcontrol.js).
 //
 //   MeshBridge.supported                      — can this browser reach a serial device?
 //   MeshBridge.open(url, {onStatus, onLog, onClose}) → Promise<bridge>

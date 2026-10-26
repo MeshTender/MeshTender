@@ -1,7 +1,7 @@
 {{/* repeater-header and repeater-tabs render the shared chrome for the repeater
 detail tabs. Data: the RepeaterNav map (PublicID, Name, OwnerName, IsOwner,
-Active). Active is one of "overview" | "docs" | "maintenance" | "log" |
-"sharing". Owner-only tabs (Activity, Sharing) and the Manage menu only render
+Active). Active is one of "overview" | "docs" | "config" | "maintenance" |
+"log" | "sharing". Owner-only tabs (Activity, Sharing) and the Manage menu only render
 for the owner. */}}
 {{define "repeater-header"}}
 <div class="row g-2 align-items-center">
@@ -31,6 +31,7 @@ for the owner. */}}
 <ul class="nav nav-tabs mb-3" role="tablist">
   <li class="nav-item"><a class="nav-link{{if eq .Active "overview"}} active{{end}}" href="/repeaters/{{.PublicID}}">{{template "icon-antenna" "me-1"}}Overview</a></li>
   <li class="nav-item"><a class="nav-link{{if eq .Active "docs"}} active{{end}}" href="/repeaters/{{.PublicID}}/docs">{{template "icon-list" "me-1"}}Documentation</a></li>
+  <li class="nav-item"><a class="nav-link{{if eq .Active "config"}} active{{end}}" href="/repeaters/{{.PublicID}}/config" data-testid="repeater-tab-config">{{template "icon-adjustments" "me-1"}}Configuration</a></li>
   <li class="nav-item"><a class="nav-link{{if eq .Active "maintenance"}} active{{end}}" href="/repeaters/{{.PublicID}}/maintenance">{{template "icon-settings" "me-1"}}Maintenance</a></li>
   {{if .IsOwner}}
   <li class="nav-item"><a class="nav-link{{if eq .Active "log"}} active{{end}}" href="/repeaters/{{.PublicID}}/log">{{template "icon-terminal" "me-1"}}Activity</a></li>

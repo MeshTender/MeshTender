@@ -1,6 +1,6 @@
 // One way to open a serial port, whatever the browser offers.
 //
-// Both serial callers (serial-setup.js talking the repeater CLI, console.js
+// Both serial callers (serial-cli.js talking the repeater CLI, mesh-bridge.js
 // bridging a KISS modem) need exactly four things from a port: open it at a baud
 // rate, read bytes, write bytes, close it. This module supplies that as
 // window.MeshSerial, backed by whichever transport is actually available:

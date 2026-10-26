@@ -1,9 +1,8 @@
-// Drives the "Apply organization configuration" panel (the
-// repeater-config-panel partial). On the console it's an inline Bootstrap
-// collapse, loaded when first opened, and commands go over the air through a KISS
-// modem; on the USB page (data-usb) it's shown open and loads at once, and
-// commands go to the repeater's own serial port. Either way it talks only to
-// window.MeshConsole (console.js or usb-console.js). It fetches the
+// Drives the repeater's Configuration tab (repeater_config.html). Commands go
+// through whichever connection the "Send with" control picks from
+// window.MeshTransports: "usb" (usb-console.js, the repeater plugged into this
+// computer) or "air" (air-console.js, a KISS modem); the chosen one is
+// window.MeshConsole, and the choice is locked while it's connected. It fetches the
 // recommended configuration for a chosen org/profile from
 // /repeaters/{id}/config.json, lists every command (marking which the user may
 // run), and runs them over the live console session via window.MeshConsole
@@ -27,9 +26,28 @@
   const connectBtn = q('[data-cfg="connect"]');
   const connectLabel = q('[data-cfg="connect-label"]');
   const hint = q('[data-cfg="hint"]');
-  const overUSB = panel.dataset.usb === "1";
-  const device = overUSB ? "repeater" : "modem";
-  const Device = overUSB ? "Repeater" : "Modem";
+  const transportInputs = Array.prototype.slice.call(panel.querySelectorAll('[data-cfg="transport"]'));
+  const unsupported = document.getElementById("unsupported");
+
+  // Over USB every complete line can run (config.json?usb=1); over the air the
+  // server marks what the user's permissions allow.
+  let overUSB = false;
+  let device = "modem";
+  let Device = "Modem";
+  function useTransport() {
+    const picked = transportInputs.find((i) => i.checked);
+    const name = picked ? picked.value : "air";
+    const t = window.MeshTransports && window.MeshTransports[name];
+    if (t) window.MeshConsole = t;
+    overUSB = name === "usb";
+    device = overUSB ? "repeater" : "modem";
+    Device = overUSB ? "Repeater" : "Modem";
+    if (unsupported) unsupported.hidden = !!(t && t.supported);
+  }
+  function lockTransport(locked) {
+    transportInputs.forEach((i) => { i.disabled = locked; });
+  }
+  useTransport();
 
   let data = null; // last config payload
   let rows = []; // per-command row state: { line, runnable, statusEl }
@@ -171,7 +189,7 @@
         onPick: (lat, lon) => saveLocation(lat, lon),
       });
     } else if (mapView) {
-      // The map was built while the panel was collapsed, so its container had no
+      // The map was built while its box was hidden, so its container had no
       // size; MapLibre needs telling once it does.
       mapView.resize();
     }
@@ -409,6 +427,12 @@
   }
 
   // wiring
+  transportInputs.forEach((i) => {
+    i.addEventListener("change", () => {
+      useTransport();
+      load(true); // what may run differs between the two
+    });
+  });
   orgSel.addEventListener("change", () => {
     profileSel.value = "";
     load(true);
@@ -417,18 +441,13 @@
   runAllBtn.addEventListener("click", () => runLines(runnableIndices()));
   if (connectBtn) {
     connectBtn.addEventListener("click", () => {
+      lockTransport(true);
       if (window.MeshConsole) window.MeshConsole.connect();
       if (connectLabel) connectLabel.textContent = "Connecting…";
       connectBtn.disabled = true;
     });
   }
-  // Load the config the first time the panel is expanded (not before — it's
-  // opt-in), or at once when it isn't a collapse (the USB page).
-  if (!panel.classList.contains("collapse")) load(false);
-  panel.addEventListener("shown.bs.collapse", () => {
-    if (!data) load(false);
-    if (mapView) mapView.resize();
-  });
+  load(false);
   document.addEventListener("mesh:ready", () => {
     updateConnectBtn();
     if (data) {
@@ -437,6 +456,7 @@
     }
   });
   document.addEventListener("mesh:closed", () => {
+    lockTransport(false);
     updateConnectBtn();
     if (data) {
       updateRunState();

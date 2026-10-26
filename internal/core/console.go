@@ -195,18 +195,10 @@ func (s *Handlers) pageConsole(w http.ResponseWriter, r *http.Request) {
 	}
 	allowed := s.allowedCommands(r.Context(), rep, uid, catalog)
 	sort.Slice(allowed, func(i, j int) bool { return allowed[i].Template < allowed[j].Template })
-	// Only offer the "Apply organization configuration" action when this repeater
-	// actually participates in an org that has a saved configuration.
-	configOrgs, err := s.Store.ListRepeaterConfigOrgs(r.Context(), rep.ID)
-	if err != nil {
-		s.ServerError(w, r, "could not load organizations", err)
-		return
-	}
 	s.Render(w, r, "console.html", map[string]any{
 		"Repeater":         rep,
 		"Commands":         allowed,
 		"CanFetchLocation": canFetchLocation(allowed),
-		"ShowConfig":       len(configOrgs) > 0,
 		"Debug":            r.URL.Query().Get("debug") == "1",
 	})
 }

@@ -45,7 +45,7 @@ type consoleConfigLocation struct {
 // chosen org/profile. Location defaults to the repeater's stored coordinates; a
 // ?lat=&lon= override lets the client preview a picked location before saving it.
 //
-// ?usb=1 is for applying it over USB (pageRepeaterUSB), where the browser writes
+// ?usb=1 is for applying it over USB (pageRepeaterConfig), where the browser writes
 // to a repeater plugged into the user's own computer and MeshTender sends
 // nothing. Permissions govern what MeshTender relays over the air; someone
 // holding the device can type any command into it already, so over USB every
@@ -188,11 +188,10 @@ func (s *Handlers) handleSetRepeaterLocation(w http.ResponseWriter, r *http.Requ
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// pageRepeaterUSB applies an organization's configuration to a repeater that's
-// already in MeshTender, over USB: the console's configuration panel, run
-// through the repeater's own serial CLI (static/usb-console.js) rather than a
-// KISS modem. For owners without a modem, and for anyone standing next to it.
-func (s *Handlers) pageRepeaterUSB(w http.ResponseWriter, r *http.Request) {
+// pageRepeaterConfig is the repeater's Configuration tab: what its organizations
+// recommend for it, where it stands, and applying that over a USB cable (the
+// repeater's own serial CLI) or a KISS modem (over the air, like the console).
+func (s *Handlers) pageRepeaterConfig(w http.ResponseWriter, r *http.Request) {
 	rep, _, ok := s.requireRepeaterAccess(w, r)
 	if !ok {
 		return
@@ -202,8 +201,9 @@ func (s *Handlers) pageRepeaterUSB(w http.ResponseWriter, r *http.Request) {
 		s.ServerError(w, r, "could not load organizations", err)
 		return
 	}
-	s.Render(w, r, "repeater_usb.html", map[string]any{
+	s.Render(w, r, "repeater_config.html", map[string]any{
 		"Repeater":   rep,
+		"Nav":        web.RepeaterNav(rep.PublicID, rep.Name, rep.OwnerName(), !rep.Shared, "config"),
 		"ShowConfig": len(configOrgs) > 0,
 	})
 }

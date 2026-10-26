@@ -1,0 +1,96 @@
+{{define "title"}}Configuration · {{.Repeater.Name}} · MeshTender{{end}}
+{{define "header"}}{{template "repeater-header" .Nav}}{{end}}
+{{define "content"}}
+{{template "repeater-tabs" .Nav}}
+{{/* What the repeater's organizations recommend for it, and applying it, driven
+by console-config.js through either connection: usb-console.js (plugged into this
+computer; it checks the device's key against data-pubkey first) or air-console.js
+(a KISS modem, over the air). */}}
+{{if .ShowConfig}}
+<div id="usb-console" data-pubkey="{{.Repeater.PublicKeyHex}}" data-name="{{.Repeater.Name}}">
+  <div id="unsupported" class="alert alert-danger" role="alert" hidden>
+    <div>This browser can't reach USB devices, so it can't apply the configuration. Use one that supports Web Serial, over HTTPS.</div>
+  </div>
+  <div class="row row-cards">
+    <div class="col-lg-8">
+      <div class="card" id="config-panel"
+           data-config-url="/repeaters/{{.Repeater.PublicID}}/config.json"
+           data-location-url="/repeaters/{{.Repeater.PublicID}}/location">
+        <div class="card-header">
+          <div>
+            <h2 class="card-title">Recommended configuration</h2>
+            <div class="card-subtitle">What your organization sets on a repeater like this one, where it stands.</div>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="row g-2 mb-3">
+            <div class="col-sm-6">
+              <label class="form-label" for="cfg-org">Organization</label>
+              <select id="cfg-org" class="form-select" data-cfg="org"></select>
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label" for="cfg-profile">Profile</label>
+              <select id="cfg-profile" class="form-select" data-cfg="profile"></select>
+            </div>
+          </div>
+          <div data-cfg="location"></div>
+          <div id="config-map" data-cfg="map" style="height:220px;display:none" class="mb-3 rounded" role="region" aria-label="Pick the repeater's location"></div>
+          <div data-cfg="commands" data-testid="config-commands"></div>
+        </div>
+        <div class="card-footer">
+          <div class="d-flex flex-wrap align-items-center gap-2">
+            <span class="text-secondary">Send with</span>
+            <div class="btn-group" role="group" aria-label="How the commands reach the repeater">
+              <input type="radio" class="btn-check" name="transport" id="transport-usb" value="usb" autocomplete="off" data-cfg="transport" data-testid="transport-usb" checked>
+              <label class="btn btn-sm" for="transport-usb">{{template "icon-plug" "me-1"}}USB cable</label>
+              <input type="radio" class="btn-check" name="transport" id="transport-air" value="air" autocomplete="off" data-cfg="transport" data-testid="transport-air">
+              <label class="btn btn-sm" for="transport-air">{{template "icon-antenna" "me-1"}}KISS modem</label>
+            </div>
+            <div class="btn-list ms-auto">
+              <button type="button" class="btn btn-primary" data-cfg="connect" data-testid="config-connect">{{template "icon-plug" "me-1"}}<span data-cfg="connect-label">Connect repeater</span></button>
+              <button type="button" class="btn btn-primary" data-cfg="run-all" data-testid="config-run-all">Run all</button>
+            </div>
+          </div>
+          <div data-cfg="hint" class="text-secondary small mt-2" data-testid="config-hint"></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-4 d-flex flex-column gap-3">
+      <div class="alert alert-warning mb-0" role="alert" id="reboot-prompt" data-testid="reboot-prompt" hidden>
+        <div>
+          Some of these settings take effect when the repeater restarts.
+          <div class="mt-2"><button type="button" class="btn btn-sm btn-warning" id="reboot" data-testid="reboot">Reboot now</button></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><h2 class="card-title">Log</h2></div>
+        <div class="card-body">
+          <ul id="log" class="evlog console mb-0" role="log" aria-live="polite" aria-label="Activity" data-empty="Not connected."></ul>
+        </div>
+      </div>
+      <p class="small text-secondary mb-0">
+        <strong>USB cable:</strong> the repeater plugged into this computer; every command can run.
+        <strong>KISS modem:</strong> over the air, as in the <a href="/repeaters/{{.Repeater.PublicID}}/console">console</a>; you can run what you've been allowed to.
+      </p>
+    </div>
+  </div>
+</div>
+
+{{template "map-styles"}}
+{{template "map-scripts"}}
+<script nonce="{{.Nonce}}">
+  window.MESHTENDER_WS = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/repeaters/{{.Repeater.PublicID}}/console/ws";
+</script>
+<script src="{{ asset "/static/regionmap.js" }}"></script>
+<script src="{{ asset "/static/serial-port.js" }}"></script>
+<script src="{{ asset "/static/serial-cli.js" }}"></script>
+<script src="{{ asset "/static/mesh-bridge.js" }}"></script>
+<script src="{{ asset "/static/usb-console.js" }}"></script>
+<script src="{{ asset "/static/air-console.js" }}"></script>
+<script src="{{ asset "/static/console-config.js" }}"></script>
+{{else}}
+<div class="card">
+  {{template "empty-state" (dict "Title" "No configuration to apply" "Line" "None of this repeater's organizations have published a recommended configuration yet.")}}
+</div>
+{{end}}
+{{end}}

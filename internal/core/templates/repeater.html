@@ -37,11 +37,8 @@
     {{if .IsOwner}}
     <div class="card mt-3">
       <div class="card-header">
-        <div><h2 class="card-title">Organizations</h2><div class="card-subtitle">Each one's recommended configuration for this repeater, for where it stands.</div></div>
-        <div class="card-actions btn-list">
-          {{if .Orgs}}<a href="/repeaters/{{.Repeater.PublicID}}/usb" class="btn btn-sm" data-testid="apply-over-usb">{{template "icon-plug" "me-1"}}Apply over USB</a>{{end}}
-          <a href="/repeaters/{{.Repeater.PublicID}}/share" class="btn btn-sm">Manage sharing</a>
-        </div>
+        <div><h2 class="card-title">Organizations</h2><div class="card-subtitle">Their recommended configuration is on the <a href="/repeaters/{{.Repeater.PublicID}}/config">Configuration</a> tab.</div></div>
+        <div class="card-actions"><a href="/repeaters/{{.Repeater.PublicID}}/share" class="btn btn-sm">Manage sharing</a></div>
       </div>
       {{if .Orgs}}
       <div class="list-group list-group-flush">
@@ -50,9 +47,6 @@
           <span class="text-secondary">{{template "icon-world" ""}}</span>
           <div class="flex-fill text-truncate">
             <a class="fw-bold text-reset" href="/orgs/{{.OrgSlug}}">{{.OrgName}}</a>
-          </div>
-          <div class="btn-list flex-nowrap">
-            <a class="btn btn-sm" href="/orgs/{{.OrgSlug}}/config{{if $.Repeater.Latitude}}?lat={{$.Repeater.Latitude}}&lon={{$.Repeater.Longitude}}{{end}}" >{{template "icon-settings" "me-1"}}Recommended configuration</a>
           </div>
         </div>
         {{end}}

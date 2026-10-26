@@ -319,10 +319,10 @@ func TestConsoleConfigOverUSB(t *testing.T) {
 	}
 }
 
-// TestRepeaterUSBPage: the apply-over-USB page is for people with access to the
-// repeater, carries its public key for the device check, and says so plainly
-// when there's no configuration to apply.
-func TestRepeaterUSBPage(t *testing.T) {
+// TestRepeaterConfigTab: the Configuration tab is for people with access to the
+// repeater, carries its public key for the USB device check and both ways of
+// sending, and says so plainly when there's no configuration to apply.
+func TestRepeaterConfigTab(t *testing.T) {
 	t.Parallel()
 	st, ctx, ts, h := splitServer(t)
 
@@ -335,7 +335,7 @@ func TestRepeaterUSBPage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	path := "/repeaters/" + rep.PublicID + "/usb"
+	path := "/repeaters/" + rep.PublicID + "/config"
 
 	body := func(resp *http.Response) string {
 		defer resp.Body.Close()
@@ -360,8 +360,10 @@ func TestRepeaterUSBPage(t *testing.T) {
 		t.Fatal(err)
 	}
 	page := body(do(t, ts, h.app, path, ownerCookie))
-	if !strings.Contains(page, `data-pubkey="`+key+`"`) || !strings.Contains(page, `data-usb="1"`) {
-		t.Fatal("the page should carry the repeater's key and ask for the USB configuration")
+	for _, want := range []string{`data-pubkey="` + key + `"`, `data-testid="transport-usb"`, `data-testid="transport-air"`, `/console/ws`} {
+		if !strings.Contains(page, want) {
+			t.Errorf("the tab is missing %s", want)
+		}
 	}
 
 	_, strangerCookie := appLogin(t, ts, st, ctx, h.app, "usbpage-stranger")

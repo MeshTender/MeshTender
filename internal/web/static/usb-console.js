@@ -1,9 +1,8 @@
-// usb-console.js — window.MeshConsole for a repeater plugged into this computer.
-//
-// console-config.js runs an organization's configuration through
-// window.MeshConsole and the document's mesh:* events. On the console that's
-// console.js, over the air through a KISS modem; here it's the repeater's own
-// serial CLI (serial-cli.js), so the same panel works with no modem at all.
+// usb-console.js — the connection to a repeater plugged into this computer,
+// through its own serial CLI (serial-cli.js): no modem, nothing over the air.
+// It has the same shape as air-console.js (see there) and registers as
+// window.MeshTransports.usb, so console-config.js can run an organization's
+// configuration through either.
 //
 // Connecting checks the repeater's public key against the one MeshTender has
 // (#usb-console[data-pubkey]) and refuses any other device, so a configuration
@@ -22,21 +21,20 @@
   var expected = String(root.dataset.pubkey || "").toLowerCase();
 
   var cli = null;
+  var connecting = false;
   var queue = Promise.resolve();
 
   var api = {
+    name: "usb",
     ready: false,
     supported: !!(window.MeshSerial && window.MeshSerial.supported && window.SerialCLI),
     connect: connect,
     send: send,
     getLocation: getLocation,
   };
-  window.MeshConsole = api;
-
-  if (!api.supported) {
-    var u = document.getElementById("unsupported");
-    if (u) u.hidden = false;
-  }
+  window.MeshTransports = window.MeshTransports || {};
+  window.MeshTransports.usb = api;
+  if (!window.MeshConsole) window.MeshConsole = api;
 
   function emit(name, detail) {
     document.dispatchEvent(new CustomEvent(name, { detail: detail }));
@@ -61,7 +59,8 @@
   }
 
   async function connect() {
-    if (api.ready || cli || !api.supported) return;
+    if (api.ready || cli || connecting || !api.supported) return;
+    connecting = true;
     log.textContent = "";
     try {
       addLog("info", "Choose the repeater's USB port…");
@@ -87,6 +86,7 @@
       if (!e || e.name !== "NotFoundError") addLog("error", e && e.message ? e.message : String(e));
       await close();
     }
+    connecting = false;
   }
 
   // send queues a command and reports its result as a mesh:status, the way the
