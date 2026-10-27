@@ -182,25 +182,80 @@ func canFetchLocation(allowed []*store.Command) bool {
 	return have == len(locationCommandKeys)
 }
 
-func (s *Handlers) pageConsole(w http.ResponseWriter, r *http.Request) {
-	uid := s.Auth.CurrentUserID(r.Context())
-	rep, _, ok := s.requireRepeaterAccess(w, r)
+// pageConfigure is a repeater's Configure tab: one connection to it (a USB
+// cable or a KISS modem), a console, and the panes that feed it — the commands
+// this user may send, the organization configuration, and (owner only) the
+// history of what's been sent over the air. ?pane= picks the pane shown first.
+func (s *Handlers) pageConfigure(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	uid := s.Auth.CurrentUserID(ctx)
+	rep, id, ok := s.requireRepeaterAccess(w, r)
 	if !ok {
 		return
 	}
-	catalog, err := s.Store.ListCommands(r.Context())
+	isOwner := !rep.Shared
+	catalog, err := s.Store.ListCommands(ctx)
 	if err != nil {
 		s.ServerError(w, r, "could not load commands", err)
 		return
 	}
-	allowed := s.allowedCommands(r.Context(), rep, uid, catalog)
+	allowed := s.allowedCommands(ctx, rep, uid, catalog)
 	sort.Slice(allowed, func(i, j int) bool { return allowed[i].Template < allowed[j].Template })
-	s.Render(w, r, "console.html", map[string]any{
+	configOrgs, err := s.Store.ListRepeaterConfigOrgs(ctx, id)
+	if err != nil {
+		s.ServerError(w, r, "could not load organizations", err)
+		return
+	}
+	pane := r.URL.Query().Get("pane")
+	switch pane {
+	case "commands", "configuration":
+	case "history":
+		if !isOwner {
+			pane = "commands"
+		}
+	default:
+		pane = "commands"
+	}
+	data := map[string]any{
 		"Repeater":         rep,
+		"Nav":              web.RepeaterNav(rep.PublicID, rep.Name, rep.OwnerName(), isOwner, "configure"),
+		"IsOwner":          isOwner,
+		"Pane":             pane,
 		"Commands":         allowed,
 		"CanFetchLocation": canFetchLocation(allowed),
+		"ShowConfig":       len(configOrgs) > 0,
 		"Debug":            r.URL.Query().Get("debug") == "1",
-	})
+	}
+	if isOwner {
+		sessions, hasMore, err := s.Store.ListCommandLogSessionsPage(ctx, id, decodeLogCursor(r.URL.Query().Get("before")))
+		if err != nil {
+			s.ServerError(w, r, "could not load history", err)
+			return
+		}
+		data["Sessions"] = sessions
+		if hasMore && len(sessions) > 0 {
+			last := sessions[len(sessions)-1]
+			data["NextBefore"] = encodeLogCursor(last.StartedAt, last.ID)
+		}
+	}
+	s.Render(w, r, "configure.html", data)
+}
+
+// redirectToConfigure sends an old page's URL (the console, the Configuration
+// and Activity tabs) to the Configure tab, opening pane if given and keeping the
+// query (?debug=, ?before=).
+func (s *Handlers) redirectToConfigure(pane string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		if pane != "" {
+			q.Set("pane", pane)
+		}
+		target := "/repeaters/" + repeaterParam(r) + "/configure"
+		if enc := q.Encode(); enc != "" {
+			target += "?" + enc
+		}
+		http.Redirect(w, r, target, http.StatusMovedPermanently) //nolint:gosec // G710: local path
+	}
 }
 
 // wsConsole runs an interactive command session over the modem bridge.

@@ -111,7 +111,7 @@ func TestConsoleHidesFetchLocationWithoutPermission(t *testing.T) {
 	}
 	shareeSess := appSession(t, ts, st, ctx, h.app, sharee)
 
-	body := readBody(t, do(t, ts, h.app, "/repeaters/"+rep.PublicID+"/console", shareeSess))
+	body := readBody(t, do(t, ts, h.app, "/repeaters/"+rep.PublicID+"/configure", shareeSess))
 	if strings.Contains(body, `data-testid="fetch-location"`) {
 		t.Error("console offered Fetch location to a user not permitted to run get lat/get lon")
 	}
@@ -120,7 +120,7 @@ func TestConsoleHidesFetchLocationWithoutPermission(t *testing.T) {
 	}
 
 	// The owner may run anything on their own repeater, so they still get it.
-	ownerBody := readBody(t, do(t, ts, h.app, "/repeaters/"+rep.PublicID+"/console", ownerSess))
+	ownerBody := readBody(t, do(t, ts, h.app, "/repeaters/"+rep.PublicID+"/configure", ownerSess))
 	if !strings.Contains(ownerBody, `data-testid="fetch-location"`) {
 		t.Error("console withheld Fetch location from the repeater's owner")
 	}

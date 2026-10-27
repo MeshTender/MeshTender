@@ -39,7 +39,7 @@ func TestE2EConsoleConfirmBanner(t *testing.T) {
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(srv.appURL+"/repeaters/"+unconfirmed.PublicID+"/console"),
+		chromedp.Navigate(srv.appURL+"/repeaters/"+unconfirmed.PublicID+"/configure"),
 		chromedp.WaitVisible(`[data-testid="allowed-commands"]`, chromedp.ByQuery),
 		chromedp.Evaluate(`!!document.querySelector('[data-testid="confirm-banner"]')`, &confirmBanner),
 		// Computed display must be none — guards the Bootstrap gotcha where .d-flex
@@ -58,7 +58,7 @@ func TestE2EConsoleConfirmBanner(t *testing.T) {
 	// --- confirmed, no location: location-banner + fetch button, no confirm banner ---
 	var confirmBannerB, fetchBtn bool
 	if err := chromedp.Run(bctx,
-		chromedp.Navigate(srv.appURL+"/repeaters/"+located.PublicID+"/console"),
+		chromedp.Navigate(srv.appURL+"/repeaters/"+located.PublicID+"/configure"),
 		chromedp.WaitVisible(`[data-testid="location-banner"]`, chromedp.ByQuery),
 		chromedp.Evaluate(`!!document.querySelector('[data-testid="confirm-banner"]')`, &confirmBannerB),
 		chromedp.Evaluate(`!!document.querySelector('[data-testid="fetch-location"]')`, &fetchBtn),

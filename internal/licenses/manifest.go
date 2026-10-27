@@ -278,6 +278,8 @@ var FirstPartyStatic = []string{
 	"air-console.js",
 	"app.css",
 	"basemap.js",
+	"configure-panes.js",
+	"configure.js",
 	"console-complete.js",
 	"console-config.js",
 	"console.js",

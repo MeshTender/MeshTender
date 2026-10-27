@@ -59,7 +59,7 @@ func TestE2EConsoleSidebarOrgAdmin(t *testing.T) {
 	bctx, cancel, watch := startBrowser(t)
 	defer cancel()
 
-	url := srv.appURL + "/repeaters/" + rep.PublicID + "/console"
+	url := srv.appURL + "/repeaters/" + rep.PublicID + "/configure"
 
 	// The "Allowed commands" sidebar is always rendered, modem or not. Command chips carry data-template
 	// (the hook the console JS uses to fill the input); the empty state renders a

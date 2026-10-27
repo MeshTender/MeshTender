@@ -1,8 +1,7 @@
-// Drives the repeater's Configuration tab (repeater_config.html). Commands go
-// through whichever connection the "Send with" control picks from
-// window.MeshTransports: "usb" (usb-console.js, the repeater plugged into this
-// computer) or "air" (air-console.js, a KISS modem); the chosen one is
-// window.MeshConsole, and the choice is locked while it's connected. It fetches the
+// Drives the Configure tab's "Organization configuration" pane (configure.html).
+// Commands go through whichever connection configure.js has chosen
+// (window.MeshConsole): "usb" (usb-console.js, the repeater plugged into this
+// computer) or "air" (air-console.js, a KISS modem). It fetches the
 // recommended configuration for a chosen org/profile from
 // /repeaters/{id}/config.json, lists every command (marking which the user may
 // run), and runs them over the live console session via window.MeshConsole
@@ -23,29 +22,14 @@
   const mapBox = q('[data-cfg="map"]');
   const cmdBox = q('[data-cfg="commands"]');
   const runAllBtn = q('[data-cfg="run-all"]');
-  const connectBtn = q('[data-cfg="connect"]');
-  const connectLabel = q('[data-cfg="connect-label"]');
   const hint = q('[data-cfg="hint"]');
-  const transportInputs = Array.prototype.slice.call(panel.querySelectorAll('[data-cfg="transport"]'));
-  const unsupported = document.getElementById("unsupported");
-
   // Over USB every complete line can run (config.json?usb=1); over the air the
   // server marks what the user's permissions allow.
   let overUSB = false;
   let device = "modem";
-  let Device = "Modem";
   function useTransport() {
-    const picked = transportInputs.find((i) => i.checked);
-    const name = picked ? picked.value : "air";
-    const t = window.MeshTransports && window.MeshTransports[name];
-    if (t) window.MeshConsole = t;
-    overUSB = name === "usb";
+    overUSB = !!(window.MeshConsole && window.MeshConsole.name === "usb");
     device = overUSB ? "repeater" : "modem";
-    Device = overUSB ? "Repeater" : "Modem";
-    if (unsupported) unsupported.hidden = !!(t && t.supported);
-  }
-  function lockTransport(locked) {
-    transportInputs.forEach((i) => { i.disabled = locked; });
   }
   useTransport();
 
@@ -362,27 +346,7 @@
     };
   }
 
-  function updateConnectBtn() {
-    if (!connectBtn) return;
-    const supported = !!(window.MeshConsole && window.MeshConsole.supported);
-    const ready = consoleReady();
-    if (!supported) {
-      connectBtn.disabled = true;
-      connectBtn.title = "This browser can't connect to USB devices.";
-      if (connectLabel) connectLabel.textContent = "USB not supported";
-    } else if (ready) {
-      connectBtn.disabled = true;
-      connectBtn.title = "";
-      if (connectLabel) connectLabel.textContent = Device + " connected";
-    } else {
-      connectBtn.disabled = running;
-      connectBtn.title = "";
-      if (connectLabel) connectLabel.textContent = "Connect " + device;
-    }
-  }
-
   function updateRunState() {
-    updateConnectBtn();
     const ready = consoleReady();
     runAllBtn.disabled = running || !runnableIndices().length || !ready;
     cmdBox.querySelectorAll("button[data-run]").forEach((b) => {
@@ -399,7 +363,7 @@
   // in-progress run's status message.
   function refreshHint() {
     if (running) return;
-    setHint(consoleReady() ? "" : "Connect the " + device + " to run commands.");
+    setHint(consoleReady() ? "" : "Connect the " + device + " above to run them.");
   }
 
   // helpers
@@ -427,11 +391,9 @@
   }
 
   // wiring
-  transportInputs.forEach((i) => {
-    i.addEventListener("change", () => {
-      useTransport();
-      load(true); // what may run differs between the two
-    });
+  document.addEventListener("mesh:transport", () => {
+    useTransport();
+    load(true); // what may run differs between the two
   });
   orgSel.addEventListener("change", () => {
     profileSel.value = "";
@@ -439,25 +401,14 @@
   });
   profileSel.addEventListener("change", () => load(true));
   runAllBtn.addEventListener("click", () => runLines(runnableIndices()));
-  if (connectBtn) {
-    connectBtn.addEventListener("click", () => {
-      lockTransport(true);
-      if (window.MeshConsole) window.MeshConsole.connect();
-      if (connectLabel) connectLabel.textContent = "Connecting…";
-      connectBtn.disabled = true;
-    });
-  }
   load(false);
   document.addEventListener("mesh:ready", () => {
-    updateConnectBtn();
     if (data) {
       updateRunState();
       refreshHint();
     }
   });
   document.addEventListener("mesh:closed", () => {
-    lockTransport(false);
-    updateConnectBtn();
     if (data) {
       updateRunState();
       refreshHint();

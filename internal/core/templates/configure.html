@@ -1,0 +1,252 @@
+{{/* A repeater's Configure tab: talking to it. One connection (configure.js:
+"Send with" a USB cable or a KISS modem), one console (the log and the command
+line, console.js + console-complete.js), and the tools that feed it, as panes
+switched in the page so the connection survives: the commands you may send,
+your organization's recommended configuration (console-config.js), and, for
+the owner, the history of what's been sent over the air. .Pane picks the pane
+shown first ("commands" | "configuration" | "history"). */}}
+{{define "title"}}Configure · {{.Repeater.Name}} · MeshTender{{end}}
+{{define "header"}}{{template "repeater-header" .Nav}}{{end}}
+{{define "content"}}
+{{template "repeater-tabs" .Nav}}
+
+{{/* Confirm/location prompts. Connecting through a modem sends a signed login
+that confirms access (server-side). These reflect the state at page load;
+console.js then updates them live — hiding the confirm prompt and revealing the
+location prompt once a "confirmed" status arrives, and hiding the location prompt
+once a "location" status arrives. The location prompt is always rendered when no
+location is stored (hidden until the repeater is confirmed with admin) so the
+swap needs no new markup. The flex row is nested so the [hidden] attribute wins
+(Bootstrap's .d-flex is display:flex !important and would otherwise show it). */}}
+{{if not .Repeater.Confirmed}}
+<div class="alert alert-warning" role="alert" data-testid="confirm-banner">
+  <div>Not confirmed yet. Connect through a KISS modem and MeshTender sends the repeater a signed login; it's confirmed as soon as the repeater replies.</div>
+</div>
+{{end}}
+{{if not .Repeater.Latitude}}
+<div class="alert alert-info" role="alert" data-testid="location-banner"{{if not (and .Repeater.Confirmed .Repeater.IsAdmin)}} hidden{{end}}>
+  <div class="d-flex align-items-center justify-content-between">
+    <div class="me-3">The repeater's location isn't known yet, so region settings can't be worked out for it.</div>
+    {{/* Reading it sends "get lat"/"get lon", so it's offered only to someone
+    permitted to run them — the server checks again before sending. The banner
+    still shows either way: an unknown location affects region configuration, so
+    it's worth knowing about even if you can't be the one to fix it. */}}
+    {{if .CanFetchLocation}}
+    <button type="button" class="btn btn-sm btn-primary flex-shrink-0" data-fetch-location data-testid="fetch-location">{{template "icon-map-pin" "me-1"}}Read it from the repeater</button>
+    {{else}}
+    <div class="text-secondary flex-shrink-0" data-testid="fetch-location-denied">Reading it needs permission to run <code>get lat</code> and <code>get lon</code>.</div>
+    {{end}}
+  </div>
+</div>
+{{end}}
+{{if and .Repeater.Confirmed .Repeater.AccessKnown (not .Repeater.IsAdmin)}}
+<div class="alert alert-danger" role="alert" data-testid="guest-banner">
+  <div>MeshTender only has <strong>guest</strong> access, which anyone gets with a blank password, so it can't manage this repeater over the air. Grant it admin with <a href="{{.RootURL}}/docs#setperm"><code>setperm</code></a>, then connect again.</div>
+</div>
+{{end}}
+
+{{/* usb-console.js checks the plugged-in repeater's key against data-pubkey
+before anything is sent to it. */}}
+<div id="usb-console" data-pubkey="{{.Repeater.PublicKeyHex}}" data-name="{{.Repeater.Name}}">
+  <div id="unsupported" class="alert alert-danger" role="alert" hidden>
+    <div>This browser can't reach USB devices, so it can't connect to the repeater or a modem. Use one that supports Web Serial, over HTTPS.</div>
+  </div>
+
+  <div class="card mb-3" data-testid="connection">
+    <div class="card-body d-flex flex-wrap align-items-center gap-3">
+      <span class="text-secondary">Send with</span>
+      <div class="btn-group" role="group" aria-label="How commands reach the repeater">
+        <input type="radio" class="btn-check" name="transport" id="transport-usb" value="usb" autocomplete="off" data-transport data-testid="transport-usb" checked>
+        <label class="btn btn-sm" for="transport-usb">{{template "icon-plug" "me-1"}}USB cable</label>
+        <input type="radio" class="btn-check" name="transport" id="transport-air" value="air" autocomplete="off" data-transport data-testid="transport-air">
+        <label class="btn btn-sm" for="transport-air">{{template "icon-antenna" "me-1"}}KISS modem</label>
+      </div>
+      <span id="conn-status" class="text-secondary" role="status" data-testid="conn-status">Not connected</span>
+      <div class="btn-list ms-auto">
+        <button type="button" class="btn btn-ghost-secondary" data-bs-toggle="collapse" data-bs-target="#conn-options" aria-expanded="false" aria-controls="conn-options" data-air-only hidden data-testid="conn-options">Options</button>
+        <button type="button" id="connect" class="btn btn-primary" data-testid="connect">{{template "icon-plug" "me-1"}}<span id="connect-label">Connect repeater</span></button>
+      </div>
+    </div>
+    <div class="collapse" id="conn-options">
+      <div class="card-body border-top" data-air-only hidden>
+        <label class="form-label" for="path">Route through repeaters</label>
+        <input type="text" class="form-control font-monospace" id="path" placeholder="e.g. 11, 22, 33" autocomplete="off" spellcheck="false">
+        <div class="form-text">The hex prefix of each repeater between your modem and this one, in order and all the same length. Leave it blank to flood.</div>
+        <div class="mt-3">
+          {{if .Debug}}<a href="?debug=0" data-testid="console-debug">Hide raw frames</a>{{else}}<a href="?debug=1" data-testid="console-debug">Show raw frames in the log</a>{{end}}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row row-cards">
+    <div class="col-lg-7">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h2 class="card-title">Console</h2>
+            <div class="card-subtitle">Everything sent and every reply. Over a USB cable any command goes; through a KISS modem, what you've been allowed to.</div>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="alert alert-warning" role="alert" id="reboot-prompt" data-testid="reboot-prompt" hidden>
+            <div>
+              Some of these settings take effect when the repeater restarts.
+              <button type="button" class="btn btn-sm btn-warning ms-2" id="reboot" data-testid="reboot">Reboot now</button>
+            </div>
+          </div>
+          <ul id="log" class="evlog console mb-0" role="log" aria-live="polite" aria-label="Console" data-empty="Not connected."></ul>
+          {{/* The input works before connecting: Tab completion
+          (console-complete.js) and the chips fill it; only Send waits. */}}
+          <form id="cmdform" class="position-relative mt-2" autocomplete="off">
+            <ul id="cmdsuggest" class="console-suggest" role="listbox" aria-label="Matching commands" data-testid="cmdsuggest" hidden></ul>
+            <div class="input-group">
+              <span class="input-group-text font-monospace" aria-hidden="true">&gt;</span>
+              <input type="text" id="cmdinput" class="form-control font-monospace" placeholder="Type a command" aria-label="Command to send" aria-describedby="cmdhelp" spellcheck="false">
+              <button type="submit" id="cmdsend" class="btn btn-primary" disabled>Send</button>
+            </div>
+            <div id="cmdhelp" class="form-text"><span id="cmdhint">Connect to send. </span>Tab completes a command, ↑ and ↓ go back through what you've sent, and Esc then Tab moves on.</div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-5">
+      <div class="card" data-testid="configure-tools">
+        <div class="card-header">
+          <ul class="nav nav-tabs card-header-tabs" role="tablist">
+            {{template "configure-pane-tab" (dict "Pane" "commands" "Label" "Commands" "Active" .Pane)}}
+            {{template "configure-pane-tab" (dict "Pane" "configuration" "Label" "Organization configuration" "Active" .Pane)}}
+            {{if .IsOwner}}{{template "configure-pane-tab" (dict "Pane" "history" "Label" "History" "Active" .Pane)}}{{end}}
+          </ul>
+        </div>
+        <div class="tab-content">
+          <div class="tab-pane{{if eq .Pane "commands"}} active show{{end}}" id="pane-commands" role="tabpanel">
+            {{template "configure-commands" .}}
+          </div>
+          <div class="tab-pane{{if eq .Pane "configuration"}} active show{{end}}" id="pane-configuration" role="tabpanel">
+            {{template "configure-configuration" .}}
+          </div>
+          {{if .IsOwner}}
+          <div class="tab-pane{{if eq .Pane "history"}} active show{{end}}" id="pane-history" role="tabpanel">
+            {{template "configure-history" .}}
+          </div>
+          {{end}}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{{if .ShowConfig}}
+{{template "map-styles"}}
+{{template "map-scripts"}}
+<script src="{{ asset "/static/regionmap.js" }}"></script>
+{{end}}
+<script nonce="{{.Nonce}}">
+  window.MESHTENDER_WS = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/repeaters/{{.Repeater.PublicID}}/console/ws{{if .Debug}}?debug=1{{end}}";
+</script>
+<script src="{{ asset "/static/serial-port.js" }}"></script>
+<script src="{{ asset "/static/serial-cli.js" }}"></script>
+<script src="{{ asset "/static/mesh-bridge.js" }}"></script>
+<script src="{{ asset "/static/usb-console.js" }}"></script>
+<script src="{{ asset "/static/air-console.js" }}"></script>
+<script src="{{ asset "/static/configure.js" }}"></script>
+<script src="{{ asset "/static/console.js" }}"></script>
+<script src="{{ asset "/static/console-complete.js" }}"></script>
+{{if .ShowConfig}}<script src="{{ asset "/static/console-config.js" }}"></script>{{end}}
+<script src="{{ asset "/static/configure-panes.js" }}"></script>
+{{end}}
+
+{{/* configure-pane-tab is one pane's tab. Bootstrap switches panes in the page
+(data attributes only, CSP-safe); configure-panes.js keeps ?pane= in the URL so
+a reload or a shared link opens the same one. Data: dict Pane, Label, Active. */}}
+{{define "configure-pane-tab"}}
+<li class="nav-item" role="presentation"><a class="nav-link{{if eq .Active .Pane}} active{{end}}" href="?pane={{.Pane}}" data-bs-toggle="tab" data-bs-target="#pane-{{.Pane}}" data-pane="{{.Pane}}" role="tab" aria-controls="pane-{{.Pane}}" aria-selected="{{if eq .Active .Pane}}true{{else}}false{{end}}" data-testid="pane-{{.Pane}}">{{.Label}}</a></li>
+{{end}}
+
+{{/* ======== Commands: what this user may send, to fill the command line. ======== */}}
+{{define "configure-commands"}}
+<div class="card-body" data-testid="allowed-commands">
+  {{if .Commands}}
+  <p class="small text-secondary">Click one to fill it in. Red ones can lock you out of the repeater or take it off the air. Over USB you can also type any other command.</p>
+  <div data-filter-root>
+    <input type="search" class="form-control form-control-sm mb-2" placeholder="Filter commands" aria-label="Filter commands" data-filter-search data-testid="command-filter">
+    <div class="d-flex flex-wrap gap-1" style="max-height:360px;overflow-y:auto">
+      {{range .Commands}}
+      <button type="button" class="chip btn btn-sm{{if .Risky}} btn-outline-danger{{end}}" data-template="{{.Template}}" data-description="{{or .Description .Args}}" title="{{or .Description .Args}}" data-filter-item data-name="{{.Template}} {{.Description}} {{.Args}}">{{.Template}}</button>
+      {{end}}
+    </div>
+    <p class="text-secondary small mb-0 mt-2" data-filter-empty hidden>No command matches.</p>
+  </div>
+  {{else}}
+  <p class="text-secondary mb-0">No commands allowed here yet.</p>
+  {{end}}
+</div>
+{{end}}
+
+{{/* ======== Organization configuration (console-config.js). ======== */}}
+{{define "configure-configuration"}}
+{{if .ShowConfig}}
+<div id="config-panel"
+     data-config-url="/repeaters/{{.Repeater.PublicID}}/config.json"
+     data-location-url="/repeaters/{{.Repeater.PublicID}}/location">
+  <div class="card-body">
+    <p class="small text-secondary">What your organization sets on a repeater like this one, where it stands.</p>
+    <div class="row g-2 mb-3">
+      <div class="col-sm-6">
+        <label class="form-label" for="cfg-org">Organization</label>
+        <select id="cfg-org" class="form-select" data-cfg="org"></select>
+      </div>
+      <div class="col-sm-6">
+        <label class="form-label" for="cfg-profile">Profile</label>
+        <select id="cfg-profile" class="form-select" data-cfg="profile"></select>
+      </div>
+    </div>
+    <div data-cfg="location"></div>
+    <div id="config-map" data-cfg="map" style="height:220px;display:none" class="mb-3 rounded" role="region" aria-label="Pick the repeater's location"></div>
+    <div data-cfg="commands" data-testid="config-commands"></div>
+  </div>
+  <div class="card-footer d-flex align-items-center gap-2">
+    <span data-cfg="hint" class="text-secondary small" data-testid="config-hint"></span>
+    <button type="button" class="btn btn-primary ms-auto" data-cfg="run-all" data-testid="config-run-all">Run all</button>
+  </div>
+</div>
+{{else}}
+{{template "empty-state" (dict "Compact" true "Title" "No configuration to apply" "Line" "None of this repeater's organizations have published a recommended configuration yet.")}}
+{{end}}
+{{end}}
+
+{{/* ======== History: console sessions over the air, newest first (owner). ======== */}}
+{{define "configure-history"}}
+<div class="card-body">
+  <p class="small text-secondary">Every command sent through a KISS modem, by session. No reply doesn't mean it failed: it may have run without its reply reaching us. Commands sent over USB never reach MeshTender, so they aren't here.</p>
+  {{if .Sessions}}
+  {{range .Sessions}}
+  <div class="mb-3" data-testid="history-session">
+    <div class="d-flex flex-wrap gap-2 mb-1">
+      <strong>{{if .SenderUsername}}<a class="text-reset" href="{{$.RootURL}}/u/{{.SenderUsername}}">{{.SenderName}}</a>{{else}}{{.SenderName}}{{end}}</strong>
+      <span class="text-secondary small ms-auto">{{ts .StartedAt "datetime"}}{{if .EndedAt}}–{{ts .EndedAt "time"}}{{else}} · in progress{{end}}</span>
+    </div>
+    <div class="list-group">
+      {{range .Entries}}
+      <div class="list-group-item py-2">
+        <div class="d-flex align-items-center gap-2">
+          <code class="text-break">{{.CommandText}}</code>
+          {{if not .AckReceived}}<span class="badge bg-orange-lt">No reply</span>{{end}}
+          <span class="text-secondary small ms-auto text-nowrap">{{ts .SentAt "time-seconds"}}</span>
+        </div>
+        {{if .ResponseText}}<div class="small text-secondary font-monospace text-break mt-1">{{.ResponseText}}</div>{{end}}
+      </div>
+      {{end}}
+    </div>
+  </div>
+  {{end}}
+  {{if .NextBefore}}
+  <div class="text-center"><a class="btn btn-sm" href="?pane=history&amp;before={{.NextBefore}}">Show older sessions</a></div>
+  {{end}}
+  {{else}}
+  {{template "empty-state" (dict "Compact" true "Title" "Nothing sent yet" "Line" "Commands sent through a KISS modem show up here.")}}
+  {{end}}
+</div>
+{{end}}

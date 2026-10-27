@@ -13,12 +13,12 @@ import (
 	"github.com/MeshTender/MeshTender/internal/store"
 )
 
-// TestE2ERepeaterConfigTab drives the repeater's Configuration tab with the KISS
-// modem chosen: the recommended commands (profile base settings + region
-// commands for the repeater's location) render, and — with no modem connected —
-// the Run controls are disabled with a prompt to connect it. The console links
-// to the tab. Also asserts the page (MapLibre included) runs clean under the
-// strict CSP.
+// TestE2ERepeaterConfigTab drives the Configure tab's Organization configuration
+// pane with the KISS modem chosen: the recommended commands (profile base
+// settings + region commands for the repeater's location) render, and — with no
+// modem connected — the Run controls are disabled with a prompt to connect it.
+// Switching panes keeps ?pane= in the address. Also asserts the page (MapLibre
+// included) runs clean under the strict CSP.
 func TestE2ERepeaterConfigTab(t *testing.T) {
 	srv := newE2EServer(t)
 	owner, cookie := srv.login(t, "cfg-owner")
@@ -49,7 +49,7 @@ func TestE2ERepeaterConfigTab(t *testing.T) {
 	bctx, cancel, watch := startBrowser(t)
 	defer cancel()
 
-	url := srv.appURL + "/repeaters/" + rep.PublicID + "/config"
+	url := srv.appURL + "/repeaters/" + rep.PublicID + "/configure"
 
 	// After the panel expands and config.json loads, count rendered command rows,
 	// Run buttons, region badges, and whether the Run controls are disabled.
@@ -68,7 +68,7 @@ func TestE2ERepeaterConfigTab(t *testing.T) {
 			anyRunEnabled: anyRunEnabled,
 			hasSetTx: hasSetTx,
 			runAllDisabled: !!document.querySelector('[data-testid="config-run-all"]').disabled,
-			hasConnect: !!document.querySelector('[data-testid="config-connect"]'),
+			hasConnect: !!document.querySelector('[data-testid="connect"]'),
 			hint: (document.querySelector('[data-testid="config-hint"]') || {}).textContent || "",
 		};
 	})()`
@@ -87,11 +87,14 @@ func TestE2ERepeaterConfigTab(t *testing.T) {
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(srv.appURL+"/repeaters/"+rep.PublicID+"/console"),
-		chromedp.Click(`[data-testid="console-config-link"]`, chromedp.ByQuery),
+		chromedp.Navigate(url),
+		chromedp.Click(`[data-testid="pane-configuration"]`, chromedp.ByQuery),
 		chromedp.WaitVisible(`[data-testid="config-commands"] .list-group-item`, chromedp.ByQuery),
+		chromedp.Poll(`location.search === "?pane=configuration"`, nil),
 		chromedp.Click(`label[for="transport-air"]`, chromedp.ByQuery),
-		chromedp.Poll(`document.querySelector('[data-cfg="connect-label"]').textContent === "Connect modem"`, nil),
+		chromedp.Poll(`document.getElementById("connect-label").textContent === "Connect modem"`, nil),
+		// Switching reloads the configuration (what may run differs); wait for it.
+		chromedp.Poll(`document.querySelector('[data-testid="config-hint"]').textContent === "Connect the modem above to run them."`, nil),
 		// The command rows render after config.json resolves.
 		chromedp.WaitVisible(`[data-testid="config-commands"] .list-group-item`, chromedp.ByQuery),
 		chromedp.Evaluate(summarize, &out),
@@ -115,7 +118,7 @@ func TestE2ERepeaterConfigTab(t *testing.T) {
 	if !out.RunAllDisabled {
 		t.Errorf("Run all should be disabled with no modem connected")
 	}
-	if out.Hint != "Connect the modem to run commands." {
+	if out.Hint != "Connect the modem above to run them." {
 		t.Errorf("hint = %q, want a prompt to connect the modem", out.Hint)
 	}
 	if !out.HasConnect {

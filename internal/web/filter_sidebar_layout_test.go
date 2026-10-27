@@ -28,10 +28,12 @@ import (
 //	  <div class="col-lg-9"> … the list … </div>
 //	</div>
 //
-// This only looks at columns holding a filter control — a sidebar of maps, links,
-// or admins is informational, and reading it after the content it describes is the
-// right order on a phone. TestPageNavSidebarsPrecedeContent covers the other kind
-// of column that has to come first.
+// This only looks at narrow columns holding a filter control — a sidebar of maps,
+// links, or admins is informational, and reading it after the content it
+// describes is the right order on a phone. A content-width column with its own
+// search (the Configure tab's command list) is content itself, filtering only
+// what's inside it, so it isn't a sidebar either. TestPageNavSidebarsPrecedeContent
+// covers the other kind of column that has to come first.
 func TestFilterSidebarsPrecedeTheirList(t *testing.T) {
 	t.Parallel()
 	root := moduleRoot(t)
@@ -66,7 +68,7 @@ func TestFilterSidebarsPrecedeTheirList(t *testing.T) {
 				end = cols[i+1][0]
 			}
 			body := src[m[1]:end]
-			if !filterRe.MatchString(body) {
+			if !filterRe.MatchString(body) || contentRe.MatchString(classes) {
 				continue
 			}
 			// Does a content column appear BEFORE this one in source order?

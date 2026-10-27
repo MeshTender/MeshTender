@@ -279,7 +279,7 @@ func TestSharePageRenders(t *testing.T) {
 	}
 }
 
-// TestActivityPageLinksSender: the activity log links a session's sender name to
+// TestActivityPageLinksSender: the Configure tab's History links a session's sender name to
 // their public profile (/u/{username}).
 func TestActivityPageLinksSender(t *testing.T) {
 	t.Parallel()
@@ -294,7 +294,7 @@ func TestActivityPageLinksSender(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	body := readBody(t, do(t, ts, h.app, "/repeaters/"+rep.PublicID+"/log", sess))
+	body := readBody(t, do(t, ts, h.app, "/repeaters/"+rep.PublicID+"/configure?pane=history", sess))
 	if !strings.Contains(body, `/u/`+owner.Username+`"`) {
 		t.Fatalf("activity page didn't link the sender to their profile (/u/%s):\n%s", owner.Username, body)
 	}

@@ -319,10 +319,11 @@ func TestConsoleConfigOverUSB(t *testing.T) {
 	}
 }
 
-// TestRepeaterConfigTab: the Configuration tab is for people with access to the
+// TestConfigureTab: the Configure tab is for people with access to the
 // repeater, carries its public key for the USB device check and both ways of
-// sending, and says so plainly when there's no configuration to apply.
-func TestRepeaterConfigTab(t *testing.T) {
+// sending, says so plainly when there's no configuration to apply, shows History
+// to the owner only, and the pages it replaced redirect to it.
+func TestConfigureTab(t *testing.T) {
 	t.Parallel()
 	st, ctx, ts, h := splitServer(t)
 
@@ -335,7 +336,7 @@ func TestRepeaterConfigTab(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	path := "/repeaters/" + rep.PublicID + "/config"
+	path := "/repeaters/" + rep.PublicID + "/configure"
 
 	body := func(resp *http.Response) string {
 		defer resp.Body.Close()
@@ -366,11 +367,36 @@ func TestRepeaterConfigTab(t *testing.T) {
 		}
 	}
 
+	if !strings.Contains(page, `data-testid="pane-history"`) {
+		t.Error("the owner has no History pane")
+	}
+
+	guest, guestCookie := appLogin(t, ts, st, ctx, h.app, "usbpage-guest")
+	if _, err := st.AddShare(ctx, rep.ID, guest.ID); err != nil {
+		t.Fatal(err)
+	}
+	if page := body(do(t, ts, h.app, path+"?pane=history", guestCookie)); strings.Contains(page, `data-testid="pane-history"`) {
+		t.Error("someone it's shared with sees the owner's History")
+	}
+
 	_, strangerCookie := appLogin(t, ts, st, ctx, h.app, "usbpage-stranger")
 	if resp := do(t, ts, h.app, path, strangerCookie); resp.StatusCode != http.StatusNotFound {
 		resp.Body.Close()
 		t.Fatalf("stranger GET %s = %d, want 404", path, resp.StatusCode)
 	} else {
 		resp.Body.Close()
+	}
+
+	base := "/repeaters/" + rep.PublicID
+	for old, want := range map[string]string{
+		base + "/console?debug=1": path + "?debug=1",
+		base + "/config":          path + "?pane=configuration",
+		base + "/log?before=x":    path + "?before=x&pane=history",
+	} {
+		resp := do(t, ts, h.app, old, ownerCookie)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusMovedPermanently || resp.Header.Get("Location") != want {
+			t.Errorf("GET %s = %d → %q, want 301 → %s", old, resp.StatusCode, resp.Header.Get("Location"), want)
+		}
 	}
 }

@@ -13,7 +13,7 @@ import (
 	"github.com/MeshTender/MeshTender/internal/store"
 )
 
-// TestE2EApplyConfigOverUSB drives the Configuration tab's USB cable path against
+// TestE2EApplyConfigOverUSB drives the Configure tab's USB cable path against
 // the fake repeater: connecting checks the device is this repeater and locks the
 // "Send with" choice, Run all sends the organization's profile through its serial
 // CLI, and a reply that needs a reboot offers one. A different repeater is
@@ -33,7 +33,7 @@ func TestE2EApplyConfigOverUSB(t *testing.T) {
 	if err := srv.store.ReplaceOrgConfig(srv.ctx, org.ID, profile, nil); err != nil {
 		t.Fatal(err)
 	}
-	url := srv.appURL + "/repeaters/" + rep.PublicID + "/config"
+	url := srv.appURL + "/repeaters/" + rep.PublicID + "/configure?pane=configuration"
 	const runAllReady = `!document.querySelector('[data-testid="config-run-all"]').disabled`
 
 	t.Run("the right repeater", func(t *testing.T) {
@@ -47,7 +47,8 @@ func TestE2EApplyConfigOverUSB(t *testing.T) {
 			setSessionCookie(cookie),
 			chromedp.Navigate(url),
 			chromedp.WaitVisible(`[data-testid="config-commands"] button[data-run]`, chromedp.ByQuery),
-			chromedp.Click(`[data-testid="config-connect"]`, chromedp.ByQuery),
+			chromedp.Click(`label[for="transport-usb"]`, chromedp.ByQuery),
+			chromedp.Click(`[data-testid="connect"]`, chromedp.ByQuery),
 			chromedp.Poll(runAllReady, nil),
 			chromedp.Evaluate(`document.querySelector('[data-testid="transport-air"]').disabled`, &locked),
 			chromedp.Click(`[data-testid="config-run-all"]`, chromedp.ByQuery),
@@ -68,6 +69,49 @@ func TestE2EApplyConfigOverUSB(t *testing.T) {
 		watch.assertClean(t)
 	})
 
+	// The point of one tab: a connection made once serves the command line and
+	// the organization configuration alike, across pane switches, until you
+	// disconnect it.
+	t.Run("one connection for the console and the configuration", func(t *testing.T) {
+		bctx, cancel, watch := startBrowser(t)
+		defer cancel()
+		fake := installFakeRepeater(t, bctx, rep.PublicKeyHex)
+		ctx, cancelRun := context.WithTimeout(bctx, 45*time.Second)
+		defer cancelRun()
+		var status, label string
+		if err := chromedp.Run(ctx,
+			setSessionCookie(cookie),
+			chromedp.Navigate(srv.appURL+"/repeaters/"+rep.PublicID+"/configure"),
+			chromedp.WaitVisible(`[data-testid="connect"]`, chromedp.ByQuery),
+			chromedp.Click(`label[for="transport-usb"]`, chromedp.ByQuery),
+			chromedp.Click(`[data-testid="connect"]`, chromedp.ByQuery),
+			chromedp.Poll(`!document.getElementById("cmdsend").disabled`, nil),
+			chromedp.SendKeys(`#cmdinput`, "get name\r", chromedp.ByQuery),
+			chromedp.Poll(`Array.from(document.querySelectorAll("#log .ev-sent")).some(function (e) { return /get name/.test(e.textContent); })`, nil),
+			chromedp.Click(`[data-testid="pane-configuration"]`, chromedp.ByQuery),
+			chromedp.Poll(runAllReady, nil),
+			chromedp.Click(`[data-testid="config-run-all"]`, chromedp.ByQuery),
+			chromedp.Poll(`document.querySelectorAll('.cfg-status.text-success').length === 2`, nil),
+			chromedp.Text(`[data-testid="conn-status"]`, &status, chromedp.ByQuery),
+			chromedp.Click(`[data-testid="connect"]`, chromedp.ByQuery), // Disconnect
+			chromedp.Poll(`document.getElementById("cmdsend").disabled`, nil),
+			chromedp.Text(`#connect-label`, &label, chromedp.ByQuery),
+		); err != nil {
+			t.Fatalf("browser run: %v (the fake repeater ran %q)", err, fake.lines())
+		}
+		want := "ver|get public.key|get name|set radio 910.525,62.5,7,5|set tx 20"
+		if got := strings.Join(fake.lines(), "|"); got != want {
+			t.Errorf("the repeater ran %q, want %q (one connection, no second identity check)", got, want)
+		}
+		if status != "Connected over USB" {
+			t.Errorf("status while connected = %q", status)
+		}
+		if label != "Connect repeater" {
+			t.Errorf("after disconnecting the button says %q, want Connect repeater", label)
+		}
+		watch.assertClean(t)
+	})
+
 	t.Run("a different repeater", func(t *testing.T) {
 		bctx, cancel, watch := startBrowser(t)
 		defer cancel()
@@ -80,7 +124,8 @@ func TestE2EApplyConfigOverUSB(t *testing.T) {
 			setSessionCookie(cookie),
 			chromedp.Navigate(url),
 			chromedp.WaitVisible(`[data-testid="config-commands"] button[data-run]`, chromedp.ByQuery),
-			chromedp.Click(`[data-testid="config-connect"]`, chromedp.ByQuery),
+			chromedp.Click(`label[for="transport-usb"]`, chromedp.ByQuery),
+			chromedp.Click(`[data-testid="connect"]`, chromedp.ByQuery),
 			chromedp.WaitVisible(`#log .ev-error`, chromedp.ByQuery),
 			chromedp.Text(`#log .ev-error`, &errText, chromedp.ByQuery),
 			chromedp.Evaluate(runAllReady, &runAll),

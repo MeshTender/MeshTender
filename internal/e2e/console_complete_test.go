@@ -38,7 +38,7 @@ func TestE2EConsoleTabCompletion(t *testing.T) {
 	var allChips, filtered int
 	if err := chromedp.Run(bctx,
 		setSessionCookie(cookie),
-		chromedp.Navigate(srv.appURL+"/repeaters/"+rep.PublicID+"/console"),
+		chromedp.Navigate(srv.appURL+"/repeaters/"+rep.PublicID+"/configure"),
 		chromedp.WaitVisible(in, chromedp.ByQuery),
 		chromedp.Evaluate(`document.querySelector("#cmdsend").disabled`, &sendDisabled),
 

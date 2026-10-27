@@ -1,17 +1,16 @@
-// The repeater console page: a CLI over the air-console.js connection
-// (window.MeshConsole). This file is only the page: the Connect button, the
-// command box and its chips, and the confirm/location banners, which follow the
+// The Configure tab's command line: the box you type commands into and the chips
+// that fill it, sent through whichever connection configure.js has chosen
+// (window.MeshConsole). Also the confirm/location banners, which follow the
 // session's statuses. Completion and history live in console-complete.js.
 (function () {
-  const api = window.MeshConsole;
-  const connectBtn = document.getElementById("connect");
   const form = document.getElementById("cmdform");
   const input = document.getElementById("cmdinput");
   const sendBtn = document.getElementById("cmdsend");
   const hint = document.getElementById("cmdhint");
-  if (!api || !connectBtn || !form) return;
+  if (!form || !input) return;
+  const conn = () => window.MeshConsole;
 
-  // Chips fill the input (even with no modem here: it's how you browse them).
+  // Chips fill the input (even with nothing connected: it's how you browse them).
   document.querySelectorAll(".chip").forEach((c) => {
     c.addEventListener("click", () => {
       // Strip the "<arg>" placeholder so the user can type the value.
@@ -24,25 +23,13 @@
 
   form.addEventListener("submit", (e) => {
     e.preventDefault();
-    if (api.send(input.value)) input.value = "";
-    else if (!api.ready) hint.classList.add("text-danger");
+    const t = conn();
+    if (t && t.send(input.value)) input.value = "";
+    else if (!(t && t.ready)) hint.classList.add("text-danger");
   });
 
-  if (!api.supported) {
-    const unsupportedEl = document.getElementById("unsupported");
-    if (unsupportedEl) unsupportedEl.hidden = false;
-    connectBtn.disabled = true;
-    document.querySelectorAll("[data-fetch-location]").forEach((b) => { b.disabled = true; });
-    return; // never becomes ready: no modem here
-  }
-
-  connectBtn.addEventListener("click", () => {
-    connectBtn.disabled = true;
-    api.connect();
-  });
-
+  // The input works offline (completion, chips); only sending needs a connection.
   document.addEventListener("mesh:ready", () => {
-    // The input works offline (completion, chips); only sending needs the modem.
     sendBtn.disabled = false;
     hint.hidden = true;
     hint.classList.remove("text-danger");
@@ -51,23 +38,25 @@
   document.addEventListener("mesh:closed", () => {
     sendBtn.disabled = true;
     hint.hidden = false;
-    connectBtn.disabled = false;
   });
 
-  // "Fetch location" banner button: query the repeater's coordinates. If the
-  // modem isn't connected yet, connect first and fetch once the session is ready.
+  // "Read it from the repeater" (location banner): if nothing's connected yet,
+  // connect first and read it once the session is ready.
   let pendingGetLocation = false;
   document.querySelectorAll("[data-fetch-location]").forEach((btn) => {
     btn.addEventListener("click", () => {
-      if (api.ready) { api.getLocation(); return; }
+      const t = conn();
+      if (!t || !t.supported) return;
+      if (t.ready) { t.getLocation(); return; }
       pendingGetLocation = true;
-      connectBtn.disabled = true;
-      api.connect();
+      document.dispatchEvent(new CustomEvent("mesh:connecting"));
+      t.connect();
     });
   });
   document.addEventListener("mesh:ready", () => {
-    if (pendingGetLocation) { pendingGetLocation = false; api.getLocation(); }
+    if (pendingGetLocation) { pendingGetLocation = false; conn().getLocation(); }
   });
+  document.addEventListener("mesh:closed", () => { pendingGetLocation = false; });
 
   // Reflect confirm/location progress live: once the server reports the repeater
   // confirmed or its location stored, the matching page-load banner is stale.

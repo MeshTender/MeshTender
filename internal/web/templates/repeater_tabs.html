@@ -1,15 +1,12 @@
 {{/* The repeater chrome shared by every repeater page: repeater-header,
 repeater-tabs, and the Settings tab's rail (repeater-settings-nav). Data: the
 RepeaterNav map (PublicID, Name, OwnerName, IsOwner, Active, Tab). Owner-only
-tabs (Activity, Settings) only render for the owner. */}}
+tab (Settings) only renders for the owner. */}}
 {{define "repeater-header"}}
 <div class="row g-2 align-items-center">
   <div class="col">
     <div class="page-pretitle">Repeater{{if not .IsOwner}} · shared by {{.OwnerName}}{{end}}</div>
     <h1 class="page-title fs-1">{{.Name}}</h1>
-  </div>
-  <div class="col-auto ms-auto d-print-none">
-    <a class="btn btn-primary" href="/repeaters/{{.PublicID}}/console">{{template "icon-terminal" "me-1"}}Console</a>
   </div>
 </div>
 {{end}}
@@ -17,10 +14,9 @@ tabs (Activity, Settings) only render for the owner. */}}
 {{define "repeater-tabs"}}
 <ul class="nav nav-tabs mb-3" role="tablist" data-testid="repeater-tabs">
   <li class="nav-item"><a class="nav-link{{if eq .Tab "overview"}} active{{end}}" href="/repeaters/{{.PublicID}}" data-testid="repeater-tab-overview">{{template "icon-antenna" "me-1"}}Overview</a></li>
-  <li class="nav-item"><a class="nav-link{{if eq .Tab "config"}} active{{end}}" href="/repeaters/{{.PublicID}}/config" data-testid="repeater-tab-config">{{template "icon-adjustments" "me-1"}}Configuration</a></li>
+  <li class="nav-item"><a class="nav-link{{if eq .Tab "configure"}} active{{end}}" href="/repeaters/{{.PublicID}}/configure" data-testid="repeater-tab-configure">{{template "icon-adjustments" "me-1"}}Configure</a></li>
   <li class="nav-item"><a class="nav-link{{if eq .Tab "maintenance"}} active{{end}}" href="/repeaters/{{.PublicID}}/maintenance" data-testid="repeater-tab-maintenance">{{template "icon-list" "me-1"}}Maintenance</a></li>
   {{if .IsOwner}}
-  <li class="nav-item"><a class="nav-link{{if eq .Tab "log"}} active{{end}}" href="/repeaters/{{.PublicID}}/log" data-testid="repeater-tab-log">{{template "icon-terminal" "me-1"}}Activity</a></li>
   <li class="nav-item ms-auto"><a class="nav-link{{if eq .Tab "settings"}} active{{end}}" href="/repeaters/{{.PublicID}}/settings" data-testid="repeater-tab-settings">{{template "icon-settings" "me-1"}}Settings</a></li>
   {{end}}
 </ul>

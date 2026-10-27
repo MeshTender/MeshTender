@@ -8,7 +8,7 @@
   <div class="col-lg-8">
     {{if and .IsOwner .Repeater.Confirmed .Repeater.AccessKnown (not .Repeater.IsAdmin)}}
     <div class="alert alert-danger" role="alert" data-testid="guest-access">
-      <div>MeshTender only has <strong>guest</strong> access, which anyone gets with a blank password, so it can't manage this repeater. Grant it admin with <a href="{{.RootURL}}/docs#setperm"><code>setperm</code></a>, then connect from the console again.</div>
+      <div>MeshTender only has <strong>guest</strong> access, which anyone gets with a blank password, so it can't manage this repeater. Grant it admin with <a href="{{.RootURL}}/docs#setperm"><code>setperm</code></a>, then connect through a KISS modem on the <a href="/repeaters/{{.Repeater.PublicID}}/configure">Configure</a> tab again.</div>
     </div>
     {{end}}
     <div class="card" data-testid="repeater-details">
@@ -21,7 +21,7 @@
             {{if .Repeater.Corroborated}}Reached over the air by {{range $i, $n := .Repeater.Corroborators}}{{if $i}}, {{end}}{{$n}}{{end}}.
             {{else if .Repeater.SelfConfirmed}}You've reached it over the air; no one else has yet.
             {{else if .Repeater.Confirmed}}Reached over the air through MeshTender.
-            {{else}}No one has reached it over the air through MeshTender yet. Connecting to it from the console confirms it.{{end}}
+            {{else}}No one has reached it over the air through MeshTender yet. Connecting to it through a KISS modem on the Configure tab confirms it.{{end}}
           </div>
         </div>
         <div class="list-group-item d-flex align-items-center gap-2"><span class="text-secondary">MeshTender's access</span>
@@ -60,7 +60,7 @@
     {{if .IsOwner}}
     <div class="card mt-3">
       <div class="card-header">
-        <div><h2 class="card-title">Organizations</h2><div class="card-subtitle">Their recommended configuration is on the <a href="/repeaters/{{.Repeater.PublicID}}/config">Configuration</a> tab.</div></div>
+        <div><h2 class="card-title">Organizations</h2><div class="card-subtitle">Their recommended configuration is on the <a href="/repeaters/{{.Repeater.PublicID}}/configure?pane=configuration">Configure</a> tab.</div></div>
         <div class="card-actions"><a href="/repeaters/{{.Repeater.PublicID}}/settings/organizations" class="btn btn-sm">Manage</a></div>
       </div>
       {{if .Orgs}}

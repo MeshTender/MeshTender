@@ -29,12 +29,12 @@
     ready: false,
     supported: !!(window.MeshSerial && window.MeshSerial.supported && window.SerialCLI),
     connect: connect,
+    disconnect: function () { queue = queue.then(close); },
     send: send,
     getLocation: getLocation,
   };
   window.MeshTransports = window.MeshTransports || {};
   window.MeshTransports.usb = api;
-  if (!window.MeshConsole) window.MeshConsole = api;
 
   function emit(name, detail) {
     document.dispatchEvent(new CustomEvent(name, { detail: detail }));
@@ -61,7 +61,6 @@
   async function connect() {
     if (api.ready || cli || connecting || !api.supported) return;
     connecting = true;
-    log.textContent = "";
     try {
       addLog("info", "Choose the repeater's USB port…");
       cli = await SerialCLI.open(await MeshSerial.requestPort());
@@ -97,6 +96,7 @@
     queue = queue.then(async function () {
       if (!cli) { status("error", "Not connected."); return; }
       addLog("sent", "→ " + t);
+      window.dispatchEvent(new CustomEvent("console:sent", { detail: { text: t } }));
       var r = await cli.command(t);
       if (r.reply === null) {
         addLog("noreply", "(no reply)");

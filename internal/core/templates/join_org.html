@@ -14,7 +14,7 @@
   <div class="card-body">
     <p>As a member you'll see {{.Org.Name}}'s members, nets and recommended configuration, and can check in to its nets with your companion.</p>
     {{if .HasRepeaters}}
-    <p class="text-secondary">Your repeaters can be shared with it too, so its admins and members can run the commands it's allowed on them. You can opt any repeater out, or limit the commands, later from that repeater's Sharing tab.</p>
+    <p class="text-secondary">Your repeaters can be shared with it too, so its admins and members can run the commands it's allowed on them. You can opt any repeater out, or limit the commands, later in that repeater's Settings › Organizations.</p>
     <form method="post" action="/orgs/{{.Org.Slug}}/join" class="btn-list mb-0">
       <button type="submit" name="mode" value="all" class="btn btn-primary">Join and share my repeaters</button>
       <button type="submit" name="mode" value="none" class="btn">Join without sharing them</button>
