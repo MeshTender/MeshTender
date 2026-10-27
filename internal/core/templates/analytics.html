@@ -121,7 +121,7 @@
             <span class="text-secondary">{{.Requests}}</span>
           </div>
           <div class="progress" style="height:6px"><div class="progress-bar" style="width:{{.W}}%"></div></div>
-          <div class="text-secondary small text-truncate"><span class="badge bg-secondary-lt">{{.Surface}}</span> {{.LastPath}} · {{ts .LastSeen "datetime"}}</div>
+          <div class="text-secondary small text-truncate"><span class="badge bg-secondary-lt">{{.Surface}}</span> last seen {{ts .LastSeen "datetime"}}</div>
         </div>
         {{end}}
         {{else}}<div class="text-secondary">No data.</div>{{end}}
@@ -185,11 +185,15 @@
   </div>
 </div>
 
-<div class="card card-sm mt-1">
-  <div class="card-body">
-    <div class="h1 mb-0" data-testid="notfound-requests">{{.NotFoundReq}}</div>
-    <div class="text-secondary">404s with no attack signature · last {{.Days}}d — broken links worth fixing,
-      counted nowhere above.</div>
+<div class="row row-cards mt-1">
+  <div class="col-12">
+    <div class="card card-sm">
+      <div class="card-body">
+        <div class="h1 mb-0" data-testid="notfound-requests">{{.NotFoundReq}}</div>
+        <div class="text-secondary">404s with no attack signature · last {{.Days}}d — broken links worth fixing,
+          counted nowhere above.</div>
+      </div>
+    </div>
   </div>
 </div>
 {{end}}

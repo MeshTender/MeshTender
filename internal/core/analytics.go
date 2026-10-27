@@ -154,7 +154,6 @@ func (s *Handlers) pageAnalytics(w http.ResponseWriter, r *http.Request) {
 		visitorRows = append(visitorRows, visitorRow{
 			Visitor:  v.Visitor,
 			Surface:  v.Surface,
-			LastPath: v.LastPath,
 			LastSeen: v.LastSeen,
 			Requests: v.Requests,
 			W:        barPct(v.Requests, maxVisReq),
@@ -206,7 +205,6 @@ func toPathRows(paths []store.PathStat) []analyticsRow {
 type visitorRow struct {
 	Visitor  string
 	Surface  string
-	LastPath string
 	LastSeen time.Time // rendered client-side (localized) via the `ts` template func
 	Requests int64
 	W        int

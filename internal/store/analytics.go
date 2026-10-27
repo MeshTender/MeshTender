@@ -108,12 +108,11 @@ type HostStat struct {
 }
 
 // VisitorStat is request volume for one (daily-rotating) visitor hash, plus the
-// surface and last path it was seen on, for a "traffic by user" view.
+// surface it was last seen on and when, for a "traffic by user" view.
 type VisitorStat struct {
 	Visitor  string
 	Surface  string
 	LastSeen time.Time
-	LastPath string
 	Requests int64
 }
 
@@ -160,7 +159,7 @@ func (s *Store) AnalyticsTopHosts(ctx context.Context, days int, kind string, li
 }
 
 // AnalyticsTopVisitors returns the busiest visitor hashes of one kind over the
-// last `days` days, with the surface and most-recent path each was seen on.
+// last `days` days, with the surface each was last seen on and when.
 // Hashes rotate daily, so a heavy daily user appears once per day, not once
 // overall. Filtering by kind is what keeps a scanner replaying a wordlist out of
 // the visitor list — it can outweigh every real reader combined.
@@ -168,8 +167,7 @@ func (s *Store) AnalyticsTopVisitors(ctx context.Context, days int, kind string,
 	rows, err := s.pool.Query(ctx, `
 		SELECT e.visitor, count(*) AS n,
 		       (array_agg(e.surface ORDER BY e.ts DESC))[1] AS surface,
-		       max(e.ts) AS last_seen,
-		       (array_agg(e.path ORDER BY e.ts DESC))[1] AS last_path
+		       max(e.ts) AS last_seen
 		FROM analytics_events e
 		WHERE e.ts >= now() - ($1::int * interval '1 day') AND e.kind = $2
 		GROUP BY e.visitor ORDER BY n DESC LIMIT $3`, days, kind, limit)
@@ -178,7 +176,7 @@ func (s *Store) AnalyticsTopVisitors(ctx context.Context, days int, kind string,
 	}
 	return collectRows(rows, func(r pgx.Row) (VisitorStat, error) {
 		var v VisitorStat
-		return v, r.Scan(&v.Visitor, &v.Requests, &v.Surface, &v.LastSeen, &v.LastPath)
+		return v, r.Scan(&v.Visitor, &v.Requests, &v.Surface, &v.LastSeen)
 	})
 }
 

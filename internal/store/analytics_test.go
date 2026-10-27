@@ -218,8 +218,8 @@ func TestAnalyticsHostsAndVisitors(t *testing.T) {
 	if len(vis) != 1 || vis[0].Visitor != "bot" || vis[0].Requests != 2 {
 		t.Fatalf("top bot visitors = %+v, want bot=2", vis)
 	}
-	if vis[0].Surface != "custom" || vis[0].LastPath != "/robots.txt" {
-		t.Fatalf("bot visitor surface/last-path = %q/%q, want custom//robots.txt", vis[0].Surface, vis[0].LastPath)
+	if vis[0].Surface != "custom" {
+		t.Fatalf("bot visitor surface = %q, want custom", vis[0].Surface)
 	}
 
 	// The human is reachable under her own kind, and only there.
