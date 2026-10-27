@@ -73,7 +73,7 @@ func TestOrgNetsAdmin(t *testing.T) {
 		t.Errorf("member GET of the net's settings = %d", got)
 	}
 	body := getBody(t, ts, h.app, loc, memberSess)
-	if !strings.Contains(body, "Sundays, 19:00–20:00 (America/New_York)") || !strings.Contains(body, `data-testid="net-next"`) {
+	if !strings.Contains(body, "Sundays, 7:00–8:00 PM, New York time") || !strings.Contains(body, `data-testid="net-next"`) {
 		t.Error("net page lacks its schedule or next session")
 	}
 	if !strings.Contains(getBody(t, ts, h.app, base, memberSess), "Sunday Net") {
@@ -94,7 +94,7 @@ func TestOrgNetsAdmin(t *testing.T) {
 	if q.Get("ok") == "" {
 		t.Error("no confirmation after saving")
 	}
-	if body := getBody(t, ts, h.app, loc, adminSess); !strings.Contains(body, "Mondays, 20:30–21:00") {
+	if body := getBody(t, ts, h.app, loc, adminSess); !strings.Contains(body, "Mondays, 8:30–9:00 PM") {
 		t.Error("edit not applied")
 	}
 	// The acknowledgement mode is its own section, and a schedule save leaves it.
@@ -403,5 +403,25 @@ func TestAutomaticAcknowledgementShowsNoAwaiting(t *testing.T) {
 	body := getBody(t, ts, h.app, "/orgs/"+org.Slug+"/nets/"+strconv.FormatInt(net.ID, 10)+"/sessions/"+strconv.FormatInt(cur.ID, 10), sess)
 	if !strings.Contains(body, "on <a") || strings.Contains(body, `data-testid="awaiting"`) || strings.Contains(body, `data-testid="acknowledge"`) {
 		t.Error("automatic net shows a manual-acknowledgement state")
+	}
+}
+
+// TestNetSchedule: a net's recurrence reads in the same 12-hour style as every
+// timestamp, naming AM/PM once when the session stays on one side of noon, and
+// the zone as people say it.
+func TestNetSchedule(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		start, minutes int
+		tz, want       string
+	}{
+		{19 * 60, 60, "America/New_York", "Sundays, 7:00–8:00 PM, New York time"},
+		{11*60 + 30, 60, "America/Los_Angeles", "Sundays, 11:30 AM–12:30 PM, Los Angeles time"},
+		{23 * 60, 120, "UTC", "Sundays, 11:00 PM–1:00 AM, UTC"},
+	} {
+		n := &store.Net{Weekday: time.Sunday, StartMinute: tc.start, DurationMinutes: tc.minutes, Timezone: tc.tz}
+		if got := netSchedule(n); got != tc.want {
+			t.Errorf("netSchedule(%d+%d %s) = %q, want %q", tc.start, tc.minutes, tc.tz, got, tc.want)
+		}
 	}
 }

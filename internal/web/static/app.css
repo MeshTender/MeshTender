@@ -81,10 +81,12 @@ code.pubkey {
   transform: rotate(180deg);
 }
 
-/* Segmented controls (a .btn-group of .btn-check radios): Tabler marks the
-   chosen segment with a background barely lighter than the rest, which is hard
-   to pick out, especially in the dark theme. Tint it with the primary color. */
-.btn-group > .btn-check:checked + .btn {
+/* Segmented controls (a .btn-group of .btn-check radios, or of links where the
+   current page carries aria-current): Tabler marks the chosen segment with a
+   background barely lighter than the rest, which is hard to pick out,
+   especially in the dark theme. Tint it with the primary color. */
+.btn-group > .btn-check:checked + .btn,
+.btn-group > .btn[aria-current="page"] {
   background-color: var(--tblr-primary-lt);
   border-color: var(--tblr-primary);
   color: var(--tblr-primary);
@@ -174,15 +176,6 @@ code.pubkey {
    touching the button's color. */
 .btn-danger {
   color: #fff;
-}
-
-/* ---------- Members list filter (org members page) ----------
-   The members page filters rows by role + search in JS (text search can't be
-   pure CSS). Rows carry `.d-flex` (display:flex !important), so the JS toggles
-   this `!important` hide class rather than an inline style, which `.d-flex`
-   would otherwise win over. */
-#member-list .member-hidden {
-  display: none !important;
 }
 
 /* ---------- MapLibre map (dark) ---------- */

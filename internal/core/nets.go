@@ -24,13 +24,28 @@ const maxNetDescription = 2000
 // weekdays orders the weekday picker Sunday-first, matching time.Weekday.
 var weekdays = []time.Weekday{time.Sunday, time.Monday, time.Tuesday, time.Wednesday, time.Thursday, time.Friday, time.Saturday}
 
-// netSchedule describes a net's recurrence in its own zone, e.g.
-// "Sundays, 19:00–20:00 (America/New_York)". Session times elsewhere are shown
-// in the viewer's zone; this line is the net's definition.
+// netSchedule describes a net's recurrence in its own zone, in the same 12-hour
+// style as every timestamp, e.g. "Sundays, 7:00–8:00 PM, New York time" or, when
+// it crosses noon or midnight, "Fridays, 11:00 PM–1:00 AM, …". Session times
+// elsewhere are shown in the viewer's zone; this line is the net's definition.
 func netSchedule(n *store.Net) string {
 	start := time.Date(2000, 1, 1, n.StartMinute/60, n.StartMinute%60, 0, 0, time.UTC)
 	end := start.Add(time.Duration(n.DurationMinutes) * time.Minute)
-	return fmt.Sprintf("%ss, %s–%s (%s)", n.Weekday, start.Format("15:04"), end.Format("15:04"), n.Timezone)
+	from := start.Format("3:04 PM")
+	if start.Format("PM") == end.Format("PM") {
+		from = start.Format("3:04")
+	}
+	return fmt.Sprintf("%ss, %s–%s, %s", n.Weekday, from, end.Format("3:04 PM"), zoneName(n.Timezone))
+}
+
+// zoneName is an IANA zone as people say it: "America/New_York" → "New York
+// time". UTC and anything without a city stay as they are.
+func zoneName(tz string) string {
+	i := strings.LastIndex(tz, "/")
+	if i < 0 {
+		return tz
+	}
+	return strings.ReplaceAll(tz[i+1:], "_", " ") + " time"
 }
 
 // parseNetForm validates the create/edit form. msg is a user-facing error.

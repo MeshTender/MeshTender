@@ -14,54 +14,42 @@
 {{end}}
 {{define "content"}}
 {{if .Orgs}}
-<div class="row row-cards" data-filter-root>
-  {{/* Search/filters come FIRST in the DOM and move to the right of the list at lg
-       (order-lg-last). Source order governs both the mobile stack and the tab order,
-       so ordering with CSS alone would leave keyboard and screen-reader users
-       traversing every row to reach the control that exists to avoid exactly that. */}}
-  <div class="col-lg-3 order-lg-last">
-    <div class="card">
-      <div class="card-body">
-        <div class="mb-3">
-          <label class="form-label" for="org-search">Search</label>
-          <input type="search" id="org-search" class="form-control" data-filter-search placeholder="Organization name" aria-label="Search your organizations">
-        </div>
-        <div>
-          <label class="form-label" for="org-role">Your role</label>
-          <select id="org-role" class="form-select" data-filter-key="role" aria-label="Filter by your role">
-            <option value="">Any role</option>
-            <option value="admin">Admin</option>
-            <option value="member">Member</option>
-          </select>
-        </div>
+<div class="card" data-filter-root>
+  {{/* The filters sit in a bar above the list, like Repeaters, so they come first
+       on a phone and in tab order (TestFilterControlsPrecedeTheList). */}}
+  <div class="card-header">
+    <div class="d-flex flex-wrap gap-2 w-100" role="search">
+      <div class="input-icon flex-fill" style="min-width:12rem">
+        <span class="input-icon-addon">{{template "icon-search" ""}}</span>
+        <input type="search" id="org-search" class="form-control" data-filter-search placeholder="Search by name" aria-label="Search your organizations">
       </div>
+      <select id="org-role" class="form-select w-auto" data-filter-key="role" aria-label="Filter by your role">
+        <option value="">Any role</option>
+        <option value="admin">Admin</option>
+        <option value="member">Member</option>
+      </select>
     </div>
   </div>
-  {{/* The list itself; at lg it sits left of the filters above. */}}
-  <div class="col-lg-9">
-    <div class="card">
-      <div class="list-group list-group-flush">
-        {{range .Orgs}}
-        <a class="list-group-item list-group-item-action" href="/orgs/{{.Org.Slug}}"
-           data-filter-item data-name="{{.Org.Name}}" data-role="{{.Role}}">
-          <div class="d-flex align-items-center gap-2">
-            <span class="fw-bold">{{.Org.Name}}</span>
-            {{if .Org.Region}}<span class="badge bg-secondary-lt">{{.Org.Region}}</span>{{end}}
-            {{if eq .Role "admin"}}<span class="badge bg-success-lt">admin</span>{{else}}<span class="badge bg-azure-lt">member</span>{{end}}
-          </div>
-          {{if .Org.Description}}<p class="text-secondary mb-0 mt-1">{{markdowntext .Org.Description}}</p>{{end}}
-        </a>
-        {{end}}
+  <div class="list-group list-group-flush">
+    {{range .Orgs}}
+    <a class="list-group-item list-group-item-action" href="/orgs/{{.Org.Slug}}"
+       data-filter-item data-name="{{.Org.Name}}" data-role="{{.Role}}">
+      <div class="d-flex align-items-center gap-2">
+        <span class="fw-bold">{{.Org.Name}}</span>
+        {{if eq .Role "admin"}}<span class="badge bg-blue-lt">Admin</span>{{end}}
+        {{with .Org.Region}}<span class="text-secondary small ms-auto d-flex align-items-center">{{template "icon-map-pin" "me-1"}}{{.}}</span>{{end}}
       </div>
-      <div class="card-body text-secondary" data-filter-empty hidden>No organizations match your filters.</div>
-    </div>
+      {{if .Org.Description}}<p class="text-secondary mb-0 mt-1 text-truncate">{{markdowntext .Org.Description}}</p>{{end}}
+    </a>
+    {{end}}
   </div>
+  <div class="card-body text-secondary" data-filter-empty hidden>No organization matches.</div>
 </div>
 {{else}}
 <div class="empty">
   <div class="empty-icon">{{template "icon-world" ""}}</div>
   <p class="empty-title">No organizations yet</p>
-  <p class="empty-subtitle text-secondary">You're not in any organizations yet. Find one near you and contribute to a larger mesh.</p>
+  <p class="empty-subtitle text-secondary">Join your local mesh's organization to see its members, nets and recommended setup.</p>
   <div class="empty-action">
     <a class="btn btn-primary" href="{{.RootURL}}/orgs">{{template "icon-world" "me-1"}}Discover organizations</a>
     <a class="btn" href="/orgs/new">{{template "icon-plus" "me-1"}}Create one</a>

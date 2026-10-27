@@ -40,7 +40,7 @@ func TestE2EOrgNavigation(t *testing.T) {
 		chromedp.Click(`[data-testid="org-tab-checkins"]`, chromedp.ByQuery),
 		chromedp.WaitVisible(`[data-testid="org-checkins-nav"]`, chromedp.ByQuery),
 		chromedp.Click(`[data-testid="org-subnav-activity"]`, chromedp.ByQuery),
-		chromedp.WaitVisible(`[data-testid="org-subnav-activity"].active`, chromedp.ByQuery),
+		chromedp.WaitVisible(`[data-testid="org-subnav-activity"][aria-current="page"]`, chromedp.ByQuery),
 		chromedp.Evaluate(activeTab, &afterActivity),
 		chromedp.Click(`[data-testid="org-tab-settings"]`, chromedp.ByQuery),
 		chromedp.WaitVisible(`[data-testid="settings-profile"]`, chromedp.ByQuery),

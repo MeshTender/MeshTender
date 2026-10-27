@@ -2,6 +2,7 @@
 {{define "header"}}
 <div class="row g-2 align-items-center">
   <div class="col">
+    <ol class="breadcrumb mb-2" aria-label="Breadcrumb"><li class="breadcrumb-item"><a href="/orgs">Organizations</a></li><li class="breadcrumb-item active" aria-current="page">New</li></ol>
     <h1 class="page-title fs-1">Create an organization</h1>
   </div>
 </div>
@@ -11,10 +12,7 @@
   <div class="col-12 col-lg-8">
     <div class="card">
       <div class="card-body">
-        <p class="text-secondary">
-          An organization lets its admins help keep members' repeaters in spec. You'll be its first
-          admin, and you can invite others and set what commands they may run once it's created.
-        </p>
+        <p class="text-secondary">One per local mesh: a home for its members, nets, documentation and recommended repeater setup. You'll be its first admin; check the <a href="{{.RootURL}}/orgs">directory</a> first in case yours already exists.</p>
         <form method="post" action="/orgs">
           <div class="mb-3">
             <label class="form-label" for="org_name">Name</label>

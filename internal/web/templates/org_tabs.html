@@ -49,8 +49,8 @@
 {{/* org-checkins-nav switches between the Check-ins tab's pages. */}}
 {{define "org-checkins-nav"}}
 <nav class="btn-group mb-3" aria-label="Check-ins" data-testid="org-checkins-nav">
-  <a class="btn{{if eq .Active "nets"}} btn-primary active{{end}}" href="/orgs/{{.Slug}}/nets"{{if eq .Active "nets"}} aria-current="page"{{end}}>Nets</a>
-  <a class="btn{{if eq .Active "activity"}} btn-primary active{{end}}" href="/orgs/{{.Slug}}/activity"{{if eq .Active "activity"}} aria-current="page"{{end}} data-testid="org-subnav-activity">Member activity</a>
+  <a class="btn" href="/orgs/{{.Slug}}/nets"{{if eq .Active "nets"}} aria-current="page"{{end}}>Nets</a>
+  <a class="btn" href="/orgs/{{.Slug}}/activity"{{if eq .Active "activity"}} aria-current="page"{{end}} data-testid="org-subnav-activity">Member activity</a>
 </nav>
 {{end}}
 
