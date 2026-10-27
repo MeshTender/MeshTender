@@ -57,6 +57,12 @@ func TestE2EDeleteAccountWithPasskey(t *testing.T) {
 		// The add-a-passkey form lives behind the Passkeys row's toggle.
 		expandSection("manage-passkeys", "#add-passkey-btn"),
 		chromedp.Click("#add-passkey-btn", chromedp.ByID),
+		// Wait for the page's own post-registration redirect, not just the
+		// credential row: the finish handler stores the credential BEFORE it
+		// rotates the session token, so navigating away as soon as the row lands
+		// can abort the response carrying the new cookie — leaving the browser
+		// holding the destroyed token, and every later request signed out.
+		waitForLocation(e.authURL+"/account?pk="),
 	); err != nil {
 		t.Fatalf("add a passkey: %v", err)
 	}
