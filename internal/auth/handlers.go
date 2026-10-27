@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"errors"
+	"mime"
 	"net/http"
 	"strings"
 
@@ -31,10 +32,20 @@ func (s *Service) RequireUser(next http.Handler) http.Handler {
 // auth host's own SSO session. Unlike RequireUser it does NOT hand off to the
 // app afterward: it flags the login as auth-local so PostAuthRedirect returns to
 // the requested path on the auth host once the SSO session exists.
+//
+// A JSON request (the passkey re-auth ceremony's fetch() calls) gets a 401 JSON
+// error instead. fetch follows a redirect silently, so the page would receive the
+// sign-in page's HTML with a 200 and fail on it with no hint the session lapsed —
+// and recording a JSON endpoint as the post-sign-in destination would land the
+// user on it.
 func (s *Service) RequireSSO(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		if s.CurrentUserID(ctx) == 0 {
+			if isJSONRequest(r) {
+				httpError(w, r, http.StatusUnauthorized, "your session has expired — sign in again", nil)
+				return
+			}
 			s.Sessions.Put(ctx, sessKeyAuthLocal, true)
 			s.SetNext(ctx, r.URL.RequestURI())
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
@@ -42,6 +53,13 @@ func (s *Service) RequireSSO(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// isJSONRequest reports whether r carries a JSON body — i.e. it came from
+// fetch() in webauthn.js, not a form submission or a navigation.
+func isJSONRequest(r *http.Request) bool {
+	mt, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	return err == nil && mt == "application/json"
 }
 
 // --- Passkey registration ---

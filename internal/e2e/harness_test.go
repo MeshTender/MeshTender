@@ -327,6 +327,25 @@ func waitForLocation(prefix string) chromedp.ActionFunc {
 	}
 }
 
+// addPasskeyOnAccountPage registers a passkey through the account page's own UI
+// (the browser needs virtualAuthenticator set up) and waits until the page has
+// finished with it.
+//
+// It waits for the page's post-registration redirect, not for the credential row:
+// the finish handler stores the credential BEFORE it rotates the session token, so
+// navigating away as soon as the row lands can abort the response carrying the
+// new cookie — leaving the browser holding the destroyed token, and every later
+// request signed out.
+func addPasskeyOnAccountPage(authURL string) chromedp.Tasks {
+	return chromedp.Tasks{
+		chromedp.Navigate(authURL + "/account"),
+		// The add-a-passkey form lives behind the Passkeys row's toggle.
+		expandSection("manage-passkeys", "#add-passkey-btn"),
+		chromedp.Click("#add-passkey-btn", chromedp.ByID),
+		waitForLocation(authURL + "/account?pk="),
+	}
+}
+
 // expandSection opens a collapsed panel and waits for something inside it to be
 // visible. The account page's Sign-in & security rows keep each credential's form
 // behind a toggle button, so a test has to open the row before it can type in it.

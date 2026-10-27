@@ -4,9 +4,11 @@ package e2e
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/chromedp"
 
 	"github.com/MeshTender/MeshTender/internal/store"
@@ -51,34 +53,11 @@ func TestE2EDeleteAccountWithPasskey(t *testing.T) {
 
 	// Register a passkey on the account page, so the account has a passkey and no
 	// password — the state that forces the re-auth ceremony.
-	if err := chromedp.Run(ctx,
-		setSessionCookie(cookie),
-		chromedp.Navigate(e.authURL+"/account"),
-		// The add-a-passkey form lives behind the Passkeys row's toggle.
-		expandSection("manage-passkeys", "#add-passkey-btn"),
-		chromedp.Click("#add-passkey-btn", chromedp.ByID),
-		// Wait for the page's own post-registration redirect, not just the
-		// credential row: the finish handler stores the credential BEFORE it
-		// rotates the session token, so navigating away as soon as the row lands
-		// can abort the response carrying the new cookie — leaving the browser
-		// holding the destroyed token, and every later request signed out.
-		waitForLocation(e.authURL+"/account?pk="),
-	); err != nil {
+	if err := chromedp.Run(ctx, setSessionCookie(cookie), addPasskeyOnAccountPage(e.authURL)); err != nil {
 		t.Fatalf("add a passkey: %v", err)
 	}
-	deadline := time.Now().Add(20 * time.Second)
-	for {
-		creds, err := e.store.GetCredentials(e.ctx, victim.ID)
-		if err != nil {
-			t.Fatalf("GetCredentials: %v", err)
-		}
-		if len(creds) == 1 {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("passkey registration never landed")
-		}
-		time.Sleep(200 * time.Millisecond)
+	if creds, err := e.store.GetCredentials(e.ctx, victim.ID); err != nil || len(creds) != 1 {
+		t.Fatalf("after adding a passkey: %d credentials (err %v), want 1", len(creds), err)
 	}
 
 	// Now delete the account: verify with the passkey, which submits the form.
@@ -95,6 +74,43 @@ func TestE2EDeleteAccountWithPasskey(t *testing.T) {
 
 	if !waitForUserGone(t, e, victim.ID) {
 		t.Fatal("the account still exists after a verified deletion")
+	}
+	watch.assertClean(t)
+}
+
+// TestE2EReauthPasskeyAfterSessionExpires: if the session lapses while the
+// delete page sits open, "Verify with passkey" must say so. Its fetch() used to
+// be redirected to the sign-in page, parse that HTML as an empty object, and show
+// "Cannot read properties of undefined (reading 'challenge')".
+func TestE2EReauthPasskeyAfterSessionExpires(t *testing.T) {
+	e := newE2EServer(t)
+	e.login(t, "e2eexpireadmin")
+	_, cookie := e.login(t, "e2eexpireme")
+
+	ctx, cancel, watch := startBrowser(t)
+	defer cancel()
+	if err := virtualAuthenticator(ctx); err != nil {
+		t.Fatalf("set up virtual authenticator: %v", err)
+	}
+	acceptDialogs(ctx)
+
+	var status string
+	if err := chromedp.Run(ctx,
+		setSessionCookie(cookie),
+		addPasskeyOnAccountPage(e.authURL),
+		chromedp.Navigate(e.authURL+"/account/delete"),
+		chromedp.WaitVisible(`[data-testid="verify-passkey"]`, chromedp.ByQuery),
+		// The session goes away while the page is open.
+		network.ClearBrowserCookies(),
+		chromedp.Click(`[data-testid="verify-passkey"]`, chromedp.ByQuery),
+		chromedp.Poll(`document.getElementById("passkey-status").textContent.startsWith("Error:")`, nil,
+			chromedp.WithPollingTimeout(10*time.Second)),
+		chromedp.Text("#passkey-status", &status, chromedp.ByID),
+	); err != nil {
+		t.Fatalf("drive the delete page: %v (page status = %q)", err, status)
+	}
+	if !strings.Contains(status, "session has expired") {
+		t.Fatalf("status after an expired session = %q, want it to say the session expired", status)
 	}
 	watch.assertClean(t)
 }

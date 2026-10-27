@@ -44,17 +44,7 @@ func cspServer(t *testing.T) (*store.Store, context.Context, *httptest.Server, h
 // postReport posts a raw body to the violation-report endpoint on the given host.
 func postReport(t *testing.T, ts *httptest.Server, host, contentType, body string) *http.Response {
 	t.Helper()
-	req, err := http.NewRequest(http.MethodPost, ts.URL+web.CSPReportPath, strings.NewReader(body))
-	if err != nil {
-		t.Fatalf("request: %v", err)
-	}
-	req.Host = host
-	req.Header.Set("Content-Type", contentType)
-	resp, err := noRedirect().Do(req)
-	if err != nil {
-		t.Fatalf("post report to %s: %v", host, err)
-	}
-	return resp
+	return postBody(t, ts, host, web.CSPReportPath, contentType, body)
 }
 
 // flushReports runs the collector's drain-and-write path to completion. Cancelling

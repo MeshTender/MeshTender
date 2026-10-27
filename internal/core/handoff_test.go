@@ -159,12 +159,19 @@ func do(t *testing.T, ts *httptest.Server, host, path string, cookies ...*http.C
 // post issues a form POST with an explicit Host header and optional cookies.
 func post(t *testing.T, ts *httptest.Server, host, path string, form url.Values, cookies ...*http.Cookie) *http.Response {
 	t.Helper()
-	req, err := http.NewRequest(http.MethodPost, ts.URL+path, strings.NewReader(form.Encode()))
+	return postBody(t, ts, host, path, "application/x-www-form-urlencoded", form.Encode(), cookies...)
+}
+
+// postBody issues a POST of a raw body with the given Content-Type — for the
+// fetch()-driven JSON endpoints, which a form-encoded post doesn't exercise.
+func postBody(t *testing.T, ts *httptest.Server, host, path, contentType, body string, cookies ...*http.Cookie) *http.Response {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodPost, ts.URL+path, strings.NewReader(body))
 	if err != nil {
 		t.Fatalf("request: %v", err)
 	}
 	req.Host = host
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Content-Type", contentType)
 	for _, c := range cookies {
 		req.AddCookie(c)
 	}

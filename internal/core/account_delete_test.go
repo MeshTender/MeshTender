@@ -1,6 +1,7 @@
 package core
 
 import (
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -179,6 +180,40 @@ func TestReauthPasskeyBeginRequiresSession(t *testing.T) {
 	if anon.StatusCode == http.StatusOK {
 		t.Fatalf("anonymous reauth/begin = 200, want a rejection")
 	}
+}
+
+// TestReauthPasskeyExpiredSessionIsJSON: the re-auth endpoints are called by
+// fetch(), so a lapsed session must come back as a JSON error the page can show —
+// not the sign-in redirect a page navigation gets. fetch follows that redirect to
+// the login page's HTML with a 200, and webauthn.js then failed with "Cannot read
+// properties of undefined (reading 'challenge')" instead of saying what happened.
+func TestReauthPasskeyExpiredSessionIsJSON(t *testing.T) {
+	t.Parallel()
+	_, _, ts, h := splitServer(t)
+
+	for _, path := range []string{"/account/reauth/passkey/begin", "/account/reauth/passkey/finish"} {
+		resp := postBody(t, ts, h.auth, path, "application/json", "{}")
+		raw, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Errorf("%s with no session = %d, want 401", path, resp.StatusCode)
+		}
+		if ct := resp.Header.Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
+			t.Errorf("%s Content-Type = %q, want application/json", path, ct)
+		}
+		var body struct {
+			Error string `json:"error"`
+		}
+		if err := json.Unmarshal(raw, &body); err != nil || !strings.Contains(body.Error, "sign in again") {
+			t.Errorf("%s body = %q, want a JSON error telling the user to sign in again", path, raw)
+		}
+	}
+
+	// A form POST behind the same guard still goes to the sign-in page — only
+	// fetch() callers get JSON.
+	resp := post(t, ts, h.auth, "/account/delete", url.Values{})
+	resp.Body.Close()
+	assertRedirect(t, resp, "/login", "form post with no session")
 }
 
 // TestReauthPasskeyBeginWithoutPasskey: an account with no passkey gets a clean

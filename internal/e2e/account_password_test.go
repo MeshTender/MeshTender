@@ -33,10 +33,7 @@ func TestE2ERemovePasswordNeedsPasskeyCeremony(t *testing.T) {
 	// the assertion check.
 	if err := chromedp.Run(ctx,
 		setSessionCookie(cookie),
-		chromedp.Navigate(e.authURL+"/account"),
-		expandSection("manage-passkeys", "#add-passkey-btn"),
-		chromedp.Click("#add-passkey-btn", chromedp.ByID),
-		chromedp.WaitVisible(`[data-testid="passkey-list-toggle"]`, chromedp.ByQuery),
+		addPasskeyOnAccountPage(e.authURL),
 	); err != nil {
 		t.Fatalf("add a passkey: %v", err)
 	}
