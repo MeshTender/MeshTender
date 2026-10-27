@@ -70,7 +70,7 @@ func TestRepeaterSettingsTab(t *testing.T) {
 
 // TestOverviewShowsDocumentation: the documentation moved from its own tab to
 // the Overview, rendered as Markdown, internal notes included for people with
-// access, with an Edit link for the owner only.
+// access.
 func TestOverviewShowsDocumentation(t *testing.T) {
 	t.Parallel()
 	st, ctx, ts, h := splitServer(t)
@@ -82,7 +82,7 @@ func TestOverviewShowsDocumentation(t *testing.T) {
 	base := "/repeaters/" + rep.PublicID
 
 	page := readBody(t, do(t, ts, h.app, base, ownerSess))
-	for _, want := range []string{"<strong>Solar</strong>", "Gate code 1234", `data-testid="edit-docs"`} {
+	for _, want := range []string{"<strong>Solar</strong>", "Gate code 1234"} {
 		if !strings.Contains(page, want) {
 			t.Errorf("owner's Overview is missing %q", want)
 		}
@@ -96,7 +96,34 @@ func TestOverviewShowsDocumentation(t *testing.T) {
 	if !strings.Contains(page, "Gate code 1234") {
 		t.Error("someone with access can't read the internal notes")
 	}
-	if strings.Contains(page, `data-testid="edit-docs"`) {
-		t.Error("someone it's shared with gets the Edit link")
+}
+
+// TestOverviewConfirmationWording is the regression for "You've reached it over
+// the air" being shown to everyone: SelfConfirmed means the OWNER reached it, so
+// only the owner reads "You've"; anyone else reads the owner's name.
+func TestOverviewConfirmationWording(t *testing.T) {
+	t.Parallel()
+	st, ctx, ts, h := splitServer(t)
+	owner, ownerSess := appLogin(t, ts, st, ctx, h.app, "rconf-owner")
+	rep := newOwnedRepeater(t, st, ctx, owner.ID, "Hilltop")
+	if err := st.SetRepeaterConfirmed(ctx, rep.ID, owner.ID, true, 3); err != nil {
+		t.Fatal(err)
+	}
+	base := "/repeaters/" + rep.PublicID
+
+	if page := readBody(t, do(t, ts, h.app, base, ownerSess)); !strings.Contains(page, "You've reached it over the air") {
+		t.Error("the owner isn't told they've reached it")
+	}
+
+	guest, guestSess := appLogin(t, ts, st, ctx, h.app, "rconf-guest")
+	if _, err := st.AddShare(ctx, rep.ID, guest.ID); err != nil {
+		t.Fatal(err)
+	}
+	page := readBody(t, do(t, ts, h.app, base, guestSess))
+	if strings.Contains(page, "You've reached it") {
+		t.Error("someone who never connected is told they've reached it")
+	}
+	if !strings.Contains(page, "its owner, has reached it over the air") {
+		t.Error("a shared viewer isn't told the owner reached it")
 	}
 }

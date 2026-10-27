@@ -18,8 +18,10 @@
           <div class="d-flex align-items-center gap-2"><span class="text-secondary">Status</span>
             <span class="ms-auto">{{if .Repeater.Confirmed}}<span class="badge bg-green-lt">Confirmed</span>{{else}}<span class="badge bg-orange-lt">Not confirmed</span>{{end}}</span></div>
           <div class="small text-secondary mt-1">
-            {{if .Repeater.Corroborated}}Reached over the air by {{range $i, $n := .Repeater.Corroborators}}{{if $i}}, {{end}}{{$n}}{{end}}.
-            {{else if .Repeater.SelfConfirmed}}You've reached it over the air; no one else has yet.
+            {{/* SelfConfirmed is the OWNER having reached it, not the viewer, so
+            the wording follows who's looking. */}}
+            {{if .Repeater.Corroborated}}Reached over the air by {{if .Repeater.SelfConfirmed}}{{if .IsOwner}}you{{else}}{{.Repeater.OwnerName}}{{end}}, {{end}}{{range $i, $n := .Repeater.Corroborators}}{{if $i}}, {{end}}{{$n}}{{end}}.
+            {{else if .Repeater.SelfConfirmed}}{{if .IsOwner}}You've reached it over the air; no one else has yet.{{else}}{{.Repeater.OwnerName}}, its owner, has reached it over the air; no one else has yet.{{end}}
             {{else if .Repeater.Confirmed}}Reached over the air through MeshTender.
             {{else}}No one has reached it over the air through MeshTender yet. Connecting to it through a KISS modem on the Configure tab confirms it.{{end}}
           </div>
@@ -35,14 +37,16 @@
     </div>
 
     {{/* Documentation: public docs and internal notes, as Bootstrap tabs (data
-    attributes only, so CSP-safe). Edited in Settings › Documentation. */}}
+    attributes only, so CSP-safe). Read-only, like the org Home: the owner edits
+    them in Settings › Documentation, which the empty states point to.
+    card-header-tabs fills the whole header (Tabler gives it flex:1 and its own
+    background), so nothing else goes in this header. */}}
     <div class="card mt-3" data-testid="repeater-docs">
       <div class="card-header">
         <ul class="nav nav-tabs card-header-tabs" role="tablist">
           <li class="nav-item" role="presentation"><a class="nav-link active" href="#doc-public" data-bs-toggle="tab" role="tab" aria-controls="doc-public" aria-selected="true">Documentation</a></li>
           <li class="nav-item" role="presentation"><a class="nav-link" href="#doc-internal" data-bs-toggle="tab" role="tab" aria-controls="doc-internal" aria-selected="false" data-testid="doc-internal-tab">Internal notes</a></li>
         </ul>
-        {{if .IsOwner}}<div class="card-actions"><a class="btn btn-sm" href="/repeaters/{{.Repeater.PublicID}}/settings/docs" data-testid="edit-docs">{{template "icon-pencil" "me-1"}}Edit</a></div>{{end}}
       </div>
       <div class="card-body tab-content">
         <div class="tab-pane active show" id="doc-public" role="tabpanel">
@@ -61,7 +65,6 @@
     <div class="card mt-3">
       <div class="card-header">
         <div><h2 class="card-title">Organizations</h2><div class="card-subtitle">Their recommended configuration is on the <a href="/repeaters/{{.Repeater.PublicID}}/configure?pane=configuration">Configure</a> tab.</div></div>
-        <div class="card-actions"><a href="/repeaters/{{.Repeater.PublicID}}/settings/organizations" class="btn btn-sm">Manage</a></div>
       </div>
       {{if .Orgs}}
       <div class="list-group list-group-flush">
