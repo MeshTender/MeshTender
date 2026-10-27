@@ -50,9 +50,9 @@ func (s *Handlers) peopleData(r *http.Request, id int64, data map[string]any) er
 	return nil
 }
 
-// pageNewInvite renders the "create single-use link" modal fragment: a
-// description field plus the command grid (share defaults pre-checked) the owner
-// picks the initial grant from. Loaded via htmx into the share page's shared modal.
+// pageNewInvite is Settings › People › Create link: a description field plus the
+// command grid (share defaults pre-checked) the owner picks the initial grant
+// from. It posts to handleCreateLink.
 func (s *Handlers) pageNewInvite(w http.ResponseWriter, r *http.Request) {
 	rep, _, ok := s.requireRepeaterOwned(w, r)
 	if !ok {
@@ -69,10 +69,8 @@ func (s *Handlers) pageNewInvite(w http.ResponseWriter, r *http.Request) {
 			checked[c.ID] = true
 		}
 	}
-	s.Render(w, r, "share_invite_new.html", map[string]any{
-		"Repeater": rep,
-		"Groups":   groupCommands(catalog, checked),
-		"Layout":   "invite-new-modal",
+	s.renderSettingsPage(w, r, rep, settingsPeople, "invite-new", map[string]any{
+		"Groups": groupCommands(catalog, checked),
 	})
 }
 
@@ -239,9 +237,8 @@ func groupCommands(catalog []*store.Command, checked map[int64]bool) []commandGr
 	})
 }
 
-// pagePersonAccess renders the "manage access" modal fragment for one shared
-// person: a steward toggle plus the per-command grid the owner grants from.
-// Loaded via htmx into the share page's shared #person-modal.
+// pagePersonAccess is Settings › People › one person: a steward toggle plus the
+// per-command grid the owner grants from, and removing their access.
 func (s *Handlers) pagePersonAccess(w http.ResponseWriter, r *http.Request) {
 	rep, id, ok := s.requireRepeaterOwned(w, r)
 	if !ok {
@@ -282,16 +279,14 @@ func (s *Handlers) pagePersonAccess(w http.ResponseWriter, r *http.Request) {
 	for _, cid := range ids {
 		checked[cid] = true
 	}
-	s.Render(w, r, "person_access.html", map[string]any{
-		"Repeater": rep,
-		"Target":   target,
-		"Steward":  steward,
-		"Groups":   groupCommands(catalog, checked),
-		"Layout":   "person-access-modal",
+	s.renderSettingsPage(w, r, rep, settingsPeople, "person", map[string]any{
+		"Target":  target,
+		"Steward": steward,
+		"Groups":  groupCommands(catalog, checked),
 	})
 }
 
-// handleSavePersonAccess applies the person "manage access" modal: it sets the
+// handleSavePersonAccess saves a person's access page: it sets the
 // steward flag (the toggle) and the per-command grants together. A steward runs
 // every command regardless, but we still persist the grant selection so it applies
 // if steward is later turned off.

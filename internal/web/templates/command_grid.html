@@ -1,13 +1,13 @@
-{{/* command-grid renders feature-grouped command checkboxes, shared by the
-     per-user share-commands page and the per-org limits modal. Data:
+{{/* command-grid renders feature-grouped command checkboxes, shared by a
+     repeater's Settings pages (Create link, a person's access, an organization's
+     access). Data:
        .Groups      []commandGroup — each {Name, Commands[]commandChoice}
        $.ShowAccess bool           — when true, also show the Members/Admins tier
                                      badge (org limits); off for per-user shares.
      Every command shows a red "Risky" badge when risky, in the same trailing slot,
      so both pages read identically. Risky commands carry data-risky so ui.js
      confirms before enabling them, and each group is a [data-check-scope] with
-     Select all / none (ui.js delegated). No inline JS, so it works when swapped
-     into a modal via htmx under the CSP. */}}
+     Select all / none (ui.js delegated). No inline JS, under the CSP. */}}
 {{define "command-grid"}}
 {{range .Groups}}
 <div class="card mt-3" data-check-scope>

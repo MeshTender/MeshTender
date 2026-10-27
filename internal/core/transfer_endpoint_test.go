@@ -17,7 +17,7 @@ func TestTransferPageRendersStewards(t *testing.T) {
 	st, ctx, ts, h := splitServer(t)
 	owner, sess := appLogin(t, ts, st, ctx, h.app, "xferowner")
 	rep := newOwnedRepeater(t, st, ctx, owner.ID, "Ridge Rep")
-	path := "/repeaters/" + rep.PublicID + "/transfer"
+	path := "/repeaters/" + rep.PublicID + "/settings/ownership/transfer"
 
 	steward, err := st.CreateUser(ctx, "keeper", "")
 	if err != nil {
@@ -59,55 +59,19 @@ func TestTransferPageRendersStewards(t *testing.T) {
 	}
 }
 
-// TestTransferModalFragment: an htmx request gets the modal fragment — modal
-// chrome, no page chrome — while the same URL visited directly (the delete page
-// links to it, and a no-JS browser lands there) still gets the full page. Both
-// must offer the same recipients, since they render one copy of the content.
-func TestTransferModalFragment(t *testing.T) {
+// TestTransferOldURLRedirects: the transfer page moved into Settings; its old
+// address (once the modal fragment's) still finds it.
+func TestTransferOldURLRedirects(t *testing.T) {
 	t.Parallel()
 	st, ctx, ts, h := splitServer(t)
-	owner, sess := appLogin(t, ts, st, ctx, h.app, "modalowner")
-	rep := newOwnedRepeater(t, st, ctx, owner.ID, "Modal Rep")
-	path := "/repeaters/" + rep.PublicID + "/transfer"
+	owner, sess := appLogin(t, ts, st, ctx, h.app, "oldxferowner")
+	rep := newOwnedRepeater(t, st, ctx, owner.ID, "Old Rep")
 
-	steward, err := st.CreateUser(ctx, "modalsteward", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := st.AddShare(ctx, rep.ID, steward.ID); err != nil {
-		t.Fatal(err)
-	}
-	if err := st.SetShareSteward(ctx, rep.ID, steward.ID, true); err != nil {
-		t.Fatal(err)
-	}
-
-	frag := doHX(t, ts, h.app, path, sess)
-	defer frag.Body.Close()
-	if frag.StatusCode != http.StatusOK {
-		t.Fatalf("HX GET transfer = %d, want 200", frag.StatusCode)
-	}
-	raw, _ := io.ReadAll(frag.Body)
-	fragment := string(raw)
-	if !strings.Contains(fragment, "modal-header") || !strings.Contains(fragment, `id="transfer-form"`) {
-		t.Fatal("htmx request did not return the transfer modal fragment")
-	}
-	if strings.Contains(fragment, "<!doctype") || strings.Contains(fragment, "repeater-tabs") {
-		t.Fatal("modal fragment carries full-page chrome")
-	}
-	if !strings.Contains(fragment, "@modalsteward") {
-		t.Fatal("modal fragment does not offer the steward as a recipient")
-	}
-
-	// Same URL without htmx: the standalone page, same recipient.
-	full := do(t, ts, h.app, path, sess)
-	defer full.Body.Close()
-	rawFull, _ := io.ReadAll(full.Body)
-	page := string(rawFull)
-	if full.StatusCode != http.StatusOK || !strings.Contains(page, "<!doctype") {
-		t.Fatalf("direct GET transfer = %d, want a full 200 page", full.StatusCode)
-	}
-	if !strings.Contains(page, "@modalsteward") {
-		t.Fatal("standalone transfer page does not offer the steward as a recipient")
+	resp := do(t, ts, h.app, "/repeaters/"+rep.PublicID+"/transfer", sess)
+	resp.Body.Close()
+	want := "/repeaters/" + rep.PublicID + "/settings/ownership/transfer"
+	if resp.StatusCode != http.StatusMovedPermanently || resp.Header.Get("Location") != want {
+		t.Fatalf("GET old transfer URL = %d → %q, want 301 → %s", resp.StatusCode, resp.Header.Get("Location"), want)
 	}
 }
 
@@ -119,13 +83,13 @@ func TestTransferPageWithoutStewards(t *testing.T) {
 	owner, sess := appLogin(t, ts, st, ctx, h.app, "lonelyowner")
 	rep := newOwnedRepeater(t, st, ctx, owner.ID, "Solo Rep")
 
-	resp := do(t, ts, h.app, "/repeaters/"+rep.PublicID+"/transfer", sess)
+	resp := do(t, ts, h.app, "/repeaters/"+rep.PublicID+"/settings/ownership/transfer", sess)
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("GET transfer = %d, want 200", resp.StatusCode)
 	}
 	raw, _ := io.ReadAll(resp.Body)
-	if !strings.Contains(string(raw), "No stewards yet") {
+	if !strings.Contains(string(raw), "You can only transfer a repeater to a steward") {
 		t.Fatal("transfer page with no stewards does not explain how to designate one")
 	}
 	if strings.Contains(string(raw), `name="user_id"`) {
@@ -215,23 +179,16 @@ func TestTransferRepeaterPostRejections(t *testing.T) {
 	}
 }
 
-// TestOwnershipSettingsOpensTransferModal: Settings › Transfer or delete is
-// where an owner finds the handover — via the modal shell and the htmx trigger
-// that fills it.
-func TestOwnershipSettingsOpensTransferModal(t *testing.T) {
+// TestOwnershipSettingsLinksTransfer: Settings › Transfer or delete is where an
+// owner finds the handover, linking to its page.
+func TestOwnershipSettingsLinksTransfer(t *testing.T) {
 	t.Parallel()
 	st, ctx, ts, h := splitServer(t)
 	owner, sess := appLogin(t, ts, st, ctx, h.app, "linkowner")
 	rep := newOwnedRepeater(t, st, ctx, owner.ID, "Linked Rep")
 
-	resp := do(t, ts, h.app, "/repeaters/"+rep.PublicID+"/settings/ownership", sess)
-	defer resp.Body.Close()
-	raw, _ := io.ReadAll(resp.Body)
-	page := string(raw)
-	if !strings.Contains(page, `hx-get="/repeaters/`+rep.PublicID+`/transfer"`) {
-		t.Fatal("ownership settings have no htmx trigger to load the transfer modal")
-	}
-	if !strings.Contains(page, `id="transfer-modal-content"`) {
-		t.Fatal("ownership settings have no modal shell for the transfer fragment to swap into")
+	page := readBody(t, do(t, ts, h.app, "/repeaters/"+rep.PublicID+"/settings/ownership", sess))
+	if !strings.Contains(page, `href="/repeaters/`+rep.PublicID+`/settings/ownership/transfer"`) {
+		t.Fatal("ownership settings don't link to the transfer page")
 	}
 }

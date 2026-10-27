@@ -32,8 +32,8 @@ func (s *Handlers) repeaterOrgContext(w http.ResponseWriter, r *http.Request) (*
 	return rep, orgID, true
 }
 
-// pageRepeaterOrgLimits renders the per-org "manage access" modal fragment for one
-// repeater: the Shared (participation) switch plus which of the commands the org
+// pageRepeaterOrgLimits is Settings › Organizations › one organization's access
+// for this repeater: the Shared (participation) switch plus which of the commands the org
 // may run are allowed to run on this box. No opt-in rows = permissive (every
 // ceiling command checked). Editable regardless of participation, so an owner can
 // pre-set limits before opting an org in.
@@ -78,18 +78,17 @@ func (s *Handlers) pageRepeaterOrgLimits(w http.ResponseWriter, r *http.Request)
 		s.ServerError(w, r, "could not load participation", err)
 		return
 	}
-	s.Render(w, r, "share_org_limits.html", map[string]any{
-		"Repeater":   rep,
+	s.renderSettingsPage(w, r, rep, settingsOrgs, "org", map[string]any{
 		"Org":        org,
 		"Groups":     groupCommands(ceiling, checked),
 		"Restricted": restricted,
 		"Excluded":   excluded,
 		"ShowAccess": true,
-		"Layout":     "org-limits-modal",
+		"Next":       orgAccessNext(r),
 	})
 }
 
-// handleSaveRepeaterOrgLimits applies the "manage access" modal: it sets the org's
+// handleSaveRepeaterOrgLimits saves an organization's access page: it sets the org's
 // participation (the Shared switch) and the per-(repeater, org) command opt-in list
 // together. A full selection (or the "Remove restriction" button) clears the list
 // back to permissive so we don't persist a redundant full allowlist.
@@ -126,7 +125,25 @@ func (s *Handlers) handleSaveRepeaterOrgLimits(w http.ResponseWriter, r *http.Re
 		s.ServerError(w, r, "could not save limits", err)
 		return
 	}
-	http.Redirect(w, r, settingsPath(rep.PublicID, settingsOrgs), http.StatusSeeOther)
+	http.Redirect(w, r, orgAccessReturn(rep.PublicID, orgAccessNext(r)), http.StatusSeeOther) //nolint:gosec // G710: local path from a fixed set
+}
+
+// orgAccessNext is where an organization's access page returns to: "added" for
+// the add-repeater wizard, which links here, else Settings › Organizations. A
+// fixed set, never a URL from the request, so it can't redirect off-site.
+func orgAccessNext(r *http.Request) string {
+	if r.FormValue("next") == "added" {
+		return "added"
+	}
+	return ""
+}
+
+// orgAccessReturn is the page orgAccessNext names.
+func orgAccessReturn(publicID, next string) string {
+	if next == "added" {
+		return "/repeaters/" + publicID + "/added"
+	}
+	return settingsPath(publicID, settingsOrgs)
 }
 
 // orgCeilingCommands returns the catalog commands an org is ever permitted to run

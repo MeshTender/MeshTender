@@ -13,14 +13,11 @@ import (
 	"github.com/MeshTender/MeshTender/internal/store"
 )
 
-// TestE2EShareOrgLimitsModal drives Settings › Organizations' per-org "Manage access" modal:
-// the button opens the shared modal (Bootstrap data-bs-toggle under the strict
-// CSP) and htmx loads the command-grid fragment into it. It then exercises the
-// per-section Select none control — which comes from the delegated ui.js handler,
-// proving it works on htmx-injected content (a modal fragment can't run inline
-// script under the CSP). It also asserts the org name links to the org page, and
-// that the page runs clean under the CSP.
-func TestE2EShareOrgLimitsModal(t *testing.T) {
+// TestE2EShareOrgLimitsPage follows Settings › Organizations' "Manage access" to
+// that organization's page and exercises the per-section Select none control —
+// a delegated ui.js handler, since the CSP forbids inline script. It also asserts
+// the org name links to the org page, and that the pages run clean under the CSP.
+func TestE2EShareOrgLimitsPage(t *testing.T) {
 	srv := newE2EServer(t)
 	user, cookie := srv.login(t, "e2elimit")
 
@@ -42,9 +39,9 @@ func TestE2EShareOrgLimitsModal(t *testing.T) {
 
 	shareURL := srv.appURL + "/repeaters/" + rep.PublicID + "/settings/organizations"
 
-	// Count checkboxes per section and how many are checked, scoped to the modal.
+	// Count checkboxes per section and how many are checked, scoped to the form.
 	const countChecked = `(function () {
-		var scopes = document.querySelectorAll('#limits-modal-content [data-check-scope]');
+		var scopes = document.querySelectorAll('[data-testid="org-access-form"] [data-check-scope]');
 		return Array.prototype.map.call(scopes, function (s) {
 			var boxes = s.querySelectorAll('input[type=checkbox]');
 			var checked = 0;
@@ -67,16 +64,16 @@ func TestE2EShareOrgLimitsModal(t *testing.T) {
 		cdplog.Enable(),
 		setSessionCookie(cookie),
 		chromedp.Navigate(shareURL),
-		// Open the per-org limits modal; htmx loads the command grid into it.
+		// Open the organization's access page.
 		chromedp.WaitVisible(`[data-testid="manage-access"]`, chromedp.ByQuery),
 		chromedp.Evaluate(orgNameLink, &orgLink),
 		chromedp.Click(`[data-testid="manage-access"]`, chromedp.ByQuery),
-		chromedp.WaitVisible(`#limits-modal-content [data-check-scope]`, chromedp.ByQuery),
+		chromedp.WaitVisible(`[data-testid="org-access-form"] [data-check-scope]`, chromedp.ByQuery),
 		chromedp.Evaluate(countChecked, &initial),
 		// Default is permissive: everything checked. Uncheck only the first section.
 		// ByQuery = querySelector, so this is the first scope's Select-none button
 		// (document order), regardless of sibling element types before the cards.
-		chromedp.Click(`#limits-modal-content [data-check-scope] [data-check-none]`, chromedp.ByQuery),
+		chromedp.Click(`[data-testid="org-access-form"] [data-check-scope] [data-check-none]`, chromedp.ByQuery),
 		chromedp.Evaluate(countChecked, &afterNone),
 	); err != nil {
 		t.Fatalf("browser run against %s: %v", shareURL, err)
@@ -86,7 +83,7 @@ func TestE2EShareOrgLimitsModal(t *testing.T) {
 		t.Errorf("org name should link to the org page (/orgs/<slug> with the org name), got %q", orgLink)
 	}
 	if len(initial) < 2 {
-		t.Fatalf("expected >=2 command sections in the modal, got %d", len(initial))
+		t.Fatalf("expected >=2 command sections on the page, got %d", len(initial))
 	}
 	for i, s := range initial {
 		if s[0] == 0 || s[1] != s[0] {

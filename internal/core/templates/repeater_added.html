@@ -47,8 +47,8 @@
     <p class="text-secondary">
       This repeater is now shared with the organizations you belong to, so their admins and members can run
       the commands those organizations are permitted to run on it. Use <strong>Manage access</strong> to opt
-      out of any of them or limit which commands it may run — you can also change this anytime from the
-      sharing page.
+      out of any of them or limit which commands it may run. You can change this any time in the repeater's
+      Settings.
     </p>
     {{template "org-access-rows" .}}
     {{else}}
@@ -62,7 +62,6 @@
     </div>
   </div>
 </div>
-{{template "limits-modal-shell" .}}
 </div>
 </div>
 {{end}}

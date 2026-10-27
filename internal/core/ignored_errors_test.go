@@ -14,7 +14,7 @@ import (
 // returns 500.
 
 // TestPersonAccessReadErrorFailsClosed: if loading a share's granted command ids
-// fails, the manage-access modal must 500 rather than render every box unchecked
+// fails, the person access page must 500 rather than render every box unchecked
 // (which a subsequent Save would persist, wiping the target's real grants).
 func TestPersonAccessReadErrorFailsClosed(t *testing.T) {
 	t.Parallel()
@@ -35,7 +35,7 @@ func TestPersonAccessReadErrorFailsClosed(t *testing.T) {
 		t.Fatalf("drop share_commands: %v", err)
 	}
 
-	path := "/repeaters/" + rep.PublicID + "/share/" + strconv.FormatInt(target.ID, 10) + "/access"
+	path := "/repeaters/" + rep.PublicID + "/settings/people/" + strconv.FormatInt(target.ID, 10)
 	resp := do(t, ts, h.app, path, sess)
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusInternalServerError {
@@ -44,7 +44,7 @@ func TestPersonAccessReadErrorFailsClosed(t *testing.T) {
 }
 
 // TestRepeaterOrgLimitsReadErrorFailsClosed: if loading a repeater's per-org opt-in
-// list fails, the limits modal must 500 rather than render as "permissive" (all
+// list fails, the organization access page must 500 rather than render as "permissive" (all
 // checked), which a Save would persist as clearing the real restriction.
 func TestRepeaterOrgLimitsReadErrorFailsClosed(t *testing.T) {
 	t.Parallel()
@@ -62,7 +62,7 @@ func TestRepeaterOrgLimitsReadErrorFailsClosed(t *testing.T) {
 		t.Fatalf("drop org_repeater_command_optin: %v", err)
 	}
 
-	resp := do(t, ts, h.app, "/repeaters/"+rep.PublicID+"/orgs/"+org.Slug+"/limits", sess)
+	resp := do(t, ts, h.app, "/repeaters/"+rep.PublicID+"/settings/organizations/"+org.Slug, sess)
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusInternalServerError {
 		t.Fatalf("status = %d, want 500 (a swallowed error would render 200 as permissive, wiping the restriction on save)", resp.StatusCode)

@@ -13,11 +13,9 @@ import (
 	"github.com/MeshTender/MeshTender/internal/store"
 )
 
-// TestE2ECreateInviteModal drives Settings › People's "Create link"
-// button: it opens the shared modal (Bootstrap data-bs-toggle under the strict
-// CSP) and htmx loads the description field + command grid into it. Asserts the
-// fragment renders and the page runs clean under the CSP.
-func TestE2ECreateInviteModal(t *testing.T) {
+// TestE2ECreateInvitePage follows Settings › People's "Create link" to its page:
+// the label field and command grid render, and the page runs clean under the CSP.
+func TestE2ECreateInvitePage(t *testing.T) {
 	srv := newE2EServer(t)
 	user, cookie := srv.login(t, "e2einvite")
 
@@ -43,18 +41,18 @@ func TestE2ECreateInviteModal(t *testing.T) {
 		chromedp.WaitVisible(`[data-testid="new-invite"]`, chromedp.ByQuery),
 		chromedp.Click(`[data-testid="new-invite"]`, chromedp.ByQuery),
 		// htmx loads the fragment: wait for the command grid, then check the fields.
-		chromedp.WaitVisible(`#invite-modal-content [data-check-scope]`, chromedp.ByQuery),
-		chromedp.Evaluate(`!!document.querySelector('#invite-modal-content input[name=description]')`, &hasDescription),
-		chromedp.Evaluate(`document.querySelectorAll('#invite-modal-content input[name=cmd]').length > 0`, &boxes),
+		chromedp.WaitVisible(`[data-testid="invite-form"] [data-check-scope]`, chromedp.ByQuery),
+		chromedp.Evaluate(`!!document.querySelector('[data-testid="invite-form"] input[name=description]')`, &hasDescription),
+		chromedp.Evaluate(`document.querySelectorAll('[data-testid="invite-form"] input[name=cmd]').length > 0`, &boxes),
 	); err != nil {
 		t.Fatalf("browser run against %s: %v", shareURL, err)
 	}
 
 	if !hasDescription {
-		t.Fatal("invite modal missing the description field")
+		t.Fatal("Create link page missing the label field")
 	}
 	if !boxes {
-		t.Fatal("invite modal missing command checkboxes")
+		t.Fatal("Create link page missing command checkboxes")
 	}
 	watch.assertClean(t)
 }

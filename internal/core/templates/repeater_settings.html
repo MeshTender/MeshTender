@@ -1,11 +1,16 @@
 {{/* A repeater's Settings tab (owner only): the rail (repeater-settings-nav) and
      the chosen section, like the org Settings tab. .Section picks it: "details",
-     "docs", "people", "organizations" or "ownership". */}}
+     "docs", "people", "organizations" or "ownership". .Page shows one of a
+     section's own pages instead: "invite-new", "person", "org" or "transfer". */}}
 {{define "title"}}Settings · {{.Repeater.Name}} · MeshTender{{end}}
 {{define "header"}}{{template "repeater-header" .Nav}}{{end}}
 {{define "content"}}
 {{template "repeater-settings-open" .Nav}}
-{{if eq .Section "details"}}{{template "rsettings-details" .}}
+{{if eq .Page "invite-new"}}{{template "rsettings-invite-new" .}}
+{{else if eq .Page "person"}}{{template "rsettings-person" .}}
+{{else if eq .Page "org"}}{{template "rsettings-org" .}}
+{{else if eq .Page "transfer"}}{{template "rsettings-transfer" .}}
+{{else if eq .Section "details"}}{{template "rsettings-details" .}}
 {{else if eq .Section "docs"}}{{template "rsettings-docs" .}}
 {{else if eq .Section "people"}}{{template "rsettings-people" .}}
 {{else if eq .Section "organizations"}}{{template "rsettings-orgs" .}}
@@ -64,19 +69,15 @@
 </form>
 {{end}}
 
-{{/* ======== People: invite links and who has access. Each action opens an
-     htmx modal (its fragment comes from share_invite_new.html or
-     person_access.html). ======== */}}
+{{/* ======== People: invite links and who has access. Creating a link and a
+     person's access each have their own page, below. ======== */}}
 {{define "rsettings-people"}}
 {{template "settings-heading" (dict "Title" "People")}}
 <p class="text-secondary">People you let operate this repeater do it through MeshTender's own identity, so you never hand out a password or key, and you can take access away at any time.</p>
 
 <div class="d-flex align-items-center gap-2 mt-5 mb-1">
   <h3 class="mb-0">Invite links</h3>
-  <button type="button" class="btn btn-primary ms-auto" data-testid="new-invite"
-          data-bs-toggle="modal" data-bs-target="#invite-modal"
-          hx-get="/repeaters/{{.Repeater.PublicID}}/share/link/new"
-          hx-target="#invite-modal-content" hx-swap="innerHTML">{{template "icon-plus" "me-1"}}Create link</button>
+  <a class="btn btn-primary ms-auto" href="/repeaters/{{.Repeater.PublicID}}/settings/people/new" data-testid="new-invite">{{template "icon-plus" "me-1"}}Create link</a>
 </div>
 <p class="card-subtitle mt-1 mb-3">A link works once, for one person, and expires after {{.InviteTTLDays}} days. You choose what they can run.</p>
 {{if .Invites}}
@@ -117,10 +118,7 @@
     <span class="fw-bold">{{.Name}}</span>
     <span class="text-secondary">@{{.Username}}</span>
     {{if .Steward}}<span class="badge bg-blue-lt" title="Can run every command, including risky ones">Steward</span>{{end}}
-    <button type="button" class="btn btn-sm ms-auto" data-bs-toggle="modal" data-bs-target="#person-modal"
-            data-testid="manage-person"
-            hx-get="/repeaters/{{$.Repeater.PublicID}}/share/{{.UserID}}/access"
-            hx-target="#person-modal-content" hx-swap="innerHTML">Manage access</button>
+    <a class="btn btn-sm ms-auto" href="/repeaters/{{$.Repeater.PublicID}}/settings/people/{{.UserID}}" data-testid="manage-person">Manage access</a>
   </div>
   {{end}}
 </div>
@@ -128,20 +126,10 @@
 <p class="text-secondary mb-0">No one yet. Send someone an invite link.</p>
 {{end}}
 
-<div class="modal modal-blur fade" id="invite-modal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg" role="document">
-    <div class="modal-content" id="invite-modal-content"></div>
-  </div>
-</div>
-<div class="modal modal-blur fade" id="person-modal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg" role="document">
-    <div class="modal-content" id="person-modal-content"></div>
-  </div>
-</div>
 {{end}}
 
-{{/* ======== Organizations: opt out of one, or limit what it may run here.
-     Manage access opens the htmx modal from share_org_limits.html. ======== */}}
+{{/* ======== Organizations: opt out of one, or limit what it may run here, on
+     that organization's own page below. ======== */}}
 {{define "rsettings-orgs"}}
 {{template "settings-heading" (dict "Title" "Organizations")}}
 <p class="text-secondary">It's shared with every organization you belong to, so their members can run what that organization allows. Manage access opts it out of one, or limits what that organization can run on this repeater.</p>
@@ -150,7 +138,6 @@
 {{else}}
 <p class="text-secondary mb-0">Join an organization to share this repeater with it.</p>
 {{end}}
-{{template "limits-modal-shell" .}}
 {{end}}
 
 {{/* ======== Ownership: hand it on, or remove it. ======== */}}
@@ -162,10 +149,7 @@
       <div class="fw-bold">Transfer ownership</div>
       <div class="text-secondary small">Hand it to one of its stewards. Its documentation, history and public page go with it, and you stay on as a steward.</div>
     </div>
-    <button type="button" class="btn" data-testid="transfer-ownership"
-            data-bs-toggle="modal" data-bs-target="#transfer-modal"
-            hx-get="/repeaters/{{.Repeater.PublicID}}/transfer"
-            hx-target="#transfer-modal-content" hx-swap="innerHTML">Transfer</button>
+    <a class="btn" href="/repeaters/{{.Repeater.PublicID}}/settings/ownership/transfer" data-testid="transfer-ownership">Transfer…</a>
   </div>
 </div>
 <div class="card border-danger" style="max-width:40rem" data-testid="danger-zone">
@@ -178,9 +162,143 @@
   </div>
 </div>
 {{template "revokedoc" .RevokeCommand}}
-<div class="modal modal-blur fade" id="transfer-modal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" role="document">
-    <div class="modal-content" id="transfer-modal-content"></div>
+{{end}}
+
+{{/* ======== A section's own pages ======== */}}
+
+{{/* settings-crumb leads a section's own page back to its section. Data: dict
+     Href, Section (the section's label), Page (this page's). */}}
+{{define "settings-crumb"}}
+<ol class="breadcrumb mb-2" aria-label="Breadcrumb">
+  <li class="breadcrumb-item"><a href="{{.Href}}">{{.Section}}</a></li>
+  <li class="breadcrumb-item active" aria-current="page">{{.Page}}</li>
+</ol>
+{{end}}
+
+{{/* People › Create link: a label and what the recipient may run. */}}
+{{define "rsettings-invite-new"}}
+{{template "settings-crumb" (dict "Href" (printf "/repeaters/%s/settings/people" .Repeater.PublicID) "Section" "People" "Page" "Create link")}}
+{{template "settings-heading" (dict "Title" "Create an invite link")}}
+<form method="post" action="/repeaters/{{.Repeater.PublicID}}/share/link" data-testid="invite-form">
+  <div class="mb-4" style="max-width:30rem">
+    <label class="form-label" for="share_description">Label <span class="form-label-description">optional</span></label>
+    <input type="text" class="form-control" id="share_description" name="description" placeholder="e.g. for Bob" maxlength="100">
+    <div class="form-text">Only you see it, to tell your links apart.</div>
+  </div>
+  {{template "settings-subheading" (dict "Title" "What they can run" "Hint" "You can change this after they accept. Risky commands can lock you out or take the repeater off the air; give them only to people you trust with it.")}}
+  {{template "command-grid" .}}
+  <div class="btn-list mt-4">
+    <button type="submit" class="btn btn-primary">Create link</button>
+    <a class="btn" href="/repeaters/{{.Repeater.PublicID}}/settings/people">Cancel</a>
+  </div>
+</form>
+{{end}}
+
+{{/* People › one person: steward or individual commands, and revoking. */}}
+{{define "rsettings-person"}}
+{{template "settings-crumb" (dict "Href" (printf "/repeaters/%s/settings/people" .Repeater.PublicID) "Section" "People" "Page" .Target.Name)}}
+<div class="d-flex align-items-center gap-2 mb-4">
+  <h2 class="mb-0">{{.Target.Name}}</h2>
+  <span class="text-secondary">@{{.Target.Username}}</span>
+</div>
+<form method="post" action="/repeaters/{{.Repeater.PublicID}}/share/{{.Target.ID}}/access" data-testid="person-access-form">
+  {{/* Steward supersedes the per-command grants (store.ListSendableCommandIDs
+       gives a steward every command), so the two are not parallel choices. The
+       switch hides the grid via data-hide-target; the checkboxes keep
+       submitting, so turning steward back off restores the selection. */}}
+  <label class="form-check form-switch">
+    <input class="form-check-input" type="checkbox" name="steward" value="1"
+           data-hide-target="#person-commands" {{if .Steward}}checked{{end}}>
+    <span class="form-check-label"><strong>Steward</strong></span>
+  </label>
+  <div class="form-text mt-0 mb-4">A steward can run every command, like you, and is listed on the public page as someone who can service it. Leave it off to choose their commands instead.</div>
+  <div id="person-commands">
+    {{template "settings-subheading" (dict "Title" "What they can run" "Hint" "Risky commands can lock you out or take the repeater off the air; give them only to people you trust with it.")}}
+    {{template "command-grid" .}}
+  </div>
+  <div class="btn-list mt-4">
+    <button type="submit" class="btn btn-primary">Save</button>
+    <a class="btn" href="/repeaters/{{.Repeater.PublicID}}/settings/people">Cancel</a>
+  </div>
+</form>
+<div class="card border-danger mt-5" style="max-width:40rem" data-testid="danger-zone">
+  <div class="card-body d-flex flex-wrap align-items-center gap-3">
+    <div class="flex-fill">
+      <div class="fw-bold">Remove {{.Target.Name}}'s access</div>
+      <div class="text-secondary small">They can't run anything on it from then on. Invite them again to give it back.</div>
+    </div>
+    <form method="post" action="/repeaters/{{.Repeater.PublicID}}/unshare" class="m-0" data-confirm="Remove {{.Target.Name}}'s access to this repeater?">
+      <input type="hidden" name="user_id" value="{{.Target.ID}}">
+      <button type="submit" class="btn btn-outline-danger" data-testid="revoke-person">Remove access</button>
+    </form>
   </div>
 </div>
+{{end}}
+
+{{/* Organizations › one organization: taking part, and what it may run here. */}}
+{{define "rsettings-org"}}
+{{$back := printf "/repeaters/%s/settings/organizations" .Repeater.PublicID}}
+{{if eq .Next "added"}}{{$back = printf "/repeaters/%s/added" .Repeater.PublicID}}{{end}}
+{{template "settings-crumb" (dict "Href" (printf "/repeaters/%s/settings/organizations" .Repeater.PublicID) "Section" "Organizations" "Page" .Org.Name)}}
+{{template "settings-heading" (dict "Title" .Org.Name)}}
+<form method="post" action="/repeaters/{{.Repeater.PublicID}}/orgs/{{.Org.Slug}}/limits" data-testid="org-access-form">
+  {{with .Next}}<input type="hidden" name="next" value="{{.}}">{{end}}
+  <label class="form-check form-switch">
+    <input class="form-check-input" type="checkbox" name="include" value="1" {{if not .Excluded}}checked{{end}}>
+    <span class="form-check-label"><strong>Shared with {{.Org.Name}}</strong></span>
+  </label>
+  <div class="form-text mt-0 mb-4">Turn it off and no one in {{.Org.Name}} can run anything on this repeater. The limits below are kept for when you turn it back on.</div>
+  {{if .Excluded}}
+  <div class="alert alert-warning" role="alert" data-testid="org-opted-out">
+    <div>It's opted out of {{.Org.Name}}, so no one in it can run anything here. You can still set the limits now; turn on <strong>Shared with {{.Org.Name}}</strong> and save to opt back in.</div>
+  </div>
+  {{end}}
+
+  {{template "settings-subheading" (dict "Title" "What it can run here" "Hint" "Of the commands this organization may run, which ones it can run on this repeater. Admins badges mark commands only its admins get; Members, everyone in it.")}}
+  <p class="text-secondary">{{if .Restricted}}Only the checked commands are allowed.{{else}}Nothing is limited yet: everything the organization may run can run here. Uncheck commands to limit them.{{end}}</p>
+  {{template "command-grid" .}}
+  <div class="btn-list mt-4">
+    <button type="submit" class="btn btn-primary">Save</button>
+    <a class="btn" href="{{$back}}">Cancel</a>
+    {{if .Restricted}}<button type="submit" name="clear" value="1" class="btn btn-ghost-secondary ms-auto">Remove the limits</button>{{end}}
+  </div>
+</form>
+{{end}}
+
+{{/* Transfer or delete › Transfer ownership: pick the steward taking it on. */}}
+{{define "rsettings-transfer"}}
+{{template "settings-crumb" (dict "Href" (printf "/repeaters/%s/settings/ownership" .Repeater.PublicID) "Section" "Transfer or delete" "Page" "Transfer ownership")}}
+{{template "settings-heading" (dict "Title" "Transfer ownership")}}
+<p class="text-secondary">Hand {{.Repeater.Name}} to one of its stewards. Its documentation, maintenance history, command history, location and public page address go with it.</p>
+{{if .Stewards}}
+<form method="post" action="/repeaters/{{.Repeater.PublicID}}/transfer" style="max-width:40rem"
+      data-confirm="Transfer this repeater? The new owner controls it from then on, and you can't undo this yourself.">
+  <div class="list-group list-group-flush mb-3">
+    {{range $i, $s := .Stewards}}
+    <label class="list-group-item px-0 d-flex align-items-center gap-2" data-testid="steward-choice">
+      <input class="form-check-input m-0" type="radio" name="user_id" value="{{$s.UserID}}" {{if eq $i 0}}checked{{end}} required>
+      <span class="fw-bold">{{$s.Name}}</span>
+      <span class="text-secondary">@{{$s.Username}}</span>
+    </label>
+    {{end}}
+  </div>
+  <div class="alert alert-warning" role="alert">
+    <div><strong>What changes for you:</strong> you become a steward, so you can still run every command, but the new owner controls its settings and sharing and can remove your access. Your unused invite links are revoked. Only the new owner can transfer it back.</div>
+  </div>
+  <div class="btn-list">
+    <button type="submit" class="btn btn-primary" data-testid="confirm-transfer">Transfer ownership</button>
+    <a class="btn" href="/repeaters/{{.Repeater.PublicID}}/settings/ownership">Cancel</a>
+  </div>
+</form>
+{{else}}
+{{/* No stewards yet: the fix is in People, so say so rather than show an
+     empty picker. */}}
+<div class="alert alert-info" role="alert" style="max-width:40rem">
+  <div>You can only transfer a repeater to a steward: someone you've shared it with and made a steward. Invite the person taking over, turn on <strong>Steward</strong> on their access page, then come back here.</div>
+</div>
+<div class="btn-list">
+  <a class="btn btn-primary" href="/repeaters/{{.Repeater.PublicID}}/settings/people">Go to People</a>
+  <a class="btn" href="/repeaters/{{.Repeater.PublicID}}/settings/ownership">Cancel</a>
+</div>
+{{end}}
 {{end}}

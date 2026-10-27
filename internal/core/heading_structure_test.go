@@ -3,7 +3,6 @@ package core
 import (
 	"fmt"
 	"io"
-	"net/http"
 	"net/http/cookiejar"
 	"regexp"
 	"strconv"
@@ -119,6 +118,9 @@ func TestPageHeadingOutlines(t *testing.T) {
 		{"app repeater list", h.app, "/repeaters", false},
 		{"app repeater overview", h.app, "/repeaters/" + rep.PublicID, false},
 		{"app repeater sharing", h.app, "/repeaters/" + rep.PublicID + "/settings/people", false},
+		{"app repeater new invite", h.app, "/repeaters/" + rep.PublicID + "/settings/people/new", false},
+		{"app repeater org access", h.app, "/repeaters/" + rep.PublicID + "/settings/organizations/" + org.Slug, false},
+		{"app repeater transfer", h.app, "/repeaters/" + rep.PublicID + "/settings/ownership/transfer", false},
 		{"app my orgs", h.app, "/orgs", false},
 		{"app org member view", h.app, "/orgs/" + org.Slug, false},
 		{"app 404 (error page)", h.app, "/no-such-page", false},
@@ -142,48 +144,5 @@ func TestPageHeadingOutlines(t *testing.T) {
 				p.label, resp.StatusCode, resp.Header.Get("Location"))
 		}
 		checkHeadingOutline(t, p.label, string(body))
-	}
-}
-
-// TestModalFragmentHeadings covers the htmx modal fragments separately: they're
-// swapped into an already-rendered page, so their heading has to fit under that
-// page's outline (h1 page → h2 dialog title) rather than restart it.
-func TestModalFragmentHeadings(t *testing.T) {
-	t.Parallel()
-	st, ctx, ts, h := splitServer(t)
-
-	jar, err := cookiejar.New(nil)
-	if err != nil {
-		t.Fatalf("cookiejar: %v", err)
-	}
-	user := seedSession(t, ts, st, ctx, jar, "modaluser")
-	cookies := jar.Cookies(mustURL(t, ts.URL))
-	rep, err := st.CreateRepeater(ctx, &store.Repeater{
-		OwnerID: user.ID, Name: "Modal Test Relay", PublicKeyHex: strings.Repeat("f", 64),
-		RadioFreqHz: 1, RadioBwHz: 1, RadioSF: 11, RadioCR: 5,
-	})
-	if err != nil {
-		t.Fatalf("create repeater: %v", err)
-	}
-
-	// The invite modal is the representative fragment; all modal titles share the
-	// same convention.
-	resp := do(t, ts, h.app, "/repeaters/"+rep.PublicID+"/share/link/new", cookies...)
-	body, err := io.ReadAll(resp.Body)
-	resp.Body.Close()
-	if err != nil {
-		t.Fatalf("read body: %v", err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("invite modal fragment = %d, want 200", resp.StatusCode)
-	}
-
-	found := headingRe.FindAllStringSubmatch(string(body), -1)
-	if len(found) == 0 {
-		t.Fatal("invite modal fragment has no heading — the dialog has nothing to label it")
-	}
-	if got := found[0][1]; got != "2" {
-		t.Errorf("modal title is h%s, want h2 (it sits under the page's h1; an h5 there "+
-			"would skip three levels)", got)
 	}
 }

@@ -25,12 +25,8 @@ func transferErr(w http.ResponseWriter, r *http.Request, msg string) {
 
 // pageTransferRepeater renders the owner-only recipient picker: which stewards
 // can receive this repeater, and what changes when one does. With no stewards it
-// explains how to designate one instead of offering an empty form.
-//
-// htmx gets the modal fragment (the share page's "Transfer ownership" button);
-// a direct visit — the delete page links here, and a browser that never ran the
-// htmx request lands here too — gets the standalone page. Both render the same
-// content blocks, so there is one copy of the wording.
+// explains how to designate one instead of offering an empty form. It's
+// Settings › Transfer or delete › Transfer ownership.
 func (s *Handlers) pageTransferRepeater(w http.ResponseWriter, r *http.Request) {
 	rep, id, ok := s.requireRepeaterOwned(w, r)
 	if !ok {
@@ -41,15 +37,9 @@ func (s *Handlers) pageTransferRepeater(w http.ResponseWriter, r *http.Request) 
 		s.ServerError(w, r, "could not load stewards", err)
 		return
 	}
-	data := map[string]any{
-		"Repeater": rep,
-		"Nav":      web.RepeaterNav(rep.PublicID, rep.Name, rep.OwnerName(), true, "settings-ownership"),
+	s.renderSettingsPage(w, r, rep, settingsOwnership, "transfer", map[string]any{
 		"Stewards": stewards,
-	}
-	if r.Header.Get("HX-Request") != "" {
-		data["Layout"] = "transfer-modal"
-	}
-	s.Render(w, r, "transfer_repeater.html", data)
+	})
 }
 
 // handleTransferRepeater hands the repeater to the chosen steward. Authorization

@@ -6,6 +6,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/MeshTender/MeshTender/internal/config"
+	"github.com/MeshTender/MeshTender/internal/store"
 	"github.com/MeshTender/MeshTender/internal/web"
 )
 
@@ -83,5 +84,25 @@ func (s *Handlers) pageRepeaterSettings(w http.ResponseWriter, r *http.Request) 
 func (s *Handlers) redirectToSettings(section string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, settingsPath(repeaterParam(r), section), http.StatusMovedPermanently) //nolint:gosec // G710: local path
+	}
+}
+
+// renderSettingsPage renders one of a Settings section's own pages (a new invite
+// link, a person's or an organization's access, the transfer), inside the
+// Settings layout with the section's rail item active. page picks it in
+// repeater_settings.html; data carries what that page needs.
+func (s *Handlers) renderSettingsPage(w http.ResponseWriter, r *http.Request, rep *store.Repeater, section, page string, data map[string]any) {
+	data["Repeater"] = rep
+	data["Nav"] = web.RepeaterNav(rep.PublicID, rep.Name, rep.OwnerName(), true, "settings-"+section)
+	data["Section"] = section
+	data["Page"] = page
+	s.Render(w, r, "repeater_settings.html", data)
+}
+
+// redirectSettingsPage sends an old modal-fragment URL to the Settings page that
+// replaced it, built from the request by to.
+func redirectSettingsPage(to func(r *http.Request) string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, to(r), http.StatusMovedPermanently) //nolint:gosec // G710: local path
 	}
 }

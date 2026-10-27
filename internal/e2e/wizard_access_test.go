@@ -13,11 +13,11 @@ import (
 	"github.com/MeshTender/MeshTender/internal/store"
 )
 
-// TestE2EWizardManageAccessModal verifies the add-repeater wizard's final step
-// hosts the same "Manage access" modal as Settings › Organizations: the button opens the
-// shared modal (Bootstrap under the strict CSP) and htmx loads the org-limits
-// fragment into it. Guards the fix for the wizard's old dead-route opt-out button.
-func TestE2EWizardManageAccessModal(t *testing.T) {
+// TestE2EWizardManageAccessPage verifies the add-repeater wizard's final step
+// links each organization's "Manage access" to its page in Settings ›
+// Organizations, which renders and runs clean under the CSP. Guards the fix for
+// the wizard's old dead-route opt-out button.
+func TestE2EWizardManageAccessPage(t *testing.T) {
 	srv := newE2EServer(t)
 	user, cookie := srv.login(t, "e2ewizard")
 
@@ -47,13 +47,13 @@ func TestE2EWizardManageAccessModal(t *testing.T) {
 		chromedp.WaitVisible(`[data-testid="manage-access"]`, chromedp.ByQuery),
 		chromedp.Click(`[data-testid="manage-access"]`, chromedp.ByQuery),
 		// htmx loads the org-limits fragment: the Shared switch + command grid.
-		chromedp.WaitVisible(`#limits-modal-content [data-check-scope]`, chromedp.ByQuery),
-		chromedp.Evaluate(`!!document.querySelector('#limits-modal-content input[name=include]')`, &hasSwitch),
+		chromedp.WaitVisible(`[data-testid="org-access-form"] [data-check-scope]`, chromedp.ByQuery),
+		chromedp.Evaluate(`!!document.querySelector('[data-testid="org-access-form"] input[name=include]')`, &hasSwitch),
 	); err != nil {
 		t.Fatalf("browser run against %s: %v", addedURL, err)
 	}
 	if !hasSwitch {
-		t.Fatal("manage-access modal missing the Shared switch")
+		t.Fatal("organization access page missing the Shared switch")
 	}
 	watch.assertClean(t)
 }

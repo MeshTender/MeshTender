@@ -2,6 +2,7 @@ package core
 
 import (
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 )
@@ -125,5 +126,36 @@ func TestOverviewConfirmationWording(t *testing.T) {
 	}
 	if !strings.Contains(page, "its owner, has reached it over the air") {
 		t.Error("a shared viewer isn't told the owner reached it")
+	}
+}
+
+// TestOrgAccessReturnsToWizard: the add-repeater wizard links to an
+// organization's access page with ?next=added, and saving brings the owner back
+// to the wizard. Only that fixed value does: anything else lands on Settings ›
+// Organizations, so the parameter can't send anyone off-site.
+func TestOrgAccessReturnsToWizard(t *testing.T) {
+	t.Parallel()
+	st, ctx, ts, h := splitServer(t)
+	owner, sess := appLogin(t, ts, st, ctx, h.app, "rnext-owner")
+	rep := newOwnedRepeater(t, st, ctx, owner.ID, "Hilltop")
+	org, err := st.CreateOrg(ctx, "Next Org", owner.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	action := "/repeaters/" + rep.PublicID + "/orgs/" + org.Slug + "/limits"
+
+	page := readBody(t, do(t, ts, h.app, "/repeaters/"+rep.PublicID+"/settings/organizations/"+org.Slug+"?next=added", sess))
+	if !strings.Contains(page, `name="next" value="added"`) || !strings.Contains(page, `href="/repeaters/`+rep.PublicID+`/added"`) {
+		t.Error("the page from the wizard should carry next=added and cancel back to it")
+	}
+
+	for next, want := range map[string]string{
+		"added":               "/repeaters/" + rep.PublicID + "/added",
+		"https://example.com": "/repeaters/" + rep.PublicID + "/settings/organizations",
+		"":                    "/repeaters/" + rep.PublicID + "/settings/organizations",
+	} {
+		resp := post(t, ts, h.app, action, url.Values{"include": {"1"}, "next": {next}}, sess)
+		resp.Body.Close()
+		assertRedirect(t, resp, want, "save with next="+next)
 	}
 }

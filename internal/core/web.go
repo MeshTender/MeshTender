@@ -235,15 +235,27 @@ func (s *Handlers) appRouter() chi.Router {
 			r.Get("/repeaters/{id}/share", s.redirectToSettings(settingsPeople))
 			r.Get("/repeaters/{id}/settings", s.pageRepeaterSettings)
 			r.Get("/repeaters/{id}/settings/{section}", s.pageRepeaterSettings)
-			r.Get("/repeaters/{id}/share/link/new", s.pageNewInvite)
+			r.Get("/repeaters/{id}/settings/people/new", s.pageNewInvite)
+			r.Get("/repeaters/{id}/settings/people/{userID}", s.pagePersonAccess)
+			r.Get("/repeaters/{id}/settings/organizations/{orgID}", s.pageRepeaterOrgLimits)
+			r.Get("/repeaters/{id}/settings/ownership/transfer", s.pageTransferRepeater)
+			r.Get("/repeaters/{id}/share/link/new", redirectSettingsPage(func(r *http.Request) string {
+				return settingsPath(repeaterParam(r), settingsPeople) + "/new"
+			}))
 			r.Post("/repeaters/{id}/share/link", s.handleCreateLink)
 			r.Post("/repeaters/{id}/share/link/delete", s.handleDeleteInvite)
 			r.Post("/repeaters/{id}/unshare", s.handleUnshare)
-			r.Get("/repeaters/{id}/transfer", s.pageTransferRepeater)
+			r.Get("/repeaters/{id}/transfer", redirectSettingsPage(func(r *http.Request) string {
+				return settingsPath(repeaterParam(r), settingsOwnership) + "/transfer"
+			}))
 			r.Post("/repeaters/{id}/transfer", s.handleTransferRepeater)
-			r.Get("/repeaters/{id}/share/{userID}/access", s.pagePersonAccess)
+			r.Get("/repeaters/{id}/share/{userID}/access", redirectSettingsPage(func(r *http.Request) string {
+				return settingsPath(repeaterParam(r), settingsPeople) + "/" + chi.URLParam(r, "userID")
+			}))
 			r.Post("/repeaters/{id}/share/{userID}/access", s.handleSavePersonAccess)
-			r.Get("/repeaters/{id}/orgs/{orgID}/limits", s.pageRepeaterOrgLimits)
+			r.Get("/repeaters/{id}/orgs/{orgID}/limits", redirectSettingsPage(func(r *http.Request) string {
+				return settingsPath(repeaterParam(r), settingsOrgs) + "/" + chi.URLParam(r, "orgID")
+			}))
 			r.Post("/repeaters/{id}/orgs/{orgID}/limits", s.handleSaveRepeaterOrgLimits)
 			r.Post("/invite/{token}/accept", s.handleAcceptInvite)
 

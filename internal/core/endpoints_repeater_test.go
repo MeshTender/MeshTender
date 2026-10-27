@@ -300,10 +300,10 @@ func TestActivityPageLinksSender(t *testing.T) {
 	}
 }
 
-// TestPersonAccessModal covers the per-person "manage access" modal: the GET
-// fragment renders the steward toggle + command grid, and the POST saves the
-// steward flag and command grants together.
-func TestPersonAccessModal(t *testing.T) {
+// TestPersonAccessPage covers a person's access page in Settings › People: the
+// GET renders the steward toggle, command grid and Remove access, and the POST
+// saves the steward flag and command grants together.
+func TestPersonAccessPage(t *testing.T) {
 	t.Parallel()
 	st, ctx, ts, h := splitServer(t)
 	owner, sess := appLogin(t, ts, st, ctx, h.app, "paccessowner")
@@ -315,19 +315,14 @@ func TestPersonAccessModal(t *testing.T) {
 	if _, err := st.AddShare(ctx, rep.ID, target.ID); err != nil {
 		t.Fatal(err)
 	}
-	base := "/repeaters/" + rep.PublicID + "/share/" + strconv.FormatInt(target.ID, 10) + "/access"
+	tid := strconv.FormatInt(target.ID, 10)
+	base := "/repeaters/" + rep.PublicID + "/share/" + tid + "/access" // where it posts
 
-	// GET renders the modal fragment (no page chrome): steward switch + cmd boxes.
-	frag := readBody(t, do(t, ts, h.app, base, sess))
-	if !strings.Contains(frag, "Manage access") || !strings.Contains(frag, `name="steward"`) || !strings.Contains(frag, `name="cmd"`) {
-		t.Fatalf("person-access fragment missing expected content:\n%s", frag)
-	}
-	if strings.Contains(frag, "back-link") {
-		t.Fatal("person-access fragment should be modal chrome, not a full page")
-	}
-	// Footer Save/Revoke reference their separate forms via form= (scrollable body).
-	if !strings.Contains(frag, `form="person-access-form"`) || !strings.Contains(frag, `form="person-revoke-form"`) {
-		t.Fatal("person-access footer buttons should reference their forms via form=")
+	page := readBody(t, do(t, ts, h.app, "/repeaters/"+rep.PublicID+"/settings/people/"+tid, sess))
+	for _, want := range []string{`name="steward"`, `name="cmd"`, `data-testid="revoke-person"`, `data-testid="repeater-settings-nav"`} {
+		if !strings.Contains(page, want) {
+			t.Errorf("person access page is missing %s", want)
+		}
 	}
 
 	// Save: not a steward, grant exactly one command.
@@ -351,10 +346,9 @@ func TestPersonAccessModal(t *testing.T) {
 	}
 }
 
-// TestRepeaterOrgLimitsPosts covers the per-(repeater, org) command-limits modal:
-// the GET fragment renders the editor, and the POST restricts / collapses back to
-// permissive. This is the share-page home for limits after they moved off the
-// org-wide page and became per repeater.
+// TestRepeaterOrgLimitsPosts covers an organization's access page in Settings ›
+// Organizations: the GET renders the editor, and the POST restricts / collapses
+// back to permissive.
 func TestRepeaterOrgLimitsPosts(t *testing.T) {
 	t.Parallel()
 	st, ctx, ts, h := splitServer(t)
@@ -364,7 +358,8 @@ func TestRepeaterOrgLimitsPosts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	base := "/repeaters/" + rep.PublicID + "/orgs/" + org.Slug + "/limits"
+	base := "/repeaters/" + rep.PublicID + "/orgs/" + org.Slug + "/limits" // where it posts
+	pagePath := "/repeaters/" + rep.PublicID + "/settings/organizations/" + org.Slug
 
 	// The ceiling: commands an org may ever run. Restrict to the first one.
 	catalog, err := st.ListCommands(ctx)
@@ -381,31 +376,22 @@ func TestRepeaterOrgLimitsPosts(t *testing.T) {
 		t.Fatalf("need >=2 ceiling commands, got %d", len(ceiling))
 	}
 
-	// GET renders the modal fragment (no page chrome): the Shared switch + cmd boxes.
-	frag := readBody(t, do(t, ts, h.app, base, sess))
-	if !strings.Contains(frag, "Manage access") || !strings.Contains(frag, `name="cmd"`) || !strings.Contains(frag, `name="include"`) {
-		t.Fatalf("manage-access fragment missing expected content:\n%s", frag)
-	}
-	// Footer buttons live outside the form (referencing it via form=) so the modal
-	// body can scroll with header/footer pinned; guard that structure.
-	if !strings.Contains(frag, `form="org-access-form"`) {
-		t.Fatal("manage-access footer button should reference the form via form= (scrollable body)")
-	}
-	if strings.Contains(frag, "back-link") {
-		t.Fatal("limits fragment should be modal chrome, not a full page")
+	frag := readBody(t, do(t, ts, h.app, pagePath, sess))
+	if !strings.Contains(frag, `name="cmd"`) || !strings.Contains(frag, `name="include"`) || !strings.Contains(frag, `data-testid="repeater-settings-nav"`) {
+		t.Fatalf("organization access page missing expected content:\n%s", frag)
 	}
 	// Participating by default: no opted-out warning.
-	if strings.Contains(frag, "opted out of") {
-		t.Fatal("limits fragment shows the opted-out notice while participating")
+	if strings.Contains(frag, `data-testid="org-opted-out"`) {
+		t.Fatal("organization access page shows the opted-out notice while participating")
 	}
 
-	// Opted out: the modal warns that no command applies until re-included, but
+	// Opted out: the page warns that no command applies until re-included, but
 	// still lets the owner pre-configure limits.
 	if err := st.SetRepeaterOrgExcluded(ctx, org.ID, rep.ID, true); err != nil {
 		t.Fatal(err)
 	}
-	if out := readBody(t, do(t, ts, h.app, base, sess)); !strings.Contains(out, "opted out of") || !strings.Contains(out, `name="cmd"`) {
-		t.Fatalf("opted-out limits fragment missing notice or command boxes:\n%s", out)
+	if out := readBody(t, do(t, ts, h.app, pagePath, sess)); !strings.Contains(out, `data-testid="org-opted-out"`) || !strings.Contains(out, `name="cmd"`) {
+		t.Fatalf("opted-out organization access page missing notice or command boxes:\n%s", out)
 	}
 	if err := st.SetRepeaterOrgExcluded(ctx, org.ID, rep.ID, false); err != nil {
 		t.Fatal(err)
@@ -490,8 +476,8 @@ func TestRepeaterAddedPageOrgAccess(t *testing.T) {
 	if !strings.Contains(body, org.Name) {
 		t.Fatalf("added page missing the owner's org %q:\n%s", org.Name, body)
 	}
-	if !strings.Contains(body, `data-testid="manage-access"`) || !strings.Contains(body, `id="limits-modal"`) {
-		t.Fatal("added page missing the Manage access control / modal")
+	if !strings.Contains(body, `data-testid="manage-access"`) || !strings.Contains(body, `/settings/organizations/`) || !strings.Contains(body, `?next=added`) {
+		t.Fatal("added page's Manage access should link to the organization's access page, returning here")
 	}
 	// The old dead route must be gone.
 	if strings.Contains(body, "/participation") {
@@ -534,7 +520,7 @@ func TestAcceptInvitePost(t *testing.T) {
 	}
 }
 
-// TestCreateInviteWithCommands covers the "Create single-use link" modal: the GET
+// TestCreateInviteWithCommands covers Settings › People › Create link: the GET
 // fragment renders the description + command grid, and the POST persists the chosen
 // initial grant on the invite so AcceptInvite can seed exactly it.
 func TestCreateInviteWithCommands(t *testing.T) {
@@ -543,17 +529,9 @@ func TestCreateInviteWithCommands(t *testing.T) {
 	owner, sess := appLogin(t, ts, st, ctx, h.app, "invmodalowner")
 	rep := newOwnedRepeater(t, st, ctx, owner.ID, "Modal Rep")
 
-	// GET renders the modal fragment (no page chrome) with the description + boxes.
-	frag := readBody(t, do(t, ts, h.app, "/repeaters/"+rep.PublicID+"/share/link/new", sess))
-	if !strings.Contains(frag, `name="description"`) || !strings.Contains(frag, `name="cmd"`) {
-		t.Fatalf("new-invite fragment missing expected fields:\n%s", frag)
-	}
-	// Footer button references the form via form= so the modal body scrolls.
-	if !strings.Contains(frag, `form="new-invite-form"`) {
-		t.Fatal("new-invite footer button should reference the form via form= (scrollable body)")
-	}
-	if strings.Contains(frag, "back-link") {
-		t.Fatal("new-invite fragment should be modal chrome, not a full page")
+	page := readBody(t, do(t, ts, h.app, "/repeaters/"+rep.PublicID+"/settings/people/new", sess))
+	if !strings.Contains(page, `name="description"`) || !strings.Contains(page, `name="cmd"`) || !strings.Contains(page, `data-testid="repeater-settings-nav"`) {
+		t.Fatalf("Create link page missing expected fields:\n%s", page)
 	}
 
 	catalog, err := st.ListCommands(ctx)

@@ -154,6 +154,7 @@ func (s *Handlers) pageRepeaterAdded(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Render(w, r, "repeater_added.html", map[string]any{
+		"Next":     "added", // org-access-rows: Manage access comes back here
 		"Repeater": rep,
 		"Orgs":     orgs,
 	})

@@ -13,11 +13,9 @@ import (
 	"github.com/MeshTender/MeshTender/internal/store"
 )
 
-// TestE2EPersonAccessModal drives the People-with-access "Manage access" button:
-// it opens the shared modal (Bootstrap under the strict CSP) and htmx loads the
-// steward toggle + command grid. Confirms the steward switch and grid render and
-// the page runs clean under the CSP.
-func TestE2EPersonAccessModal(t *testing.T) {
+// TestE2EPersonAccessPage follows a person's "Manage access" to their page: the
+// steward switch and command grid render, and the page runs clean under the CSP.
+func TestE2EPersonAccessPage(t *testing.T) {
 	srv := newE2EServer(t)
 	owner, cookie := srv.login(t, "e2eperson")
 	rep, err := srv.store.CreateRepeater(srv.ctx, &store.Repeater{
@@ -48,22 +46,22 @@ func TestE2EPersonAccessModal(t *testing.T) {
 		chromedp.Navigate(shareURL),
 		chromedp.WaitVisible(`[data-testid="manage-person"]`, chromedp.ByQuery),
 		chromedp.Click(`[data-testid="manage-person"]`, chromedp.ByQuery),
-		chromedp.WaitVisible(`#person-modal-content [data-check-scope]`, chromedp.ByQuery),
-		chromedp.Evaluate(`!!document.querySelector('#person-modal-content input[name=steward]')`, &hasSteward),
+		chromedp.WaitVisible(`[data-testid="person-access-form"] [data-check-scope]`, chromedp.ByQuery),
+		chromedp.Evaluate(`!!document.querySelector('[data-testid="person-access-form"] input[name=steward]')`, &hasSteward),
 	); err != nil {
 		t.Fatalf("browser run against %s: %v", shareURL, err)
 	}
 	if !hasSteward {
-		t.Fatal("person-access modal missing the steward switch")
+		t.Fatal("person access page missing the steward switch")
 	}
 	watch.assertClean(t)
 }
 
 // TestE2EStewardSwitchCollapsesCommands: a steward already runs every command, so
-// the per-command grid is moot while the switch is on and the modal collapses it.
-// Browser-only behavior worth pinning — it's a delegated ui.js handler acting on an
-// htmx-swapped fragment, which is exactly the combination that breaks silently
-// (a fragment can't run inline script, and the strict CSP forbids one anyway).
+// the per-command grid is moot while the switch is on and the page hides it.
+// Browser-only behavior worth pinning — a delegated ui.js handler ([data-hide-target])
+// that has to apply on load as well as on change, under a CSP that forbids inline
+// script.
 func TestE2EStewardSwitchCollapsesCommands(t *testing.T) {
 	srv := newE2EServer(t)
 	owner, cookie := srv.login(t, "e2esteward")
@@ -104,12 +102,12 @@ func TestE2EStewardSwitchCollapsesCommands(t *testing.T) {
 		chromedp.Navigate(shareURL),
 		chromedp.WaitVisible(`[data-testid="manage-person"]`, chromedp.ByQuery),
 		chromedp.Click(`[data-testid="manage-person"]`, chromedp.ByQuery),
-		chromedp.WaitVisible(`#person-modal-content input[name=steward]`, chromedp.ByQuery),
+		chromedp.WaitVisible(`[data-testid="person-access-form"] input[name=steward]`, chromedp.ByQuery),
 		chromedp.Evaluate(visible, &shownAsSteward),
 		// Turning steward off reveals the grants that apply instead.
-		chromedp.Click(`#person-modal-content input[name=steward]`, chromedp.ByQuery),
+		chromedp.Click(`[data-testid="person-access-form"] input[name=steward]`, chromedp.ByQuery),
 		chromedp.Evaluate(visible, &shownAfterOff),
-		chromedp.Click(`#person-modal-content input[name=steward]`, chromedp.ByQuery),
+		chromedp.Click(`[data-testid="person-access-form"] input[name=steward]`, chromedp.ByQuery),
 		chromedp.Evaluate(visible, &shownAfterOn),
 	); err != nil {
 		t.Fatalf("browser run against %s: %v", shareURL, err)

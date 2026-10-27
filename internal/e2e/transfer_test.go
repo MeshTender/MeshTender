@@ -12,13 +12,13 @@ import (
 )
 
 // TestE2ETransferOwnership drives the whole handover in a real browser: from the
-// ownership settings, through the htmx-loaded modal and its steward picker, past the
+// ownership settings, through the transfer page and its steward picker, past the
 // window.confirm gate, to the repeater page confirming it took effect.
 //
-// The modal and the confirm gate are the parts Go tests can't reach — Bootstrap
-// and htmx running under the strict CSP, plus ui.js's [data-confirm] — so a
-// template that forgot a hook (or a CSP that blocked the script) would still
-// pass every handler test while being unusable in a browser.
+// The confirm gate is the part Go tests can't reach — ui.js's [data-confirm]
+// under the strict CSP — so a template that forgot the hook (or a CSP that
+// blocked the script) would still pass every handler test while being unusable
+// in a browser.
 func TestE2ETransferOwnership(t *testing.T) {
 	srv := newE2EServer(t)
 	owner, cookie := srv.login(t, "e2exferowner")
@@ -49,10 +49,10 @@ func TestE2ETransferOwnership(t *testing.T) {
 		setSessionCookie(cookie),
 		chromedp.Navigate(shareURL),
 		// The handover has to be reachable from where stewards are managed: the
-		// button opens the shared modal and htmx fills it with the picker.
+		// link opens the transfer page with the picker.
 		chromedp.Click(`[data-testid="transfer-ownership"]`, chromedp.ByQuery),
-		chromedp.WaitVisible(`#transfer-modal-content [data-testid="steward-choice"]`, chromedp.ByQuery),
-		chromedp.Click(`#transfer-modal-content [data-testid="confirm-transfer"]`, chromedp.ByQuery),
+		chromedp.WaitVisible(`[data-testid="steward-choice"]`, chromedp.ByQuery),
+		chromedp.Click(`[data-testid="confirm-transfer"]`, chromedp.ByQuery),
 		waitForLocation(repeaterURL),
 		chromedp.Text(`.alert-success`, &flash, chromedp.ByQuery),
 	); err != nil {
