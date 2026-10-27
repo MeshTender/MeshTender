@@ -39,7 +39,7 @@ func TestSharePageShowsInviteExpiry(t *testing.T) {
 
 	sharePage := func() string {
 		t.Helper()
-		resp := do(t, ts, h.app, "/repeaters/"+rep.PublicID+"/share", cookies...)
+		resp := do(t, ts, h.app, "/repeaters/"+rep.PublicID+"/settings/people", cookies...)
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("share page = %d, want 200", resp.StatusCode)
@@ -58,7 +58,7 @@ func TestSharePageShowsInviteExpiry(t *testing.T) {
 	}
 
 	page := sharePage()
-	if !strings.Contains(page, "expire 7 days") {
+	if !strings.Contains(page, "expires after 7 days") {
 		t.Error("share page doesn't state how long links last")
 	}
 	if !strings.Contains(page, liveToken) {
@@ -85,7 +85,7 @@ func TestSharePageShowsInviteExpiry(t *testing.T) {
 	if strings.Contains(page, liveToken) {
 		t.Error("expired link still offers its token to copy — it can't be redeemed")
 	}
-	if !strings.Contains(page, "can no longer be accepted") {
+	if !strings.Contains(page, "can't be accepted any more") {
 		t.Error("expired link doesn't explain that it's dead")
 	}
 	// The row must still be listed so the owner can tidy it up.

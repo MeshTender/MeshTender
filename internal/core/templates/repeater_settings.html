@@ -1,0 +1,186 @@
+{{/* A repeater's Settings tab (owner only): the rail (repeater-settings-nav) and
+     the chosen section, like the org Settings tab. .Section picks it: "details",
+     "docs", "people", "organizations" or "ownership". */}}
+{{define "title"}}Settings · {{.Repeater.Name}} · MeshTender{{end}}
+{{define "header"}}{{template "repeater-header" .Nav}}{{end}}
+{{define "content"}}
+{{template "repeater-settings-open" .Nav}}
+{{if eq .Section "details"}}{{template "rsettings-details" .}}
+{{else if eq .Section "docs"}}{{template "rsettings-docs" .}}
+{{else if eq .Section "people"}}{{template "rsettings-people" .}}
+{{else if eq .Section "organizations"}}{{template "rsettings-orgs" .}}
+{{else if eq .Section "ownership"}}{{template "rsettings-ownership" .}}
+{{end}}
+{{template "repeater-settings-close"}}
+{{end}}
+
+{{/* ======== Details: name, radio, and what's public. ======== */}}
+{{define "rsettings-details"}}
+{{template "settings-heading" (dict "Title" "Details")}}
+<form method="post" action="/repeaters/{{.Repeater.PublicID}}/edit" data-testid="settings-details-form">
+  <div class="mb-3">
+    <label class="form-label" for="name">Name</label>
+    <input type="text" class="form-control" id="name" name="name" value="{{.Repeater.Name}}" maxlength="31" required>
+  </div>
+  <div class="mb-3">
+    <div class="form-label">Public key</div>
+    <code class="pk">{{.Repeater.PublicKeyHex}}</code>
+    <div class="form-text">The repeater's identity on the mesh, so it can't be changed here.</div>
+  </div>
+  {{template "radio-fields" .Radio}}
+
+  {{template "settings-subheading" (dict "Title" "Visibility")}}
+  <label class="form-check form-switch">
+    <input class="form-check-input" type="checkbox" name="show_on_public_org" value="1"{{if .Repeater.ShowOnPublicOrg}} checked{{end}}>
+    <span class="form-check-label">Show it on your organizations' public maps</span>
+  </label>
+  <label class="form-check form-switch">
+    <input class="form-check-input" type="checkbox" name="expose_public_page" value="1"{{if .Repeater.ExposePublicPage}} checked{{end}}>
+    <span class="form-check-label">Publish a public page with its docs, stewards and location</span>
+  </label>
+
+  <div class="mt-4">
+    <button type="submit" class="btn btn-primary">Save details</button>
+  </div>
+</form>
+<script src="{{ asset "/static/radio-preset.js" }}"></script>
+{{end}}
+
+{{/* ======== Documentation: public docs and internal notes, read on Overview. ======== */}}
+{{define "rsettings-docs"}}
+{{template "settings-heading" (dict "Title" "Documentation")}}
+<form method="post" action="/repeaters/{{.Repeater.PublicID}}/docs" data-testid="settings-docs-form">
+  <div class="mb-4">
+    <label class="form-label" for="doc_public">Public documentation</label>
+    <div class="form-text mt-0 mb-2">What it is and how to service it: hardware, antenna, power, firmware. {{if .Repeater.ExposePublicPage}}It's on the repeater's public page.{{else}}Anyone with access reads it, and it goes on the public page if you publish one.{{end}} Markdown works.</div>
+    <textarea class="form-control font-monospace" id="doc_public" name="doc_public" rows="10" maxlength="20000" placeholder="Hardware, antenna, power and solar, firmware, how to service it…">{{.Repeater.DocPublic}}</textarea>
+  </div>
+  <div class="mb-4">
+    <label class="form-label" for="doc_internal">Internal notes</label>
+    <div class="form-text mt-0 mb-2">Site access: gate codes, lock combinations, who to call. Only you, its stewards and people you share it with can read these; they're never public.</div>
+    <textarea class="form-control font-monospace" id="doc_internal" name="doc_internal" rows="8" maxlength="20000" placeholder="Gate code, lock combination, who to call…">{{.Repeater.DocInternal}}</textarea>
+  </div>
+  <button type="submit" class="btn btn-primary">Save documentation</button>
+</form>
+{{end}}
+
+{{/* ======== People: invite links and who has access. Each action opens an
+     htmx modal (its fragment comes from share_invite_new.html or
+     person_access.html). ======== */}}
+{{define "rsettings-people"}}
+{{template "settings-heading" (dict "Title" "People")}}
+<p class="text-secondary">People you let operate this repeater do it through MeshTender's own identity, so you never hand out a password or key, and you can take access away at any time.</p>
+
+<div class="d-flex align-items-center gap-2 mt-5 mb-1">
+  <h3 class="mb-0">Invite links</h3>
+  <button type="button" class="btn btn-primary ms-auto" data-testid="new-invite"
+          data-bs-toggle="modal" data-bs-target="#invite-modal"
+          hx-get="/repeaters/{{.Repeater.PublicID}}/share/link/new"
+          hx-target="#invite-modal-content" hx-swap="innerHTML">{{template "icon-plus" "me-1"}}Create link</button>
+</div>
+<p class="card-subtitle mt-1 mb-3">A link works once, for one person, and expires after {{.InviteTTLDays}} days. You choose what they can run.</p>
+{{if .Invites}}
+<div class="list-group list-group-flush">
+  {{range .Invites}}
+  <div class="list-group-item px-0" data-testid="invite-row">
+    <div class="d-flex align-items-center gap-2 mb-1">
+      <span class="fw-bold">{{if .Description}}{{.Description}}{{else}}(no label){{end}}</span>
+      {{if .Expired}}<span class="badge bg-red-lt" data-testid="invite-expired">Expired</span>{{else}}<span class="badge bg-orange-lt">Not used yet</span>{{end}}
+      <form method="post" action="/repeaters/{{$.Repeater.PublicID}}/share/link/delete" class="m-0 ms-auto">
+        <input type="hidden" name="invite_id" value="{{.ID}}">
+        <button type="submit" class="btn btn-sm text-danger-emphasis">{{if .Expired}}Remove{{else}}Revoke{{end}}</button>
+      </form>
+    </div>
+    {{if .Expired}}
+    {{/* No copy control for a dead link: a token that can't be redeemed only
+         confuses whoever receives it. */}}
+    <div class="text-secondary small">Expired {{ts .ExpiresAt "datetime"}} and can't be accepted any more. Create a new link instead.</div>
+    {{else}}
+    <div class="input-group input-group-sm">
+      <code class="form-control font-monospace" id="link-{{.ID}}">{{$.BaseURL}}/invite/{{.Token}}</code>
+      <button type="button" class="btn" data-copy-target="#link-{{.ID}}">{{template "icon-copy" ""}}Copy</button>
+    </div>
+    <div class="text-secondary small mt-1">Expires {{ts .ExpiresAt "datetime"}}</div>
+    {{end}}
+  </div>
+  {{end}}
+</div>
+{{else}}
+<p class="text-secondary mb-0">No links waiting to be used.</p>
+{{end}}
+
+{{template "settings-subheading" (dict "Title" "People with access" "Hint" "A steward can run every command, like you, and is listed on the public page as someone who can service it. Everyone else runs only the commands you give them.")}}
+{{if .Shares}}
+<div class="list-group list-group-flush">
+  {{range .Shares}}
+  <div class="list-group-item d-flex align-items-center gap-2 flex-wrap px-0" data-testid="share-person-row">
+    <span class="fw-bold">{{.Name}}</span>
+    <span class="text-secondary">@{{.Username}}</span>
+    {{if .Steward}}<span class="badge bg-blue-lt" title="Can run every command, including risky ones">Steward</span>{{end}}
+    <button type="button" class="btn btn-sm ms-auto" data-bs-toggle="modal" data-bs-target="#person-modal"
+            data-testid="manage-person"
+            hx-get="/repeaters/{{$.Repeater.PublicID}}/share/{{.UserID}}/access"
+            hx-target="#person-modal-content" hx-swap="innerHTML">Manage access</button>
+  </div>
+  {{end}}
+</div>
+{{else}}
+<p class="text-secondary mb-0">No one yet. Send someone an invite link.</p>
+{{end}}
+
+<div class="modal modal-blur fade" id="invite-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content" id="invite-modal-content"></div>
+  </div>
+</div>
+<div class="modal modal-blur fade" id="person-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content" id="person-modal-content"></div>
+  </div>
+</div>
+{{end}}
+
+{{/* ======== Organizations: opt out of one, or limit what it may run here.
+     Manage access opens the htmx modal from share_org_limits.html. ======== */}}
+{{define "rsettings-orgs"}}
+{{template "settings-heading" (dict "Title" "Organizations")}}
+<p class="text-secondary">It's shared with every organization you belong to, so their members can run what that organization allows. Manage access opts it out of one, or limits what that organization can run on this repeater.</p>
+{{if .Orgs}}
+{{template "org-access-rows" .}}
+{{else}}
+<p class="text-secondary mb-0">Join an organization to share this repeater with it.</p>
+{{end}}
+{{template "limits-modal-shell" .}}
+{{end}}
+
+{{/* ======== Ownership: hand it on, or remove it. ======== */}}
+{{define "rsettings-ownership"}}
+{{template "settings-heading" (dict "Title" "Transfer or delete")}}
+<div class="card mb-3" style="max-width:40rem">
+  <div class="card-body d-flex flex-wrap align-items-center gap-3">
+    <div class="flex-fill">
+      <div class="fw-bold">Transfer ownership</div>
+      <div class="text-secondary small">Hand it to one of its stewards. Its documentation, history and public page go with it, and you stay on as a steward.</div>
+    </div>
+    <button type="button" class="btn" data-testid="transfer-ownership"
+            data-bs-toggle="modal" data-bs-target="#transfer-modal"
+            hx-get="/repeaters/{{.Repeater.PublicID}}/transfer"
+            hx-target="#transfer-modal-content" hx-swap="innerHTML">Transfer</button>
+  </div>
+</div>
+<div class="card border-danger" style="max-width:40rem" data-testid="danger-zone">
+  <div class="card-body d-flex flex-wrap align-items-center gap-3">
+    <div class="flex-fill">
+      <div class="fw-bold">Delete this repeater</div>
+      <div class="text-secondary small">Removes it from MeshTender with its sharing, documentation and history. It stays on the air, still trusting MeshTender until you revoke that on the device.</div>
+    </div>
+    <a class="btn btn-outline-danger" href="/repeaters/{{.Repeater.PublicID}}/delete" data-testid="delete-repeater">Delete…</a>
+  </div>
+</div>
+{{template "revokedoc" .RevokeCommand}}
+<div class="modal modal-blur fade" id="transfer-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" role="document">
+    <div class="modal-content" id="transfer-modal-content"></div>
+  </div>
+</div>
+{{end}}

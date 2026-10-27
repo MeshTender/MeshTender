@@ -31,41 +31,23 @@ func (s *Handlers) renderInviteInvalid(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// pageShare renders the sharing page for a repeater the user owns: the current
-// share link (if any) and the list of people who have accepted.
-func (s *Handlers) pageShare(w http.ResponseWriter, r *http.Request) {
-	rep, id, ok := s.requireRepeaterOwned(w, r)
-	if !ok {
-		return
-	}
+// peopleData loads the Settings › People section into data: the pending invite
+// links and the people who accepted.
+func (s *Handlers) peopleData(r *http.Request, id int64, data map[string]any) error {
 	shares, err := s.Store.ListShares(r.Context(), id)
 	if err != nil {
-		s.ServerError(w, r, "could not load shares", err)
-		return
+		return err
 	}
 	invites, err := s.Store.ListInvites(r.Context(), id)
 	if err != nil {
-		s.ServerError(w, r, "could not load links", err)
-		return
+		return err
 	}
-	// Organizations section: every org the owner belongs to, with whether this
-	// repeater participates (the default) or has been opted out.
-	orgs, err := s.Store.ListRepeaterOrgMemberships(r.Context(), id)
-	if err != nil {
-		s.ServerError(w, r, "could not load organizations", err)
-		return
-	}
-	s.Render(w, r, "share.html", map[string]any{
-		"Repeater": rep,
-		"Nav":      web.RepeaterNav(rep.PublicID, rep.Name, rep.OwnerName(), true, "sharing"),
-		"Shares":   shares,
-		"Invites":  invites,
-		"Orgs":     orgs,
-		"BaseURL":  s.absoluteURL(r, ""),
-		// Stated in the copy so an owner knows a link is time-boxed before handing it
-		// out. Derived from the store's TTL so the two can't disagree.
-		"InviteTTLDays": inviteTTLDays,
-	})
+	data["Shares"], data["Invites"] = shares, invites
+	data["BaseURL"] = s.absoluteURL(r, "")
+	// Stated in the copy so an owner knows a link is time-boxed before handing it
+	// out. Derived from the store's TTL so the two can't disagree.
+	data["InviteTTLDays"] = inviteTTLDays
+	return nil
 }
 
 // pageNewInvite renders the "create single-use link" modal fragment: a
@@ -397,7 +379,7 @@ func (s *Handlers) repeaterID(r *http.Request) (int64, bool) {
 // redirect URLs without a round-trip to the store.
 func repeaterParam(r *http.Request) string { return chi.URLParam(r, "id") }
 
-func sharePath(publicID string) string { return "/repeaters/" + publicID + "/share" }
+func sharePath(publicID string) string { return settingsPath(publicID, settingsPeople) }
 
 func shareErr(w http.ResponseWriter, r *http.Request, msg string) {
 	web.RedirectErr(w, r, sharePath(repeaterParam(r)), msg)

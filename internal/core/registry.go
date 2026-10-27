@@ -9,8 +9,9 @@ import (
 	"github.com/MeshTender/MeshTender/internal/web"
 )
 
-// This file backs the repeater "registry" tabs: site Documentation (public and
-// internal) and Maintenance history. Documentation is owner-edited; maintenance
+// This file backs a repeater's site Documentation (public and internal, read on
+// the Overview and edited in Settings) and its Maintenance tab. Documentation is
+// owner-edited; maintenance
 // entries can be logged by anyone with access (co-stewards), but only the owner
 // can delete them.
 
@@ -19,22 +20,6 @@ const (
 	maxMaintNoteLen   = 2000
 	maxMaintAuthorLen = 120
 )
-
-// pageRepeaterDocs renders the Documentation tab. Anyone with access reads it;
-// the owner gets edit forms. The internal section is only shown to people with
-// access (which everyone reaching this page has) — never on the public page.
-func (s *Handlers) pageRepeaterDocs(w http.ResponseWriter, r *http.Request) {
-	rep, _, ok := s.requireRepeaterAccess(w, r)
-	if !ok {
-		return
-	}
-	isOwner := !rep.Shared
-	s.Render(w, r, "repeater_docs.html", map[string]any{
-		"Repeater": rep,
-		"Nav":      web.RepeaterNav(rep.PublicID, rep.Name, rep.OwnerName(), isOwner, "docs"),
-		"IsOwner":  isOwner,
-	})
-}
 
 // handleRepeaterDocs saves the public and internal documentation (owner only).
 func (s *Handlers) handleRepeaterDocs(w http.ResponseWriter, r *http.Request) {
@@ -48,7 +33,7 @@ func (s *Handlers) handleRepeaterDocs(w http.ResponseWriter, r *http.Request) {
 		web.RedirectErr(w, r, docsPath(repeaterParam(r)), "Could not save documentation.")
 		return
 	}
-	http.Redirect(w, r, docsPath(repeaterParam(r)), http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
+	web.RedirectOK(w, r, docsPath(repeaterParam(r)), "Documentation saved.")
 }
 
 // pageRepeaterMaintenance renders the Maintenance tab: the history plus, for
@@ -130,5 +115,5 @@ func (s *Handlers) handleDeleteMaintenance(w http.ResponseWriter, r *http.Reques
 	http.Redirect(w, r, maintPath(repeaterParam(r)), http.StatusSeeOther) //nolint:gosec // G710: local path or config-pinned origin
 }
 
-func docsPath(publicID string) string  { return "/repeaters/" + publicID + "/docs" }
+func docsPath(publicID string) string  { return settingsPath(publicID, settingsDocs) }
 func maintPath(publicID string) string { return "/repeaters/" + publicID + "/maintenance" }

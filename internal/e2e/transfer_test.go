@@ -12,7 +12,7 @@ import (
 )
 
 // TestE2ETransferOwnership drives the whole handover in a real browser: from the
-// sharing page, through the htmx-loaded modal and its steward picker, past the
+// ownership settings, through the htmx-loaded modal and its steward picker, past the
 // window.confirm gate, to the repeater page confirming it took effect.
 //
 // The modal and the confirm gate are the parts Go tests can't reach — Bootstrap
@@ -39,7 +39,7 @@ func TestE2ETransferOwnership(t *testing.T) {
 	defer cancel()
 	acceptDialogs(bctx)
 
-	shareURL := srv.appURL + "/repeaters/" + rep.PublicID + "/share"
+	shareURL := srv.appURL + "/repeaters/" + rep.PublicID + "/settings/ownership"
 	repeaterURL := srv.appURL + "/repeaters/" + rep.PublicID
 	var flash string
 	if err := chromedp.Run(bctx,

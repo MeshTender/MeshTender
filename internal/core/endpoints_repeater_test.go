@@ -124,12 +124,12 @@ func TestRepeaterCrudPosts(t *testing.T) {
 		"name": {"Edited"}, "radio_freq_mhz": {"869.525"}, "radio_bw_khz": {"250"}, "radio_sf": {"11"}, "radio_cr": {"5"},
 	}, sess)
 	edit.Body.Close()
-	assertRedirect(t, edit, "/", "edit repeater")
+	assertRedirect(t, edit, "/repeaters/"+pid+"/settings", "edit repeater")
 
 	docs := post(t, ts, h.app, "/repeaters/"+pid+"/docs",
 		url.Values{"doc_public": {"public notes"}, "doc_internal": {"internal notes"}}, sess)
 	docs.Body.Close()
-	assertRedirect(t, docs, "/repeaters/"+pid+"/docs", "save docs")
+	assertRedirect(t, docs, "/repeaters/"+pid+"/settings/docs", "save docs")
 
 	maint := post(t, ts, h.app, "/repeaters/"+pid+"/maintenance", url.Values{"note": {"swapped antenna"}}, sess)
 	maint.Body.Close()
@@ -205,9 +205,10 @@ func TestRepeaterSharePosts(t *testing.T) {
 	owner, sess := appLogin(t, ts, st, ctx, h.app, "shareowner")
 	rep := newOwnedRepeater(t, st, ctx, owner.ID, "Shared Rep")
 	pid := rep.PublicID
-	share := "/repeaters/" + pid + "/share"
+	share := "/repeaters/" + pid + "/settings/people" // where every action lands
+	actions := "/repeaters/" + pid + "/share"         // where they post
 
-	link := post(t, ts, h.app, share+"/link", url.Values{"description": {"friends"}}, sess)
+	link := post(t, ts, h.app, actions+"/link", url.Values{"description": {"friends"}}, sess)
 	link.Body.Close()
 	assertRedirect(t, link, share, "create share link")
 
@@ -215,7 +216,7 @@ func TestRepeaterSharePosts(t *testing.T) {
 	if err != nil || len(invites) == 0 {
 		t.Fatalf("list invites: %v (n=%d)", err, len(invites))
 	}
-	dl := post(t, ts, h.app, share+"/link/delete", url.Values{"invite_id": {strconv.FormatInt(invites[0].ID, 10)}}, sess)
+	dl := post(t, ts, h.app, actions+"/link/delete", url.Values{"invite_id": {strconv.FormatInt(invites[0].ID, 10)}}, sess)
 	dl.Body.Close()
 	assertRedirect(t, dl, share, "delete share link")
 
@@ -230,7 +231,7 @@ func TestRepeaterSharePosts(t *testing.T) {
 	tid := strconv.FormatInt(target.ID, 10)
 
 	// "Manage access" save: steward + command grants in one POST.
-	acc := post(t, ts, h.app, share+"/"+tid+"/access", url.Values{"steward": {"1"}}, sess)
+	acc := post(t, ts, h.app, actions+"/"+tid+"/access", url.Values{"steward": {"1"}}, sess)
 	acc.Body.Close()
 	assertRedirect(t, acc, share, "save person access")
 	if steward, _ := st.IsSteward(ctx, rep.ID, target.ID); !steward {
@@ -263,16 +264,18 @@ func TestSharePageRenders(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	resp := do(t, ts, h.app, "/repeaters/"+rep.PublicID+"/share", sess)
+	resp := do(t, ts, h.app, "/repeaters/"+rep.PublicID+"/settings/people", sess)
 	body := readBody(t, resp)
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("share page status = %d, want 200:\n%s", resp.StatusCode, body)
-	}
-	if !strings.Contains(body, `data-testid="manage-access"`) {
-		t.Fatal("share page missing the org Manage access button")
+		t.Fatalf("people settings status = %d, want 200:\n%s", resp.StatusCode, body)
 	}
 	if !strings.Contains(body, `data-testid="manage-person"`) {
-		t.Fatal("share page missing the person Manage access button")
+		t.Fatal("people settings missing the person Manage access button")
+	}
+	resp = do(t, ts, h.app, "/repeaters/"+rep.PublicID+"/settings/organizations", sess)
+	body = readBody(t, resp)
+	if resp.StatusCode != http.StatusOK || !strings.Contains(body, `data-testid="manage-access"`) {
+		t.Fatalf("organizations settings = %d, missing the org Manage access button", resp.StatusCode)
 	}
 }
 
@@ -335,7 +338,7 @@ func TestPersonAccessModal(t *testing.T) {
 	grant := catalog[0].ID
 	save := post(t, ts, h.app, base, url.Values{"cmd": {strconv.FormatInt(grant, 10)}}, sess)
 	save.Body.Close()
-	assertRedirect(t, save, "/repeaters/"+rep.PublicID+"/share", "save person access")
+	assertRedirect(t, save, "/repeaters/"+rep.PublicID+"/settings/people", "save person access")
 	if steward, _ := st.IsSteward(ctx, rep.ID, target.ID); steward {
 		t.Fatal("saving without the steward flag left them a steward")
 	}
@@ -426,7 +429,7 @@ func TestRepeaterOrgLimitsPosts(t *testing.T) {
 	// Save restricts to exactly the first ceiling command, with the Shared switch on.
 	save := post(t, ts, h.app, base, url.Values{"include": {"1"}, "cmd": {strconv.FormatInt(ceiling[0], 10)}}, sess)
 	save.Body.Close()
-	assertRedirect(t, save, "/repeaters/"+rep.PublicID+"/share", "save limits")
+	assertRedirect(t, save, "/repeaters/"+rep.PublicID+"/settings/organizations", "save limits")
 	if got := optIn(); len(got) != 1 || got[0] != ceiling[0] {
 		t.Fatalf("opt-in = %v, want [%d]", got, ceiling[0])
 	}
@@ -441,7 +444,7 @@ func TestRepeaterOrgLimitsPosts(t *testing.T) {
 	}
 	fullResp := post(t, ts, h.app, base, full, sess)
 	fullResp.Body.Close()
-	assertRedirect(t, fullResp, "/repeaters/"+rep.PublicID+"/share", "save full ceiling")
+	assertRedirect(t, fullResp, "/repeaters/"+rep.PublicID+"/settings/organizations", "save full ceiling")
 	if got := optIn(); len(got) != 0 {
 		t.Fatalf("full selection should store nothing (permissive), got %v", got)
 	}
@@ -450,7 +453,7 @@ func TestRepeaterOrgLimitsPosts(t *testing.T) {
 	post(t, ts, h.app, base, url.Values{"include": {"1"}, "cmd": {strconv.FormatInt(ceiling[0], 10)}}, sess).Body.Close()
 	clr := post(t, ts, h.app, base, url.Values{"include": {"1"}, "clear": {"1"}}, sess)
 	clr.Body.Close()
-	assertRedirect(t, clr, "/repeaters/"+rep.PublicID+"/share", "clear limits")
+	assertRedirect(t, clr, "/repeaters/"+rep.PublicID+"/settings/organizations", "clear limits")
 	if got := optIn(); len(got) != 0 {
 		t.Fatalf("clear should remove all rows, got %v", got)
 	}
@@ -458,13 +461,13 @@ func TestRepeaterOrgLimitsPosts(t *testing.T) {
 	// The Shared switch drives participation: saving with it off opts out; on opts in.
 	off := post(t, ts, h.app, base, url.Values{}, sess) // switch off (no include field)
 	off.Body.Close()
-	assertRedirect(t, off, "/repeaters/"+rep.PublicID+"/share", "save opted out")
+	assertRedirect(t, off, "/repeaters/"+rep.PublicID+"/settings/organizations", "save opted out")
 	if !excluded() {
 		t.Fatal("saving with the Shared switch off did not opt the repeater out")
 	}
 	on := post(t, ts, h.app, base, url.Values{"include": {"1"}}, sess)
 	on.Body.Close()
-	assertRedirect(t, on, "/repeaters/"+rep.PublicID+"/share", "save opted in")
+	assertRedirect(t, on, "/repeaters/"+rep.PublicID+"/settings/organizations", "save opted in")
 	if excluded() {
 		t.Fatal("saving with the Shared switch on did not re-include the repeater")
 	}
@@ -559,8 +562,8 @@ func TestCreateInviteWithCommands(t *testing.T) {
 	}
 	grant := catalog[0].ID
 
-	share := "/repeaters/" + rep.PublicID + "/share"
-	create := post(t, ts, h.app, share+"/link",
+	share := "/repeaters/" + rep.PublicID + "/settings/people"
+	create := post(t, ts, h.app, "/repeaters/"+rep.PublicID+"/share/link",
 		url.Values{"description": {"for Bob"}, "cmd": {strconv.FormatInt(grant, 10)}}, sess)
 	create.Body.Close()
 	assertRedirect(t, create, share, "create invite with commands")

@@ -39,7 +39,7 @@ func TestE2EPersonAccessModal(t *testing.T) {
 	bctx, cancel, watch := startBrowser(t)
 	defer cancel()
 
-	shareURL := srv.appURL + "/repeaters/" + rep.PublicID + "/share"
+	shareURL := srv.appURL + "/repeaters/" + rep.PublicID + "/settings/people"
 	var hasSteward bool
 	if err := chromedp.Run(bctx,
 		network.Enable(),
@@ -95,7 +95,7 @@ func TestE2EStewardSwitchCollapsesCommands(t *testing.T) {
 	  return !!el && !el.hidden;
 	})()`
 
-	shareURL := srv.appURL + "/repeaters/" + rep.PublicID + "/share"
+	shareURL := srv.appURL + "/repeaters/" + rep.PublicID + "/settings/people"
 	var shownAsSteward, shownAfterOff, shownAfterOn bool
 	if err := chromedp.Run(bctx,
 		network.Enable(),

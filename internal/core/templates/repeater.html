@@ -34,11 +34,34 @@
       </div>
     </div>
 
+    {{/* Documentation: public docs and internal notes, as Bootstrap tabs (data
+    attributes only, so CSP-safe). Edited in Settings › Documentation. */}}
+    <div class="card mt-3" data-testid="repeater-docs">
+      <div class="card-header">
+        <ul class="nav nav-tabs card-header-tabs" role="tablist">
+          <li class="nav-item" role="presentation"><a class="nav-link active" href="#doc-public" data-bs-toggle="tab" role="tab" aria-controls="doc-public" aria-selected="true">Documentation</a></li>
+          <li class="nav-item" role="presentation"><a class="nav-link" href="#doc-internal" data-bs-toggle="tab" role="tab" aria-controls="doc-internal" aria-selected="false" data-testid="doc-internal-tab">Internal notes</a></li>
+        </ul>
+        {{if .IsOwner}}<div class="card-actions"><a class="btn btn-sm" href="/repeaters/{{.Repeater.PublicID}}/settings/docs" data-testid="edit-docs">{{template "icon-pencil" "me-1"}}Edit</a></div>{{end}}
+      </div>
+      <div class="card-body tab-content">
+        <div class="tab-pane active show" id="doc-public" role="tabpanel">
+          {{if .Repeater.DocPublic}}<div class="markdown">{{markdown .Repeater.DocPublic}}</div>
+          {{else}}<p class="text-secondary mb-0">No documentation yet.{{if .IsOwner}} Note its hardware, antenna, power and how to service it in <a href="/repeaters/{{.Repeater.PublicID}}/settings/docs">Settings</a>.{{end}}</p>{{end}}
+        </div>
+        <div class="tab-pane" id="doc-internal" role="tabpanel">
+          <p class="small text-secondary">Only people with access to this repeater see these. They're never public.</p>
+          {{if .Repeater.DocInternal}}<div class="markdown">{{markdown .Repeater.DocInternal}}</div>
+          {{else}}<p class="text-secondary mb-0">No internal notes yet.{{if .IsOwner}} Keep gate codes and who to call in <a href="/repeaters/{{.Repeater.PublicID}}/settings/docs">Settings</a>.{{end}}</p>{{end}}
+        </div>
+      </div>
+    </div>
+
     {{if .IsOwner}}
     <div class="card mt-3">
       <div class="card-header">
         <div><h2 class="card-title">Organizations</h2><div class="card-subtitle">Their recommended configuration is on the <a href="/repeaters/{{.Repeater.PublicID}}/config">Configuration</a> tab.</div></div>
-        <div class="card-actions"><a href="/repeaters/{{.Repeater.PublicID}}/share" class="btn btn-sm">Manage sharing</a></div>
+        <div class="card-actions"><a href="/repeaters/{{.Repeater.PublicID}}/settings/organizations" class="btn btn-sm">Manage</a></div>
       </div>
       {{if .Orgs}}
       <div class="list-group list-group-flush">
@@ -52,7 +75,7 @@
         {{end}}
       </div>
       {{else}}
-      {{template "empty-state" (dict "Compact" true "Title" "Not shared with any organization" "Line" "Repeaters are shared with the organizations you join; you can opt one out on its Sharing tab.")}}
+      {{template "empty-state" (dict "Compact" true "Title" "Not shared with any organization" "Line" "Repeaters are shared with the organizations you join; you can opt one out in Settings › Organizations.")}}
       {{end}}
     </div>
 
@@ -102,7 +125,7 @@
         </div>
         {{end}}
         {{else if not .Repeater.ExposePublicPage}}
-        <p class="text-secondary small mb-0">{{template "icon-world" "me-1"}}No public page. Enable one in <a href="/repeaters/{{.Repeater.PublicID}}/edit">Edit details</a> to get a link and QR code.</p>
+        <p class="text-secondary small mb-0">{{template "icon-world" "me-1"}}No public page. Turn it on in <a href="/repeaters/{{.Repeater.PublicID}}/settings">Settings</a> to get a link and QR code.</p>
         {{end}}
       </div>
     </div>

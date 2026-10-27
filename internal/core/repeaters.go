@@ -247,19 +247,6 @@ func parseRadioForm(r *http.Request) (freq, bw int64, sf, cr int16, ok bool) {
 	return int64(rd.FreqHz), int64(rd.BwHz), int16(rd.SF), int16(rd.CR), ok
 }
 
-// pageEditRepeater shows the edit form for an owned repeater.
-func (s *Handlers) pageEditRepeater(w http.ResponseWriter, r *http.Request) {
-	rep, _, ok := s.requireRepeaterOwned(w, r)
-	if !ok {
-		return
-	}
-	s.Render(w, r, "edit_repeater.html", map[string]any{
-		"Repeater":      rep,
-		"Radio":         newRadioFields(config.RadioDefaults{FreqHz: uint32(rep.RadioFreqHz), BwHz: uint32(rep.RadioBwHz), SF: uint8(rep.RadioSF), CR: uint8(rep.RadioCR)}, true), //nolint:gosec // G115: radio config value is bounded (preset-constrained)
-		"RevokeCommand": s.Identity.RevokePermCommand(),
-	})
-}
-
 // handleEditRepeater saves changes to an owned repeater's settings.
 func (s *Handlers) handleEditRepeater(w http.ResponseWriter, r *http.Request) {
 	uid := s.Auth.CurrentUserID(r.Context())
@@ -269,7 +256,7 @@ func (s *Handlers) handleEditRepeater(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	editErr := func(msg string) {
-		web.RedirectErr(w, r, "/repeaters/"+repeaterParam(r)+"/edit", msg)
+		web.RedirectErr(w, r, settingsPath(repeaterParam(r), settingsDetails), msg)
 	}
 	name, ok := cleanRepeaterName(r.FormValue("name"))
 	if !ok {
@@ -287,7 +274,7 @@ func (s *Handlers) handleEditRepeater(w http.ResponseWriter, r *http.Request) {
 		editErr("Could not save changes.")
 		return
 	}
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	web.RedirectOK(w, r, settingsPath(repeaterParam(r), settingsDetails), "Details saved.")
 }
 
 // pageDeleteRepeater shows a confirmation page before deleting, reminding the

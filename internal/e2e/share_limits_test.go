@@ -13,7 +13,7 @@ import (
 	"github.com/MeshTender/MeshTender/internal/store"
 )
 
-// TestE2EShareOrgLimitsModal drives the share page's per-org "Edit limits" modal:
+// TestE2EShareOrgLimitsModal drives Settings › Organizations' per-org "Manage access" modal:
 // the button opens the shared modal (Bootstrap data-bs-toggle under the strict
 // CSP) and htmx loads the command-grid fragment into it. It then exercises the
 // per-section Select none control — which comes from the delegated ui.js handler,
@@ -40,7 +40,7 @@ func TestE2EShareOrgLimitsModal(t *testing.T) {
 	bctx, cancel, watch := startBrowser(t)
 	defer cancel()
 
-	shareURL := srv.appURL + "/repeaters/" + rep.PublicID + "/share"
+	shareURL := srv.appURL + "/repeaters/" + rep.PublicID + "/settings/organizations"
 
 	// Count checkboxes per section and how many are checked, scoped to the modal.
 	const countChecked = `(function () {

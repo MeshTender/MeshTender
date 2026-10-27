@@ -14,7 +14,7 @@ import (
 )
 
 // TestE2EWizardManageAccessModal verifies the add-repeater wizard's final step
-// hosts the same "Manage access" modal as the share page: the button opens the
+// hosts the same "Manage access" modal as Settings › Organizations: the button opens the
 // shared modal (Bootstrap under the strict CSP) and htmx loads the org-limits
 // fragment into it. Guards the fix for the wizard's old dead-route opt-out button.
 func TestE2EWizardManageAccessModal(t *testing.T) {

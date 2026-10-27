@@ -13,7 +13,7 @@ import (
 	"github.com/MeshTender/MeshTender/internal/store"
 )
 
-// TestE2ECreateInviteModal drives the share page's "Create single-use link"
+// TestE2ECreateInviteModal drives Settings › People's "Create link"
 // button: it opens the shared modal (Bootstrap data-bs-toggle under the strict
 // CSP) and htmx loads the description field + command grid into it. Asserts the
 // fragment renders and the page runs clean under the CSP.
@@ -32,7 +32,7 @@ func TestE2ECreateInviteModal(t *testing.T) {
 	bctx, cancel, watch := startBrowser(t)
 	defer cancel()
 
-	shareURL := srv.appURL + "/repeaters/" + rep.PublicID + "/share"
+	shareURL := srv.appURL + "/repeaters/" + rep.PublicID + "/settings/people"
 
 	var hasDescription, boxes bool
 	if err := chromedp.Run(bctx,

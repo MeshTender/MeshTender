@@ -118,7 +118,7 @@ func TestPageHeadingOutlines(t *testing.T) {
 		{"app dashboard", h.app, "/", false},
 		{"app repeater list", h.app, "/repeaters", false},
 		{"app repeater overview", h.app, "/repeaters/" + rep.PublicID, false},
-		{"app repeater sharing", h.app, "/repeaters/" + rep.PublicID + "/share", false},
+		{"app repeater sharing", h.app, "/repeaters/" + rep.PublicID + "/settings/people", false},
 		{"app my orgs", h.app, "/orgs", false},
 		{"app org member view", h.app, "/orgs/" + org.Slug, false},
 		{"app 404 (error page)", h.app, "/no-such-page", false},

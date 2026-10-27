@@ -215,23 +215,23 @@ func TestTransferRepeaterPostRejections(t *testing.T) {
 	}
 }
 
-// TestSharePageOpensTransferModal: the sharing page is where an owner manages
-// stewards, so it must be the way they find the handover — via the modal shell
-// and the htmx trigger that fills it.
-func TestSharePageOpensTransferModal(t *testing.T) {
+// TestOwnershipSettingsOpensTransferModal: Settings › Transfer or delete is
+// where an owner finds the handover — via the modal shell and the htmx trigger
+// that fills it.
+func TestOwnershipSettingsOpensTransferModal(t *testing.T) {
 	t.Parallel()
 	st, ctx, ts, h := splitServer(t)
 	owner, sess := appLogin(t, ts, st, ctx, h.app, "linkowner")
 	rep := newOwnedRepeater(t, st, ctx, owner.ID, "Linked Rep")
 
-	resp := do(t, ts, h.app, "/repeaters/"+rep.PublicID+"/share", sess)
+	resp := do(t, ts, h.app, "/repeaters/"+rep.PublicID+"/settings/ownership", sess)
 	defer resp.Body.Close()
 	raw, _ := io.ReadAll(resp.Body)
 	page := string(raw)
 	if !strings.Contains(page, `hx-get="/repeaters/`+rep.PublicID+`/transfer"`) {
-		t.Fatal("share page has no htmx trigger to load the transfer modal")
+		t.Fatal("ownership settings have no htmx trigger to load the transfer modal")
 	}
 	if !strings.Contains(page, `id="transfer-modal-content"`) {
-		t.Fatal("share page has no modal shell for the transfer fragment to swap into")
+		t.Fatal("ownership settings have no modal shell for the transfer fragment to swap into")
 	}
 }

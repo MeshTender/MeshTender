@@ -14,7 +14,7 @@ import (
 	"github.com/MeshTender/MeshTender/internal/store"
 )
 
-// TestE2EInviteExpiryBadges renders the share page with one live and one expired
+// TestE2EInviteExpiryBadges renders Settings › People with one live and one expired
 // share link and checks what an owner actually sees: the live link keeps its copy
 // control, the expired one is badged and loses it, and the page runs clean under the
 // CSP.
@@ -56,7 +56,7 @@ func TestE2EInviteExpiryBadges(t *testing.T) {
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(srv.appURL+"/repeaters/"+rep.PublicID+"/share"),
+		chromedp.Navigate(srv.appURL+"/repeaters/"+rep.PublicID+"/settings/people"),
 		chromedp.WaitVisible(`[data-testid="invite-row"]`, chromedp.ByQuery),
 		chromedp.Evaluate(`document.querySelectorAll('[data-testid="invite-row"]').length`, &rows),
 		chromedp.Evaluate(`document.querySelectorAll('[data-testid="invite-expired"]').length`, &expiredBadges),
@@ -64,7 +64,7 @@ func TestE2EInviteExpiryBadges(t *testing.T) {
 		chromedp.Evaluate(`document.body.innerText.includes(`+jsString(staleToken)+`)`, &showsStaleToken),
 		chromedp.FullScreenshot(&shot, 80),
 	); err != nil {
-		t.Fatalf("share page: %v", err)
+		t.Fatalf("people settings: %v", err)
 	}
 	watch.assertClean(t)
 

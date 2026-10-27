@@ -126,7 +126,7 @@ func (s *Handlers) handleSaveRepeaterOrgLimits(w http.ResponseWriter, r *http.Re
 		s.ServerError(w, r, "could not save limits", err)
 		return
 	}
-	http.Redirect(w, r, sharePath(rep.PublicID), http.StatusSeeOther)
+	http.Redirect(w, r, settingsPath(rep.PublicID, settingsOrgs), http.StatusSeeOther)
 }
 
 // orgCeilingCommands returns the catalog commands an org is ever permitted to run

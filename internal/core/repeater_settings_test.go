@@ -1,0 +1,102 @@
+package core
+
+import (
+	"net/http"
+	"strings"
+	"testing"
+)
+
+// TestRepeaterSettingsTab: the Settings tab is the owner's — every section
+// renders for them with the rail, the tab shows on their pages only, and someone
+// it's shared with gets a 404 and no tab. The pages it replaced redirect to their
+// sections.
+func TestRepeaterSettingsTab(t *testing.T) {
+	t.Parallel()
+	st, ctx, ts, h := splitServer(t)
+	owner, ownerSess := appLogin(t, ts, st, ctx, h.app, "rset-owner")
+	rep := newOwnedRepeater(t, st, ctx, owner.ID, "Hilltop")
+	base := "/repeaters/" + rep.PublicID
+
+	for path, marker := range map[string]string{
+		base + "/settings":               `data-testid="settings-details-form"`,
+		base + "/settings/docs":          `data-testid="settings-docs-form"`,
+		base + "/settings/people":        `data-testid="new-invite"`,
+		base + "/settings/organizations": `data-testid="repeater-settings-organizations"`,
+		base + "/settings/ownership":     `data-testid="danger-zone"`,
+	} {
+		resp := do(t, ts, h.app, path, ownerSess)
+		page := readBody(t, resp)
+		if resp.StatusCode != http.StatusOK || !strings.Contains(page, marker) || !strings.Contains(page, `data-testid="repeater-settings-nav"`) {
+			t.Errorf("GET %s = %d; want 200 with the rail and %s", path, resp.StatusCode, marker)
+		}
+	}
+	if resp := do(t, ts, h.app, base+"/settings/nope", ownerSess); resp.StatusCode != http.StatusNotFound {
+		resp.Body.Close()
+		t.Errorf("unknown section = %d, want 404", resp.StatusCode)
+	} else {
+		resp.Body.Close()
+	}
+
+	for old, want := range map[string]string{
+		base + "/edit":  base + "/settings",
+		base + "/docs":  base + "/settings/docs",
+		base + "/share": base + "/settings/people",
+	} {
+		resp := do(t, ts, h.app, old, ownerSess)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusMovedPermanently || resp.Header.Get("Location") != want {
+			t.Errorf("GET %s = %d → %q, want 301 → %s", old, resp.StatusCode, resp.Header.Get("Location"), want)
+		}
+	}
+
+	if page := readBody(t, do(t, ts, h.app, base, ownerSess)); !strings.Contains(page, `data-testid="repeater-tab-settings"`) {
+		t.Error("the owner's Overview has no Settings tab")
+	}
+
+	guest, guestSess := appLogin(t, ts, st, ctx, h.app, "rset-guest")
+	if _, err := st.AddShare(ctx, rep.ID, guest.ID); err != nil {
+		t.Fatal(err)
+	}
+	if page := readBody(t, do(t, ts, h.app, base, guestSess)); strings.Contains(page, `data-testid="repeater-tab-settings"`) {
+		t.Error("someone it's shared with sees the Settings tab")
+	}
+	if resp := do(t, ts, h.app, base+"/settings/people", guestSess); resp.StatusCode != http.StatusNotFound {
+		resp.Body.Close()
+		t.Errorf("shared user GET settings = %d, want 404", resp.StatusCode)
+	} else {
+		resp.Body.Close()
+	}
+}
+
+// TestOverviewShowsDocumentation: the documentation moved from its own tab to
+// the Overview, rendered as Markdown, internal notes included for people with
+// access, with an Edit link for the owner only.
+func TestOverviewShowsDocumentation(t *testing.T) {
+	t.Parallel()
+	st, ctx, ts, h := splitServer(t)
+	owner, ownerSess := appLogin(t, ts, st, ctx, h.app, "rdoc-owner")
+	rep := newOwnedRepeater(t, st, ctx, owner.ID, "Hilltop")
+	if err := st.UpdateRepeaterDocs(ctx, owner.ID, rep.ID, "**Solar** on the roof", "Gate code 1234"); err != nil {
+		t.Fatal(err)
+	}
+	base := "/repeaters/" + rep.PublicID
+
+	page := readBody(t, do(t, ts, h.app, base, ownerSess))
+	for _, want := range []string{"<strong>Solar</strong>", "Gate code 1234", `data-testid="edit-docs"`} {
+		if !strings.Contains(page, want) {
+			t.Errorf("owner's Overview is missing %q", want)
+		}
+	}
+
+	guest, guestSess := appLogin(t, ts, st, ctx, h.app, "rdoc-guest")
+	if _, err := st.AddShare(ctx, rep.ID, guest.ID); err != nil {
+		t.Fatal(err)
+	}
+	page = readBody(t, do(t, ts, h.app, base, guestSess))
+	if !strings.Contains(page, "Gate code 1234") {
+		t.Error("someone with access can't read the internal notes")
+	}
+	if strings.Contains(page, `data-testid="edit-docs"`) {
+		t.Error("someone it's shared with gets the Edit link")
+	}
+}

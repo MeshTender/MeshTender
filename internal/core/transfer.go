@@ -43,7 +43,7 @@ func (s *Handlers) pageTransferRepeater(w http.ResponseWriter, r *http.Request) 
 	}
 	data := map[string]any{
 		"Repeater": rep,
-		"Nav":      web.RepeaterNav(rep.PublicID, rep.Name, rep.OwnerName(), true, "sharing"),
+		"Nav":      web.RepeaterNav(rep.PublicID, rep.Name, rep.OwnerName(), true, "settings-ownership"),
 		"Stewards": stewards,
 	}
 	if r.Header.Get("HX-Request") != "" {

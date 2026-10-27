@@ -1,5 +1,5 @@
 {{/* Transfer ownership, in two presentations over ONE copy of the content: the
-     "transfer-modal" fragment htmx swaps into the share page's #transfer-modal,
+     "transfer-modal" fragment htmx swaps into Settings › Transfer or delete's #transfer-modal,
      and a standalone page for direct links (the delete page offers one) and for
      browsers that never ran the htmx request. The shared blocks below are the
      single source of the copy, so the two can't drift apart.
@@ -87,7 +87,7 @@
   {{if .Stewards}}
   <button type="submit" form="transfer-form" class="btn btn-primary" data-testid="confirm-transfer">Transfer ownership</button>
   {{else}}
-  <a class="btn btn-primary" href="/repeaters/{{.Repeater.PublicID}}/share">Go to sharing</a>
+  <a class="btn btn-primary" href="/repeaters/{{.Repeater.PublicID}}/settings/people">Go to sharing</a>
   {{end}}
 </div>
 {{end}}
@@ -111,7 +111,7 @@
             {{if .Stewards}}
             <button type="submit" class="btn btn-primary" data-testid="confirm-transfer">Transfer ownership</button>
             {{end}}
-            <a class="btn" href="/repeaters/{{.Repeater.PublicID}}/share">
+            <a class="btn" href="/repeaters/{{.Repeater.PublicID}}/settings/{{if .Stewards}}ownership{{else}}people{{end}}">
               {{if .Stewards}}Cancel{{else}}Go to sharing{{end}}
             </a>
           </div>
