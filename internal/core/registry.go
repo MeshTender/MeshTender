@@ -51,7 +51,7 @@ func (s *Handlers) pageRepeaterMaintenance(w http.ResponseWriter, r *http.Reques
 	isOwner := !rep.Shared
 	s.Render(w, r, "repeater_maintenance.html", map[string]any{
 		"Repeater": rep,
-		"Nav":      web.RepeaterNav(rep.PublicID, rep.Name, rep.OwnerName(), isOwner, "maintenance"),
+		"Nav":      web.RepeaterNav(rep, isOwner, "maintenance"),
 		"IsOwner":  isOwner,
 		"Entries":  entries,
 		"Today":    time.Now().Format("2006-01-02"),

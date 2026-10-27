@@ -1,13 +1,21 @@
 {{/* The repeater chrome shared by every repeater page: repeater-header,
 repeater-tabs, and the Settings tab's rail (repeater-settings-nav). Data: the
-RepeaterNav map (PublicID, Name, OwnerName, IsOwner, Active, Tab). Owner-only
+RepeaterNav map (PublicID, Name, OwnerName, Public, IsOwner, Active, Tab). Owner-only
 tab (Settings) only renders for the owner. */}}
+{{/* repeater-header: the repeater's name, and on the right a link to its public
+page when it has one, like org-header. Pass the full page data: it reads .Nav.*
+and the renderer-injected .RootURL. */}}
 {{define "repeater-header"}}
 <div class="row g-2 align-items-center">
   <div class="col">
-    <div class="page-pretitle">Repeater{{if not .IsOwner}} · shared by {{.OwnerName}}{{end}}</div>
-    <h1 class="page-title fs-1">{{.Name}}</h1>
+    <div class="page-pretitle">Repeater{{if not .Nav.IsOwner}} · shared by {{.Nav.OwnerName}}{{end}}</div>
+    <h1 class="page-title fs-1">{{.Nav.Name}}</h1>
   </div>
+  {{if .Nav.Public}}
+  <div class="col-auto ms-auto d-print-none">
+    <a class="btn btn-ghost-secondary" href="{{.RootURL}}/r/{{.Nav.PublicID}}" data-testid="repeater-public-page">{{template "icon-world" "me-1"}}Public page</a>
+  </div>
+  {{end}}
 </div>
 {{end}}
 

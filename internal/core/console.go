@@ -218,7 +218,7 @@ func (s *Handlers) pageConfigure(w http.ResponseWriter, r *http.Request) {
 	}
 	data := map[string]any{
 		"Repeater":         rep,
-		"Nav":              web.RepeaterNav(rep.PublicID, rep.Name, rep.OwnerName(), isOwner, "configure"),
+		"Nav":              web.RepeaterNav(rep, isOwner, "configure"),
 		"IsOwner":          isOwner,
 		"Pane":             pane,
 		"Commands":         allowed,

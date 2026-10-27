@@ -6,7 +6,7 @@ your organization's recommended configuration (console-config.js), and, for
 the owner, the history of what's been sent over the air. .Pane picks the pane
 shown first ("commands" | "configuration" | "history"). */}}
 {{define "title"}}Configure · {{.Repeater.Name}} · MeshTender{{end}}
-{{define "header"}}{{template "repeater-header" .Nav}}{{end}}
+{{define "header"}}{{template "repeater-header" .}}{{end}}
 {{define "content"}}
 {{template "repeater-tabs" .Nav}}
 

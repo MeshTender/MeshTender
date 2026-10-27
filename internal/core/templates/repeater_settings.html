@@ -3,7 +3,7 @@
      "docs", "people", "organizations" or "ownership". .Page shows one of a
      section's own pages instead: "invite-new", "person", "org" or "transfer". */}}
 {{define "title"}}Settings · {{.Repeater.Name}} · MeshTender{{end}}
-{{define "header"}}{{template "repeater-header" .Nav}}{{end}}
+{{define "header"}}{{template "repeater-header" .}}{{end}}
 {{define "content"}}
 {{template "repeater-settings-open" .Nav}}
 {{if eq .Page "invite-new"}}{{template "rsettings-invite-new" .}}
@@ -43,6 +43,23 @@
     <input class="form-check-input" type="checkbox" name="expose_public_page" value="1"{{if .Repeater.ExposePublicPage}} checked{{end}}>
     <span class="form-check-label">Publish a public page with its docs, stewards and location</span>
   </label>
+  {{with .PublicPageURL}}
+  <div class="ms-5 mb-2" data-testid="public-page-link" style="max-width:32rem">
+    <div class="input-group input-group-sm mb-2">
+      <code class="form-control font-monospace" id="public-url">{{.}}</code>
+      <button type="button" class="btn" data-copy-target="#public-url" aria-label="Copy the public page's address">{{template "icon-copy" ""}}</button>
+    </div>
+    {{if $.PublicPageQR}}
+    <button class="btn btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#public-qr" aria-expanded="false" aria-controls="public-qr">{{template "icon-qrcode" "me-1"}}<span class="collapse-show">Show</span><span class="collapse-hide">Hide</span>&nbsp;QR code</button>
+    <div class="collapse" id="public-qr">
+      <div class="mt-3">
+        <img src="{{$.PublicPageQR}}" width="200" height="200" class="img-fluid" style="max-width:200px" alt="QR code for {{$.Repeater.Name}}'s public page">
+        <div class="form-text">Scanning it opens the public page: print it for the site.</div>
+      </div>
+    </div>
+    {{end}}
+  </div>
+  {{end}}
 
   <div class="mt-4">
     <button type="submit" class="btn btn-primary">Save details</button>

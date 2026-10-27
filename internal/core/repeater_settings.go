@@ -55,11 +55,20 @@ func (s *Handlers) pageRepeaterSettings(w http.ResponseWriter, r *http.Request) 
 	}
 	data := map[string]any{
 		"Repeater": rep,
-		"Nav":      web.RepeaterNav(rep.PublicID, rep.Name, rep.OwnerName(), true, "settings-"+section),
+		"Nav":      web.RepeaterNav(rep, true, "settings-"+section),
 		"Section":  section,
 	}
 	switch section {
 	case settingsDetails:
+		// The public page's link and QR code live beside the switch that
+		// publishes it; the header links to the page itself.
+		if rep.ExposePublicPage {
+			publicURL := s.Origin(r, s.rootHost()) + "/r/" + rep.PublicID
+			data["PublicPageURL"] = publicURL
+			if qr, ok := web.QRDataURI(publicURL); ok {
+				data["PublicPageQR"] = qr
+			}
+		}
 		data["Radio"] = newRadioFields(config.RadioDefaults{FreqHz: uint32(rep.RadioFreqHz), BwHz: uint32(rep.RadioBwHz), SF: uint8(rep.RadioSF), CR: uint8(rep.RadioCR)}, true) //nolint:gosec // G115: radio config value is bounded (preset-constrained)
 	case settingsPeople:
 		if err := s.peopleData(r, id, data); err != nil {
@@ -93,7 +102,7 @@ func (s *Handlers) redirectToSettings(section string) http.HandlerFunc {
 // repeater_settings.html; data carries what that page needs.
 func (s *Handlers) renderSettingsPage(w http.ResponseWriter, r *http.Request, rep *store.Repeater, section, page string, data map[string]any) {
 	data["Repeater"] = rep
-	data["Nav"] = web.RepeaterNav(rep.PublicID, rep.Name, rep.OwnerName(), true, "settings-"+section)
+	data["Nav"] = web.RepeaterNav(rep, true, "settings-"+section)
 	data["Section"] = section
 	data["Page"] = page
 	s.Render(w, r, "repeater_settings.html", data)

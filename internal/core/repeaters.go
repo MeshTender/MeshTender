@@ -98,18 +98,9 @@ func (s *Handlers) pageRepeater(w http.ResponseWriter, r *http.Request) {
 	data := map[string]any{
 		"Repeater":   rep,
 		"IsOwner":    isOwner,
-		"Nav":        web.RepeaterNav(rep.PublicID, rep.Name, rep.OwnerName(), isOwner, "overview"),
+		"Nav":        web.RepeaterNav(rep, isOwner, "overview"),
 		"Radio":      radio,
 		"ContactURI": contactURI,
-	}
-	// When the owner has published a public page, surface its link plus a QR code
-	// for it.
-	if isOwner && rep.ExposePublicPage {
-		publicURL := s.Origin(r, s.rootHost()) + "/r/" + rep.PublicID
-		data["PublicPageURL"] = publicURL
-		if qr, ok := web.QRDataURI(publicURL); ok {
-			data["PublicPageQR"] = qr
-		}
 	}
 	// QR code that adds the repeater as a MeshCore contact. Embedded as a data
 	// URI so it needs no extra route or asset; if encoding fails the page just

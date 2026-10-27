@@ -159,3 +159,40 @@ func TestOrgAccessReturnsToWizard(t *testing.T) {
 		assertRedirect(t, resp, want, "save with next="+next)
 	}
 }
+
+// TestRepeaterPublicPageLink: like an organization's header, a repeater's header
+// links to its public page — only once one is published, and for anyone looking —
+// and the page's address and QR code sit in Settings › Details beside the switch
+// that publishes it, not in a card on the Overview.
+func TestRepeaterPublicPageLink(t *testing.T) {
+	t.Parallel()
+	st, ctx, ts, h := splitServer(t)
+	owner, ownerSess := appLogin(t, ts, st, ctx, h.app, "rpub-owner")
+	rep := newOwnedRepeater(t, st, ctx, owner.ID, "Hilltop")
+	base := "/repeaters/" + rep.PublicID
+	const button = `data-testid="repeater-public-page"`
+
+	if page := readBody(t, do(t, ts, h.app, base, ownerSess)); strings.Contains(page, button) {
+		t.Error("the header links to a public page that isn't published")
+	}
+
+	if err := st.UpdateRepeater(ctx, owner.ID, rep.ID, rep.Name, rep.RadioFreqHz, rep.RadioBwHz, rep.RadioSF, rep.RadioCR, false, true); err != nil {
+		t.Fatal(err)
+	}
+	guest, guestSess := appLogin(t, ts, st, ctx, h.app, "rpub-guest")
+	if _, err := st.AddShare(ctx, rep.ID, guest.ID); err != nil {
+		t.Fatal(err)
+	}
+	for who, sess := range map[string]*http.Cookie{"owner": ownerSess, "shared": guestSess} {
+		page := readBody(t, do(t, ts, h.app, base+"/maintenance", sess))
+		if !strings.Contains(page, button) || !strings.Contains(page, "/r/"+rep.PublicID+`"`) {
+			t.Errorf("%s: the header doesn't link to the published public page", who)
+		}
+	}
+	if page := readBody(t, do(t, ts, h.app, base, ownerSess)); strings.Contains(page, `id="public-url"`) {
+		t.Error("the Overview still has the public page card")
+	}
+	if page := readBody(t, do(t, ts, h.app, base+"/settings", ownerSess)); !strings.Contains(page, `data-testid="public-page-link"`) {
+		t.Error("Settings › Details doesn't show the public page's address")
+	}
+}
