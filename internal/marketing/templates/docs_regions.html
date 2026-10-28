@@ -103,23 +103,34 @@
           <li><strong>A leading <code>#</code> is optional.</strong> <code>#wny</code> and <code>wny</code> are the same region.</li>
           <li><strong>Use the names your community publishes.</strong> If Canada's plan calls Ontario <code>on</code>, then <code>ontario</code> is a different region that no one else carries.</li>
         </ul>
-        <p class="mb-0">Regions are arranged in a tree (<code>ca</code> › <code>on</code> › <code>to</code>), but a repeater only carries the names it actually has. A repeater with just <code>on</code> drops a message scoped to <code>to</code>. Give each repeater the whole chain for where it stands, so it carries messages scoped to the country, the province, and the local area.</p>
+        <p class="mb-0"><strong>A repeater only carries the names it has.</strong> Say Ontario is <code>on</code> and Toronto is <code>to</code>. A repeater with just <code>on</code> still drops a message scoped to <code>to</code>, even though Toronto is in Ontario. Regions can be arranged as parents and children, but that doesn't change what gets repeated. If a repeater should carry both, it needs both names.</p>
       </div>
     </div>
 
     <div class="card mt-3" id="setup">
       <div class="card-header"><h2 class="card-title">Setting up your repeater</h2></div>
       <div class="card-body">
-        <p>If your organization publishes regions on MeshTender, its <strong>recommended configuration</strong> shows the exact commands for your repeater's location, and <a href="/docs#add">setting up a new repeater over USB</a> applies them for you. Otherwise, run them yourself in the repeater console (in the companion app or over USB):</p>
-        <pre><code>region def ca on to
+        <h3>Easiest: let MeshTender do it</h3>
+        <p>If your organization publishes its regions on MeshTender, <a href="/docs#add">register your repeater</a>. MeshTender works out which regions apply where your repeater stands, then sends the commands for you:</p>
+        <ul>
+          <li><strong>A new repeater:</strong> setting it up over USB applies them as part of the setup.</li>
+          <li><strong>One that's already deployed:</strong> open its <strong>Configure</strong> tab, connect over USB or through a <a href="/docs#kiss">KISS modem</a> over the air (after <a href="/docs#setperm">granting MeshTender admin</a>), and run your organization's configuration.</li>
+        </ul>
+        <h3>Otherwise: follow your organization's list</h3>
+        <p>If your organization isn't on MeshTender yet, use the list of regions it publishes for your area. Add each one in the repeater console, in the companion app or over USB:</p>
+        <pre><code>region put &lt;region&gt;
+region put &lt;another-region&gt;
 region save
 region</code></pre>
-        <p><code>region def</code> creates each name as a child of the one before it, and they all allow flooding. <code>region save</code> keeps them across reboots. The bare <code>region</code> prints the tree so you can check it. On older firmware without <code>region def</code>, use <code>region put on ca</code> (the region, then its parent) once for each region.</p>
+        <div class="alert alert-warning" role="alert" data-testid="regions-example-warning">
+          <div><strong>This is only an example.</strong> Don't copy region names from this page. Use the names your organization gives you.</div>
+        </div>
+        <p><code>region put</code> adds a region that allows flooding. <code>region save</code> keeps your regions across reboots, and the bare <code>region</code> lists them so you can check.</p>
         <p><strong>Keep repeating unscoped messages.</strong> Don't run <code>region denyf *</code>, even after your area has adopted regions. It stops your repeater from repeating unscoped messages, and a new companion sends unscoped until its owner changes that. Someone who just got on the mesh, and hasn't heard of regions yet, would find that nobody can hear them.</p>
         <p>Leave these settings alone until most repeaters around you have regions:</p>
         <ul class="mb-0">
           <li><code>region default</code> makes your repeater's own adverts scoped, so repeaters without regions won't pass them on.</li>
-          <li>Regions added with <code>region load</code> don't allow flooding unless you mark them with <code>F</code>. Prefer <code>region def</code>.</li>
+          <li>Regions added with <code>region load</code> don't allow flooding unless you mark them with <code>F</code>. Prefer <code>region put</code>.</li>
         </ul>
       </div>
     </div>
