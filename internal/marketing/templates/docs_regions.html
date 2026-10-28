@@ -1,0 +1,137 @@
+{{define "title"}}Regions &amp; scoping · Docs · MeshTender{{end}}
+{{define "header"}}
+<div class="row g-2 align-items-center">
+  <div class="col">
+    <div class="page-pretitle"><a href="/docs">Docs</a></div>
+    <h1 class="page-title fs-1">Regions &amp; scoping</h1>
+  </div>
+</div>
+{{end}}
+{{define "content"}}
+{{/* Every behavior described here is MeshCore firmware behavior (simple_repeater's
+     onRecvPacket/allowPacketForward, helpers/RegionMap and TransportKeyStore,
+     companion_radio's sendFloodScoped). Re-check the firmware before changing it. */}}
+<div class="row row-cards">
+  <div class="col-lg-4 order-lg-last">
+    <div class="card">
+      <div class="card-header"><h2 class="card-title">On this page</h2></div>
+      <div class="list-group list-group-flush">
+        <a class="list-group-item list-group-item-action" href="#scoped">Scoped and unscoped messages</a>
+        <a class="list-group-item list-group-item-action" href="#repeaters">What a repeater does</a>
+        <a class="list-group-item list-group-item-action" href="#wait">Why companions should wait</a>
+        <a class="list-group-item list-group-item-action" href="#names">Region names</a>
+        <a class="list-group-item list-group-item-action" href="#setup">Setting up your repeater</a>
+        <a class="list-group-item list-group-item-action" href="#companions">Scoping on a companion</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-8">
+
+    <div class="card">
+      <div class="card-body">
+        <p>A <strong>region</strong> is a name for an area: a country like <code>ca</code>, a province or state like <code>on</code>, or a local mesh like <code>wny</code>. <strong>Repeaters</strong> use region names to decide which traffic to carry. <strong>Companions</strong> can use them to say how far a message should travel; that's called <strong>scoping</strong>.</p>
+        <p class="mb-0">In short:</p>
+        <ul class="mb-0">
+          <li><strong>Repeater owners:</strong> add your regions now. Nothing changes for anyone today: your repeater keeps carrying everything it did before.</li>
+          <li><strong>Companion users:</strong> keep sending unscoped (the default) until most of the repeaters around you have regions. Scope your messages after that.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card mt-3" id="scoped">
+      <div class="card-header"><h2 class="card-title">Scoped and unscoped messages</h2></div>
+      <div class="card-body">
+        <p>Channel messages, adverts, and a direct message to someone your companion has no route to yet are all sent as a <strong>flood</strong>: every repeater that hears it repeats it. A flood is one of two kinds:</p>
+        <ul>
+          <li><strong>Unscoped</strong> (the default): no region. Every repeater floods it, as far as the hop limit allows.</li>
+          <li><strong>Scoped</strong> to a region, say <code>wny</code>: only repeaters that know <code>wny</code> flood it.</li>
+        </ul>
+        <p class="mb-0">Regions only affect floods. A direct message sent along a route your companion has already learned goes hop by hop along that route, with or without regions.</p>
+      </div>
+    </div>
+
+    <div class="card mt-3" id="repeaters">
+      <div class="card-header"><h2 class="card-title">What a repeater does</h2></div>
+      <div class="table-responsive">
+        <table class="table table-vcenter card-table">
+          <thead>
+            <tr>
+              <th>A message that's…</th>
+              <th>Repeater with no regions</th>
+              <th>Repeater with <code>wny</code></th>
+              <th>Repeater with other regions, not <code>wny</code></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row" class="fw-normal">Unscoped</th>
+              <td>Repeats</td>
+              <td>Repeats</td>
+              <td>Repeats</td>
+            </tr>
+            <tr>
+              <th scope="row" class="fw-normal">Scoped to <code>wny</code></th>
+              <td><strong>Drops</strong></td>
+              <td>Repeats</td>
+              <td><strong>Drops</strong></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card-body">
+        <p>The top row is why adding regions is safe: a repeater with regions still repeats every unscoped message exactly as it did before. Adding regions only lets it carry scoped messages too.</p>
+        <p class="mb-0">The bottom row is why companions should wait. A repeater with no regions drops <em>every</em> scoped message, whatever region it's scoped to.</p>
+      </div>
+    </div>
+
+    <div class="card mt-3" id="wait">
+      <div class="card-header"><h2 class="card-title">Why companions should wait</h2></div>
+      <div class="card-body">
+        <p>A scoped message only gets as far as an unbroken chain of repeaters that know its region. It stops at the first repeater that doesn't. When only a few repeaters in an area have regions, a scoped message usually dies one or two hops out, and the person who sent it can't tell why. Unscoped messages don't have that problem, so they're the right choice until most repeaters have regions.</p>
+        <p>Once most repeaters do, scoping keeps local chatter local. For example, Western New York's mesh is linked to Toronto's, so an unscoped message from Buffalo also floods across Toronto, using up airtime there. Nearly every repeater in Western New York has its regions, so their local channels are scoped to <code>wny</code>. A <code>wny</code> message reaches all of Western New York and then stops at the first Toronto repeater, because Toronto's repeaters don't carry <code>wny</code>.</p>
+        <p class="mb-0">It works the other way too, but only once Toronto's repeaters have regions. Until then, a message scoped to a Toronto region would be dropped by most of the repeaters it needs.</p>
+      </div>
+    </div>
+
+    <div class="card mt-3" id="names">
+      <div class="card-header"><h2 class="card-title">Region names</h2></div>
+      <div class="card-body">
+        <p>A region name works like a hashtag channel: the name <em>is</em> the key, so everyone has to spell it the same way.</p>
+        <ul>
+          <li><strong>Case matters.</strong> <code>wny</code> and <code>WNY</code> are two different regions. Stick to lowercase.</li>
+          <li><strong>A leading <code>#</code> is optional.</strong> <code>#wny</code> and <code>wny</code> are the same region.</li>
+          <li><strong>Use the names your community publishes.</strong> If Canada's plan calls Ontario <code>on</code>, then <code>ontario</code> is a different region that no one else carries.</li>
+        </ul>
+        <p class="mb-0">Regions are arranged in a tree (<code>ca</code> › <code>on</code> › <code>to</code>), but a repeater only carries the names it actually has. A repeater with just <code>on</code> drops a message scoped to <code>to</code>. Give each repeater the whole chain for where it stands, so it carries messages scoped to the country, the province, and the local area.</p>
+      </div>
+    </div>
+
+    <div class="card mt-3" id="setup">
+      <div class="card-header"><h2 class="card-title">Setting up your repeater</h2></div>
+      <div class="card-body">
+        <p>If your organization publishes regions on MeshTender, its <strong>recommended configuration</strong> shows the exact commands for your repeater's location, and <a href="/docs#add">setting up a new repeater over USB</a> applies them for you. Otherwise, run them yourself in the repeater console (in the companion app or over USB):</p>
+        <pre><code>region def ca on to
+region save
+region</code></pre>
+        <p><code>region def</code> creates each name as a child of the one before it, and they all allow flooding. <code>region save</code> keeps them across reboots. The bare <code>region</code> prints the tree so you can check it. On older firmware without <code>region def</code>, use <code>region put on ca</code> (the region, then its parent) once for each region.</p>
+        <p><strong>Keep repeating unscoped messages.</strong> Don't run <code>region denyf *</code>, even after your area has adopted regions. It stops your repeater from repeating unscoped messages, and a new companion sends unscoped until its owner changes that. Someone who just got on the mesh, and hasn't heard of regions yet, would find that nobody can hear them.</p>
+        <p>Leave these settings alone until most repeaters around you have regions:</p>
+        <ul class="mb-0">
+          <li><code>region default</code> makes your repeater's own adverts scoped, so repeaters without regions won't pass them on.</li>
+          <li>Regions added with <code>region load</code> don't allow flooding unless you mark them with <code>F</code>. Prefer <code>region def</code>.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card mt-3" id="companions">
+      <div class="card-header"><h2 class="card-title">Scoping on a companion</h2></div>
+      <div class="card-body">
+        <p>A companion sends unscoped until you set a scope. The MeshCore companion app can scope what you send to a region, either per channel or as a default for everything. Leave it unscoped until most of the repeaters your messages pass through have regions.</p>
+        <p class="mb-0">When your area is ready, scope the channels that are only meant to be local. Western New York scopes <code>#wny</code>, <code>#test</code> and <code>#wardriving</code> to <code>wny</code>, and leaves other channels unscoped. Pick the smallest region that still reaches everyone the channel is for.</p>
+      </div>
+    </div>
+
+  </div>
+</div>
+{{end}}

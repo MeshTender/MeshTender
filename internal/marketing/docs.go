@@ -13,3 +13,9 @@ func (s *Handlers) pageDocs(w http.ResponseWriter, r *http.Request) {
 	}
 	s.Render(w, r, "docs.html", data)
 }
+
+// pageDocsRegions renders the public explainer on MeshCore regions and scoping,
+// written to be linked on its own (e.g. shared with a neighboring mesh).
+func (s *Handlers) pageDocsRegions(w http.ResponseWriter, r *http.Request) {
+	s.Render(w, r, "docs_regions.html", nil)
+}

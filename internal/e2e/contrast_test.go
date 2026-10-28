@@ -240,6 +240,7 @@ func TestContrastMeetsWCAGAA(t *testing.T) {
 		{"root landing", srv.rootURL + "/"},
 		{"root directory", srv.rootURL + "/orgs"},
 		{"root docs", srv.rootURL + "/docs"},
+		{"root docs regions", srv.rootURL + "/docs/regions"},
 		{"root public org", srv.rootURL + "/orgs/" + org.Slug},
 		{"root 404", srv.rootURL + "/no-such-page"},
 		{"auth sign-in", srv.authURL + "/login"},

@@ -30,6 +30,12 @@
         <a class="list-group-item list-group-item-action" href="#on-air">Running a net on the air</a>
       </div>
     </div>
+    <div class="card mt-3">
+      <div class="card-header"><h2 class="card-title">Guides</h2></div>
+      <div class="list-group list-group-flush">
+        <a class="list-group-item list-group-item-action" href="/docs/regions" data-testid="docs-regions-link">Regions &amp; scoping</a>
+      </div>
+    </div>
     {{if .ServerKey}}
     <div class="card mt-3">
       <div class="card-header"><h2 class="card-title">MeshTender's key</h2></div>
@@ -59,7 +65,7 @@
       <div class="card-header"><h2 class="card-title">Organizations</h2></div>
       <div class="card-body">
         <p>An <strong>organization</strong> is a community that runs a mesh together: its members, their repeaters, its recommended configuration, and its check-in nets. Join yours from the <a href="/orgs">directory</a>, or start one.</p>
-        <p>Its admins publish a <strong>recommended configuration</strong>: configuration profiles (the settings a repeater should run) and regions drawn on a map, so each member sees the exact commands for where their repeater stands. A new repeater set up over USB gets them automatically.</p>
+        <p>Its admins publish a <strong>recommended configuration</strong>: configuration profiles (the settings a repeater should run) and <a href="/docs/regions">regions</a> drawn on a map, so each member sees the exact commands for where their repeater stands. A new repeater set up over USB gets them automatically.</p>
         <p class="mb-0">An organization can also set the <strong>radio settings</strong> its mesh runs on (frequency, bandwidth, spreading factor and coding rate). Its profiles can use them instead of hard-coding values — <code>set radio {{"{{ radio.freq }}"}},{{"{{ radio.bw }}"}},{{"{{ radio.sf }}"}},{{"{{ radio.cr }}"}}</code> — and a repeater set up with a profile that doesn't set its radio gets them too.</p>
       </div>
     </div>

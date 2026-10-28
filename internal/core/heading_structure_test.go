@@ -108,6 +108,7 @@ func TestPageHeadingOutlines(t *testing.T) {
 		{"root landing", h.root, "/", false},
 		{"root org directory", h.root, "/orgs", false},
 		{"root docs", h.root, "/docs", false},
+		{"root docs regions", h.root, "/docs/regions", false},
 		{"root public org page", h.root, "/orgs/" + org.Slug, false},
 		{"root 404 (error page)", h.root, "/no-such-page", false},
 		// Auth host — authbase has no page header, so the card title is the heading.
