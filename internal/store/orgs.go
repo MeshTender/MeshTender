@@ -51,6 +51,9 @@ type OrgMemberInfo struct {
 	Username    string
 	DisplayName *string
 	Role        string
+	// LastAdvertAt is when an advert from any of the member's companions was
+	// last heard, nil if never. Only ListOrgMembers fills it.
+	LastAdvertAt *time.Time
 }
 
 // Name returns the member's display name if set, else username.
@@ -410,7 +413,8 @@ func (s *Store) AddOrgMember(ctx context.Context, orgID, userID int64, role stri
 // ListOrgMembers returns an org's members ordered admins-first then by name.
 func (s *Store) ListOrgMembers(ctx context.Context, orgID int64) ([]OrgMemberInfo, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT u.id, u.username, u.display_name, m.role
+		SELECT u.id, u.username, u.display_name, m.role,
+		       (SELECT max(c.last_heard_at) FROM companions c WHERE c.owner_id = u.id)
 		FROM org_members m JOIN users u ON u.id = m.user_id
 		WHERE m.org_id = $1
 		ORDER BY (m.role = 'admin') DESC, COALESCE(NULLIF(u.display_name, ''), u.username)`, orgID)
@@ -419,7 +423,7 @@ func (s *Store) ListOrgMembers(ctx context.Context, orgID int64) ([]OrgMemberInf
 	}
 	return collectRows(rows, func(r pgx.Row) (OrgMemberInfo, error) {
 		var m OrgMemberInfo
-		err := r.Scan(&m.UserID, &m.Username, &m.DisplayName, &m.Role)
+		err := r.Scan(&m.UserID, &m.Username, &m.DisplayName, &m.Role, &m.LastAdvertAt)
 		return m, err
 	})
 }

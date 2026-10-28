@@ -97,7 +97,7 @@ func TestE2EApplyConfigOverUSB(t *testing.T) {
 			chromedp.Poll(`document.getElementById("cmdsend").disabled`, nil),
 			chromedp.Text(`#connect-label`, &label, chromedp.ByQuery),
 		); err != nil {
-			t.Fatalf("browser run: %v (the fake repeater ran %q)", err, fake.lines())
+			t.Fatalf("browser run: %v (the fake repeater ran %q; page: %s)", err, fake.lines(), configureState(bctx))
 		}
 		want := "ver|get public.key|get name|set radio 910.525,62.5,7,5|set tx 20"
 		if got := strings.Join(fake.lines(), "|"); got != want {
@@ -143,4 +143,25 @@ func TestE2EApplyConfigOverUSB(t *testing.T) {
 		}
 		watch.assertClean(t)
 	})
+}
+
+// configureState describes the Configure tab for a failure message: whether Run
+// all is enabled, the connection, the open pane, what the panel says, and the
+// log — what a timed-out wait would otherwise leave unexplained.
+func configureState(ctx context.Context) string {
+	var state string
+	dctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	_ = chromedp.Run(dctx, chromedp.Evaluate(`JSON.stringify({
+		runAllDisabled: (document.querySelector('[data-testid="config-run-all"]') || {}).disabled,
+		runButtons: document.querySelectorAll('[data-testid="config-commands"] button[data-run]').length,
+		hint: (document.querySelector('[data-testid="config-hint"]') || {}).textContent,
+		commands: (document.querySelector('[data-testid="config-commands"]') || {}).textContent,
+		status: (document.querySelector('[data-testid="conn-status"]') || {}).textContent,
+		transport: window.MeshConsole && window.MeshConsole.name,
+		ready: !!(window.MeshConsole && window.MeshConsole.ready),
+		pane: (document.querySelector('.tab-pane.active') || {}).id,
+		log: Array.from(document.querySelectorAll('#log li')).map(function (l) { return l.textContent; })
+	})`, &state))
+	return state
 }

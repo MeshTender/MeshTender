@@ -70,7 +70,6 @@
      each net's page. Data: the page map with Nets (core netSummaryView), Org, Now.
      Shared by Check-ins › Nets and Settings › Nets. */}}
 {{define "net-list"}}
-<div class="card">
   <div class="list-group list-group-flush" data-testid="net-list">
     {{range .Nets}}
     <a class="list-group-item list-group-item-action" href="/orgs/{{$.Org.Slug}}/nets/{{.ID}}">
@@ -86,5 +85,4 @@
     </a>
     {{end}}
   </div>
-</div>
 {{end}}

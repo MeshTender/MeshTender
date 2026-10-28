@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -255,32 +256,33 @@ func (s *Handlers) handleDeleteOrgObserver(w http.ResponseWriter, r *http.Reques
 	}
 }
 
-func (s *Handlers) pageOrgActivity(w http.ResponseWriter, r *http.Request) {
-	org, isAdmin, ok := s.orgMemberPage(w, r)
-	if !ok {
-		return
-	}
-	ctx := r.Context()
+// companionActivity loads a page of the org's members' companions with when an
+// advert from each was last heard, for the Check-ins page, into data. ?after=
+// pages through them by name.
+func (s *Handlers) companionActivity(r *http.Request, orgID int64, data map[string]any) error {
 	after, _ := web.DecodeCursor[store.ActivityCursor](r.URL.Query().Get("after"))
 	var cursor *store.ActivityCursor
 	if after.ID != 0 {
 		cursor = &after
 	}
-	rows, hasMore, err := s.Store.ListOrgCompanionActivityPage(ctx, org.ID, cursor)
+	rows, hasMore, err := s.Store.ListOrgCompanionActivityPage(r.Context(), orgID, cursor)
 	if err != nil {
-		s.ServerError(w, r, "Couldn't load activity.", err)
-		return
+		return err
 	}
-	data := map[string]any{
-		"Org":      org,
-		"Nav":      s.orgNav(ctx, org, "activity", isAdmin),
-		"IsAdmin":  isAdmin,
-		"Activity": rows,
-		"First":    cursor == nil,
-	}
+	data["Activity"], data["First"] = rows, cursor == nil
 	if hasMore && len(rows) > 0 {
 		last := rows[len(rows)-1]
 		data["NextAfter"] = web.EncodeCursor(store.ActivityCursor{Name: last.Name, ID: last.ID})
 	}
-	s.Render(w, r, "org_activity.html", data)
+	return nil
+}
+
+// redirectOrgActivity sends the old Member activity page to its section of the
+// Check-ins page, keeping its place (?after=).
+func redirectOrgActivity(w http.ResponseWriter, r *http.Request) {
+	target := "/orgs/" + chi.URLParam(r, "id") + "/nets"
+	if after := r.URL.Query().Get("after"); after != "" {
+		target += "?after=" + url.QueryEscape(after)
+	}
+	http.Redirect(w, r, target+"#activity", http.StatusMovedPermanently) //nolint:gosec // G710: local path
 }

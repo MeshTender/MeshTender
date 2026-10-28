@@ -7,10 +7,10 @@
 {{define "config-preview"}}
 <div class="card" data-testid="config-preview">
   <div class="card-header">
-    <h2 class="card-title">
-      {{if .Config.Profiles}}{{.Config.Selected}}{{else}}Region commands{{end}}
-      <span class="text-secondary fw-normal">{{if .Config.PreviewActive}} · at {{.PreviewLat}}, {{.PreviewLon}}{{else}} · base settings{{end}}</span>
-    </h2>
+    <div>
+      <h2 class="card-title">{{if .Config.Profiles}}{{.Config.Selected}}{{else}}Region commands{{end}}</h2>
+      <div class="card-subtitle" data-testid="config-preview-for">{{if .Config.PreviewActive}}For a repeater at {{.PreviewLat}}, {{.PreviewLon}}{{else}}Before region settings{{end}}</div>
+    </div>
   </div>
   <div class="card-body">{{template "config-lines" .Config.AssembledLines}}</div>
   {{if .Config.RadioMissing}}
@@ -23,7 +23,10 @@
     <div class="card-footer text-secondary small">No regions cover this location.</div>
     {{end}}
   {{else if and .Config.HasRegionShapes (not .Config.HideMapHint)}}
-  <div class="card-footer text-secondary small">Click a spot on the map below to see the region commands a repeater there would also run.</div>
+  {{/* A profile with a {{ region }} marker already says this inline, where the
+       region commands will land; only one without needs the footer. */}}
+  {{$inline := false}}{{range .Config.AssembledLines}}{{if .IsMarker}}{{$inline = true}}{{end}}{{end}}
+  {{if not $inline}}<div class="card-footer text-secondary small" data-testid="config-map-hint">Click the map below where a repeater stands to add the region commands it would also run.</div>{{end}}
   {{end}}
 </div>
 {{end}}

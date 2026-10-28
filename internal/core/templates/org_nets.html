@@ -1,15 +1,53 @@
-{{define "title"}}Nets · {{.Org.Name}} · MeshTender{{end}}
+{{define "title"}}Check-ins · {{.Org.Name}} · MeshTender{{end}}
 {{define "header"}}{{template "org-header" .}}{{end}}
 {{define "content"}}
 {{template "org-tabs" .Nav}}
-{{template "org-checkins-nav" .Nav}}
+{{/* Check-ins: the org's nets (few, so a short list) and, under them, when each
+member's companion last sent an advert an observer heard. */}}
+<div class="d-flex flex-column gap-3">
+  <div class="card" data-testid="checkins-nets">
+    <div class="card-header">
+      <div>
+        <h2 class="card-title">Nets</h2>
+        <div class="card-subtitle">Weekly windows in which members check in by sending a flood advert from their companion.</div>
+      </div>
+    </div>
+    {{if .Nets}}
+    {{template "net-list" .}}
+    {{else}}
+    {{template "empty-state" (dict "Compact" true "Title" "No nets yet" "Line" (or (and .IsAdmin "Schedule one to start taking rosters.") "An admin schedules them."))}}
+    {{if .IsAdmin}}<div class="card-footer text-center"><a class="btn btn-sm" href="/orgs/{{.Org.Slug}}/settings/nets">Schedule a net</a></div>{{end}}
+    {{end}}
+  </div>
 
-{{if .Nets}}
-{{template "net-list" .}}
-{{else}}
-<div class="empty">
-  <p class="empty-title">No nets yet</p>
-  <p class="empty-subtitle text-secondary">A net is a weekly window in which members check in by sending a flood advert from their companion.{{if .IsAdmin}} Schedule one in <a href="/orgs/{{.Org.Slug}}/settings/nets">Settings › Nets</a> to start taking rosters.{{end}}</p>
+  <div class="card" id="activity" data-testid="checkins-activity">
+    <div class="card-header">
+      <div>
+        <h2 class="card-title">Last adverts</h2>
+        <div class="card-subtitle">When an observer last heard an advert from each member's companion; other messages don't count. Not heard doesn't mean away: no observer may have been in range.</div>
+      </div>
+    </div>
+    {{if .Activity}}
+    <div class="table-responsive">
+      <table class="table card-table table-vcenter" data-testid="activity">
+        <thead><tr><th>Companion</th><th>Member</th><th>Last advert heard</th></tr></thead>
+        <tbody>
+          {{range .Activity}}
+          <tr>
+            <td><a href="/companions/{{.PublicID}}">{{.Name}}</a></td>
+            <td>{{.OwnerName}}</td>
+            <td>{{if .LastHeardAt}}{{ts .LastHeardAt "relative"}}{{else}}<span class="text-secondary">Not yet</span>{{end}}</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+    {{if .NextAfter}}<div class="card-footer text-center"><a class="btn btn-sm" href="?after={{.NextAfter}}#activity">Show more</a></div>{{end}}
+    {{else if .First}}
+    {{template "empty-state" (dict "Compact" true "Title" "No companions heard yet" "Line" "Members register theirs under Companions, then send a flood advert.")}}
+    {{else}}
+    <div class="card-body text-secondary">No more companions.</div>
+    {{end}}
+  </div>
 </div>
-{{end}}
 {{end}}

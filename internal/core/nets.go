@@ -111,13 +111,18 @@ func (s *Handlers) pageOrgNets(w http.ResponseWriter, r *http.Request) {
 		s.ServerError(w, r, "Couldn't load nets.", err)
 		return
 	}
-	s.Render(w, r, "org_nets.html", map[string]any{
+	data := map[string]any{
 		"Org":     org,
 		"Nav":     s.orgNav(ctx, org, "nets", isAdmin),
 		"IsAdmin": isAdmin,
 		"Nets":    views,
 		"Now":     now,
-	})
+	}
+	if err := s.companionActivity(r, org.ID, data); err != nil {
+		s.ServerError(w, r, "Couldn't load activity.", err)
+		return
+	}
+	s.Render(w, r, "org_nets.html", data)
 }
 
 // netSummaryViews loads an org's nets for the "net-list" partial.

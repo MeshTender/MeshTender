@@ -268,7 +268,7 @@ type OrgNavArgs struct {
 	Name  string
 	Slug  string
 	// Active is the page: "home" | "members" | "repeaters" | "config" (the
-	// read-only recommended configuration) | "nets" | "activity" |
+	// read-only recommended configuration) | "nets" (Check-ins) |
 	// "settings-<section>". The top-level tab it lives under is derived from it
 	// (orgTab).
 	Active string
@@ -290,7 +290,7 @@ type OrgNavArgs struct {
 // configuration is reached from Home.
 func orgTab(a OrgNavArgs) string {
 	switch {
-	case a.Active == "nets" || a.Active == "activity":
+	case a.Active == "nets":
 		return "checkins"
 	case strings.HasPrefix(a.Active, "settings-"):
 		return "settings"

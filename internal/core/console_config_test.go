@@ -400,3 +400,33 @@ func TestConfigureTab(t *testing.T) {
 		}
 	}
 }
+
+// TestConfigMapHintOnce: the recommended configuration tells a visitor to click
+// the map once, not twice. A profile with a {{ region }} marker says it inline,
+// where the region commands will land, so its footer hint is dropped; a profile
+// without one still gets the footer.
+func TestConfigMapHintOnce(t *testing.T) {
+	t.Parallel()
+	st, ctx, ts, h := splitServer(t)
+	owner, _ := appLogin(t, ts, st, ctx, h.app, "hint-owner")
+	org, err := st.CreateOrg(ctx, "HintOrg", owner.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	profiles := []store.ProfileInput{
+		{Name: "Marked", Steps: []store.ConfigStep{{CommandLine: "set tx 20"}, {CommandLine: store.RegionMarker}}},
+		{Name: "Plain", Steps: []store.ConfigStep{{CommandLine: "set tx 20"}}},
+	}
+	regions := []store.RegionInput{{Token: "buf", DisplayName: "Buffalo", Layer: 0, AllowFlood: true, GeofenceJSON: geo.Rectangle(40, -80, 45, -75)}}
+	if err := st.ReplaceOrgConfig(ctx, org.ID, profiles, regions); err != nil {
+		t.Fatal(err)
+	}
+	base := "/orgs/" + org.Slug + "/config?profile="
+	marked := readBody(t, do(t, ts, h.root, base+"Marked"))
+	if !strings.Contains(marked, "click a spot on the map") || strings.Contains(marked, `data-testid="config-map-hint"`) {
+		t.Error("a profile with a region marker should say it inline only")
+	}
+	if plain := readBody(t, do(t, ts, h.root, base+"Plain")); !strings.Contains(plain, `data-testid="config-map-hint"`) {
+		t.Error("a profile without a region marker lost the map hint")
+	}
+}

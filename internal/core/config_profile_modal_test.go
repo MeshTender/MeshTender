@@ -145,7 +145,7 @@ func TestConfigPageEmptyStates(t *testing.T) {
 	}
 
 	anon := readBody(t, do(t, ts, h.root, "/orgs/"+org.Slug+"/config"))
-	if !strings.Contains(anon, "hasn't defined any configuration yet") {
+	if !strings.Contains(anon, "No recommended configuration yet") {
 		t.Fatal("anonymous view of a config-less org should say so")
 	}
 	if strings.Contains(anon, "config-profile-add") {

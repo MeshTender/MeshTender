@@ -273,9 +273,8 @@ func TestOrgTabsHeaderConsistent(t *testing.T) {
 		{"", "org-tab-home", ""},
 		{"/members", "org-tab-members", ""},
 		{"/repeaters", "org-tab-repeaters", ""},
-		{"/nets", "org-tab-checkins", "org-checkins-nav"},
-		{"/activity", "org-tab-checkins", "org-checkins-nav"},
-		{"/config", "org-tab-home", ""}, // the read-only recommended configuration
+		{"/nets", "org-tab-checkins", "checkins-activity"}, // nets and member activity, one page
+		{"/config", "org-tab-home", ""},                    // the read-only recommended configuration
 		{"/settings", "org-tab-settings", "org-settings-nav"},
 		{"/settings/regions", "org-tab-settings", "org-settings-nav"},
 		{"/settings/profiles", "org-tab-settings", "org-settings-nav"},

@@ -54,7 +54,7 @@ func TestOrgHomeEmpty(t *testing.T) {
 
 // TestOrgHomeNetsAndSetup: a net in session gets a banner linking to its
 // roster and a "started" activity entry; the next nets are listed; and the
-// Repeater setup card shows the org radio and profile names.
+// Recommended configuration card shows the org radio and profile names.
 func TestOrgHomeNetsAndSetup(t *testing.T) {
 	t.Parallel()
 	st, ctx, ts, h := splitServer(t)
@@ -96,9 +96,9 @@ func TestOrgHomeNetsAndSetup(t *testing.T) {
 		t.Error("Next nets lacks the upcoming net")
 	}
 	if !strings.Contains(body, `data-testid="home-radio">`+radio.MHz()+` MHz`) || !strings.Contains(body, presetName(radio)) {
-		t.Error("Repeater setup lacks the org radio")
+		t.Error("the Recommended configuration card lacks the org radio")
 	}
 	if !strings.Contains(body, `data-testid="home-profiles">Solar node<`) {
-		t.Error("Repeater setup lacks the profile names")
+		t.Error("the Recommended configuration card lacks the profile names")
 	}
 }

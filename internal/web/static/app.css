@@ -81,6 +81,17 @@ code.pubkey {
   transform: rotate(180deg);
 }
 
+/* Card headers: Tabler leaves them transparent, divided from the body by a faint
+   line, so a header read as more of the card. Give every header the tint of
+   Tabler's own .card-header-light (and of the strip behind .card-header-tabs, so
+   tabbed and plain headers match), as one rule rather than a class on each
+   header. Unlike .card-header-light it keeps the divider: a table's column
+   labels right under a header carry the same tint, and without the line the two
+   would merge into one band. */
+.card-header {
+  --tblr-card-header-bg: var(--tblr-bg-surface-tertiary);
+}
+
 /* Segmented controls (a .btn-group of .btn-check radios, or of links where the
    current page carries aria-current): Tabler marks the chosen segment with a
    background barely lighter than the rest, which is hard to pick out,

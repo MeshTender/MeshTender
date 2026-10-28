@@ -68,7 +68,7 @@
       <nav class="btn-group btn-group-sm ms-auto" aria-label="Show">
         {{template "log-filter" (dict "Page" . "Value" "" "Label" "All")}}
         {{template "log-filter" (dict "Page" . "Value" "checkins" "Label" "Check-ins")}}
-        {{template "log-filter" (dict "Page" . "Value" "news" "Label" "News")}}
+        {{template "log-filter" (dict "Page" . "Value" "news" "Label" "News" "Title" "Channel messages starting with the net's log prefix")}}
       </nav>
     </div>
     {{if .Log}}
@@ -119,7 +119,7 @@
     {{else}}
     <div class="card-body text-secondary">{{if eq .LogFilter "news"}}No news logged{{else if eq .LogFilter "checkins"}}No check-ins{{else}}Nothing{{end}} yet.{{if and .InProgress (ne .LogFilter "news")}} Members check in by sending a flood advert from their companion.{{end}}</div>
     {{end}}
-    <div class="card-footer text-secondary small">Relays are a minimum: a repeater whose copies never reached an observer can't be seen. News is channel messages starting with the net's log prefix; a sender's name is whatever they typed.</div>
+    <div class="card-footer text-secondary small">Relay counts are a minimum, and a news sender's name is whatever they typed.</div>
   </div>
 </div>
 {{end}}
@@ -127,7 +127,7 @@
 {{/* log-filter is one choice of the session log's filter. Data: dict Page,
      Value, Label. */}}
 {{define "log-filter"}}
-<a class="btn{{if eq .Page.LogFilter .Value}} active{{end}}" href="{{.Page.SessionURL}}{{with .Value}}?log={{.}}{{end}}"{{if eq .Page.LogFilter .Value}} aria-current="page"{{end}} data-testid="log-filter-{{or .Value "all"}}">{{.Label}}</a>
+<a class="btn{{if eq .Page.LogFilter .Value}} active{{end}}" href="{{.Page.SessionURL}}{{with .Value}}?log={{.}}{{end}}"{{if eq .Page.LogFilter .Value}} aria-current="page"{{end}} data-testid="log-filter-{{or .Value "all"}}"{{with .Title}} title="{{.}}"{{end}}>{{.Label}}</a>
 {{end}}
 
 {{/* checkin-reach is how far a heard check-in got. Pass a store.RosterEntry. */}}

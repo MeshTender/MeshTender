@@ -12,7 +12,7 @@ import (
 )
 
 // TestE2EOrgNavigation walks the org tabs as an admin under the strict CSP:
-// Check-ins switches between Nets and Member activity, and Settings between its
+// Check-ins shows Nets and member activity on one page, and Settings switches between its
 // sections, each keeping its top-level tab active. Home links to the
 // recommended configuration once there is some, which opens outside Settings
 // for a plain member.
@@ -38,9 +38,9 @@ func TestE2EOrgNavigation(t *testing.T) {
 		chromedp.WaitVisible(`[data-testid="org-public-page"]`, chromedp.ByQuery),
 		chromedp.AttributeValue(`[data-testid="org-public-page"]`, "href", &publicHref, nil, chromedp.ByQuery),
 		chromedp.Click(`[data-testid="org-tab-checkins"]`, chromedp.ByQuery),
-		chromedp.WaitVisible(`[data-testid="org-checkins-nav"]`, chromedp.ByQuery),
-		chromedp.Click(`[data-testid="org-subnav-activity"]`, chromedp.ByQuery),
-		chromedp.WaitVisible(`[data-testid="org-subnav-activity"][aria-current="page"]`, chromedp.ByQuery),
+		// Nets and member activity share the Check-ins page.
+		chromedp.WaitVisible(`[data-testid="checkins-nets"]`, chromedp.ByQuery),
+		chromedp.WaitVisible(`[data-testid="checkins-activity"]`, chromedp.ByQuery),
 		chromedp.Evaluate(activeTab, &afterActivity),
 		chromedp.Click(`[data-testid="org-tab-settings"]`, chromedp.ByQuery),
 		chromedp.WaitVisible(`[data-testid="settings-profile"]`, chromedp.ByQuery),

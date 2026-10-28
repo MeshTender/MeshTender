@@ -12,18 +12,21 @@
 </ol>
 
 {{if not .Config.HasConfig}}
-<div class="card"><div class="card-body text-secondary">
-  This organization hasn't defined any configuration yet.
-</div></div>
+<div class="card">
+  {{template "empty-state" (dict "Title" "No recommended configuration yet" "Line" "This organization hasn't published its repeater settings.")}}
+</div>
 {{else}}
 
-{{/* The configuration a chosen profile produces, with the radio and profile list
-     in the right rail. The main pane shows the *assembled* list — profile steps with
-     the location's region commands spliced in — which is what a repeater owner
-     actually runs; see ConfigView.AssembledLines. Main comes first in the DOM so a
+{{/* The configuration a chosen profile produces, and right under it the region
+     map that picks where the repeater stands: clicking it reloads with
+     ?lat=&lon= and the preview gains that spot's region commands, so the two sit
+     together. The main pane shows the *assembled* list — profile steps with the
+     location's region commands spliced in — which is what a repeater owner
+     actually runs; see ConfigView.AssembledLines. The rail holds the radio, the
+     profile picker and the regions legend; main comes first in the DOM so a
      narrow screen reads content before its picker. */}}
 <div class="row row-cards">
-  <div class="col-lg-8">
+  <div class="col-lg-8 d-flex flex-column gap-3">
     {{if or .Config.Profiles .Config.PreviewActive}}
     {{template "config-preview" .}}
     {{else}}
@@ -31,10 +34,21 @@
       <div class="card-body text-secondary">This organization hasn't published a configuration profile yet. Use the radio settings{{if .Config.HasRegions}} and the regions below{{end}} when setting up a repeater.</div>
     </div>
     {{end}}
+    {{if .Config.Regions}}
+    <div class="card" data-testid="config-regions">
+      <div class="card-header">
+        <div>
+          <h2 class="card-title">Regions</h2>
+          <div class="card-subtitle">A repeater joins every region drawn around where it stands. <a href="{{.RootURL}}/docs/regions">Learn how regions work</a>.</div>
+        </div>
+      </div>
+      <div class="card-body p-0">{{template "config-region-map" (dict "Page" . "PickURL" true "Height" "420px")}}</div>
+    </div>
+    {{end}}
   </div>
-  <div class="col-lg-4">
+  <div class="col-lg-4 d-flex flex-column gap-3">
     {{with .Config.Radio}}
-    <div class="card mb-3" data-testid="config-radio">
+    <div class="card" data-testid="config-radio">
       <div class="card-header"><h2 class="card-title">Radio</h2></div>
       <div class="card-body"><div class="fw-bold" data-testid="config-radio-values">{{template "radio-values" .}}</div></div>
     </div>
@@ -51,31 +65,16 @@
       </div>
     </div>
     {{end}}
-  </div>
-</div>
-
-{{/* Regions: the map is the view of them, and the list beside it is the map's
-     legend (swatch + hierarchy by indentation). Clicking the map picks a location,
-     which is what drives the assembled preview above. */}}
-{{if .Config.Regions}}
-<div class="card mt-3" data-testid="config-regions">
-  <div class="card-header">
-    <div>
-      <h2 class="card-title">Regions</h2>
-      <div class="text-secondary small">Named areas drawn on a map. A repeater joins every region whose area contains it.</div>
-    </div>
-  </div>
-  <div class="card-body p-0">
-    <div class="row g-0">
-      <div class="col-lg-8">{{template "config-region-map" (dict "Page" . "PickURL" true "Height" "520px")}}</div>
-      <div class="col-lg-4 border-start">
-        <div class="list-group list-group-flush" style="max-height:520px; overflow-y:auto">
-          {{range .Config.Regions}}<div class="list-group-item" data-testid="config-region-row">{{template "config-region-label" .}}</div>{{end}}
-        </div>
+    {{if .Config.Regions}}
+    {{/* The map's legend: swatch, name and token, nested by indentation. */}}
+    <div class="card">
+      <div class="card-header"><h2 class="card-title">Region list</h2></div>
+      <div class="list-group list-group-flush" style="max-height:420px; overflow-y:auto">
+        {{range .Config.Regions}}<div class="list-group-item" data-testid="config-region-row">{{template "config-region-label" .}}</div>{{end}}
       </div>
     </div>
+    {{end}}
   </div>
 </div>
-{{end}}
 {{end}}
 {{end}}

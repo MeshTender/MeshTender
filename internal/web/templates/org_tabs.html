@@ -1,7 +1,6 @@
 {{/* The organization chrome shared by every org page: org-header, org-tabs, and the
-     sub-navs of the tabs that group several pages (org-checkins-nav,
-     org-settings-nav). Data: the map from web.OrgNavFor — Slug, Active (the page:
-     "home" | "members" | "repeaters" | "nets" | "activity" | "profile" | "config" |
+     Settings tab's rail (org-settings-nav). Data: the map from web.OrgNavFor — Slug, Active (the page:
+     "home" | "members" | "repeaters" | "nets" | "profile" | "config" |
      "observers"), Tab (the top-level tab that page lives under, derived from
      Active), IsMember / IsAdmin (which tabs show), ShowConfig. Nil-safe: a missing
      map renders empty links (harmless for the empty-data compose test). Links are
@@ -44,14 +43,6 @@
   {{if .IsMember}}<li class="nav-item"><a class="nav-link{{if eq .Tab "checkins"}} active{{end}}" href="/orgs/{{.Slug}}/nets" data-testid="org-tab-checkins">{{template "icon-calendar-event" "me-1"}}Check-ins</a></li>{{end}}
   {{if and .IsMember .IsAdmin}}<li class="nav-item ms-auto"><a class="nav-link{{if eq .Tab "settings"}} active{{end}}" href="/orgs/{{.Slug}}/settings" data-testid="org-tab-settings">{{template "icon-settings" "me-1"}}Settings</a></li>{{end}}
 </ul>
-{{end}}
-
-{{/* org-checkins-nav switches between the Check-ins tab's pages. */}}
-{{define "org-checkins-nav"}}
-<nav class="btn-group mb-3" aria-label="Check-ins" data-testid="org-checkins-nav">
-  <a class="btn" href="/orgs/{{.Slug}}/nets"{{if eq .Active "nets"}} aria-current="page"{{end}}>Nets</a>
-  <a class="btn" href="/orgs/{{.Slug}}/activity"{{if eq .Active "activity"}} aria-current="page"{{end}} data-testid="org-subnav-activity">Member activity</a>
-</nav>
 {{end}}
 
 {{/* org-settings-nav is the Settings tab's left rail (admins only): one page per

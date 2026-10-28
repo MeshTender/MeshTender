@@ -292,7 +292,14 @@ func TestOrgActivityPage(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	body := getBody(t, ts, h.app, "/orgs/"+org.Slug+"/activity", adminSess)
+	// Member activity is a section of the Check-ins page now; its old address
+	// still finds it.
+	old := do(t, ts, h.app, "/orgs/"+org.Slug+"/activity", adminSess)
+	old.Body.Close()
+	if want := "/orgs/" + org.Slug + "/nets#activity"; old.StatusCode != http.StatusMovedPermanently || old.Header.Get("Location") != want {
+		t.Errorf("GET /activity = %d → %q, want 301 → %s", old.StatusCode, old.Header.Get("Location"), want)
+	}
+	body := getBody(t, ts, h.app, "/orgs/"+org.Slug+"/nets", adminSess)
 	if !strings.Contains(body, "Admin T1") {
 		t.Error("activity lacks the confirmed companion")
 	}
@@ -304,7 +311,7 @@ func TestOrgActivityPage(t *testing.T) {
 	if strings.Contains(body, "Pending T2") {
 		t.Error("an unconfirmed companion is listed")
 	}
-	if got := status(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/activity", outsiderSess)); got != http.StatusNotFound {
+	if got := status(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/nets", outsiderSess)); got != http.StatusNotFound {
 		t.Errorf("outsider GET = %d", got)
 	}
 }

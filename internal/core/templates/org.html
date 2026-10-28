@@ -37,8 +37,8 @@
     {{if .Nav.ShowConfig}}
     <div class="card" data-testid="org-config-card">
       <div class="card-header">
-        <h2 class="card-title">Repeater setup</h2>
-        <div class="card-actions">{{template "org-config-link" .Nav}}</div>
+        <h2 class="card-title">Recommended configuration</h2>
+        <div class="card-actions"><a class="btn btn-sm" href="/orgs/{{.Org.Slug}}/config" data-testid="org-config-link">See the commands</a></div>
       </div>
       <div class="card-body">
         <div class="row g-3">
