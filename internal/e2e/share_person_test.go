@@ -43,11 +43,13 @@ func TestE2EPersonAccessPage(t *testing.T) {
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(shareURL),
-		chromedp.WaitVisible(`[data-testid="manage-person"]`, chromedp.ByQuery),
-		chromedp.Click(`[data-testid="manage-person"]`, chromedp.ByQuery),
-		chromedp.WaitVisible(`[data-testid="person-access-form"] [data-check-scope]`, chromedp.ByQuery),
-		chromedp.Evaluate(`!!document.querySelector('[data-testid="person-access-form"] input[name=steward]')`, &hasSteward),
+		step("open the shared repeater's people",
+			chromedp.Navigate(shareURL),
+			chromedp.WaitVisible(`[data-testid="manage-person"]`, chromedp.ByQuery)),
+		step("open a person's access",
+			chromedp.Click(`[data-testid="manage-person"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(`[data-testid="person-access-form"] [data-check-scope]`, chromedp.ByQuery),
+			chromedp.Evaluate(`!!document.querySelector('[data-testid="person-access-form"] input[name=steward]')`, &hasSteward)),
 	); err != nil {
 		t.Fatalf("browser run against %s: %v", shareURL, err)
 	}
@@ -99,16 +101,20 @@ func TestE2EStewardSwitchCollapsesCommands(t *testing.T) {
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(shareURL),
-		chromedp.WaitVisible(`[data-testid="manage-person"]`, chromedp.ByQuery),
-		chromedp.Click(`[data-testid="manage-person"]`, chromedp.ByQuery),
-		chromedp.WaitVisible(`[data-testid="person-access-form"] input[name=steward]`, chromedp.ByQuery),
-		chromedp.Evaluate(visible, &shownAsSteward),
+		step("open the shared repeater's people",
+			chromedp.Navigate(shareURL),
+			chromedp.WaitVisible(`[data-testid="manage-person"]`, chromedp.ByQuery)),
+		step("open the steward's access",
+			chromedp.Click(`[data-testid="manage-person"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(`[data-testid="person-access-form"] input[name=steward]`, chromedp.ByQuery),
+			chromedp.Evaluate(visible, &shownAsSteward)),
 		// Turning steward off reveals the grants that apply instead.
-		chromedp.Click(`[data-testid="person-access-form"] input[name=steward]`, chromedp.ByQuery),
-		chromedp.Evaluate(visible, &shownAfterOff),
-		chromedp.Click(`[data-testid="person-access-form"] input[name=steward]`, chromedp.ByQuery),
-		chromedp.Evaluate(visible, &shownAfterOn),
+		step("turn steward off",
+			chromedp.Click(`[data-testid="person-access-form"] input[name=steward]`, chromedp.ByQuery),
+			chromedp.Evaluate(visible, &shownAfterOff)),
+		step("turn steward back on",
+			chromedp.Click(`[data-testid="person-access-form"] input[name=steward]`, chromedp.ByQuery),
+			chromedp.Evaluate(visible, &shownAfterOn)),
 	); err != nil {
 		t.Fatalf("browser run against %s: %v", shareURL, err)
 	}

@@ -63,18 +63,20 @@ func TestE2EShareOrgLimitsPage(t *testing.T) {
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(shareURL),
-		// Open the organization's access page.
-		chromedp.WaitVisible(`[data-testid="manage-access"]`, chromedp.ByQuery),
-		chromedp.Evaluate(orgNameLink, &orgLink),
-		chromedp.Click(`[data-testid="manage-access"]`, chromedp.ByQuery),
-		chromedp.WaitVisible(`[data-testid="org-access-form"] [data-check-scope]`, chromedp.ByQuery),
-		chromedp.Evaluate(countChecked, &initial),
+		step("open the repeater's Organizations settings",
+			chromedp.Navigate(shareURL),
+			chromedp.WaitVisible(`[data-testid="manage-access"]`, chromedp.ByQuery),
+			chromedp.Evaluate(orgNameLink, &orgLink)),
+		step("open the organization's access page",
+			chromedp.Click(`[data-testid="manage-access"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(`[data-testid="org-access-form"] [data-check-scope]`, chromedp.ByQuery),
+			chromedp.Evaluate(countChecked, &initial)),
 		// Default is permissive: everything checked. Uncheck only the first section.
 		// ByQuery = querySelector, so this is the first scope's Select-none button
 		// (document order), regardless of sibling element types before the cards.
-		chromedp.Click(`[data-testid="org-access-form"] [data-check-scope] [data-check-none]`, chromedp.ByQuery),
-		chromedp.Evaluate(countChecked, &afterNone),
+		step("select none in the first section",
+			chromedp.Click(`[data-testid="org-access-form"] [data-check-scope] [data-check-none]`, chromedp.ByQuery),
+			chromedp.Evaluate(countChecked, &afterNone)),
 	); err != nil {
 		t.Fatalf("browser run against %s: %v", shareURL, err)
 	}

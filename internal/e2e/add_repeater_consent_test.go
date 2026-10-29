@@ -31,9 +31,10 @@ func TestE2EAddRepeaterConsentLocationDisclosure(t *testing.T) {
 			network.Enable(),
 			cdplog.Enable(),
 			setSessionCookie(cookie),
-			chromedp.Navigate(srv.appURL+"/repeaters/add?step=consent&method="+method),
-			chromedp.WaitVisible(`#ack`, chromedp.ByQuery),
-			chromedp.Evaluate(disclosure, &shown),
+			step("open the "+method+" consent step",
+				chromedp.Navigate(srv.appURL+"/repeaters/add?step=consent&method="+method),
+				chromedp.WaitVisible(`#ack`, chromedp.ByQuery),
+				chromedp.Evaluate(disclosure, &shown)),
 		); err != nil {
 			t.Fatalf("browser run (method=%s): %v", method, err)
 		}

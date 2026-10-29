@@ -43,12 +43,14 @@ func TestE2EWizardManageAccessPage(t *testing.T) {
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(addedURL),
-		chromedp.WaitVisible(`[data-testid="manage-access"]`, chromedp.ByQuery),
-		chromedp.Click(`[data-testid="manage-access"]`, chromedp.ByQuery),
-		// htmx loads the org-limits fragment: the Shared switch + command grid.
-		chromedp.WaitVisible(`[data-testid="org-access-form"] [data-check-scope]`, chromedp.ByQuery),
-		chromedp.Evaluate(`!!document.querySelector('[data-testid="org-access-form"] input[name=include]')`, &hasSwitch),
+		step("open the wizard's last step",
+			chromedp.Navigate(addedURL),
+			chromedp.WaitVisible(`[data-testid="manage-access"]`, chromedp.ByQuery)),
+		step("open the organization's access page",
+			chromedp.Click(`[data-testid="manage-access"]`, chromedp.ByQuery),
+			// htmx loads the org-limits fragment: the Shared switch + command grid.
+			chromedp.WaitVisible(`[data-testid="org-access-form"] [data-check-scope]`, chromedp.ByQuery),
+			chromedp.Evaluate(`!!document.querySelector('[data-testid="org-access-form"] input[name=include]')`, &hasSwitch)),
 	); err != nil {
 		t.Fatalf("browser run against %s: %v", addedURL, err)
 	}

@@ -89,11 +89,13 @@ func TestCSPViolationIsReportedByARealBrowser(t *testing.T) {
 	err := chromedp.Run(bctx,
 		network.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(srv.appURL+"/repeaters"),
-		chromedp.WaitVisible(`body`, chromedp.ByQuery),
-		chromedp.Evaluate(violate, &ok),
-		// Give the browser a moment to notice the violation before we start polling.
-		chromedp.Sleep(time.Second),
+		step("open your repeaters",
+			chromedp.Navigate(srv.appURL+"/repeaters"),
+			chromedp.WaitVisible(`body`, chromedp.ByQuery)),
+		step("violate the CSP",
+			chromedp.Evaluate(violate, &ok),
+			// Give the browser a moment to notice the violation before we start polling.
+			chromedp.Sleep(time.Second)),
 	)
 	if err != nil {
 		t.Fatalf("drive browser: %v", err)

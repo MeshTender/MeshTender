@@ -3,9 +3,7 @@
 package e2e
 
 import (
-	"context"
 	"testing"
-	"time"
 
 	cdplog "github.com/chromedp/cdproto/log"
 	"github.com/chromedp/cdproto/network"
@@ -28,16 +26,15 @@ func TestE2EAddRepeaterPublicPageOption(t *testing.T) {
 		{"usb-setup", "/repeaters/add?step=serial&method=serial", `#expose_public_page`},
 	}
 	for _, c := range cases {
-		runCtx, cancelRun := context.WithTimeout(bctx, 30*time.Second)
 		// WaitVisible on the checkbox itself proves it rendered and is visible.
-		err := chromedp.Run(runCtx,
+		err := chromedp.Run(bctx,
 			network.Enable(),
 			cdplog.Enable(),
 			setSessionCookie(cookie),
-			chromedp.Navigate(srv.appURL+c.url),
-			chromedp.WaitVisible(c.selector, chromedp.ByQuery),
+			step("open the "+c.name+" step",
+				chromedp.Navigate(srv.appURL+c.url),
+				chromedp.WaitVisible(c.selector, chromedp.ByQuery)),
 		)
-		cancelRun()
 		if err != nil {
 			t.Errorf("%s step: public-page checkbox (%s) not visible: %v", c.name, c.selector, err)
 		}

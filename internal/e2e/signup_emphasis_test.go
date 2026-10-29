@@ -56,11 +56,13 @@ func readSignupState(t *testing.T, srv *e2eServer, withAuth bool) signupState {
 	if err := chromedp.Run(bctx,
 		network.Enable(),
 		cdplog.Enable(),
-		chromedp.Navigate(srv.authURL+"/signup"),
-		chromedp.WaitVisible(`#signup-form`, chromedp.ByQuery),
+		step("open the sign-up page",
+			chromedp.Navigate(srv.authURL+"/signup"),
+			chromedp.WaitVisible(`#signup-form`, chromedp.ByQuery)),
 		// The adaptation awaits a promise, so give the microtask queue a beat.
-		chromedp.Sleep(700*time.Millisecond),
-		chromedp.Evaluate(probe, &raw),
+		step("read how the form adapted",
+			chromedp.Sleep(700*time.Millisecond),
+			chromedp.Evaluate(probe, &raw)),
 	); err != nil {
 		t.Fatalf("read signup state: %v", err)
 	}
@@ -116,12 +118,14 @@ func TestE2ESignupTogglerRevealsPassword(t *testing.T) {
 	if err := chromedp.Run(bctx,
 		network.Enable(),
 		cdplog.Enable(),
-		chromedp.Navigate(srv.authURL+"/signup"),
-		chromedp.WaitVisible(`#use-password`, chromedp.ByQuery),
-		chromedp.Click(`#use-password`, chromedp.ByQuery),
-		chromedp.WaitVisible(`#password`, chromedp.ByQuery),
-		chromedp.Evaluate(`!document.getElementById("password-section").classList.contains("d-none")`, &visible),
-		chromedp.Evaluate(`document.getElementById("password").disabled`, &disabled),
+		step("open the sign-up page",
+			chromedp.Navigate(srv.authURL+"/signup"),
+			chromedp.WaitVisible(`#use-password`, chromedp.ByQuery)),
+		step("choose a password instead",
+			chromedp.Click(`#use-password`, chromedp.ByQuery),
+			chromedp.WaitVisible(`#password`, chromedp.ByQuery),
+			chromedp.Evaluate(`!document.getElementById("password-section").classList.contains("d-none")`, &visible),
+			chromedp.Evaluate(`document.getElementById("password").disabled`, &disabled)),
 	); err != nil {
 		t.Fatalf("toggle password: %v", err)
 	}
@@ -156,12 +160,14 @@ func TestE2ESignupEnterStartsPasskeyWhenCollapsed(t *testing.T) {
 	if err := chromedp.Run(bctx,
 		network.Enable(),
 		cdplog.Enable(),
-		chromedp.Navigate(srv.authURL+"/signup"),
 		// Wait for the toggle: its presence means the collapse has been applied, so
 		// Enter is being pressed in exactly the state under test.
-		chromedp.WaitVisible(`#use-password`, chromedp.ByQuery),
-		chromedp.SendKeys(`#username`, username, chromedp.ByQuery),
-		chromedp.SendKeys(`#username`, "\r", chromedp.ByQuery),
+		step("open the sign-up page",
+			chromedp.Navigate(srv.authURL+"/signup"),
+			chromedp.WaitVisible(`#use-password`, chromedp.ByQuery)),
+		step("type a username and press Enter",
+			chromedp.SendKeys(`#username`, username, chromedp.ByQuery),
+			chromedp.SendKeys(`#username`, "\r", chromedp.ByQuery)),
 	); err != nil {
 		t.Fatalf("submit via Enter: %v", err)
 	}
@@ -172,7 +178,8 @@ func TestE2ESignupEnterStartsPasskeyWhenCollapsed(t *testing.T) {
 	// does nothing.
 	if u := waitForUser(t, srv, username); u == nil {
 		var status string
-		_ = chromedp.Run(bctx, chromedp.Text("#passkey-status", &status, chromedp.ByID, chromedp.AtLeast(0)))
+		_ = chromedp.Run(bctx, step("read the passkey status",
+			chromedp.Text("#passkey-status", &status, chromedp.ByID, chromedp.AtLeast(0))))
 		t.Fatalf("Enter in the username field didn't start the passkey ceremony while the "+
 			"password half was collapsed; page status = %q", status)
 	}

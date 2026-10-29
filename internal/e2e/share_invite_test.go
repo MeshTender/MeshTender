@@ -37,13 +37,15 @@ func TestE2ECreateInvitePage(t *testing.T) {
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(shareURL),
-		chromedp.WaitVisible(`[data-testid="new-invite"]`, chromedp.ByQuery),
-		chromedp.Click(`[data-testid="new-invite"]`, chromedp.ByQuery),
-		// htmx loads the fragment: wait for the command grid, then check the fields.
-		chromedp.WaitVisible(`[data-testid="invite-form"] [data-check-scope]`, chromedp.ByQuery),
-		chromedp.Evaluate(`!!document.querySelector('[data-testid="invite-form"] input[name=description]')`, &hasDescription),
-		chromedp.Evaluate(`document.querySelectorAll('[data-testid="invite-form"] input[name=cmd]').length > 0`, &boxes),
+		step("open Settings › People",
+			chromedp.Navigate(shareURL),
+			chromedp.WaitVisible(`[data-testid="new-invite"]`, chromedp.ByQuery)),
+		step("open the new-invite form",
+			chromedp.Click(`[data-testid="new-invite"]`, chromedp.ByQuery),
+			// htmx loads the fragment: wait for the command grid, then check the fields.
+			chromedp.WaitVisible(`[data-testid="invite-form"] [data-check-scope]`, chromedp.ByQuery),
+			chromedp.Evaluate(`!!document.querySelector('[data-testid="invite-form"] input[name=description]')`, &hasDescription),
+			chromedp.Evaluate(`document.querySelectorAll('[data-testid="invite-form"] input[name=cmd]').length > 0`, &boxes)),
 	); err != nil {
 		t.Fatalf("browser run against %s: %v", shareURL, err)
 	}

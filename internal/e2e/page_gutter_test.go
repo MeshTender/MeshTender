@@ -56,11 +56,13 @@ func TestE2ENoLeftGutterWhenScrollbarAppears(t *testing.T) {
 		// Above the 992px breakpoint the Tabler rule applies; below it, it doesn't.
 		chromedp.EmulateViewport(1280, 700),
 		setSessionCookie(cookie),
-		chromedp.Navigate(srv.appURL+"/orgs/"+org.Slug+"/repeaters"),
-		chromedp.WaitVisible(`#rep-list`, chromedp.ByQuery),
-		chromedp.Evaluate(`window.innerWidth - document.documentElement.clientWidth`, &scrollbar),
-		chromedp.Evaluate(`getComputedStyle(document.documentElement).marginLeft`, &htmlMargin),
-		chromedp.Evaluate(`Math.round(document.querySelector('header.navbar').getBoundingClientRect().left)`, &navLeft),
+		step("open the org's repeaters",
+			chromedp.Navigate(srv.appURL+"/orgs/"+org.Slug+"/repeaters"),
+			chromedp.WaitVisible(`#rep-list`, chromedp.ByQuery)),
+		step("measure the page's left edge",
+			chromedp.Evaluate(`window.innerWidth - document.documentElement.clientWidth`, &scrollbar),
+			chromedp.Evaluate(`getComputedStyle(document.documentElement).marginLeft`, &htmlMargin),
+			chromedp.Evaluate(`Math.round(document.querySelector('header.navbar').getBoundingClientRect().left)`, &navLeft)),
 	); err != nil {
 		t.Fatalf("browser run: %v", err)
 	}

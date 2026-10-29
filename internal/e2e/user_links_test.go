@@ -40,17 +40,21 @@ func TestE2EUserLinksClientValidation(t *testing.T) {
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(accountURL),
-		chromedp.WaitVisible(`form[data-link-editor]`, chromedp.ByQuery),
-		chromedp.Click(`[data-link-add]`, chromedp.ByQuery),
-		chromedp.WaitVisible(sel, chromedp.ByQuery),
-		chromedp.SetValue(sel, "email", chromedp.ByQuery),
-		chromedp.SetValue(urlInput, "notanemail", chromedp.ByQuery),
-		chromedp.Click(submit, chromedp.ByQuery),
+		step("open the account page",
+			chromedp.Navigate(accountURL),
+			chromedp.WaitVisible(`form[data-link-editor]`, chromedp.ByQuery)),
+		step("add a link row",
+			chromedp.Click(`[data-link-add]`, chromedp.ByQuery),
+			chromedp.WaitVisible(sel, chromedp.ByQuery)),
+		step("submit an invalid email",
+			chromedp.SetValue(sel, "email", chromedp.ByQuery),
+			chromedp.SetValue(urlInput, "notanemail", chromedp.ByQuery),
+			chromedp.Click(submit, chromedp.ByQuery)),
 		// The blocked submit reveals an inline error on the row rather than reloading.
-		chromedp.WaitVisible(`[data-link-rows] .link-row .link-error`, chromedp.ByQuery),
-		chromedp.Text(`[data-link-rows] .link-row .link-error`, &inlineErr, chromedp.ByQuery),
-		chromedp.Location(&afterBlockURL),
+		step("see the inline error",
+			chromedp.WaitVisible(`[data-link-rows] .link-row .link-error`, chromedp.ByQuery),
+			chromedp.Text(`[data-link-rows] .link-row .link-error`, &inlineErr, chromedp.ByQuery),
+			chromedp.Location(&afterBlockURL)),
 	); err != nil {
 		t.Fatalf("phase 1 (invalid row) against %s: %v", accountURL, err)
 	}
@@ -64,11 +68,12 @@ func TestE2EUserLinksClientValidation(t *testing.T) {
 	// Phase 2: fix the row to a bare-domain URL. The client must NOT block it, the
 	// form submits, and the server stores it normalized to https://.
 	if err := chromedp.Run(bctx,
-		chromedp.SetValue(sel, "website", chromedp.ByQuery),
-		chromedp.SetValue(urlInput, "example.com", chromedp.ByQuery),
-		chromedp.Click(submit, chromedp.ByQuery),
 		// A successful save redirects back with the success flash.
-		chromedp.WaitVisible(`.alert-success`, chromedp.ByQuery),
+		step("save a bare-domain website",
+			chromedp.SetValue(sel, "website", chromedp.ByQuery),
+			chromedp.SetValue(urlInput, "example.com", chromedp.ByQuery),
+			chromedp.Click(submit, chromedp.ByQuery),
+			chromedp.WaitVisible(`.alert-success`, chromedp.ByQuery)),
 	); err != nil {
 		t.Fatalf("phase 2 (valid bare domain) against %s: %v", accountURL, err)
 	}
@@ -85,14 +90,16 @@ func TestE2EUserLinksClientValidation(t *testing.T) {
 	// and the server canonicalises to the profile URL. Reload first to a clean page
 	// so the success banner we wait on is this save's, not phase 2's leftover.
 	if err := chromedp.Run(bctx,
-		chromedp.Navigate(accountURL),
-		chromedp.WaitVisible(`form[data-link-editor]`, chromedp.ByQuery),
-		chromedp.Click(`[data-link-add]`, chromedp.ByQuery),
+		step("reopen the account page",
+			chromedp.Navigate(accountURL),
+			chromedp.WaitVisible(`form[data-link-editor]`, chromedp.ByQuery)),
 		// The new row is the last one; target its controls.
-		chromedp.SetValue(`[data-link-rows] .link-row:last-child .link-platform`, "github", chromedp.ByQuery),
-		chromedp.SetValue(`[data-link-rows] .link-row:last-child .link-value`, "@octocat", chromedp.ByQuery),
-		chromedp.Click(submit, chromedp.ByQuery),
-		chromedp.WaitVisible(`.alert-success`, chromedp.ByQuery),
+		step("save a GitHub @handle",
+			chromedp.Click(`[data-link-add]`, chromedp.ByQuery),
+			chromedp.SetValue(`[data-link-rows] .link-row:last-child .link-platform`, "github", chromedp.ByQuery),
+			chromedp.SetValue(`[data-link-rows] .link-row:last-child .link-value`, "@octocat", chromedp.ByQuery),
+			chromedp.Click(submit, chromedp.ByQuery),
+			chromedp.WaitVisible(`.alert-success`, chromedp.ByQuery)),
 	); err != nil {
 		t.Fatalf("phase 3 (github handle) against %s: %v", accountURL, err)
 	}

@@ -39,12 +39,14 @@ func TestE2EConsoleConfirmBanner(t *testing.T) {
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(srv.appURL+"/repeaters/"+unconfirmed.PublicID+"/configure"),
-		chromedp.WaitVisible(`[data-testid="allowed-commands"]`, chromedp.ByQuery),
-		chromedp.Evaluate(`!!document.querySelector('[data-testid="confirm-banner"]')`, &confirmBanner),
-		// Computed display must be none — guards the Bootstrap gotcha where .d-flex
-		// (display:flex !important) would override the [hidden] attribute.
-		chromedp.Evaluate(`(function () { var b = document.querySelector('[data-testid="location-banner"]'); return !!b && getComputedStyle(b).display === 'none'; })()`, &locBannerHidden),
+		step("open the unconfirmed repeater's console",
+			chromedp.Navigate(srv.appURL+"/repeaters/"+unconfirmed.PublicID+"/configure"),
+			chromedp.WaitVisible(`[data-testid="allowed-commands"]`, chromedp.ByQuery)),
+		step("read its banners",
+			chromedp.Evaluate(`!!document.querySelector('[data-testid="confirm-banner"]')`, &confirmBanner),
+			// Computed display must be none — guards the Bootstrap gotcha where .d-flex
+			// (display:flex !important) would override the [hidden] attribute.
+			chromedp.Evaluate(`(function () { var b = document.querySelector('[data-testid="location-banner"]'); return !!b && getComputedStyle(b).display === 'none'; })()`, &locBannerHidden)),
 	); err != nil {
 		t.Fatalf("browser run (unconfirmed): %v", err)
 	}
@@ -58,10 +60,12 @@ func TestE2EConsoleConfirmBanner(t *testing.T) {
 	// --- confirmed, no location: location-banner + fetch button, no confirm banner ---
 	var confirmBannerB, fetchBtn bool
 	if err := chromedp.Run(bctx,
-		chromedp.Navigate(srv.appURL+"/repeaters/"+located.PublicID+"/configure"),
-		chromedp.WaitVisible(`[data-testid="location-banner"]`, chromedp.ByQuery),
-		chromedp.Evaluate(`!!document.querySelector('[data-testid="confirm-banner"]')`, &confirmBannerB),
-		chromedp.Evaluate(`!!document.querySelector('[data-testid="fetch-location"]')`, &fetchBtn),
+		step("open the confirmed repeater's console",
+			chromedp.Navigate(srv.appURL+"/repeaters/"+located.PublicID+"/configure"),
+			chromedp.WaitVisible(`[data-testid="location-banner"]`, chromedp.ByQuery)),
+		step("read its banners",
+			chromedp.Evaluate(`!!document.querySelector('[data-testid="confirm-banner"]')`, &confirmBannerB),
+			chromedp.Evaluate(`!!document.querySelector('[data-testid="fetch-location"]')`, &fetchBtn)),
 	); err != nil {
 		t.Fatalf("browser run (confirmed): %v", err)
 	}

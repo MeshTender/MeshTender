@@ -47,15 +47,19 @@ func TestE2EOrgRadioSettings(t *testing.T) {
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(srv.appURL+"/orgs/"+org.Slug+"/settings"),
-		chromedp.WaitVisible(`#radio-preset`, chromedp.ByQuery),
-		pickPreset("ch"),
-		chromedp.Evaluate(radioState, &afterPreset),
-		editRadioField("radio_sf", "9"),
-		chromedp.Evaluate(radioState, &afterEdit),
-		chromedp.Click(`[data-testid="save-radio"]`, chromedp.ByQuery),
-		chromedp.WaitVisible(`[data-testid="flash-ok"]`, chromedp.ByQuery),
-		chromedp.Evaluate(radioState, &saved),
+		step("open the org's settings",
+			chromedp.Navigate(srv.appURL+"/orgs/"+org.Slug+"/settings"),
+			chromedp.WaitVisible(`#radio-preset`, chromedp.ByQuery)),
+		step("pick a preset",
+			pickPreset("ch"),
+			chromedp.Evaluate(radioState, &afterPreset)),
+		step("edit a radio field",
+			editRadioField("radio_sf", "9"),
+			chromedp.Evaluate(radioState, &afterEdit)),
+		step("save the radio",
+			chromedp.Click(`[data-testid="save-radio"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(`[data-testid="flash-ok"]`, chromedp.ByQuery),
+			chromedp.Evaluate(radioState, &saved)),
 	); err != nil {
 		t.Fatalf("set org radio: %v", err)
 	}
@@ -71,10 +75,12 @@ func TestE2EOrgRadioSettings(t *testing.T) {
 
 	var addForm string
 	if err := chromedp.Run(bctx,
-		chromedp.Navigate(srv.appURL+"/repeaters/add?step=details&method=kiss"),
-		chromedp.WaitVisible(`#radio-preset`, chromedp.ByQuery),
-		pickPreset("nz"),
-		chromedp.Evaluate(radioState, &addForm),
+		step("open the add-repeater details",
+			chromedp.Navigate(srv.appURL+"/repeaters/add?step=details&method=kiss"),
+			chromedp.WaitVisible(`#radio-preset`, chromedp.ByQuery)),
+		step("pick a preset",
+			pickPreset("nz"),
+			chromedp.Evaluate(radioState, &addForm)),
 	); err != nil {
 		t.Fatalf("add-repeater preset: %v", err)
 	}

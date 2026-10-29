@@ -3,7 +3,6 @@
 package e2e
 
 import (
-	"context"
 	"encoding/hex"
 	"regexp"
 	"strings"
@@ -36,34 +35,38 @@ func TestE2EUSBSetupRunsEachCommand(t *testing.T) {
 	acceptDialogs(bctx)
 	fake := installFakeRepeater(t, bctx, strings.Repeat("ab", 32))
 
-	runCtx, cancelRun := context.WithTimeout(bctx, 60*time.Second)
-	defer cancelRun()
 	var failure, preview string
 	var refused bool
-	if err := chromedp.Run(runCtx,
+	if err := chromedp.Run(bctx,
 		setSessionCookie(cookie),
-		chromedp.Navigate(srv.appURL+"/repeaters/add?step=serial&method=serial"),
-		chromedp.WaitVisible(`#generate`, chromedp.ByQuery),
-		// The random key is generated asynchronously on load.
-		chromedp.Poll(`/^[0-9a-f]{64}$/.test(document.getElementById("pubkey").textContent)`, nil),
-		chromedp.SendKeys(`#name`, "MT Test", chromedp.ByQuery),
-		// 16 bytes in 15 characters: past the firmware's buffer, which would cut
-		// it short, so setup refuses it (the alert is auto-accepted).
-		chromedp.Evaluate(`document.getElementById("admin_password").value = "fifteen-chars-é"`, nil),
-		chromedp.Click(`#generate`, chromedp.ByQuery),
-		chromedp.Sleep(500*time.Millisecond),
-		chromedp.Evaluate(`document.getElementById("review-card").hidden`, &refused),
-		chromedp.Evaluate(`document.getElementById("admin_password").value = "s3cret admin"`, nil),
-		chromedp.SendKeys(`#guest_password`, "visitor", chromedp.ByQuery),
-		chromedp.Click(`#generate`, chromedp.ByQuery),
-		chromedp.WaitVisible(`#run`, chromedp.ByQuery),
-		chromedp.Text(`#cmdlist`, &preview, chromedp.ByQuery),
-		chromedp.Click(`#run`, chromedp.ByQuery),
+		step("open USB setup",
+			chromedp.Navigate(srv.appURL+"/repeaters/add?step=serial&method=serial"),
+			chromedp.WaitVisible(`#generate`, chromedp.ByQuery),
+			// The random key is generated asynchronously on load.
+			chromedp.Poll(`/^[0-9a-f]{64}$/.test(document.getElementById("pubkey").textContent)`, nil)),
+		step("be refused an admin password the firmware would cut short",
+			chromedp.SendKeys(`#name`, "MT Test", chromedp.ByQuery),
+			// 16 bytes in 15 characters: past the firmware's buffer, which would cut
+			// it short, so setup refuses it (the alert is auto-accepted).
+			chromedp.Evaluate(`document.getElementById("admin_password").value = "fifteen-chars-é"`, nil),
+			chromedp.Click(`#generate`, chromedp.ByQuery),
+			chromedp.Sleep(500*time.Millisecond),
+			chromedp.Evaluate(`document.getElementById("review-card").hidden`, &refused)),
+		step("review the setup commands",
+			chromedp.Evaluate(`document.getElementById("admin_password").value = "s3cret admin"`, nil),
+			chromedp.SendKeys(`#guest_password`, "visitor", chromedp.ByQuery),
+			chromedp.Click(`#generate`, chromedp.ByQuery),
+			chromedp.WaitVisible(`#run`, chromedp.ByQuery),
+			chromedp.Text(`#cmdlist`, &preview, chromedp.ByQuery)),
+		step("start setup",
+			chromedp.Click(`#run`, chromedp.ByQuery)),
 	); err != nil {
 		t.Fatalf("browser run: %v (the fake repeater ran %q)", err, fake.lines())
 	}
 
 	// Saving navigates the page away, so wait on the record rather than the page.
+	// The wait is long on purpose: setup waits out the board's reset on open,
+	// then the firmware's 5s save after setperm before it reboots.
 	var reps []*store.Repeater
 	for deadline := time.Now().Add(40 * time.Second); len(reps) == 0; {
 		if time.Now().After(deadline) {

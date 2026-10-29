@@ -44,9 +44,10 @@ func TestE2EMaintenanceShowsCurrentAuthorName(t *testing.T) {
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(url),
-		chromedp.WaitVisible(`.maint-author`, chromedp.ByQuery),
-		chromedp.Text(`.maint-author`, &authorText, chromedp.ByQuery),
+		step("open the maintenance history",
+			chromedp.Navigate(url),
+			chromedp.WaitVisible(`.maint-author`, chromedp.ByQuery),
+			chromedp.Text(`.maint-author`, &authorText, chromedp.ByQuery)),
 	); err != nil {
 		t.Fatalf("browser run against %s: %v", url, err)
 	}

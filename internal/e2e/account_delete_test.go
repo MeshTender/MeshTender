@@ -53,7 +53,7 @@ func TestE2EDeleteAccountWithPasskey(t *testing.T) {
 
 	// Register a passkey on the account page, so the account has a passkey and no
 	// password — the state that forces the re-auth ceremony.
-	if err := chromedp.Run(ctx, setSessionCookie(cookie), addPasskeyOnAccountPage(e.authURL)); err != nil {
+	if err := chromedp.Run(ctx, setSessionCookie(cookie), step("add a passkey", addPasskeyOnAccountPage(e.authURL))); err != nil {
 		t.Fatalf("add a passkey: %v", err)
 	}
 	if creds, err := e.store.GetCredentials(e.ctx, victim.ID); err != nil || len(creds) != 1 {
@@ -62,10 +62,12 @@ func TestE2EDeleteAccountWithPasskey(t *testing.T) {
 
 	// Now delete the account: verify with the passkey, which submits the form.
 	if err := chromedp.Run(ctx,
-		chromedp.Navigate(e.authURL+"/account/delete"),
-		chromedp.WaitVisible(`[data-testid="verify-passkey"]`, chromedp.ByQuery),
-		chromedp.Click(`[data-testid="verify-passkey"]`, chromedp.ByQuery),
-		waitForLocation(e.authURL+"/login"),
+		step("open the delete page",
+			chromedp.Navigate(e.authURL+"/account/delete"),
+			chromedp.WaitVisible(`[data-testid="verify-passkey"]`, chromedp.ByQuery)),
+		step("verify with the passkey, which deletes the account",
+			chromedp.Click(`[data-testid="verify-passkey"]`, chromedp.ByQuery),
+			waitForLocation(e.authURL+"/login")),
 	); err != nil {
 		var status string
 		_ = chromedp.Run(ctx, chromedp.Text("#passkey-status", &status, chromedp.ByID, chromedp.AtLeast(0)))
@@ -97,15 +99,16 @@ func TestE2EReauthPasskeyAfterSessionExpires(t *testing.T) {
 	var status string
 	if err := chromedp.Run(ctx,
 		setSessionCookie(cookie),
-		addPasskeyOnAccountPage(e.authURL),
-		chromedp.Navigate(e.authURL+"/account/delete"),
-		chromedp.WaitVisible(`[data-testid="verify-passkey"]`, chromedp.ByQuery),
+		step("add a passkey", addPasskeyOnAccountPage(e.authURL)),
+		step("open the delete page",
+			chromedp.Navigate(e.authURL+"/account/delete"),
+			chromedp.WaitVisible(`[data-testid="verify-passkey"]`, chromedp.ByQuery)),
 		// The session goes away while the page is open.
 		network.ClearBrowserCookies(),
-		chromedp.Click(`[data-testid="verify-passkey"]`, chromedp.ByQuery),
-		chromedp.Poll(`document.getElementById("passkey-status").textContent.startsWith("Error:")`, nil,
-			chromedp.WithPollingTimeout(10*time.Second)),
-		chromedp.Text("#passkey-status", &status, chromedp.ByID),
+		step("verify with the passkey and be told the session expired",
+			chromedp.Click(`[data-testid="verify-passkey"]`, chromedp.ByQuery),
+			chromedp.Poll(`document.getElementById("passkey-status").textContent.startsWith("Error:")`, nil),
+			chromedp.Text("#passkey-status", &status, chromedp.ByID)),
 	); err != nil {
 		t.Fatalf("drive the delete page: %v (page status = %q)", err, status)
 	}
@@ -131,11 +134,13 @@ func TestE2EDeleteAccountWithoutVerifying(t *testing.T) {
 	var errText string
 	if err := chromedp.Run(ctx,
 		setSessionCookie(cookie),
-		chromedp.Navigate(e.authURL+"/account/delete"),
+		step("open the delete page",
+			chromedp.Navigate(e.authURL+"/account/delete")),
 		// Submit with the password field left empty.
-		chromedp.Click(`[data-testid="confirm-delete"]`, chromedp.ByQuery),
-		waitForLocation(e.authURL+"/account/delete?error="),
-		chromedp.Text(".alert-danger", &errText, chromedp.ByQuery),
+		step("delete without verifying and be refused",
+			chromedp.Click(`[data-testid="confirm-delete"]`, chromedp.ByQuery),
+			waitForLocation(e.authURL+"/account/delete?error="),
+			chromedp.Text(".alert-danger", &errText, chromedp.ByQuery)),
 	); err != nil {
 		t.Fatalf("drive the delete page: %v", err)
 	}

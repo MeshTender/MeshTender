@@ -277,10 +277,11 @@ func TestContrastMeetsWCAGAA(t *testing.T) {
 		var raw string
 		actions = append(actions,
 			chromedp.EmulateViewport(1280, 1000),
-			chromedp.Navigate(url),
-			chromedp.WaitVisible(`body`, chromedp.ByQuery),
-			chromedp.Sleep(700*time.Millisecond),
-			chromedp.Evaluate(contrastProbe, &raw),
+			step("open "+label,
+				chromedp.Navigate(url),
+				chromedp.WaitVisible(`body`, chromedp.ByQuery),
+				chromedp.Sleep(700*time.Millisecond)),
+			step("measure "+label+"'s contrast", chromedp.Evaluate(contrastProbe, &raw)),
 		)
 		if err := chromedp.Run(bctx, actions...); err != nil {
 			t.Errorf("%s: %v", label, err)

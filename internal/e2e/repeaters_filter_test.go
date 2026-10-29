@@ -43,16 +43,16 @@ func TestE2ERepeatersFilter(t *testing.T) {
 	defer cancel()
 
 	const countVisible = `document.querySelectorAll('[data-filter-item]:not([hidden])').length`
-	// step resets every control (no event), applies one mutation that fires the
-	// filter, and returns how many rows remain visible.
+	// filterTo resets every control (no event), applies one mutation that fires
+	// the filter, and returns how many rows remain visible.
 	const reset = `document.getElementById('rep-search').value='';` +
 		`document.getElementById('rep-access').value='';` +
 		`document.getElementById('rep-status').value='';` +
 		`var __cb=document.querySelector('[data-filter-flag]');if(__cb)__cb.checked=false;`
-	step := func(mutate string) int {
+	filterTo := func(name, mutate string) int {
 		var n int
 		expr := "(function(){" + reset + mutate + "return " + countVisible + ";})()"
-		if err := chromedp.Run(bctx, chromedp.Evaluate(expr, &n)); err != nil {
+		if err := chromedp.Run(bctx, step("filter: "+name, chromedp.Evaluate(expr, &n))); err != nil {
 			t.Fatalf("evaluate: %v", err)
 		}
 		return n
@@ -66,9 +66,10 @@ func TestE2ERepeatersFilter(t *testing.T) {
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(srv.appURL+"/repeaters"),
-		chromedp.WaitVisible(`#rep-search`, chromedp.ByID),
-		chromedp.Evaluate(countVisible, &initial),
+		step("open your repeaters",
+			chromedp.Navigate(srv.appURL+"/repeaters"),
+			chromedp.WaitVisible(`#rep-search`, chromedp.ByID),
+			chromedp.Evaluate(countVisible, &initial)),
 	); err != nil {
 		t.Fatalf("browser run: %v", err)
 	}
@@ -90,7 +91,7 @@ func TestE2ERepeatersFilter(t *testing.T) {
 		t.Fatalf("initial visible = %d, want 4", initial)
 	}
 	for _, c := range checks {
-		if got := step(c.mutate); got != c.want {
+		if got := filterTo(c.name, c.mutate); got != c.want {
 			t.Fatalf("%s: %d rows visible, want %d", c.name, got, c.want)
 		}
 	}

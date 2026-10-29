@@ -50,13 +50,15 @@ func TestE2EPasswordFormsSurviveCSP(t *testing.T) {
 	if err := chromedp.Run(bctx,
 		network.Enable(),
 		cdplog.Enable(),
-		chromedp.Navigate(srv.authURL+"/signup"),
-		chromedp.WaitVisible(`#password`, chromedp.ByQuery),
-		chromedp.SendKeys(`#username`, username, chromedp.ByQuery),
-		chromedp.SendKeys(`#password`, password, chromedp.ByQuery),
-		chromedp.Submit(`#password`, chromedp.ByQuery),
-		waitForLocation(srv.appURL),
-		chromedp.Location(&afterSignup),
+		step("open the sign-up page",
+			chromedp.Navigate(srv.authURL+"/signup"),
+			chromedp.WaitVisible(`#password`, chromedp.ByQuery)),
+		step("sign up with a password",
+			chromedp.SendKeys(`#username`, username, chromedp.ByQuery),
+			chromedp.SendKeys(`#password`, password, chromedp.ByQuery),
+			chromedp.Submit(`#password`, chromedp.ByQuery),
+			waitForLocation(srv.appURL),
+			chromedp.Location(&afterSignup)),
 	); err != nil {
 		t.Fatalf("password sign-up in the browser: %v", err)
 	}
@@ -68,13 +70,15 @@ func TestE2EPasswordFormsSurviveCSP(t *testing.T) {
 	var afterLogin string
 	if err := chromedp.Run(bctx,
 		network.ClearBrowserCookies(),
-		chromedp.Navigate(srv.authURL+"/login"),
-		chromedp.WaitVisible(`#password`, chromedp.ByQuery),
-		chromedp.SendKeys(`#username`, username, chromedp.ByQuery),
-		chromedp.SendKeys(`#password`, password, chromedp.ByQuery),
-		chromedp.Submit(`#password`, chromedp.ByQuery),
-		waitForLocation(srv.appURL),
-		chromedp.Location(&afterLogin),
+		step("open the sign-in page",
+			chromedp.Navigate(srv.authURL+"/login"),
+			chromedp.WaitVisible(`#password`, chromedp.ByQuery)),
+		step("sign in with the password",
+			chromedp.SendKeys(`#username`, username, chromedp.ByQuery),
+			chromedp.SendKeys(`#password`, password, chromedp.ByQuery),
+			chromedp.Submit(`#password`, chromedp.ByQuery),
+			waitForLocation(srv.appURL),
+			chromedp.Location(&afterLogin)),
 	); err != nil {
 		t.Fatalf("password sign-in in the browser: %v", err)
 	}
@@ -107,14 +111,16 @@ func TestE2ELogoutFormNavigatesCrossHost(t *testing.T) {
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(srv.appURL+"/repeaters"),
 		// The form lives in the user-menu dropdown: in the DOM but not laid out until
 		// the menu opens, so wait for readiness rather than visibility.
-		chromedp.WaitReady(`[data-testid="logout-form"]`, chromedp.ByQuery),
-		chromedp.Evaluate(`document.querySelector('[data-testid="logout-form"]').submit()`, nil),
+		step("open a signed-in page",
+			chromedp.Navigate(srv.appURL+"/repeaters"),
+			chromedp.WaitReady(`[data-testid="logout-form"]`, chromedp.ByQuery)),
 		// Sign-out lands on the public root host.
-		waitForLocation(srv.rootURL),
-		chromedp.Location(&landed),
+		step("submit the sign-out form",
+			chromedp.Evaluate(`document.querySelector('[data-testid="logout-form"]').submit()`, nil),
+			waitForLocation(srv.rootURL),
+			chromedp.Location(&landed)),
 	); err != nil {
 		t.Fatalf("submit the sign-out form: %v", err)
 	}

@@ -6,7 +6,6 @@ import (
 	"crypto/rand"
 	"fmt"
 	"testing"
-	"time"
 
 	cdplog "github.com/chromedp/cdproto/log"
 	"github.com/chromedp/cdproto/network"
@@ -64,17 +63,20 @@ func TestE2EOrgPublicMap(t *testing.T) {
 	if err := chromedp.Run(bctx,
 		network.Enable(),
 		cdplog.Enable(),
-		chromedp.Navigate(mapURL),
-		// The layer only exists once the points fetch has resolved and the style has
-		// loaded, so this one wait covers both.
-		mapReady("map", "clusters"),
+		// Slow on purpose: the map waits on CARTO's style and software WebGL.
+		stepWithin("load the org map", mapLoadTimeout,
+			chromedp.Navigate(mapURL),
+			// The layer only exists once the points fetch has resolved and the style has
+			// loaded, so this one wait covers both.
+			mapReady("map", "clusters")),
 		// Clustering happens on the worker, so the counts settle a beat after the
 		// layer appears.
-		chromedp.Poll(`(function () {
-			return window.MESHTENDER_MAPS["map"].map
-				.querySourceFeatures("points").length > 0;
-		})()`, nil, chromedp.WithPollingTimeout(30*time.Second)),
-		mapEval("map", countIn("points"), &counts),
+		stepWithin("let the clusters settle", mapLoadTimeout,
+			chromedp.Poll(`(function () {
+				return window.MESHTENDER_MAPS["map"].map
+					.querySourceFeatures("points").length > 0;
+			})()`, nil, chromedp.WithPollingTimeout(mapLoadTimeout))),
+		step("count the points", mapEval("map", countIn("points"), &counts)),
 	); err != nil {
 		t.Fatalf("browser run against %s: %v", mapURL, err)
 	}

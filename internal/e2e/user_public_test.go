@@ -61,21 +61,23 @@ func TestE2EUserPublicLinks(t *testing.T) {
 	if err := chromedp.Run(bctx,
 		network.Enable(),
 		cdplog.Enable(),
-		chromedp.Navigate(profileURL),
-		chromedp.WaitVisible(`.list-group`, chromedp.ByQuery),
-		chromedp.Text(`.list-group`, &listText, chromedp.ByQuery),
-		// Each icon carries a hover title naming its platform.
-		chromedp.Evaluate(`['GitHub','Signal','Discord','Email'].every(function(n){return !!document.querySelector('.list-group [title="'+n+'"]');})`, &titlesShown),
-		chromedp.Text(`[data-testid="public-companions"]`, &companionsText, chromedp.ByQuery),
+		step("open the public profile",
+			chromedp.Navigate(profileURL),
+			chromedp.WaitVisible(`.list-group`, chromedp.ByQuery),
+			chromedp.Text(`.list-group`, &listText, chromedp.ByQuery),
+			// Each icon carries a hover title naming its platform.
+			chromedp.Evaluate(`['GitHub','Signal','Discord','Email'].every(function(n){return !!document.querySelector('.list-group [title="'+n+'"]');})`, &titlesShown),
+			chromedp.Text(`[data-testid="public-companions"]`, &companionsText, chromedp.ByQuery)),
 		// Expand the companion row (Bootstrap collapse under the CSP) and read the key.
 		// Target the row's own toggle — the navbar also uses data-bs-toggle=collapse.
 		// It's a <button data-bs-target>, not an <a href="#...">: it opens a disclosure
 		// rather than navigating, so it needs button semantics (audit A4).
-		chromedp.Click(`[data-testid="public-companion"]`, chromedp.ByQuery),
-		chromedp.WaitVisible(`.collapse.show .pk`, chromedp.ByQuery),
-		chromedp.Text(`.collapse.show .pk`, &meshCodeText, chromedp.ByQuery),
-		chromedp.WaitVisible(`.collapse.show img`, chromedp.ByQuery),
-		chromedp.Evaluate(`!!document.querySelector('.collapse.show img[src^="data:image"]')`, &qrShown),
+		step("expand the companion",
+			chromedp.Click(`[data-testid="public-companion"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(`.collapse.show .pk`, chromedp.ByQuery),
+			chromedp.Text(`.collapse.show .pk`, &meshCodeText, chromedp.ByQuery),
+			chromedp.WaitVisible(`.collapse.show img`, chromedp.ByQuery),
+			chromedp.Evaluate(`!!document.querySelector('.collapse.show img[src^="data:image"]')`, &qrShown)),
 	); err != nil {
 		t.Fatalf("browser run against %s: %v", profileURL, err)
 	}

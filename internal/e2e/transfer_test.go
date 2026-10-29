@@ -47,14 +47,16 @@ func TestE2ETransferOwnership(t *testing.T) {
 		cdplog.Enable(),
 		page.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(shareURL),
 		// The handover has to be reachable from where stewards are managed: the
 		// link opens the transfer page with the picker.
-		chromedp.Click(`[data-testid="transfer-ownership"]`, chromedp.ByQuery),
-		chromedp.WaitVisible(`[data-testid="steward-choice"]`, chromedp.ByQuery),
-		chromedp.Click(`[data-testid="confirm-transfer"]`, chromedp.ByQuery),
-		waitForLocation(repeaterURL),
-		chromedp.Text(`.alert-success`, &flash, chromedp.ByQuery),
+		step("open the transfer page",
+			chromedp.Navigate(shareURL),
+			chromedp.Click(`[data-testid="transfer-ownership"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(`[data-testid="steward-choice"]`, chromedp.ByQuery)),
+		step("confirm the transfer",
+			chromedp.Click(`[data-testid="confirm-transfer"]`, chromedp.ByQuery),
+			waitForLocation(repeaterURL),
+			chromedp.Text(`.alert-success`, &flash, chromedp.ByQuery)),
 	); err != nil {
 		t.Fatalf("browser run against %s: %v", shareURL, err)
 	}

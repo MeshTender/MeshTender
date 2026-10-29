@@ -39,14 +39,16 @@ func TestE2EConfigProfileSelect(t *testing.T) {
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(cfgURL),
-		chromedp.WaitVisible(`[data-testid="config-profile-list"]`, chromedp.ByQuery),
+		step("open the configuration",
+			chromedp.Navigate(cfgURL),
+			chromedp.WaitVisible(`[data-testid="config-profile-list"]`, chromedp.ByQuery)),
 		// Click the second row's name to select it.
-		chromedp.Click(`[data-testid="config-profile-row"]:nth-of-type(2)`, chromedp.ByQuery),
-		chromedp.WaitVisible(`[data-testid="config-preview"]`, chromedp.ByQuery),
-		chromedp.Text(`[data-testid="config-preview"] .card-title`, &heading, chromedp.ByQuery),
-		chromedp.Text(`[data-testid="config-commands"]`, &steps, chromedp.ByQuery),
-		chromedp.Evaluate(`!!document.querySelector('[data-testid="config-profile-row"]:nth-of-type(2).active')`, &rowActive),
+		step("select the second profile",
+			chromedp.Click(`[data-testid="config-profile-row"]:nth-of-type(2)`, chromedp.ByQuery),
+			chromedp.WaitVisible(`[data-testid="config-preview"]`, chromedp.ByQuery),
+			chromedp.Text(`[data-testid="config-preview"] .card-title`, &heading, chromedp.ByQuery),
+			chromedp.Text(`[data-testid="config-commands"]`, &steps, chromedp.ByQuery),
+			chromedp.Evaluate(`!!document.querySelector('[data-testid="config-profile-row"]:nth-of-type(2).active')`, &rowActive)),
 	); err != nil {
 		t.Fatalf("browser run against %s: %v", cfgURL, err)
 	}
@@ -82,17 +84,20 @@ func TestE2EConfigProfileNewPage(t *testing.T) {
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(cfgURL),
-		chromedp.WaitVisible(`[data-testid="config-profile-add"]`, chromedp.ByQuery),
-		chromedp.Click(`[data-testid="config-profile-add"]`, chromedp.ByQuery),
-		chromedp.WaitVisible(`input[name=profile_name]`, chromedp.ByQuery),
-		chromedp.SetValue(`input[name=profile_name]`, "Heltec", chromedp.ByQuery),
-		chromedp.SetValue(`textarea[name=profile_steps]`, "# heltec base", chromedp.ByQuery),
-		chromedp.Click(`[data-testid="save-profile"]`, chromedp.ByQuery),
-		// Back on the list, now showing the new profile.
-		chromedp.WaitVisible(`[data-testid="config-profile-list"]`, chromedp.ByQuery),
-		chromedp.Text(`[data-testid="config-preview"] .card-title`, &heading, chromedp.ByQuery),
-		chromedp.Location(&currentURL),
+		step("open the configuration",
+			chromedp.Navigate(cfgURL),
+			chromedp.WaitVisible(`[data-testid="config-profile-add"]`, chromedp.ByQuery)),
+		step("open the new-profile form",
+			chromedp.Click(`[data-testid="config-profile-add"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(`input[name=profile_name]`, chromedp.ByQuery)),
+		step("save the new profile",
+			chromedp.SetValue(`input[name=profile_name]`, "Heltec", chromedp.ByQuery),
+			chromedp.SetValue(`textarea[name=profile_steps]`, "# heltec base", chromedp.ByQuery),
+			chromedp.Click(`[data-testid="save-profile"]`, chromedp.ByQuery),
+			// Back on the list, now showing the new profile.
+			chromedp.WaitVisible(`[data-testid="config-profile-list"]`, chromedp.ByQuery),
+			chromedp.Text(`[data-testid="config-preview"] .card-title`, &heading, chromedp.ByQuery),
+			chromedp.Location(&currentURL)),
 	); err != nil {
 		t.Fatalf("browser run against %s: %v", cfgURL, err)
 	}

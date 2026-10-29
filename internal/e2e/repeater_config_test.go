@@ -87,17 +87,19 @@ func TestE2ERepeaterConfigTab(t *testing.T) {
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(url),
-		chromedp.Click(`[data-testid="pane-configuration"]`, chromedp.ByQuery),
-		chromedp.WaitVisible(`[data-testid="config-commands"] .list-group-item`, chromedp.ByQuery),
-		chromedp.Poll(`location.search === "?pane=configuration"`, nil),
-		chromedp.Click(`label[for="transport-air"]`, chromedp.ByQuery),
-		chromedp.Poll(`document.getElementById("connect-label").textContent === "Connect modem"`, nil),
-		// Switching reloads the configuration (what may run differs); wait for it.
-		chromedp.Poll(`document.querySelector('[data-testid="config-hint"]').textContent === "Connect the modem above to run them."`, nil),
-		// The command rows render after config.json resolves.
-		chromedp.WaitVisible(`[data-testid="config-commands"] .list-group-item`, chromedp.ByQuery),
-		chromedp.Evaluate(summarize, &out),
+		step("open the Configuration pane",
+			chromedp.Navigate(url),
+			chromedp.Click(`[data-testid="pane-configuration"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(`[data-testid="config-commands"] .list-group-item`, chromedp.ByQuery),
+			chromedp.Poll(`location.search === "?pane=configuration"`, nil)),
+		step("switch to the KISS modem",
+			chromedp.Click(`label[for="transport-air"]`, chromedp.ByQuery),
+			chromedp.Poll(`document.getElementById("connect-label").textContent === "Connect modem"`, nil),
+			// Switching reloads the configuration (what may run differs); wait for it.
+			chromedp.Poll(`document.querySelector('[data-testid="config-hint"]').textContent === "Connect the modem above to run them."`, nil),
+			// The command rows render after config.json resolves.
+			chromedp.WaitVisible(`[data-testid="config-commands"] .list-group-item`, chromedp.ByQuery)),
+		step("read the commands", chromedp.Evaluate(summarize, &out)),
 	); err != nil {
 		t.Fatalf("browser run against %s: %v", url, err)
 	}

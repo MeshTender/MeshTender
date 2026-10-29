@@ -55,15 +55,17 @@ func TestAnalyticsKindCards(t *testing.T) {
 	var probeReq, botReq, notFoundReq, totalReq, probeCard, pagesCard string
 	if err := chromedp.Run(ctx,
 		setSessionCookie(cookie),
-		chromedp.Navigate(srv.appURL+"/admin/analytics"),
-		chromedp.WaitVisible(`[data-testid="probe-card"]`, chromedp.ByQuery),
-		chromedp.Text(`[data-testid="probe-requests"]`, &probeReq, chromedp.ByQuery),
-		chromedp.Text(`[data-testid="bot-requests"]`, &botReq, chromedp.ByQuery),
-		chromedp.Text(`[data-testid="notfound-requests"]`, &notFoundReq, chromedp.ByQuery),
-		chromedp.Text(`[data-testid="probe-card"]`, &probeCard, chromedp.ByQuery),
-		// The summary tile and the busiest-pages card must both be visits-only.
-		chromedp.Text(`.card-sm .h1`, &totalReq, chromedp.ByQuery),
-		chromedp.Text(`.row-cards`, &pagesCard, chromedp.ByQuery),
+		step("open the analytics page",
+			chromedp.Navigate(srv.appURL+"/admin/analytics"),
+			chromedp.WaitVisible(`[data-testid="probe-card"]`, chromedp.ByQuery)),
+		step("read the cards",
+			chromedp.Text(`[data-testid="probe-requests"]`, &probeReq, chromedp.ByQuery),
+			chromedp.Text(`[data-testid="bot-requests"]`, &botReq, chromedp.ByQuery),
+			chromedp.Text(`[data-testid="notfound-requests"]`, &notFoundReq, chromedp.ByQuery),
+			chromedp.Text(`[data-testid="probe-card"]`, &probeCard, chromedp.ByQuery),
+			// The summary tile and the busiest-pages card must both be visits-only.
+			chromedp.Text(`.card-sm .h1`, &totalReq, chromedp.ByQuery),
+			chromedp.Text(`.row-cards`, &pagesCard, chromedp.ByQuery)),
 	); err != nil {
 		t.Fatalf("drive analytics page: %v", err)
 	}

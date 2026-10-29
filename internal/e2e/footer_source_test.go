@@ -40,12 +40,13 @@ func TestFooterSourceLinkOnEverySurface(t *testing.T) {
 			if err := chromedp.Run(bctx,
 				network.Enable(),
 				cdplog.Enable(),
-				chromedp.Navigate(tc.url),
-				// Waiting on visibility is the point: it fails if a layout renders the
-				// footer off-page or collapsed rather than merely including the markup.
-				chromedp.WaitVisible(`footer a[href*="github.com"]`, chromedp.ByQuery),
-				chromedp.AttributeValue(`footer a[href*="github.com"]`, "href", &href, nil, chromedp.ByQuery),
-				chromedp.Text(`footer a[href*="github.com"]`, &text, chromedp.ByQuery),
+				step("open the "+tc.name+" page and read its footer",
+					chromedp.Navigate(tc.url),
+					// Waiting on visibility is the point: it fails if a layout renders the
+					// footer off-page or collapsed rather than merely including the markup.
+					chromedp.WaitVisible(`footer a[href*="github.com"]`, chromedp.ByQuery),
+					chromedp.AttributeValue(`footer a[href*="github.com"]`, "href", &href, nil, chromedp.ByQuery),
+					chromedp.Text(`footer a[href*="github.com"]`, &text, chromedp.ByQuery)),
 			); err != nil {
 				t.Fatalf("%s: %v", tc.url, err)
 			}

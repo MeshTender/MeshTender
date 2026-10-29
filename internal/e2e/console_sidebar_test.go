@@ -73,10 +73,11 @@ func TestE2EConsoleSidebarOrgAdmin(t *testing.T) {
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(url),
-		chromedp.WaitVisible(`[data-testid="allowed-commands"]`, chromedp.ByQuery),
-		chromedp.Evaluate(countChips, &chips),
-		chromedp.Evaluate(emptyShown, &empty),
+		step("open the console's command list",
+			chromedp.Navigate(url),
+			chromedp.WaitVisible(`[data-testid="allowed-commands"]`, chromedp.ByQuery),
+			chromedp.Evaluate(countChips, &chips),
+			chromedp.Evaluate(emptyShown, &empty)),
 	); err != nil {
 		t.Fatalf("browser run against %s: %v", url, err)
 	}

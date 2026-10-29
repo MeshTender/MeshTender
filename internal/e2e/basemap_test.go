@@ -4,7 +4,6 @@ package e2e
 
 import (
 	"testing"
-	"time"
 
 	cdplog "github.com/chromedp/cdproto/log"
 	"github.com/chromedp/cdproto/network"
@@ -42,22 +41,27 @@ func TestE2EBasemapToggleKeepsOverlays(t *testing.T) {
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(pageURL),
-		mapReady("map", "points"),
-		mapEval("map", countIn("points"), &before),
-		mapEval("map", `return map.getStyle().name;`, &styleBefore),
+		// Slow on purpose: a map waits on CARTO's style and software WebGL.
+		stepWithin("load the map", mapLoadTimeout,
+			chromedp.Navigate(pageURL),
+			mapReady("map", "points")),
+		step("read the dark basemap",
+			mapEval("map", countIn("points"), &before),
+			mapEval("map", `return map.getStyle().name;`, &styleBefore)),
 
 		// Press Light, then wait for the new style to finish loading *and* the
-		// overlays to be put back on it.
-		chromedp.Click(`.mesh-basemap-ctrl button[data-basemap="light"]`, chromedp.ByQuery),
-		chromedp.Poll(`(function () {
-			var m = window.MESHTENDER_MAPS["map"].map;
-			return m.isStyleLoaded() && m.getStyle().name !== `+"`"+`Dark Matter`+"`"+` && !!m.getLayer("points");
-		})()`, nil, chromedp.WithPollingTimeout(30*time.Second)),
+		// overlays to be put back on it. Slow on purpose, like the first load.
+		stepWithin("switch to the light basemap", mapLoadTimeout,
+			chromedp.Click(`.mesh-basemap-ctrl button[data-basemap="light"]`, chromedp.ByQuery),
+			chromedp.Poll(`(function () {
+				var m = window.MESHTENDER_MAPS["map"].map;
+				return m.isStyleLoaded() && m.getStyle().name !== `+"`"+`Dark Matter`+"`"+` && !!m.getLayer("points");
+			})()`, nil, chromedp.WithPollingTimeout(mapLoadTimeout))),
 
-		mapEval("map", countIn("points"), &after),
-		mapEval("map", `return map.getStyle().name;`, &styleAfter),
-		chromedp.Evaluate(`localStorage.getItem("mt_map_base")`, &remembered),
+		step("read the light basemap",
+			mapEval("map", countIn("points"), &after),
+			mapEval("map", `return map.getStyle().name;`, &styleAfter),
+			chromedp.Evaluate(`localStorage.getItem("mt_map_base")`, &remembered)),
 	); err != nil {
 		t.Fatalf("browser run against %s: %v", pageURL, err)
 	}

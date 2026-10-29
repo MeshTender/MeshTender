@@ -48,12 +48,13 @@ func TestE2ELogout(t *testing.T) {
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(dash),
-		// The sign-out form lives in the user-menu dropdown (present in the DOM even
-		// while the dropdown is collapsed).
-		chromedp.WaitReady(`[data-testid="logout-form"]`, chromedp.ByQuery),
-		chromedp.AttributeValue(`[data-testid="logout-form"]`, "action", &formAction, nil),
-		chromedp.Evaluate(logoutAndProbe, &result, awaitPromise),
+		step("open the dashboard",
+			chromedp.Navigate(dash),
+			// The sign-out form lives in the user-menu dropdown (present in the DOM even
+			// while the dropdown is collapsed).
+			chromedp.WaitReady(`[data-testid="logout-form"]`, chromedp.ByQuery),
+			chromedp.AttributeValue(`[data-testid="logout-form"]`, "action", &formAction, nil)),
+		step("sign out and probe the session", chromedp.Evaluate(logoutAndProbe, &result, awaitPromise)),
 	); err != nil {
 		t.Fatalf("browser run against %s: %v", dash, err)
 	}

@@ -24,13 +24,16 @@ func TestAdminUsersActionsModal(t *testing.T) {
 
 	if err := chromedp.Run(ctx,
 		setSessionCookie(cookie),
-		chromedp.Navigate(srv.appURL+"/admin/users"),
-		chromedp.WaitVisible(`[data-testid="user-row"]`, chromedp.ByQuery),
-		chromedp.Click(`[data-testid="user-actions"]`, chromedp.ByQuery), // open the dropdown
-		chromedp.WaitVisible(`[data-testid="user-permissions"]`, chromedp.ByQuery),
-		chromedp.Click(`[data-testid="user-permissions"]`, chromedp.ByQuery), // open the modal + htmx load
-		// The permissions form arrives in the modal via htmx.
-		chromedp.WaitVisible(`#user-modal-content input[name="manage_users"]`, chromedp.ByQuery),
+		step("open the user list",
+			chromedp.Navigate(srv.appURL+"/admin/users"),
+			chromedp.WaitVisible(`[data-testid="user-row"]`, chromedp.ByQuery)),
+		step("open a user's actions",
+			chromedp.Click(`[data-testid="user-actions"]`, chromedp.ByQuery), // open the dropdown
+			chromedp.WaitVisible(`[data-testid="user-permissions"]`, chromedp.ByQuery)),
+		step("open their permissions",
+			chromedp.Click(`[data-testid="user-permissions"]`, chromedp.ByQuery), // open the modal + htmx load
+			// The permissions form arrives in the modal via htmx.
+			chromedp.WaitVisible(`#user-modal-content input[name="manage_users"]`, chromedp.ByQuery)),
 	); err != nil {
 		t.Fatalf("drive admin users modal: %v", err)
 	}

@@ -49,21 +49,23 @@ func TestE2ETimestampLocalizesToUserZone(t *testing.T) {
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(url),
-		chromedp.WaitReady(`time[data-fmt="date"]`, chromedp.ByQuery),
-		chromedp.Evaluate(`(function () {
-			var el = document.querySelector('time[data-fmt="date"]');
-			var dt = el.getAttribute('datetime');
-			var expected = new Intl.DateTimeFormat(undefined, {
-				dateStyle: 'medium', timeZone: document.documentElement.dataset.tz
-			}).format(new Date(dt));
-			return {
-				datetime: dt,
-				text: el.textContent,
-				expected: expected,
-				tz: document.documentElement.dataset.tz
-			};
-		})()`, &res),
+		step("open the repeater page",
+			chromedp.Navigate(url),
+			chromedp.WaitReady(`time[data-fmt="date"]`, chromedp.ByQuery)),
+		step("read the localized date",
+			chromedp.Evaluate(`(function () {
+				var el = document.querySelector('time[data-fmt="date"]');
+				var dt = el.getAttribute('datetime');
+				var expected = new Intl.DateTimeFormat(undefined, {
+					dateStyle: 'medium', timeZone: document.documentElement.dataset.tz
+				}).format(new Date(dt));
+				return {
+					datetime: dt,
+					text: el.textContent,
+					expected: expected,
+					tz: document.documentElement.dataset.tz
+				};
+			})()`, &res)),
 	); err != nil {
 		t.Fatalf("browser run against %s: %v", url, err)
 	}
@@ -109,16 +111,18 @@ func TestE2ERelativeTimestamp(t *testing.T) {
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(srv.appURL+"/companions"),
-		chromedp.WaitReady(`time[data-fmt="relative"]`, chromedp.ByQuery),
-		chromedp.Evaluate(`(function () {
-			var el = document.querySelector('time[data-fmt="relative"]');
-			return {
-				text: el.textContent,
-				title: el.title,
-				expected: new Intl.RelativeTimeFormat(undefined, {numeric: 'auto', style: 'short'}).format(-3, 'minute')
-			};
-		})()`, &res),
+		step("open the companions list",
+			chromedp.Navigate(srv.appURL+"/companions"),
+			chromedp.WaitReady(`time[data-fmt="relative"]`, chromedp.ByQuery)),
+		step("read the relative time",
+			chromedp.Evaluate(`(function () {
+				var el = document.querySelector('time[data-fmt="relative"]');
+				return {
+					text: el.textContent,
+					title: el.title,
+					expected: new Intl.RelativeTimeFormat(undefined, {numeric: 'auto', style: 'short'}).format(-3, 'minute')
+				};
+			})()`, &res)),
 	); err != nil {
 		t.Fatal(err)
 	}

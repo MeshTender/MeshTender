@@ -34,19 +34,23 @@ func TestE2EOrgNavigation(t *testing.T) {
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(srv.appURL+"/orgs/"+org.Slug),
-		chromedp.WaitVisible(`[data-testid="org-public-page"]`, chromedp.ByQuery),
-		chromedp.AttributeValue(`[data-testid="org-public-page"]`, "href", &publicHref, nil, chromedp.ByQuery),
-		chromedp.Click(`[data-testid="org-tab-checkins"]`, chromedp.ByQuery),
-		// Nets and member activity share the Check-ins page.
-		chromedp.WaitVisible(`[data-testid="checkins-nets"]`, chromedp.ByQuery),
-		chromedp.WaitVisible(`[data-testid="checkins-activity"]`, chromedp.ByQuery),
-		chromedp.Evaluate(activeTab, &afterActivity),
-		chromedp.Click(`[data-testid="org-tab-settings"]`, chromedp.ByQuery),
-		chromedp.WaitVisible(`[data-testid="settings-profile"]`, chromedp.ByQuery),
-		chromedp.Click(`[data-testid="org-settings-mqtt"]`, chromedp.ByQuery),
-		chromedp.WaitVisible(`[data-testid="broker-card"]`, chromedp.ByQuery),
-		chromedp.Evaluate(activeTab, &afterObservers),
+		step("open the org's home",
+			chromedp.Navigate(srv.appURL+"/orgs/"+org.Slug),
+			chromedp.WaitVisible(`[data-testid="org-public-page"]`, chromedp.ByQuery),
+			chromedp.AttributeValue(`[data-testid="org-public-page"]`, "href", &publicHref, nil, chromedp.ByQuery)),
+		step("open Check-ins",
+			chromedp.Click(`[data-testid="org-tab-checkins"]`, chromedp.ByQuery),
+			// Nets and member activity share the Check-ins page.
+			chromedp.WaitVisible(`[data-testid="checkins-nets"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(`[data-testid="checkins-activity"]`, chromedp.ByQuery),
+			chromedp.Evaluate(activeTab, &afterActivity)),
+		step("open Settings",
+			chromedp.Click(`[data-testid="org-tab-settings"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(`[data-testid="settings-profile"]`, chromedp.ByQuery)),
+		step("open Settings › MQTT",
+			chromedp.Click(`[data-testid="org-settings-mqtt"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(`[data-testid="broker-card"]`, chromedp.ByQuery),
+			chromedp.Evaluate(activeTab, &afterObservers)),
 	); err != nil {
 		t.Fatalf("navigate org tabs: %v", err)
 	}
@@ -70,12 +74,14 @@ func TestE2EOrgNavigation(t *testing.T) {
 	var settingsShown bool
 	if err := chromedp.Run(bctx,
 		setSessionCookie(memberCookie),
-		chromedp.Navigate(srv.appURL+"/orgs/"+org.Slug),
-		chromedp.WaitVisible(`[data-testid="org-config-card"] [data-testid="org-config-link"]`, chromedp.ByQuery),
-		chromedp.Click(`[data-testid="org-config-card"] [data-testid="org-config-link"]`, chromedp.ByQuery),
-		chromedp.WaitVisible(`.breadcrumb`, chromedp.ByQuery),
-		chromedp.Evaluate(activeTab, &memberTab),
-		chromedp.Evaluate(`!!document.querySelector('[data-testid="org-tab-settings"]')`, &settingsShown),
+		step("open the org's home as a member",
+			chromedp.Navigate(srv.appURL+"/orgs/"+org.Slug),
+			chromedp.WaitVisible(`[data-testid="org-config-card"] [data-testid="org-config-link"]`, chromedp.ByQuery)),
+		step("open the recommended configuration",
+			chromedp.Click(`[data-testid="org-config-card"] [data-testid="org-config-link"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(`.breadcrumb`, chromedp.ByQuery),
+			chromedp.Evaluate(activeTab, &memberTab),
+			chromedp.Evaluate(`!!document.querySelector('[data-testid="org-tab-settings"]')`, &settingsShown)),
 	); err != nil {
 		t.Fatalf("member to recommended configuration: %v", err)
 	}

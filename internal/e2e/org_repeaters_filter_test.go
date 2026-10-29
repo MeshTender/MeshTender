@@ -48,15 +48,18 @@ func TestE2EOrgRepeatersSearchSort(t *testing.T) {
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(srv.appURL+"/orgs/"+org.Slug+"/repeaters"),
-		chromedp.WaitVisible(`#org-rep-search`, chromedp.ByID),
-		chromedp.Evaluate(order, &byName),
-		chromedp.SetValue(`[data-testid="org-rep-sort"]`, "heard:desc", chromedp.ByQuery),
-		chromedp.Evaluate(`document.querySelector('[data-testid="org-rep-sort"]').dispatchEvent(new Event('change'))`, nil),
-		chromedp.Evaluate(order, &byHeard),
-		chromedp.SendKeys(`#org-rep-search`, "brav", chromedp.ByID),
-		// Measured by layout, not the attribute: a hidden row must actually vanish.
-		chromedp.Evaluate(visible, &shown),
+		step("open the org's repeaters",
+			chromedp.Navigate(srv.appURL+"/orgs/"+org.Slug+"/repeaters"),
+			chromedp.WaitVisible(`#org-rep-search`, chromedp.ByID),
+			chromedp.Evaluate(order, &byName)),
+		step("sort by last heard",
+			chromedp.SetValue(`[data-testid="org-rep-sort"]`, "heard:desc", chromedp.ByQuery),
+			chromedp.Evaluate(`document.querySelector('[data-testid="org-rep-sort"]').dispatchEvent(new Event('change'))`, nil),
+			chromedp.Evaluate(order, &byHeard)),
+		step("search for one",
+			chromedp.SendKeys(`#org-rep-search`, "brav", chromedp.ByID),
+			// Measured by layout, not the attribute: a hidden row must actually vanish.
+			chromedp.Evaluate(visible, &shown)),
 	); err != nil {
 		t.Fatalf("browser run: %v", err)
 	}

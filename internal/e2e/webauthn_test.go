@@ -77,10 +77,12 @@ func TestPasskeySignupCeremony(t *testing.T) {
 	}
 
 	if err := chromedp.Run(ctx,
-		chromedp.Navigate(e.authURL+"/signup"),
-		chromedp.WaitVisible("#signup-passkey-btn", chromedp.ByID),
-		chromedp.SendKeys("#username", username, chromedp.ByID),
-		chromedp.Click("#signup-passkey-btn", chromedp.ByID),
+		step("open the sign-up page",
+			chromedp.Navigate(e.authURL+"/signup"),
+			chromedp.WaitVisible("#signup-passkey-btn", chromedp.ByID)),
+		step("sign up with a passkey",
+			chromedp.SendKeys("#username", username, chromedp.ByID),
+			chromedp.Click("#signup-passkey-btn", chromedp.ByID)),
 	); err != nil {
 		t.Fatalf("drive signup page: %v", err)
 	}
@@ -89,7 +91,8 @@ func TestPasskeySignupCeremony(t *testing.T) {
 	if u == nil {
 		// Surface the on-page status for diagnostics.
 		var status string
-		_ = chromedp.Run(ctx, chromedp.Text("#passkey-status", &status, chromedp.ByID, chromedp.AtLeast(0)))
+		_ = chromedp.Run(ctx, step("read the passkey status",
+			chromedp.Text("#passkey-status", &status, chromedp.ByID, chromedp.AtLeast(0))))
 		t.Fatalf("account was not created by the passkey ceremony; page status = %q", status)
 	}
 

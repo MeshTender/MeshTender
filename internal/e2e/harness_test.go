@@ -315,15 +315,18 @@ func (e *e2eServer) setPassword(t *testing.T, userID int64, plaintext string) {
 // fails with ERR_ABORTED.
 func waitForLocation(prefix string) chromedp.ActionFunc {
 	return func(ctx context.Context) error {
-		deadline := time.Now().Add(15 * time.Second)
 		var loc string
-		for time.Now().Before(deadline) {
+		for {
 			if err := chromedp.Location(&loc).Do(ctx); err == nil && strings.HasPrefix(loc, prefix) {
 				return nil
 			}
-			time.Sleep(100 * time.Millisecond)
+			// No clock of its own: the step it runs in bounds it.
+			select {
+			case <-ctx.Done():
+				return fmt.Errorf("browser never reached %s (last location %q): %w", prefix, loc, ctx.Err())
+			case <-time.After(100 * time.Millisecond):
+			}
 		}
-		return fmt.Errorf("browser never reached %s (last location %q)", prefix, loc)
 	}
 }
 
@@ -361,8 +364,7 @@ func expandSection(toggleTestID, wantVisible string) chromedp.Tasks {
 		// contents keep moving until that class is gone — a click dispatched at
 		// coordinates sampled during the slide lands on whatever has scrolled into
 		// that spot instead.
-		chromedp.Poll(`!document.querySelector(".collapsing")`, nil,
-			chromedp.WithPollingTimeout(10*time.Second)),
+		chromedp.Poll(`!document.querySelector(".collapsing")`, nil),
 		chromedp.WaitVisible(wantVisible, chromedp.ByQuery),
 	}
 }
@@ -384,8 +386,13 @@ func mapReady(elID, layer string) chromedp.Action {
 	return chromedp.Poll(fmt.Sprintf(`(function () {
 		var e = window.MESHTENDER_MAPS && window.MESHTENDER_MAPS[%q];
 		return !!(e && e.map && e.map.isStyleLoaded() && e.map.getLayer(%q));
-	})()`, elID, layer), nil, chromedp.WithPollingTimeout(30*time.Second))
+	})()`, elID, layer), nil, chromedp.WithPollingTimeout(mapLoadTimeout))
 }
+
+// mapLoadTimeout is how long a map may take to load: its style, tiles and
+// glyphs come from CARTO over the network, and CI's browser renders WebGL in
+// software. A step that waits for a map runs with stepWithin and this limit.
+const mapLoadTimeout = 30 * time.Second
 
 // mapEval evaluates expr with `map` bound to the named container's MapLibre map.
 func mapEval(elID, expr string, res any) chromedp.Action {
@@ -496,16 +503,62 @@ func startBrowser(t *testing.T) (context.Context, context.CancelFunc, *consoleWa
 		}
 	})
 
-	cancel := func() { cancelCtx(); cancelAlloc() }
-
 	// The suite serves a self-signed cert; trust it for every test (also gives
 	// WebAuthn its required secure context). This first Run also creates the
 	// target the listener above attaches to.
 	if err := chromedp.Run(ctx, security.SetIgnoreCertificateErrors(true)); err != nil {
-		cancel()
+		cancelCtx()
+		cancelAlloc()
 		t.Fatalf("ignore certificate errors: %v", err)
 	}
+
+	// Every test runs under testDeadline, so one that hangs fails on its own,
+	// by name, rather than stalling until go test's -timeout kills the whole
+	// run. Derived after the first Run: cancelling a derived context doesn't
+	// close the tab, which cancelCtx does.
+	ctx, cancelDeadline := context.WithTimeout(ctx, testDeadline)
+	cancel := func() { cancelDeadline(); cancelCtx(); cancelAlloc() }
 	return ctx, cancel, watch
+}
+
+// Time limits for browser tests. Nothing the app does in a browser should be
+// slow: a page loads, a click lands, a server-rendered element appears, each
+// in well under a second. A step that takes longer than stepTimeout has found
+// a bug (or a hang), and should fail saying which step it was.
+//
+// stepTimeout leaves room for CI, where the suite runs about twice as slowly
+// as on a developer's machine. The steps that are slow on purpose say so with
+// stepWithin and a longer limit: a map waiting on CARTO's tiles and software
+// WebGL, the fake repeater's device timing, the browser's batching of CSP
+// reports. testDeadline is the backstop for everything not yet in steps.
+const (
+	stepTimeout  = 10 * time.Second
+	testDeadline = 2 * time.Minute
+)
+
+// step runs actions as one named step that must finish within stepTimeout. A
+// timeout or failure names the step:
+//
+//	chromedp.Run(ctx,
+//		step("open the MQTT settings",
+//			chromedp.Click(`[data-testid="org-settings-mqtt"]`, chromedp.ByQuery),
+//			chromedp.WaitVisible(`[data-testid="broker-card"]`, chromedp.ByQuery)),
+//	)
+func step(name string, actions ...chromedp.Action) chromedp.Action {
+	return stepWithin(name, stepTimeout, actions...)
+}
+
+// stepWithin is step with its own limit, for a step that is slow on purpose;
+// say why where it's used.
+func stepWithin(name string, limit time.Duration, actions ...chromedp.Action) chromedp.Action {
+	return chromedp.ActionFunc(func(ctx context.Context) error {
+		ctx, cancel := context.WithTimeout(ctx, limit)
+		defer cancel()
+		if err := chromedp.Tasks(actions).Do(ctx); err != nil {
+			return fmt.Errorf("step %q: %w", name, err)
+		}
+		return nil
+	})
 }
 
 // acceptDialogs auto-accepts window.confirm/alert dialogs for the rest of the

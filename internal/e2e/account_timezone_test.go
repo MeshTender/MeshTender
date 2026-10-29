@@ -35,20 +35,22 @@ func TestE2EAccountTimezonePicker(t *testing.T) {
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(url),
-		// buildPicker runs on DOMContentLoaded and fills the select from Intl; the
-		// optgroups only exist once it has run. WaitReady (present in the DOM), not
-		// WaitVisible — options inside a closed <select> have no layout box.
-		chromedp.WaitReady(`#acct_timezone optgroup`, chromedp.ByQuery),
-		chromedp.Evaluate(`document.querySelectorAll('#acct_timezone optgroup').length`, &optgroupCount),
-		// On auto-detect, buildPicker fills the detected-zone hint (which lives below
-		// the select/button row — the script finds it within the form).
-		chromedp.Text(`[data-tz-detected]`, &detectedHint, chromedp.ByQuery),
+		step("open the time zone picker",
+			chromedp.Navigate(url),
+			// buildPicker runs on DOMContentLoaded and fills the select from Intl; the
+			// optgroups only exist once it has run. WaitReady (present in the DOM), not
+			// WaitVisible — options inside a closed <select> have no layout box.
+			chromedp.WaitReady(`#acct_timezone optgroup`, chromedp.ByQuery),
+			chromedp.Evaluate(`document.querySelectorAll('#acct_timezone optgroup').length`, &optgroupCount),
+			// On auto-detect, buildPicker fills the detected-zone hint (which lives below
+			// the select/button row — the script finds it within the form).
+			chromedp.Text(`[data-tz-detected]`, &detectedHint, chromedp.ByQuery)),
 		// Choose a specific zone and save.
-		chromedp.SetValue(`#acct_timezone`, "America/New_York", chromedp.ByQuery),
-		chromedp.Click(`[data-testid="preferences-save"]`, chromedp.ByQuery),
-		// The save redirects back to /account with a success flash.
-		chromedp.WaitVisible(`.alert-success`, chromedp.ByQuery),
+		step("save a time zone",
+			chromedp.SetValue(`#acct_timezone`, "America/New_York", chromedp.ByQuery),
+			chromedp.Click(`[data-testid="preferences-save"]`, chromedp.ByQuery),
+			// The save redirects back to /account with a success flash.
+			chromedp.WaitVisible(`.alert-success`, chromedp.ByQuery)),
 	); err != nil {
 		t.Fatalf("browser run against %s: %v", url, err)
 	}

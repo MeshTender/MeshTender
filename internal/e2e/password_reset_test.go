@@ -48,14 +48,16 @@ func TestE2EPasswordRecoveryRoundTrip(t *testing.T) {
 		cdplog.Enable(),
 		page.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(srv.authURL+"/account"),
-		expandSection("manage-email", `#email`),
-		chromedp.SendKeys(`#email`, address, chromedp.ByQuery),
-		chromedp.Click(`[data-testid="email-save"]`, chromedp.ByQuery),
-		// The saved-address row is the state we need, and unlike a flash alert it can't
-		// be left over from an earlier action. The save's flash reopens the row, so
-		// there's nothing to expand here.
-		chromedp.WaitVisible(`[data-testid="email-remove"]`, chromedp.ByQuery),
+		step("open the email row on the account page",
+			chromedp.Navigate(srv.authURL+"/account"),
+			expandSection("manage-email", `#email`)),
+		step("save an address",
+			chromedp.SendKeys(`#email`, address, chromedp.ByQuery),
+			chromedp.Click(`[data-testid="email-save"]`, chromedp.ByQuery),
+			// The saved-address row is the state we need, and unlike a flash alert it can't
+			// be left over from an earlier action. The save's flash reopens the row, so
+			// there's nothing to expand here.
+			chromedp.WaitVisible(`[data-testid="email-remove"]`, chromedp.ByQuery)),
 	); err != nil {
 		t.Fatalf("add address: %v", err)
 	}
@@ -66,16 +68,18 @@ func TestE2EPasswordRecoveryRoundTrip(t *testing.T) {
 		t.Fatalf("first message linked to %q, want a /verify-email/ link", verifyPath)
 	}
 	if err := chromedp.Run(bctx,
-		chromedp.Navigate(srv.authURL+verifyPath),
-		// The confirmation redirects to /account (this browser is signed in); wait for
-		// it to land before navigating again, or the next Navigate races the redirect
-		// and fails with ERR_ABORTED.
-		waitForLocation(srv.authURL+"/account"),
-		chromedp.Navigate(srv.authURL+"/account"),
-		// A fresh load has no flash, so the email row is closed again.
-		expandSection("manage-email", `[data-testid="email-remove"]`),
-		// The confirmed/unconfirmed badge is on the row summary, not inside the panel.
-		chromedp.Text(`.badge`, &confirmedState, chromedp.ByQuery),
+		step("follow the confirmation link",
+			chromedp.Navigate(srv.authURL+verifyPath),
+			// The confirmation redirects to /account (this browser is signed in); wait for
+			// it to land before navigating again, or the next Navigate races the redirect
+			// and fails with ERR_ABORTED.
+			waitForLocation(srv.authURL+"/account")),
+		step("see the address confirmed",
+			chromedp.Navigate(srv.authURL+"/account"),
+			// A fresh load has no flash, so the email row is closed again.
+			expandSection("manage-email", `[data-testid="email-remove"]`),
+			// The confirmed/unconfirmed badge is on the row summary, not inside the panel.
+			chromedp.Text(`.badge`, &confirmedState, chromedp.ByQuery)),
 	); err != nil {
 		t.Fatalf("confirm address: %v", err)
 	}
@@ -88,16 +92,19 @@ func TestE2EPasswordRecoveryRoundTrip(t *testing.T) {
 	if err := chromedp.Run(bctx,
 		// A locked-out visitor has no session; anything else would skip /login entirely.
 		network.ClearBrowserCookies(),
-		chromedp.Navigate(srv.authURL+"/login"),
-		chromedp.WaitVisible(`[data-testid="forgot-link"]`, chromedp.ByQuery),
-		chromedp.Click(`[data-testid="forgot-link"]`, chromedp.ByQuery),
-		chromedp.WaitVisible(`#identifier`, chromedp.ByQuery),
-		chromedp.SendKeys(`#identifier`, address, chromedp.ByQuery),
-		chromedp.Click(`[data-testid="forgot-submit"]`, chromedp.ByQuery),
-		// Wait on the URL, not on .card-title: the form page has a card title too, so a
-		// selector wait returns instantly and reads the pre-submit heading.
-		waitForLocation(srv.authURL+"/forgot?sent=1"),
-		chromedp.Text(`.card-title`, &sentText, chromedp.ByQuery),
+		step("open sign-in",
+			chromedp.Navigate(srv.authURL+"/login"),
+			chromedp.WaitVisible(`[data-testid="forgot-link"]`, chromedp.ByQuery)),
+		step("open Forgot password",
+			chromedp.Click(`[data-testid="forgot-link"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(`#identifier`, chromedp.ByQuery)),
+		step("ask for a reset link",
+			chromedp.SendKeys(`#identifier`, address, chromedp.ByQuery),
+			chromedp.Click(`[data-testid="forgot-submit"]`, chromedp.ByQuery),
+			// Wait on the URL, not on .card-title: the form page has a card title too, so a
+			// selector wait returns instantly and reads the pre-submit heading.
+			waitForLocation(srv.authURL+"/forgot?sent=1"),
+			chromedp.Text(`.card-title`, &sentText, chromedp.ByQuery)),
 	); err != nil {
 		t.Fatalf("request reset: %v", err)
 	}
@@ -111,17 +118,19 @@ func TestE2EPasswordRecoveryRoundTrip(t *testing.T) {
 	}
 
 	if err := chromedp.Run(bctx,
-		chromedp.Navigate(srv.authURL+resetPath),
-		chromedp.WaitVisible(`#new_pw`, chromedp.ByQuery),
-		// The form must name the account: one address can hold several, each with its
-		// own link in the same message.
-		chromedp.Text(`.card-body`, &resetHeading, chromedp.ByQuery),
-		chromedp.SendKeys(`#new_pw`, newPassword, chromedp.ByQuery),
-		chromedp.SendKeys(`#confirm_pw`, newPassword, chromedp.ByQuery),
-		chromedp.Click(`[data-testid="reset-submit"]`, chromedp.ByQuery),
-		// Lands back on sign-in with the success flash.
-		chromedp.WaitVisible(`.alert-success`, chromedp.ByQuery),
-		chromedp.Text(`.alert-success`, &successText, chromedp.ByQuery),
+		step("follow the reset link",
+			chromedp.Navigate(srv.authURL+resetPath),
+			chromedp.WaitVisible(`#new_pw`, chromedp.ByQuery),
+			// The form must name the account: one address can hold several, each with its
+			// own link in the same message.
+			chromedp.Text(`.card-body`, &resetHeading, chromedp.ByQuery)),
+		step("choose a new password",
+			chromedp.SendKeys(`#new_pw`, newPassword, chromedp.ByQuery),
+			chromedp.SendKeys(`#confirm_pw`, newPassword, chromedp.ByQuery),
+			chromedp.Click(`[data-testid="reset-submit"]`, chromedp.ByQuery),
+			// Lands back on sign-in with the success flash.
+			chromedp.WaitVisible(`.alert-success`, chromedp.ByQuery),
+			chromedp.Text(`.alert-success`, &successText, chromedp.ByQuery)),
 	); err != nil {
 		t.Fatalf("complete reset: %v", err)
 	}
@@ -135,13 +144,14 @@ func TestE2EPasswordRecoveryRoundTrip(t *testing.T) {
 	// --- the new password actually signs in ----------------------------------
 	var dashURL string
 	if err := chromedp.Run(bctx,
-		chromedp.WaitVisible(`#password`, chromedp.ByQuery),
-		chromedp.SendKeys(`#username`, username, chromedp.ByQuery),
-		chromedp.SendKeys(`#password`, newPassword, chromedp.ByQuery),
-		chromedp.Submit(`#password`, chromedp.ByQuery),
-		// Sign-in redirects auth host → handoff → app host.
-		waitForLocation(srv.appURL),
-		chromedp.Location(&dashURL),
+		step("sign in with the new password",
+			chromedp.WaitVisible(`#password`, chromedp.ByQuery),
+			chromedp.SendKeys(`#username`, username, chromedp.ByQuery),
+			chromedp.SendKeys(`#password`, newPassword, chromedp.ByQuery),
+			chromedp.Submit(`#password`, chromedp.ByQuery),
+			// Sign-in redirects auth host → handoff → app host.
+			waitForLocation(srv.appURL),
+			chromedp.Location(&dashURL)),
 	); err != nil {
 		t.Fatalf("sign in with the new password: %v", err)
 	}
@@ -154,13 +164,15 @@ func TestE2EPasswordRecoveryRoundTrip(t *testing.T) {
 	var loginError string
 	if err := chromedp.Run(bctx,
 		network.ClearBrowserCookies(),
-		chromedp.Navigate(srv.authURL+"/login"),
-		chromedp.WaitVisible(`#password`, chromedp.ByQuery),
-		chromedp.SendKeys(`#username`, username, chromedp.ByQuery),
-		chromedp.SendKeys(`#password`, oldPassword, chromedp.ByQuery),
-		chromedp.Submit(`#password`, chromedp.ByQuery),
-		chromedp.WaitVisible(`.alert-danger`, chromedp.ByQuery),
-		chromedp.Text(`.alert-danger`, &loginError, chromedp.ByQuery),
+		step("open sign-in",
+			chromedp.Navigate(srv.authURL+"/login"),
+			chromedp.WaitVisible(`#password`, chromedp.ByQuery)),
+		step("be refused the old password",
+			chromedp.SendKeys(`#username`, username, chromedp.ByQuery),
+			chromedp.SendKeys(`#password`, oldPassword, chromedp.ByQuery),
+			chromedp.Submit(`#password`, chromedp.ByQuery),
+			chromedp.WaitVisible(`.alert-danger`, chromedp.ByQuery),
+			chromedp.Text(`.alert-danger`, &loginError, chromedp.ByQuery)),
 	); err != nil {
 		t.Fatalf("old password check: %v", err)
 	}
@@ -188,11 +200,13 @@ func TestE2ERemoveEmailConfirmDialog(t *testing.T) {
 		cdplog.Enable(),
 		page.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(srv.authURL+"/account"),
-		expandSection("manage-email", `#email`),
-		chromedp.SendKeys(`#email`, address, chromedp.ByQuery),
-		chromedp.Click(`[data-testid="email-save"]`, chromedp.ByQuery),
-		chromedp.WaitVisible(`[data-testid="email-remove"]`, chromedp.ByQuery),
+		step("open the email row on the account page",
+			chromedp.Navigate(srv.authURL+"/account"),
+			expandSection("manage-email", `#email`)),
+		step("save an address",
+			chromedp.SendKeys(`#email`, address, chromedp.ByQuery),
+			chromedp.Click(`[data-testid="email-save"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(`[data-testid="email-remove"]`, chromedp.ByQuery)),
 	); err != nil {
 		t.Fatalf("add address: %v", err)
 	}
@@ -207,12 +221,13 @@ func TestE2ERemoveEmailConfirmDialog(t *testing.T) {
 
 	// Click Remove and accept the confirm dialog.
 	if err := chromedp.Run(bctx,
-		chromedp.Click(`[data-testid="email-remove"]`, chromedp.ByQuery),
-		// The address row disappearing is the only unambiguous signal: a success flash
-		// from the save is still on the page, so waiting on one would pass even if the
-		// confirm dialog had blocked the click entirely — which is the exact failure
-		// this test exists to catch.
-		chromedp.WaitNotPresent(`[data-testid="email-remove"]`, chromedp.ByQuery),
+		step("remove the address and confirm",
+			chromedp.Click(`[data-testid="email-remove"]`, chromedp.ByQuery),
+			// The address row disappearing is the only unambiguous signal: a success flash
+			// from the save is still on the page, so waiting on one would pass even if the
+			// confirm dialog had blocked the click entirely — which is the exact failure
+			// this test exists to catch.
+			chromedp.WaitNotPresent(`[data-testid="email-remove"]`, chromedp.ByQuery)),
 	); err != nil {
 		t.Fatalf("remove address: %v", err)
 	}

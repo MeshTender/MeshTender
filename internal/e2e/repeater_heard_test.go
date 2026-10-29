@@ -46,18 +46,21 @@ func TestE2ERepeaterHeardDetails(t *testing.T) {
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(page),
-		chromedp.WaitVisible(`[data-testid="repeater-details"]`, chromedp.ByQuery),
-		chromedp.Text(`[data-testid="flood-vintage"]`, &vintage, chromedp.ByQuery),
+		step("open the repeater's Overview",
+			chromedp.Navigate(page),
+			chromedp.WaitVisible(`[data-testid="repeater-details"]`, chromedp.ByQuery),
+			chromedp.Text(`[data-testid="flood-vintage"]`, &vintage, chromedp.ByQuery)),
 		// Hovering the location warning shows the advertised location.
-		chromedp.ScrollIntoView(`[data-testid="heard-location-differs"]`, chromedp.ByQuery),
-		chromedp.Focus(`[data-testid="heard-location-differs"]`, chromedp.ByQuery),
-		chromedp.WaitVisible(`.tooltip`, chromedp.ByQuery),
-		chromedp.Text(`.tooltip`, &tip, chromedp.ByQuery),
-		chromedp.Navigate(page+"/settings"),
-		chromedp.Click(`[data-testid="adopt-location"]`, chromedp.ByQuery),
-		chromedp.WaitVisible(`[data-testid="flash-ok"]`, chromedp.ByQuery),
-		chromedp.Text(`[data-testid="flash-ok"]`, &flash, chromedp.ByQuery),
+		step("hover the location warning",
+			chromedp.ScrollIntoView(`[data-testid="heard-location-differs"]`, chromedp.ByQuery),
+			chromedp.Focus(`[data-testid="heard-location-differs"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(`.tooltip`, chromedp.ByQuery),
+			chromedp.Text(`.tooltip`, &tip, chromedp.ByQuery)),
+		step("adopt the advertised location in Settings",
+			chromedp.Navigate(page+"/settings"),
+			chromedp.Click(`[data-testid="adopt-location"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(`[data-testid="flash-ok"]`, chromedp.ByQuery),
+			chromedp.Text(`[data-testid="flash-ok"]`, &flash, chromedp.ByQuery)),
 	); err != nil {
 		t.Fatalf("browser run against %s: %v", page, err)
 	}
@@ -72,9 +75,10 @@ func TestE2ERepeaterHeardDetails(t *testing.T) {
 	}
 	var differs bool
 	if err := chromedp.Run(bctx,
-		chromedp.Navigate(page),
-		chromedp.WaitVisible(`[data-testid="repeater-details"]`, chromedp.ByQuery),
-		chromedp.Evaluate(`!!document.querySelector('[data-testid="heard-location-differs"]')`, &differs),
+		step("reopen the Overview",
+			chromedp.Navigate(page),
+			chromedp.WaitVisible(`[data-testid="repeater-details"]`, chromedp.ByQuery),
+			chromedp.Evaluate(`!!document.querySelector('[data-testid="heard-location-differs"]')`, &differs)),
 	); err != nil {
 		t.Fatal(err)
 	}

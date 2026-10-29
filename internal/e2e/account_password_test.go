@@ -33,7 +33,7 @@ func TestE2ERemovePasswordNeedsPasskeyCeremony(t *testing.T) {
 	// the assertion check.
 	if err := chromedp.Run(ctx,
 		setSessionCookie(cookie),
-		addPasskeyOnAccountPage(e.authURL),
+		step("add a passkey", addPasskeyOnAccountPage(e.authURL)),
 	); err != nil {
 		t.Fatalf("add a passkey: %v", err)
 	}
@@ -41,10 +41,12 @@ func TestE2ERemovePasswordNeedsPasskeyCeremony(t *testing.T) {
 	// Verify with the passkey; the button submits the remove form once the
 	// assertion stamps the session.
 	if err := chromedp.Run(ctx,
-		chromedp.Navigate(e.authURL+"/account"),
-		expandSection("manage-password", "#new_pw"),
-		chromedp.Click(`[data-testid="remove-password"]`, chromedp.ByQuery),
-		chromedp.WaitVisible(`.alert-success`, chromedp.ByQuery),
+		step("open the password row",
+			chromedp.Navigate(e.authURL+"/account"),
+			expandSection("manage-password", "#new_pw")),
+		step("remove the password, verifying with the passkey",
+			chromedp.Click(`[data-testid="remove-password"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(`.alert-success`, chromedp.ByQuery)),
 	); err != nil {
 		t.Fatalf("remove password: %v", err)
 	}

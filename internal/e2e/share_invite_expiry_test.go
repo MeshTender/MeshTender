@@ -56,13 +56,15 @@ func TestE2EInviteExpiryBadges(t *testing.T) {
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(srv.appURL+"/repeaters/"+rep.PublicID+"/settings/people"),
-		chromedp.WaitVisible(`[data-testid="invite-row"]`, chromedp.ByQuery),
-		chromedp.Evaluate(`document.querySelectorAll('[data-testid="invite-row"]').length`, &rows),
-		chromedp.Evaluate(`document.querySelectorAll('[data-testid="invite-expired"]').length`, &expiredBadges),
-		chromedp.Evaluate(`document.querySelectorAll('[data-copy-target]').length`, &copyButtons),
-		chromedp.Evaluate(`document.body.innerText.includes(`+jsString(staleToken)+`)`, &showsStaleToken),
-		chromedp.FullScreenshot(&shot, 80),
+		step("open Settings › People",
+			chromedp.Navigate(srv.appURL+"/repeaters/"+rep.PublicID+"/settings/people"),
+			chromedp.WaitVisible(`[data-testid="invite-row"]`, chromedp.ByQuery)),
+		step("read the invite rows",
+			chromedp.Evaluate(`document.querySelectorAll('[data-testid="invite-row"]').length`, &rows),
+			chromedp.Evaluate(`document.querySelectorAll('[data-testid="invite-expired"]').length`, &expiredBadges),
+			chromedp.Evaluate(`document.querySelectorAll('[data-copy-target]').length`, &copyButtons),
+			chromedp.Evaluate(`document.body.innerText.includes(`+jsString(staleToken)+`)`, &showsStaleToken),
+			chromedp.FullScreenshot(&shot, 80)),
 	); err != nil {
 		t.Fatalf("people settings: %v", err)
 	}

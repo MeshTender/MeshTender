@@ -40,15 +40,17 @@ func TestE2ECompanionRegistrationAndOrgPages(t *testing.T) {
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(srv.appURL+"/companions"),
-		chromedp.Click(`[data-testid="companion-new"]`, chromedp.ByQuery),
-		chromedp.WaitVisible(`#companion-name`, chromedp.ByQuery),
-		chromedp.SendKeys(`#companion-name`, "My T1", chromedp.ByQuery),
-		chromedp.SendKeys(`#companion-key`, key, chromedp.ByQuery),
-		chromedp.Submit(`#companion-name`, chromedp.ByQuery),
-		waitForLocation(srv.appURL+"/companions/"),
-		chromedp.WaitVisible(`[data-testid="companion-pending"]`, chromedp.ByQuery),
-		chromedp.Evaluate(`!!document.querySelector('[data-testid="companion-pending"]')`, &pending),
+		step("open the register form",
+			chromedp.Navigate(srv.appURL+"/companions"),
+			chromedp.Click(`[data-testid="companion-new"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(`#companion-name`, chromedp.ByQuery)),
+		step("register the companion",
+			chromedp.SendKeys(`#companion-name`, "My T1", chromedp.ByQuery),
+			chromedp.SendKeys(`#companion-key`, key, chromedp.ByQuery),
+			chromedp.Submit(`#companion-name`, chromedp.ByQuery),
+			waitForLocation(srv.appURL+"/companions/"),
+			chromedp.WaitVisible(`[data-testid="companion-pending"]`, chromedp.ByQuery),
+			chromedp.Evaluate(`!!document.querySelector('[data-testid="companion-pending"]')`, &pending)),
 	); err != nil {
 		t.Fatalf("register companion: %v", err)
 	}
@@ -72,18 +74,22 @@ func TestE2ECompanionRegistrationAndOrgPages(t *testing.T) {
 
 	var companionText, activityText, observersText string
 	if err := chromedp.Run(bctx,
-		chromedp.Reload(),
-		chromedp.WaitVisible(`[data-testid="checkins"]`, chromedp.ByQuery),
-		chromedp.Text(`#main-content`, &companionText, chromedp.ByQuery),
-		chromedp.Navigate(srv.appURL+"/orgs/"+org.Slug+"/activity"),
-		chromedp.WaitVisible(`[data-testid="activity"]`, chromedp.ByQuery),
-		chromedp.Text(`[data-testid="activity"]`, &activityText, chromedp.ByQuery),
+		step("see the check-in on the companion page",
+			chromedp.Reload(),
+			chromedp.WaitVisible(`[data-testid="checkins"]`, chromedp.ByQuery),
+			chromedp.Text(`#main-content`, &companionText, chromedp.ByQuery)),
+		step("see it in the org's check-ins",
+			chromedp.Navigate(srv.appURL+"/orgs/"+org.Slug+"/activity"),
+			chromedp.WaitVisible(`[data-testid="activity"]`, chromedp.ByQuery),
+			chromedp.Text(`[data-testid="activity"]`, &activityText, chromedp.ByQuery)),
 		// The broker lives under Settings.
-		chromedp.Click(`[data-testid="org-tab-settings"]`, chromedp.ByQuery),
-		chromedp.WaitVisible(`[data-testid="org-settings-nav"]`, chromedp.ByQuery),
-		chromedp.Click(`[data-testid="org-settings-mqtt"]`, chromedp.ByQuery),
-		chromedp.WaitVisible(`[data-testid="broker-card"]`, chromedp.ByQuery),
-		chromedp.Text(`[data-testid="broker-card"]`, &observersText, chromedp.ByQuery),
+		step("open the org's Settings",
+			chromedp.Click(`[data-testid="org-tab-settings"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(`[data-testid="org-settings-nav"]`, chromedp.ByQuery)),
+		step("open Settings › MQTT",
+			chromedp.Click(`[data-testid="org-settings-mqtt"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(`[data-testid="broker-card"]`, chromedp.ByQuery),
+			chromedp.Text(`[data-testid="broker-card"]`, &observersText, chromedp.ByQuery)),
 	); err != nil {
 		t.Fatalf("browse check-in pages: %v", err)
 	}
@@ -102,11 +108,13 @@ func TestE2ECompanionRegistrationAndOrgPages(t *testing.T) {
 	// Remove it through the data-confirm form.
 	acceptDialogs(bctx)
 	if err := chromedp.Run(bctx,
-		chromedp.Navigate(srv.appURL+"/companions/"+list[0].PublicID),
-		chromedp.Click(`form[action$="/delete"] button`, chromedp.ByQuery),
-		// Back on the (now empty) list; the companion page's URL shares the
-		// prefix, so wait for the list's empty state rather than the location.
-		chromedp.WaitVisible(`.empty`, chromedp.ByQuery),
+		step("open the companion",
+			chromedp.Navigate(srv.appURL+"/companions/"+list[0].PublicID)),
+		step("delete it",
+			chromedp.Click(`form[action$="/delete"] button`, chromedp.ByQuery),
+			// Back on the (now empty) list; the companion page's URL shares the
+			// prefix, so wait for the list's empty state rather than the location.
+			chromedp.WaitVisible(`.empty`, chromedp.ByQuery)),
 	); err != nil {
 		t.Fatalf("delete companion: %v", err)
 	}
@@ -136,16 +144,18 @@ func TestE2ENetScheduleAndRoster(t *testing.T) {
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(srv.appURL+"/orgs/"+org.Slug+"/settings/nets/new"),
-		// Options in a closed select never count as visible; wait for the
-		// picker to have rebuilt the list instead.
-		chromedp.Poll(`document.querySelector("#net-timezone optgroup") !== null`, nil, chromedp.WithPollingTimeout(10*time.Second)),
-		chromedp.Evaluate(`document.getElementById("net-timezone").value`, &zone),
-		chromedp.Evaluate(`!!document.querySelector('#net-timezone option[value=""]')`, &hasAuto),
-		chromedp.SendKeys(`#net-name`, "Sunday Net", chromedp.ByQuery),
-		chromedp.Submit(`#net-name`, chromedp.ByQuery),
-		// A new net lands on its settings page.
-		chromedp.WaitVisible(`[data-testid="net-schedule-form"]`, chromedp.ByQuery),
+		step("open the new-net form",
+			chromedp.Navigate(srv.appURL+"/orgs/"+org.Slug+"/settings/nets/new"),
+			// Options in a closed select never count as visible; wait for the
+			// picker to have rebuilt the list instead.
+			chromedp.Poll(`document.querySelector("#net-timezone optgroup") !== null`, nil),
+			chromedp.Evaluate(`document.getElementById("net-timezone").value`, &zone),
+			chromedp.Evaluate(`!!document.querySelector('#net-timezone option[value=""]')`, &hasAuto)),
+		step("create the net",
+			chromedp.SendKeys(`#net-name`, "Sunday Net", chromedp.ByQuery),
+			chromedp.Submit(`#net-name`, chromedp.ByQuery),
+			// A new net lands on its settings page.
+			chromedp.WaitVisible(`[data-testid="net-schedule-form"]`, chromedp.ByQuery)),
 	); err != nil {
 		t.Fatalf("create net: %v", err)
 	}
@@ -178,9 +188,10 @@ func TestE2ENetScheduleAndRoster(t *testing.T) {
 
 	var roster string
 	if err := chromedp.Run(bctx,
-		chromedp.Navigate(fmt.Sprintf("%s/orgs/%s/nets/%d/sessions/%d", srv.appURL, org.Slug, net.ID, sess.ID)),
-		chromedp.WaitVisible(`[data-testid="roster"]`, chromedp.ByQuery),
-		chromedp.Text(`[data-testid="roster"]`, &roster, chromedp.ByQuery),
+		step("open the live session's roster",
+			chromedp.Navigate(fmt.Sprintf("%s/orgs/%s/nets/%d/sessions/%d", srv.appURL, org.Slug, net.ID, sess.ID)),
+			chromedp.WaitVisible(`[data-testid="roster"]`, chromedp.ByQuery),
+			chromedp.Text(`[data-testid="roster"]`, &roster, chromedp.ByQuery)),
 	); err != nil {
 		t.Fatalf("roster: %v", err)
 	}
@@ -229,10 +240,12 @@ func TestE2ENetControlAcknowledgesAndRosterRefreshes(t *testing.T) {
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(fmt.Sprintf("%s/orgs/%s/nets/%d/sessions/%d", srv.appURL, org.Slug, net.ID, sess.ID)),
-		chromedp.WaitVisible(`[data-testid="acknowledge"]`, chromedp.ByQuery),
-		chromedp.Click(`[data-testid="acknowledge"]`, chromedp.ByQuery),
-		chromedp.WaitVisible(`[data-testid="acked"]`, chromedp.ByQuery),
+		step("open the session",
+			chromedp.Navigate(fmt.Sprintf("%s/orgs/%s/nets/%d/sessions/%d", srv.appURL, org.Slug, net.ID, sess.ID)),
+			chromedp.WaitVisible(`[data-testid="acknowledge"]`, chromedp.ByQuery)),
+		step("acknowledge the check-in",
+			chromedp.Click(`[data-testid="acknowledge"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(`[data-testid="acked"]`, chromedp.ByQuery)),
 	); err != nil {
 		t.Fatalf("acknowledge: %v", err)
 	}
@@ -247,8 +260,10 @@ func TestE2ENetControlAcknowledgesAndRosterRefreshes(t *testing.T) {
 	}
 	checkIn(late.ID, "Late T1")
 	if err := chromedp.Run(bctx,
-		chromedp.Poll(`document.querySelector('[data-testid="roster"]').innerText.includes("Late Comer")`, nil,
-			chromedp.WithPollingTimeout(25*time.Second)),
+		// Slow on purpose: an in-progress roster refreshes every 10s (htmx
+		// polling), so this can take up to two of those.
+		stepWithin("see the roster pick up the late check-in", 25*time.Second,
+			chromedp.Poll(`document.querySelector('[data-testid="roster"]').innerText.includes("Late Comer")`, nil)),
 	); err != nil {
 		t.Fatalf("roster didn't refresh with the new check-in: %v", err)
 	}
@@ -290,15 +305,18 @@ func TestE2ENetControlAddsCheckIn(t *testing.T) {
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(fmt.Sprintf("%s/orgs/%s/nets/%d/sessions/%d", srv.appURL, org.Slug, net.ID, sess.ID)),
-		chromedp.WaitVisible(`[data-testid="add-search"]`, chromedp.ByQuery),
-		chromedp.SendKeys(`[data-testid="add-search"]`, "rita", chromedp.ByQuery),
-		chromedp.WaitVisible(`[data-testid="add-member"]`, chromedp.ByQuery),
-		chromedp.Text(`[data-testid="add-status"]`, &status, chromedp.ByQuery),
-		chromedp.SetValue(`#add-note`, "on the phone", chromedp.ByQuery),
-		chromedp.Click(`[data-testid="add-member"]`, chromedp.ByQuery),
-		chromedp.WaitVisible(`[data-testid="added-by-hand"]`, chromedp.ByQuery),
-		chromedp.Text(`[data-testid="roster"]`, &added, chromedp.ByQuery),
+		step("open the session",
+			chromedp.Navigate(fmt.Sprintf("%s/orgs/%s/nets/%d/sessions/%d", srv.appURL, org.Slug, net.ID, sess.ID)),
+			chromedp.WaitVisible(`[data-testid="add-search"]`, chromedp.ByQuery)),
+		step("search for the member",
+			chromedp.SendKeys(`[data-testid="add-search"]`, "rita", chromedp.ByQuery),
+			chromedp.WaitVisible(`[data-testid="add-member"]`, chromedp.ByQuery),
+			chromedp.Text(`[data-testid="add-status"]`, &status, chromedp.ByQuery)),
+		step("add their check-in by hand",
+			chromedp.SetValue(`#add-note`, "on the phone", chromedp.ByQuery),
+			chromedp.Click(`[data-testid="add-member"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(`[data-testid="added-by-hand"]`, chromedp.ByQuery),
+			chromedp.Text(`[data-testid="roster"]`, &added, chromedp.ByQuery)),
 	); err != nil {
 		t.Fatalf("add a check-in: %v", err)
 	}
@@ -339,22 +357,26 @@ func TestE2ENetAirSettings(t *testing.T) {
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(fmt.Sprintf("%s/orgs/%s/settings/nets/%d", srv.appURL, org.Slug, net.ID)),
-		chromedp.WaitVisible(`[data-testid="net-air-save"]`, chromedp.ByQuery),
-		chromedp.Evaluate(fmt.Sprintf(hidden, "hashtag"), &hashtagHiddenBefore),
-		chromedp.Click(`[data-testid="air-kind-hashtag"]`, chromedp.ByQuery),
-		chromedp.WaitVisible(`#air-hashtag`, chromedp.ByQuery),
-		chromedp.Evaluate(fmt.Sprintf(hidden, "hashtag"), &hashtagHiddenAfter),
-		chromedp.Evaluate(fmt.Sprintf(hidden, "private"), &privateHiddenAfter),
-		chromedp.SetValue(`#air-hashtag`, "wnynet", chromedp.ByQuery),
-		chromedp.Evaluate(`(() => { const s = document.getElementById("air-scope"); s.value = s.options[1].value; })()`, nil),
-		chromedp.SetValue(`#air-sender`, "Net Control", chromedp.ByQuery),
-		chromedp.Click(`[data-testid="net-air-save"]`, chromedp.ByQuery),
-		chromedp.WaitVisible(`[data-testid="flash-ok"]`, chromedp.ByQuery),
-		chromedp.Navigate(fmt.Sprintf("%s/orgs/%s/nets/%d", srv.appURL, org.Slug, net.ID)),
-		chromedp.WaitVisible(`[data-testid="net-air-summary"]`, chromedp.ByQuery),
-		chromedp.Text(`[data-testid="net-air-summary"]`, &summary, chromedp.ByQuery),
-		chromedp.Text(`.page-body`, &page, chromedp.ByQuery),
+		step("open the net's settings",
+			chromedp.Navigate(fmt.Sprintf("%s/orgs/%s/settings/nets/%d", srv.appURL, org.Slug, net.ID)),
+			chromedp.WaitVisible(`[data-testid="net-air-save"]`, chromedp.ByQuery),
+			chromedp.Evaluate(fmt.Sprintf(hidden, "hashtag"), &hashtagHiddenBefore)),
+		step("choose a hashtag channel",
+			chromedp.Click(`[data-testid="air-kind-hashtag"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(`#air-hashtag`, chromedp.ByQuery),
+			chromedp.Evaluate(fmt.Sprintf(hidden, "hashtag"), &hashtagHiddenAfter),
+			chromedp.Evaluate(fmt.Sprintf(hidden, "private"), &privateHiddenAfter)),
+		step("save the on-air settings",
+			chromedp.SetValue(`#air-hashtag`, "wnynet", chromedp.ByQuery),
+			chromedp.Evaluate(`(() => { const s = document.getElementById("air-scope"); s.value = s.options[1].value; })()`, nil),
+			chromedp.SetValue(`#air-sender`, "Net Control", chromedp.ByQuery),
+			chromedp.Click(`[data-testid="net-air-save"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(`[data-testid="flash-ok"]`, chromedp.ByQuery)),
+		step("see them summarized on the net's page",
+			chromedp.Navigate(fmt.Sprintf("%s/orgs/%s/nets/%d", srv.appURL, org.Slug, net.ID)),
+			chromedp.WaitVisible(`[data-testid="net-air-summary"]`, chromedp.ByQuery),
+			chromedp.Text(`[data-testid="net-air-summary"]`, &summary, chromedp.ByQuery),
+			chromedp.Text(`.page-body`, &page, chromedp.ByQuery)),
 	); err != nil {
 		t.Fatalf("save on-air settings: %v", err)
 	}
@@ -422,11 +444,13 @@ func TestE2ENetModemPanel(t *testing.T) {
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(fmt.Sprintf("%s/orgs/%s/nets/%d/sessions/%d", srv.appURL, org.Slug, net.ID, sess.ID)),
-		chromedp.WaitVisible(`[data-testid="net-modem"]`, chromedp.ByQuery),
-		chromedp.Evaluate(`!!document.querySelector('[data-testid="nc-connect"]') && typeof window.MeshBridge === "object"`, &connectShown),
-		chromedp.Text(`[data-testid="roster"]`, &roster, chromedp.ByQuery),
-		chromedp.Text(`[data-testid="channel-log"]`, &channelLog, chromedp.ByQuery),
+		step("open the live session",
+			chromedp.Navigate(fmt.Sprintf("%s/orgs/%s/nets/%d/sessions/%d", srv.appURL, org.Slug, net.ID, sess.ID)),
+			chromedp.WaitVisible(`[data-testid="net-modem"]`, chromedp.ByQuery)),
+		step("read the modem panel, roster and channel log",
+			chromedp.Evaluate(`!!document.querySelector('[data-testid="nc-connect"]') && typeof window.MeshBridge === "object"`, &connectShown),
+			chromedp.Text(`[data-testid="roster"]`, &roster, chromedp.ByQuery),
+			chromedp.Text(`[data-testid="channel-log"]`, &channelLog, chromedp.ByQuery)),
 	); err != nil {
 		t.Fatalf("modem panel: %v", err)
 	}

@@ -30,9 +30,10 @@ func TestE2ESmokeMaintenancePage(t *testing.T) {
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(url),
-		chromedp.WaitVisible(`form[action$="/maintenance"]`, chromedp.ByQuery),
-		chromedp.OuterHTML(`form[action$="/maintenance"]`, &formHTML, chromedp.ByQuery),
+		step("open the maintenance page",
+			chromedp.Navigate(url),
+			chromedp.WaitVisible(`form[action$="/maintenance"]`, chromedp.ByQuery),
+			chromedp.OuterHTML(`form[action$="/maintenance"]`, &formHTML, chromedp.ByQuery)),
 	); err != nil {
 		t.Fatalf("browser run against %s: %v", url, err)
 	}

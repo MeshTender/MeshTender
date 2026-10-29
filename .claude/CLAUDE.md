@@ -12,7 +12,8 @@ bundler, no build step for assets.
 - `cmd/meshtender/` — entry point (flags: `--seed`, `--reset`).
 - `internal/web/` — shared HTTP foundation: the `Renderer` (html/template onto a
   base layout), `CommonMiddleware`, the host `Dispatcher`, security headers/CSP,
-  static assets (`internal/web/static/`). Deliberately imports no surface package.
+  static assets (`internal/web/static/`). Deliberately imports no surface
+  package.
 - `internal/auth/`, `internal/marketing/`, `internal/core/` — the three host
   surfaces (auth host, public root host, app host). Each embeds its own
   `templates/*.html` and builds a `web.Env`.
@@ -35,9 +36,10 @@ every source/template change — so edits show up on :8080 within seconds, and
 its command.** The tasks encode the correct setup (env, flags, container
 lifecycle) and clean up after themselves. This matters most for `mise run e2e`:
 never reimplement the headless-browser container by hand (it leaks orphaned
-containers holding :9222). Filter to specific tests with `mise run e2e --run
-<regex>` (see `mise run e2e --help`). Plain `go test`/`go build`/`go vet` for a
-package or `-run` are fine — those aren't tasks.
+containers holding :9222). Filter to specific tests with
+`mise run e2e --run <regex>` (see `mise run e2e --help`). Plain
+`go test`/`go build`/`go vet` for a package or `-run` are fine — those aren't
+tasks.
 
 **MeshCore, not Meshtastic.** Don't introduce Meshtastic concepts (e.g. a
 `node_id`). MeshCore identifies contacts by public key.
@@ -46,12 +48,13 @@ package or `-run` are fine — those aren't tasks.
 
 ### 1. Read the MeshCore firmware/source — never guess at protocol behavior
 Anything touching packet format, routing, path/hash encoding, advert flags,
-region/flood commands, `setperm`/permissions, firmware variants
-(Repeater / Companion / KISS modem), or device behavior is decided by the
-**MeshCore firmware (C++)** and the `meshcore-go` library — not by our comments,
-not by memory, not by a guess.
+region/flood commands, `setperm`/permissions, firmware variants (Repeater /
+Companion / KISS modem), or device behavior is decided by the **MeshCore
+firmware (C++)** and the `meshcore-go` library — not by our comments, not by
+memory, not by a guess.
 
-- Read `meshcore-go` source: `go list -m -f '{{.Dir}}' github.com/meshcore-go/meshcore-go`.
+- Read `meshcore-go` source:
+  `go list -m -f '{{.Dir}}' github.com/meshcore-go/meshcore-go`.
 - For firmware truth, clone it and read the C++:
   `git clone --depth 1 https://github.com/meshcore-dev/MeshCore.git` (key files:
   `src/Mesh.h`, `src/Packet.cpp`, `src/helpers/AdvertDataHelpers.h`,
@@ -61,13 +64,13 @@ not by memory, not by a guess.
 
 ### 2. Plan before implementing; understand before fixing
 Non-trivial work: present a plan and wait for sign-off before coding (use plan
-mode). When something misbehaves, investigate the root cause — read the data, the
-source, the firmware — before changing code. Don't "fix" by guessing.
+mode). When something misbehaves, investigate the root cause — read the data,
+the source, the firmware — before changing code. Don't "fix" by guessing.
 
 ### 3. No commit without tests
 Every change that touches logic gets tests. Every bug fix gets a regression test
-that reproduces the bug first. Prefer test-first (red → green → refactor). Before
-pushing, all of these pass:
+that reproduces the bug first. Prefer test-first (red → green → refactor).
+Before pushing, all of these pass:
 ```
 go build ./...
 go vet ./...
@@ -80,26 +83,33 @@ at the dev DB, and never run TRUNCATE/DROP/reset against it.** CI supplies
 `MESHTENDER_TEST_DATABASE_URL` (a throwaway Postgres service).
 
 ### 4. Validate UI/interactive changes in a real browser
-Server-rendered HTML, WebSerial (console/confirm), Leaflet maps, and the CSP can't
-be fully covered by Go tests. For UI or client-JS changes, run the app (on :8090)
-and check it in a browser **with the devtools console open** (CSP violations only
-show there). If you can't validate it, say so — don't claim it works.
+Server-rendered HTML, WebSerial (console/confirm), Leaflet maps, and the CSP
+can't be fully covered by Go tests. For UI or client-JS changes, run the app (on
+:8090) and check it in a browser **with the devtools console open** (CSP
+violations only show there). If you can't validate it, say so — don't claim it
+works.
 
-**Browser tests (`mise run e2e`).** Regressions worth locking in get a `chromedp`
-test. These live in their own black-box package `internal/e2e/` (one
+**Browser tests (`mise run e2e`).** Regressions worth locking in get a
+`chromedp` test. These live in their own black-box package `internal/e2e/` (one
 `<feature>_test.go` per feature, sharing `harness_test.go`) behind a
 `//go:build browser` tag, so `go test ./...` never needs a browser — only
 `mise run e2e` runs them. That task starts a `chromedp/headless-shell` **Docker
-container** (no local Chrome install) and runs the `browser`-tagged suite against
-an in-process test server; the browser reaches the server via
+container** (no local Chrome install) and runs the `browser`-tagged suite
+against an in-process test server; the browser reaches the server via
 `host.docker.internal`, and the harness fails the test on any CSP violation. If
 the container isn't up, the tests **skip** (never fail). Reuse the `e2eServer`
 harness (`newE2EServer`, `login`, `newRepeater`, `startBrowser`,
-`setSessionCookie`) — it authenticates via the public `/session/callback` handoff
-and depends only on exported app APIs, so keep it that way (no reaching into
-package internals). Give elements a stable `data-testid`/class hook rather than
-selecting on Bootstrap layout classes. CI runs these non-gating
-(the `e2e` job in `.github/workflows/ci.yml`); `E2E_DEVTOOLS_URL`/`E2E_BROWSER_HOST` override the
+`setSessionCookie`) — it authenticates via the public `/session/callback`
+handoff and depends only on exported app APIs, so keep it that way (no reaching
+into package internals). Group browser actions into named `step(...)`s: each
+must finish within 10s (`stepTimeout`), and a hang fails naming the step.
+Nothing in the UI should be slow, so a step that needs longer has usually found
+a bug; the few that are slow on purpose (maps, the fake repeater's device
+timing, CSP report batching) use `stepWithin` with a comment saying why. Every
+test also has a 2-minute backstop (`testDeadline`), so one hang can't stall the
+whole run. Give elements a stable `data-testid`/class hook rather than selecting
+on Bootstrap layout classes. CI runs these non-gating (the `e2e` job in
+`.github/workflows/ci.yml`); `E2E_DEVTOOLS_URL`/`E2E_BROWSER_HOST` override the
 addresses there.
 
 **Tabler markup gotchas — the CSS decides the DOM you must write.** A component
@@ -119,40 +129,40 @@ markup for it. The one that has already bitten us:
   </div>
   ```
   The only intentional multi-column case is Tabler's icon layout
-  (`<div>{{template "icon-alert" "alert-icon"}}</div>` followed by the body div).
-  `TestAlertBodiesAreSingleChild` (`internal/web/alert_layout_test.go`) enforces
-  this; it parses the templates structurally, so extend it there if you find
-  another flex-container component with the same trap.
+  (`<div>{{template "icon-alert" "alert-icon"}}</div>` followed by the body
+  div). `TestAlertBodiesAreSingleChild` (`internal/web/alert_layout_test.go`)
+  enforces this; it parses the templates structurally, so extend it there if you
+  find another flex-container component with the same trap.
 
 - **Fix Tabler in `app.css`, never in `tabler.min.css`** — that file's hash is
   pinned by `internal/licenses`. Example: Tabler before 1.7 shifted every
-  scrollable page sideways (`:root { margin-left: calc(100vw - 100%) }`); `app.css`
-  reserves the scrollbar's space with `scrollbar-gutter: stable` instead, and
-  `TestE2ENoLeftGutterWhenScrollbarAppears` keeps it that way. After a Tabler
-  upgrade, re-check each `app.css` override still applies — drop the ones upstream
-  fixed.
+  scrollable page sideways (`:root { margin-left: calc(100vw - 100%) }`);
+  `app.css` reserves the scrollbar's space with `scrollbar-gutter: stable`
+  instead, and `TestE2ENoLeftGutterWhenScrollbarAppears` keeps it that way.
+  After a Tabler upgrade, re-check each `app.css` override still applies — drop
+  the ones upstream fixed.
 
 - **A `<button>` centers its text.** Invisible on a normal button, wrong the
-  moment you use one as a full-width row (`d-flex w-100`, e.g. a `list-group-item`
-  that expands a collapse): the label sits centered while every neighboring row is
-  left-aligned. **Add `text-start`.** `TestFullWidthFlexButtonsAreTextStart`, in
-  the same file, enforces it.
+  moment you use one as a full-width row (`d-flex w-100`, e.g. a
+  `list-group-item` that expands a collapse): the label sits centered while
+  every neighboring row is left-aligned. **Add `text-start`.**
+  `TestFullWidthFlexButtonsAreTextStart`, in the same file, enforces it.
 
 ### 5. Third-party licensing is a gate — permissive only
 We ship a binary and an image, so every dependency has to be one whose license
-we can actually comply with. Dependencies stay permissive — copyleft terms
-(GPL, LGPL, AGPL, MPL, SSPL) are out. MeshTender is *itself* AGPL-3.0
-(`LICENSE`), but licensing copyleft out doesn't oblige us to accept copyleft in:
-a GPL/AGPL dependency would end the sole copyright holder's ability to relicense,
-and LGPL/MPL attach per-file obligations that fit a statically linked, fully
+we can actually comply with. Dependencies stay permissive — copyleft terms (GPL,
+LGPL, AGPL, MPL, SSPL) are out. MeshTender is *itself* AGPL-3.0 (`LICENSE`), but
+licensing copyleft out doesn't oblige us to accept copyleft in: a GPL/AGPL
+dependency would end the sole copyright holder's ability to relicense, and
+LGPL/MPL attach per-file obligations that fit a statically linked, fully
 embedded Go binary badly. The reasoning is spelled out at `AllowedSPDX` in
 `internal/licenses/manifest.go`; adding to it is a legal decision, not a build
 fix. This applies to the test tree too.
 
 The MeshTender **name and marks are reserved** and excluded from the AGPL grant
-(`TRADEMARKS.md`, permitted by AGPLv3 §7(c)/(e)). The two brand artwork files stay
-committed — the reproducible-build check requires every image input to be public —
-so don't "fix" that by moving them out.
+(`TRADEMARKS.md`, permitted by AGPLv3 §7(c)/(e)). The two brand artwork files
+stay committed — the reproducible-build check requires every image input to be
+public — so don't "fix" that by moving them out.
 
 - `mise run licenses` scans the Go module graph (binary + test + `browser` tag)
   with `google/licensecheck` **and** the non-Go manifest, then verifies
@@ -160,11 +170,12 @@ so don't "fix" that by moving them out.
   (the `licenses` job in `.github/workflows/ci.yml`).
 - Anything third-party that Go tooling can't see — vendored front-end files,
   bundled code, icon artwork, the base image, external services — lives in
-  `internal/licenses/manifest.go` with its version, SHA-256, upstream source, and
-  committed license text. The tests there verify the declared SPDX ID against the
-  actual text, pin file hashes, require attribution banners, and **fail if a file
-  in `internal/web/static/` is neither declared nor listed as first-party**. Don't
-  work around that last one — it's what stops a new library escaping the audit.
+  `internal/licenses/manifest.go` with its version, SHA-256, upstream source,
+  and committed license text. The tests there verify the declared SPDX ID
+  against the actual text, pin file hashes, require attribution banners, and
+  **fail if a file in `internal/web/static/` is neither declared nor listed as
+  first-party**. Don't work around that last one — it's what stops a new library
+  escaping the audit.
 - **Minifiers strip copyright banners; MIT and BSD require they stay.** When you
   update a vendored asset, keep or restore the banner (with the copyright line,
   not just the license name) and refresh the manifest hash.
@@ -172,28 +183,30 @@ so don't "fix" that by moving them out.
 ### 6. CI is the gate, not the first line
 GitHub Actions (`.github/workflows/ci.yml`), one workflow whose jobs are the
 pipeline: `lint` + `test` + `vuln` (govulncheck) + `licenses` must pass before
-`publish` pushes an image to GHCR. A reachable CVE blocks the publish. `e2e` runs
-non-gating. **Deployment is not here** — a separate infrastructure repository
-resolves the published tag to a digest and rolls it out, so what this repo owes it
-is the digest (see `TestPublishExportsTheImageDigest`).
+`publish` pushes an image to GHCR. A reachable CVE blocks the publish. `e2e`
+runs non-gating. **Deployment is not here** — a separate infrastructure
+repository resolves the published tag to a digest and rolls it out, so what this
+repo owes it is the digest (see `TestPublishExportsTheImageDigest`).
 
-Adding a check means adding a job AND listing it in `publish`'s `needs`; the pin and
-gating invariants are enforced by `internal/licenses/reproducible_test.go`, which
-also forbids a literal `go-version` (workflows read `go.mod`) and a loose
+Adding a check means adding a job AND listing it in `publish`'s `needs`; the pin
+and gating invariants are enforced by `internal/licenses/reproducible_test.go`,
+which also forbids a literal `go-version` (workflows read `go.mod`) and a loose
 `GOTOOLCHAIN`. Catch problems locally first; if CI catches something you didn't,
 close the local-testing gap.
 
 ### 7. Git hygiene — stage one batch at a time, don't commit
-This is a single-developer project with no PR workflow. **Stage your changes but do
-NOT commit or push** — the developer commits from a git GUI. Stage exactly the
-files for one logical change with explicit `git add <file> …` (never `-A`/`.`).
+This is a single-developer project with no PR workflow. **Stage your changes but
+do NOT commit or push** — the developer commits from a git GUI. Stage exactly
+the files for one logical change with explicit `git add <file> …` (never
+`-A`/`.`).
 
-**One batch at a time.** When a task spans multiple logical commits, do NOT stage
-everything at once — that co-mingles the batches in the single index and makes them
-impossible to commit separately. Instead:
+**One batch at a time.** When a task spans multiple logical commits, do NOT
+stage everything at once — that co-mingles the batches in the single index and
+makes them impossible to commit separately. Instead:
 1. Stage exactly one batch, give a one-line description the developer can base a
    commit message on, and **stop** — hand off and wait.
-2. The developer reviews `git diff --cached` and commits that batch in their GUI.
+2. The developer reviews `git diff --cached` and commits that batch in their
+   GUI.
 3. Continue only when the developer says so; then stage the next batch.
 
 Order batches so each is independently green (builds/tests pass) once committed.
@@ -210,54 +223,59 @@ request handlers. Before writing code, ask what the worst-case row count is.
 - **No N+1 queries.** Batch or join; don't call the store in a loop per row.
 - **Index-aware SQL.** Filter/sort on indexed columns; add an index with the
   migration when a new access path needs one.
-- **Maps/Sets for lookups, not nested scans.** O(n²) is fine only when n is small
-  and provably bounded (say so in a comment).
+- **Maps/Sets for lookups, not nested scans.** O(n²) is fine only when n is
+  small and provably bounded (say so in a comment).
 - **Cache expensive work and invalidate surgically**, not globally.
-- Perf claims need proof — a benchmark, a measurement, or a test that enforces the
-  characteristic. "It's faster" without data doesn't count.
+- Perf claims need proof — a benchmark, a measurement, or a test that enforces
+  the characteristic. "It's faster" without data doesn't count.
 
 ## Security
-Security is a first-class concern; we run a strict CSP and gate CI on vuln scans.
+Security is a first-class concern; we run a strict CSP and gate CI on vuln
+scans.
 
 - **No inline JS.** The CSP forbids inline `on*=` handlers and un-nonce'd inline
   `<script>`. Use the delegated `data-*` handlers in `internal/web/static/ui.js`
   (`data-confirm`, `data-copy`/`-target`/`-prev`, `data-autosubmit`,
-  `data-consent-target`, `data-gated`); put page logic in `addEventListener` inside
-  a `<script nonce="{{.Nonce}}">` block or a self-hosted `.js`. `TestTemplatesHaveNoInlineJS`
-  enforces this — don't work around it.
-- **Self-host all assets.** No external scripts/styles/fonts (CSP `*-src 'self'`);
-  the only external resource is the CARTO vector basemap (`connect-src` — style JSON,
-  `.mvt` tiles, sprite and glyphs are all fetched, not image loads). No SRI needed.
-- **html/template autoescapes** — don't defeat it. Reach for `template.HTML`/`JS`/`URL`
-  only with server-controlled, non-user data, and comment why.
-- Cookies stay `HttpOnly` + `SameSite=Lax` + `Secure` (gated on TLS). State-changing
-  actions are POST (SameSite blocks cross-site POST).
+  `data-consent-target`, `data-gated`); put page logic in `addEventListener`
+  inside a `<script nonce="{{.Nonce}}">` block or a self-hosted `.js`.
+  `TestTemplatesHaveNoInlineJS` enforces this — don't work around it.
+- **Self-host all assets.** No external scripts/styles/fonts (CSP
+  `*-src 'self'`); the only external resource is the CARTO vector basemap
+  (`connect-src` — style JSON, `.mvt` tiles, sprite and glyphs are all fetched,
+  not image loads). No SRI needed.
+- **html/template autoescapes** — don't defeat it. Reach for
+  `template.HTML`/`JS`/`URL` only with server-controlled, non-user data, and
+  comment why.
+- Cookies stay `HttpOnly` + `SameSite=Lax` + `Secure` (gated on TLS).
+  State-changing actions are POST (SameSite blocks cross-site POST).
 - **Never commit secrets or private data** — this includes a public marketing
   surface. No keys, tokens, passwords, personal data, or real IPs.
 - Keep dependencies patched; `govulncheck` gates the build.
 
 ## Engineering principles
 
-- **DRY.** Before writing new code, grep for an existing implementation. Two copies
-  of the same logic = extract one shared function. (We reused `org_links` →
-  `user_links`, the QR helper, `validLinkURL`, etc. — follow that instinct.)
-- **SOLID / single responsibility.** Small functions that do one thing. Extend via
-  parameters/options, not `if caller == "x"` branches inside shared code. Pass
-  dependencies in (testable) rather than reaching into globals.
+- **DRY.** Before writing new code, grep for an existing implementation. Two
+  copies of the same logic = extract one shared function. (We reused `org_links`
+  → `user_links`, the QR helper, `validLinkURL`, etc. — follow that instinct.)
+- **SOLID / single responsibility.** Small functions that do one thing. Extend
+  via parameters/options, not `if caller == "x"` branches inside shared code.
+  Pass dependencies in (testable) rather than reaching into globals.
 - **YAGNI.** Build the simplest thing that solves the current problem. Delete
   speculative "just in case" code.
 - **Boy Scout rule.** When you touch a file and see duplication, dead code, or
   unclear names, clean it up in the same change.
-- **Named types at boundaries.** Prefer named Go structs with explicit JSON tags for
-  store/domain returns and any JSON API responses. `map[string]any` is fine only as
-  a template render payload (`Renderer.Render`'s `data`), not across domain
-  boundaries.
-- **Cast/null-check at the boundary in JS.** The little client JS we have runs with
-  no types — coerce values from the DOM/attributes and guard before method calls.
+- **Named types at boundaries.** Prefer named Go structs with explicit JSON tags
+  for store/domain returns and any JSON API responses. `map[string]any` is fine
+  only as a template render payload (`Renderer.Render`'s `data`), not across
+  domain boundaries.
+- **Cast/null-check at the boundary in JS.** The little client JS we have runs
+  with no types — coerce values from the DOM/attributes and guard before method
+  calls.
 
 ## Reusable server data → the client (CSP-safe)
 When a page needs server values in JS, pass them via `data-*` attributes or a
-nonce'd inline `<script>` that assigns a `window.*` global (e.g. `MESHTENDER_WS`,
-`SETUP_ORGS`) — then a self-hosted script reads it. Keep shareable UI state
-(filters, selected profile, preview location) in the URL/query where reasonable, as
-the org directory, config, and map pages already do.
+nonce'd inline `<script>` that assigns a `window.*` global (e.g.
+`MESHTENDER_WS`, `SETUP_ORGS`) — then a self-hosted script reads it. Keep
+shareable UI state (filters, selected profile, preview location) in the
+URL/query where reasonable, as the org directory, config, and map pages already
+do.

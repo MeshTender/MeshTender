@@ -40,11 +40,13 @@ func TestE2EOrgHomeLiveNetBanner(t *testing.T) {
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(homeURL),
-		chromedp.WaitVisible(`[data-testid="home-live-net"]`, chromedp.ByQuery),
-		chromedp.Text(`[data-testid="home-live-net"]`, &banner, chromedp.ByQuery),
-		chromedp.Click(`[data-testid="home-live-roster"]`, chromedp.ByQuery),
-		chromedp.WaitVisible(`[data-testid="roster-card"]`, chromedp.ByQuery),
+		step("open the org's Home",
+			chromedp.Navigate(homeURL),
+			chromedp.WaitVisible(`[data-testid="home-live-net"]`, chromedp.ByQuery),
+			chromedp.Text(`[data-testid="home-live-net"]`, &banner, chromedp.ByQuery)),
+		step("open the live net's roster",
+			chromedp.Click(`[data-testid="home-live-roster"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(`[data-testid="roster-card"]`, chromedp.ByQuery)),
 	); err != nil {
 		t.Fatalf("browser run against %s: %v", homeURL, err)
 	}

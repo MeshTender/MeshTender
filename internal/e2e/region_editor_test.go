@@ -37,19 +37,23 @@ func TestE2ERegionNewPage(t *testing.T) {
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(cfgURL),
-		chromedp.WaitVisible(`[data-testid="config-region-add"]`, chromedp.ByQuery),
-		chromedp.Click(`[data-testid="config-region-add"]`, chromedp.ByQuery),
+		step("open Settings › Regions",
+			chromedp.Navigate(cfgURL),
+			chromedp.WaitVisible(`[data-testid="config-region-add"]`, chromedp.ByQuery)),
 		// New opens the attribute editor page.
-		chromedp.WaitVisible(`input[name=region_display]`, chromedp.ByQuery),
-		chromedp.SetValue(`input[name=region_display]`, "Buffalo", chromedp.ByQuery),
-		chromedp.SetValue(`input[name=region_token]`, "buf", chromedp.ByQuery),
-		chromedp.SetValue(`input[name=region_layer]`, "3", chromedp.ByQuery),
-		chromedp.Click(`[data-testid="save-region"]`, chromedp.ByQuery),
+		step("open the new-region page",
+			chromedp.Click(`[data-testid="config-region-add"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(`input[name=region_display]`, chromedp.ByQuery)),
+		step("fill in and save the region",
+			chromedp.SetValue(`input[name=region_display]`, "Buffalo", chromedp.ByQuery),
+			chromedp.SetValue(`input[name=region_token]`, "buf", chromedp.ByQuery),
+			chromedp.SetValue(`input[name=region_layer]`, "3", chromedp.ByQuery),
+			chromedp.Click(`[data-testid="save-region"]`, chromedp.ByQuery)),
 		// Back on Settings › Regions, now listing the region.
-		chromedp.WaitVisible(`[data-testid="config-region-row"]`, chromedp.ByQuery),
-		chromedp.Text(`[data-testid="config-region-row"]`, &rowText, chromedp.ByQuery),
-		chromedp.Evaluate(`!!document.querySelector('[data-testid="config-region-draft"]')`, &draftFlagged),
+		step("see the region listed",
+			chromedp.WaitVisible(`[data-testid="config-region-row"]`, chromedp.ByQuery),
+			chromedp.Text(`[data-testid="config-region-row"]`, &rowText, chromedp.ByQuery),
+			chromedp.Evaluate(`!!document.querySelector('[data-testid="config-region-draft"]')`, &draftFlagged)),
 	); err != nil {
 		t.Fatalf("browser run against %s: %v", cfgURL, err)
 	}
@@ -111,10 +115,13 @@ func TestE2EConfigMapShowsRegionsAndPicksLocation(t *testing.T) {
 	if err := chromedp.Run(bctx,
 		network.Enable(),
 		cdplog.Enable(),
-		chromedp.Navigate(cfgURL),
-		mapReady("region-map", "regions-fill"),
-		mapEval("region-map", countIn("regions"), &counts),
-		chromedp.Evaluate(`document.querySelectorAll('[data-testid="config-region-row"]').length`, &rows),
+		// Slow on purpose: the map loads its basemap from CARTO.
+		stepWithin("open the configuration map", mapLoadTimeout,
+			chromedp.Navigate(cfgURL),
+			mapReady("region-map", "regions-fill")),
+		step("count the regions drawn and listed",
+			mapEval("region-map", countIn("regions"), &counts),
+			chromedp.Evaluate(`document.querySelectorAll('[data-testid="config-region-row"]').length`, &rows)),
 	); err != nil {
 		t.Fatalf("browser run against %s: %v", cfgURL, err)
 	}
@@ -131,10 +138,11 @@ func TestE2EConfigMapShowsRegionsAndPicksLocation(t *testing.T) {
 	var commands string
 	pinned := cfgURL + "?profile=ESP32&lat=42&lon=-78"
 	if err := chromedp.Run(bctx,
-		chromedp.Navigate(pinned),
-		chromedp.WaitVisible(`[data-testid="config-commands"]`, chromedp.ByQuery),
-		chromedp.Evaluate(`document.querySelectorAll('[data-testid="config-region-match"]').length`, &matches),
-		chromedp.Text(`[data-testid="config-commands"]`, &commands, chromedp.ByQuery),
+		step("pick a location",
+			chromedp.Navigate(pinned),
+			chromedp.WaitVisible(`[data-testid="config-commands"]`, chromedp.ByQuery),
+			chromedp.Evaluate(`document.querySelectorAll('[data-testid="config-region-match"]').length`, &matches),
+			chromedp.Text(`[data-testid="config-commands"]`, &commands, chromedp.ByQuery)),
 	); err != nil {
 		t.Fatalf("browser run against %s: %v", pinned, err)
 	}
@@ -148,9 +156,9 @@ func TestE2EConfigMapShowsRegionsAndPicksLocation(t *testing.T) {
 	}
 	// Signed out, no editing controls anywhere on the page.
 	var controls int
-	if err := chromedp.Run(bctx, chromedp.Evaluate(
+	if err := chromedp.Run(bctx, step("count the editing controls", chromedp.Evaluate(
 		`document.querySelectorAll('[data-testid="config-region-add"],[data-testid="config-region-edit"],[data-testid="config-region-delete"]').length`,
-		&controls)); err != nil {
+		&controls))); err != nil {
 		t.Fatalf("control count: %v", err)
 	}
 	if controls != 0 {
@@ -180,12 +188,14 @@ func TestE2ERootRegionExplainer(t *testing.T) {
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(cfgURL),
-		chromedp.WaitVisible(`[data-testid="config-root-info"]`, chromedp.ByQuery),
-		chromedp.Focus(`[data-testid="config-root-info"]`, chromedp.ByQuery),
-		chromedp.WaitVisible(`.popover .popover-body`, chromedp.ByQuery),
-		chromedp.Text(`.popover .popover-header`, &header, chromedp.ByQuery),
-		chromedp.Text(`.popover .popover-body`, &body, chromedp.ByQuery),
+		step("open Settings › Regions",
+			chromedp.Navigate(cfgURL),
+			chromedp.WaitVisible(`[data-testid="config-root-info"]`, chromedp.ByQuery)),
+		step("open the wildcard's explainer",
+			chromedp.Focus(`[data-testid="config-root-info"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(`.popover .popover-body`, chromedp.ByQuery),
+			chromedp.Text(`.popover .popover-header`, &header, chromedp.ByQuery),
+			chromedp.Text(`.popover .popover-body`, &body, chromedp.ByQuery)),
 	); err != nil {
 		t.Fatalf("browser run against %s: %v", cfgURL, err)
 	}
@@ -230,12 +240,14 @@ func TestE2ERootFloodSwitchAutosubmits(t *testing.T) {
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(cfgURL),
-		chromedp.WaitVisible(sw, chromedp.ByQuery),
+		step("open Settings › Regions",
+			chromedp.Navigate(cfgURL),
+			chromedp.WaitVisible(sw, chromedp.ByQuery)),
 		// Clicking it submits the form; the page reloads with the switch off.
-		chromedp.Click(sw, chromedp.ByQuery),
-		chromedp.WaitVisible(sw, chromedp.ByQuery),
-		chromedp.Evaluate(`document.querySelector('`+sw+`').checked`, &checked),
+		step("toggle the root flood switch",
+			chromedp.Click(sw, chromedp.ByQuery),
+			chromedp.WaitVisible(sw, chromedp.ByQuery),
+			chromedp.Evaluate(`document.querySelector('`+sw+`').checked`, &checked)),
 	); err != nil {
 		t.Fatalf("browser run against %s: %v", cfgURL, err)
 	}
@@ -307,11 +319,14 @@ func TestE2ERegionAreaDraftEnablesDrawing(t *testing.T) {
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(areaURL(draft)),
-		mapReady("region-map", "siblings-fill"),
-		chromedp.WaitVisible(drawButton, chromedp.ByQuery),
-		chromedp.Text(`#region-area-status`, &draftStatus, chromedp.ByQuery),
-		chromedp.Evaluate(drawDisabled, &draftDrawDisabled),
+		// Slow on purpose: the map loads its basemap from CARTO.
+		stepWithin("open the draft's area page", mapLoadTimeout,
+			chromedp.Navigate(areaURL(draft)),
+			mapReady("region-map", "siblings-fill")),
+		step("read the draw tools' state",
+			chromedp.WaitVisible(drawButton, chromedp.ByQuery),
+			chromedp.Text(`#region-area-status`, &draftStatus, chromedp.ByQuery),
+			chromedp.Evaluate(drawDisabled, &draftDrawDisabled)),
 	); err != nil {
 		t.Fatalf("browser run against the draft's area page: %v", err)
 	}
@@ -326,13 +341,17 @@ func TestE2ERegionAreaDraftEnablesDrawing(t *testing.T) {
 	// The one that already has an area: drawing is off until it's cleared.
 	var shapedDrawDisabled string
 	if err := chromedp.Run(bctx,
-		chromedp.Navigate(areaURL(shaped)),
-		mapReady("region-map", "siblings-fill"),
-		chromedp.Poll(`(function () {
-			var e = window.MESHTENDER_MAPS["region-map"];
-			return !!(e && e.draw && e.draw.getSnapshot().length);
-		})()`, nil, chromedp.WithPollingTimeout(30*time.Second)),
-		chromedp.Evaluate(drawDisabled, &shapedDrawDisabled),
+		// Slow on purpose: the map loads its basemap from CARTO, and the area is
+		// only drawn once it has.
+		stepWithin("open the shaped region's area page", mapLoadTimeout,
+			chromedp.Navigate(areaURL(shaped)),
+			mapReady("region-map", "siblings-fill"),
+			chromedp.Poll(`(function () {
+				var e = window.MESHTENDER_MAPS["region-map"];
+				return !!(e && e.draw && e.draw.getSnapshot().length);
+			})()`, nil, chromedp.WithPollingTimeout(mapLoadTimeout))),
+		step("read the draw tools' state",
+			chromedp.Evaluate(drawDisabled, &shapedDrawDisabled)),
 	); err != nil {
 		t.Fatalf("browser run against the shaped region's area page: %v", err)
 	}
@@ -386,13 +405,16 @@ func TestE2ERegionAreaEditor(t *testing.T) {
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(areaURL),
-		// The map initializes and reports the existing area.
-		mapReady("region-map", "siblings-fill"),
-		chromedp.Text(`#region-area-status`, &status, chromedp.ByQuery),
-		mapEval("region-map", countIn("siblings"), &siblings),
-		chromedp.Evaluate(countEditable, &editable),
-		chromedp.Value(`#region_geojson`, &hidden, chromedp.ByQuery),
+		// The map initializes and reports the existing area. Slow on purpose: the
+		// map loads its basemap from CARTO.
+		stepWithin("open the area page", mapLoadTimeout,
+			chromedp.Navigate(areaURL),
+			mapReady("region-map", "siblings-fill")),
+		step("read the loaded area",
+			chromedp.Text(`#region-area-status`, &status, chromedp.ByQuery),
+			mapEval("region-map", countIn("siblings"), &siblings),
+			chromedp.Evaluate(countEditable, &editable),
+			chromedp.Value(`#region_geojson`, &hidden, chromedp.ByQuery)),
 	); err != nil {
 		t.Fatalf("browser run against %s: %v", areaURL, err)
 	}
@@ -413,11 +435,13 @@ func TestE2ERegionAreaEditor(t *testing.T) {
 	// the cleared state — the round trip the "Clear area" button exists for.
 	var clearedStatus, clearedValue string
 	if err := chromedp.Run(bctx,
-		chromedp.Click(`#region-area-clear`, chromedp.ByQuery),
-		chromedp.Text(`#region-area-status`, &clearedStatus, chromedp.ByQuery),
-		chromedp.Value(`#region_geojson`, &clearedValue, chromedp.ByQuery),
-		chromedp.Click(`[data-testid="save-area"]`, chromedp.ByQuery),
-		chromedp.WaitVisible(`[data-testid="config-region-row"]`, chromedp.ByQuery),
+		step("clear the area",
+			chromedp.Click(`#region-area-clear`, chromedp.ByQuery),
+			chromedp.Text(`#region-area-status`, &clearedStatus, chromedp.ByQuery),
+			chromedp.Value(`#region_geojson`, &clearedValue, chromedp.ByQuery)),
+		step("save the cleared area",
+			chromedp.Click(`[data-testid="save-area"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(`[data-testid="config-region-row"]`, chromedp.ByQuery)),
 	); err != nil {
 		t.Fatalf("clear-and-save run: %v", err)
 	}
@@ -483,13 +507,16 @@ func TestE2ERegionAreaDrawsAPolygon(t *testing.T) {
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(areaURL),
-		mapReady("region-map", "siblings-fill"),
-		chromedp.Click(`[data-testid="region-draw-polygon"]`, chromedp.ByQuery),
-		chromedp.Evaluate(`(function () {
-			var r = document.getElementById("region-map").getBoundingClientRect();
-			return { x: r.left, y: r.top };
-		})()`, &rect),
+		// Slow on purpose: the map loads its basemap from CARTO.
+		stepWithin("open the area page", mapLoadTimeout,
+			chromedp.Navigate(areaURL),
+			mapReady("region-map", "siblings-fill")),
+		step("pick the polygon tool",
+			chromedp.Click(`[data-testid="region-draw-polygon"]`, chromedp.ByQuery),
+			chromedp.Evaluate(`(function () {
+				var r = document.getElementById("region-map").getBoundingClientRect();
+				return { x: r.left, y: r.top };
+			})()`, &rect)),
 	}
 	if err := chromedp.Run(bctx, tasks); err != nil {
 		t.Fatalf("browser run against %s: %v", areaURL, err)
@@ -500,14 +527,14 @@ func TestE2ERegionAreaDrawsAPolygon(t *testing.T) {
 		clicks = append(clicks, chromedp.MouseClickXY(rect.X+c.dx, rect.Y+c.dy))
 	}
 	if err := chromedp.Run(bctx,
-		clicks,
+		step("click the corners", clicks),
 		// Terra Draw's polygon mode closes the ring on Enter, which is far steadier
 		// than trying to land a click back on the first vertex.
-		chromedp.KeyEvent("\r"),
-		chromedp.Poll(`document.getElementById("region_geojson").value !== ""`, nil,
-			chromedp.WithPollingTimeout(15*time.Second)),
-		chromedp.Text(`#region-area-status`, &status, chromedp.ByQuery),
-		chromedp.Value(`#region_geojson`, &geojson, chromedp.ByQuery),
+		step("close the ring",
+			chromedp.KeyEvent("\r"),
+			chromedp.Poll(`document.getElementById("region_geojson").value !== ""`, nil),
+			chromedp.Text(`#region-area-status`, &status, chromedp.ByQuery),
+			chromedp.Value(`#region_geojson`, &geojson, chromedp.ByQuery)),
 	); err != nil {
 		t.Fatalf("drawing the polygon: %v", err)
 	}
@@ -521,8 +548,9 @@ func TestE2ERegionAreaDrawsAPolygon(t *testing.T) {
 
 	// Saving persists what was drawn, which is the whole point of the workspace.
 	if err := chromedp.Run(bctx,
-		chromedp.Click(`[data-testid="save-area"]`, chromedp.ByQuery),
-		chromedp.WaitVisible(`[data-testid="config-region-row"]`, chromedp.ByQuery),
+		step("save the drawn area",
+			chromedp.Click(`[data-testid="save-area"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(`[data-testid="config-region-row"]`, chromedp.ByQuery)),
 	); err != nil {
 		t.Fatalf("saving the drawn area: %v", err)
 	}
@@ -598,10 +626,13 @@ func TestE2ERegionAreaDrawsAConcaveArea(t *testing.T) {
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		chromedp.Navigate(areaURL),
-		mapReady("region-map", "siblings-fill"),
-		chromedp.Click(`[data-testid="region-draw-polygon"]`, chromedp.ByQuery),
-		mapOrigin,
+		// Slow on purpose: the map loads its basemap from CARTO.
+		stepWithin("open the area page", mapLoadTimeout,
+			chromedp.Navigate(areaURL),
+			mapReady("region-map", "siblings-fill")),
+		step("pick the polygon tool",
+			chromedp.Click(`[data-testid="region-draw-polygon"]`, chromedp.ByQuery),
+			mapOrigin),
 	); err != nil {
 		t.Fatalf("browser run against %s: %v", areaURL, err)
 	}
@@ -613,10 +644,10 @@ func TestE2ERegionAreaDrawsAConcaveArea(t *testing.T) {
 	}
 	for i, c := range concave {
 		var ring int
-		if err := chromedp.Run(bctx,
+		if err := chromedp.Run(bctx, step("click corner "+strconv.Itoa(i+1),
 			chromedp.MouseClickXY(origin.X+c.dx, origin.Y+c.dy),
 			chromedp.Sleep(250*time.Millisecond),
-			chromedp.Evaluate(ringLength, &ring),
+			chromedp.Evaluate(ringLength, &ring)),
 		); err != nil {
 			t.Fatalf("corner %d: %v", i+1, err)
 		}
@@ -629,12 +660,11 @@ func TestE2ERegionAreaDrawsAConcaveArea(t *testing.T) {
 	}
 
 	var status, geojson string
-	if err := chromedp.Run(bctx,
+	if err := chromedp.Run(bctx, step("close the concave outline",
 		chromedp.KeyEvent("\r"),
-		chromedp.Poll(`document.getElementById("region_geojson").value !== ""`, nil,
-			chromedp.WithPollingTimeout(15*time.Second)),
+		chromedp.Poll(`document.getElementById("region_geojson").value !== ""`, nil),
 		chromedp.Text(`#region-area-status`, &status, chromedp.ByQuery),
-		chromedp.Value(`#region_geojson`, &geojson, chromedp.ByQuery),
+		chromedp.Value(`#region_geojson`, &geojson, chromedp.ByQuery)),
 	); err != nil {
 		t.Fatalf("finishing the concave outline: %v", err)
 	}
@@ -647,26 +677,26 @@ func TestE2ERegionAreaDrawsAConcaveArea(t *testing.T) {
 	}
 
 	// Now a genuinely self-intersecting outline: clear, then draw a bowtie.
-	if err := chromedp.Run(bctx,
+	if err := chromedp.Run(bctx, step("clear the area",
 		chromedp.Click(`#region-area-clear`, chromedp.ByQuery),
-		mapOrigin,
+		mapOrigin),
 	); err != nil {
 		t.Fatalf("clearing before the crossed outline: %v", err)
 	}
 	for _, c := range []struct{ dx, dy float64 }{{120, 80}, {330, 80}, {120, 220}, {330, 220}} {
-		if err := chromedp.Run(bctx,
+		if err := chromedp.Run(bctx, step("click a crossed corner",
 			chromedp.MouseClickXY(origin.X+c.dx, origin.Y+c.dy),
-			chromedp.Sleep(250*time.Millisecond),
+			chromedp.Sleep(250*time.Millisecond)),
 		); err != nil {
 			t.Fatalf("crossed outline: %v", err)
 		}
 	}
 	var crossedStatus, crossedValue string
-	if err := chromedp.Run(bctx,
+	if err := chromedp.Run(bctx, step("close the crossed outline",
 		chromedp.KeyEvent("\r"),
 		chromedp.Sleep(700*time.Millisecond),
 		chromedp.Text(`#region-area-status`, &crossedStatus, chromedp.ByQuery),
-		chromedp.Value(`#region_geojson`, &crossedValue, chromedp.ByQuery),
+		chromedp.Value(`#region_geojson`, &crossedValue, chromedp.ByQuery)),
 	); err != nil {
 		t.Fatalf("finishing the crossed outline: %v", err)
 	}
@@ -716,18 +746,21 @@ func TestE2ERegionAreaVertexSpacing(t *testing.T) {
 	}
 	areaURL := srv.appURL + "/orgs/" + org.Slug + "/config/regions/" + strconv.FormatInt(rid, 10) + "/area"
 	startDrawing := chromedp.Tasks{
-		chromedp.Navigate(areaURL),
-		mapReady("region-map", "siblings-fill"),
-		chromedp.Click(`[data-testid="region-draw-polygon"]`, chromedp.ByQuery),
-		chromedp.Evaluate(`(function () {
-			document.getElementById("region-map").scrollIntoView({ block: "start" });
-			return true;
-		})()`, nil),
-		chromedp.Sleep(300 * time.Millisecond),
-		chromedp.Evaluate(`(function () {
-			var r = document.getElementById("region-map").getBoundingClientRect();
-			return { x: r.left, y: r.top };
-		})()`, &origin),
+		// Slow on purpose: the map loads its basemap from CARTO.
+		stepWithin("open the area page", mapLoadTimeout,
+			chromedp.Navigate(areaURL),
+			mapReady("region-map", "siblings-fill")),
+		step("pick the polygon tool",
+			chromedp.Click(`[data-testid="region-draw-polygon"]`, chromedp.ByQuery),
+			chromedp.Evaluate(`(function () {
+				document.getElementById("region-map").scrollIntoView({ block: "start" });
+				return true;
+			})()`, nil),
+			chromedp.Sleep(300*time.Millisecond),
+			chromedp.Evaluate(`(function () {
+				var r = document.getElementById("region-map").getBoundingClientRect();
+				return { x: r.left, y: r.top };
+			})()`, &origin)),
 	}
 	const ringLength = `(function () {
 		var f = window.MESHTENDER_MAPS["region-map"].draw.getSnapshot()
@@ -748,10 +781,10 @@ func TestE2ERegionAreaVertexSpacing(t *testing.T) {
 		t.Fatalf("browser run against %s: %v", areaURL, err)
 	}
 	for i := range 5 {
-		if err := chromedp.Run(bctx,
+		if err := chromedp.Run(bctx, step("click close-spaced corner "+strconv.Itoa(i+1),
 			chromedp.MouseClickXY(origin.X+150+float64(i)*gap, origin.Y+150+float64(i%2)*gap),
 			chromedp.Sleep(220*time.Millisecond),
-			chromedp.Evaluate(ringLength, &ring),
+			chromedp.Evaluate(ringLength, &ring)),
 		); err != nil {
 			t.Fatalf("close-spaced corner %d: %v", i+1, err)
 		}
@@ -771,19 +804,20 @@ func TestE2ERegionAreaVertexSpacing(t *testing.T) {
 	}
 	if err := chromedp.Run(bctx,
 		startDrawing,
-		chromedp.MouseClickXY(origin.X+150, origin.Y+150),
-		chromedp.Sleep(200*time.Millisecond),
-		chromedp.MouseClickXY(origin.X+320, origin.Y+150),
-		chromedp.Sleep(200*time.Millisecond),
-		chromedp.MouseClickXY(origin.X+320, origin.Y+300),
-		chromedp.Sleep(200*time.Millisecond),
-		chromedp.MouseClickXY(origin.X+155, origin.Y+155),
-		chromedp.Sleep(600*time.Millisecond),
-		chromedp.Evaluate(`(function () {
-			var e = window.MESHTENDER_MAPS["region-map"];
-			return { mode: e.draw.getMode(),
-			         filled: document.getElementById("region_geojson").value !== "" };
-		})()`, &st),
+		step("draw three corners and click the first again",
+			chromedp.MouseClickXY(origin.X+150, origin.Y+150),
+			chromedp.Sleep(200*time.Millisecond),
+			chromedp.MouseClickXY(origin.X+320, origin.Y+150),
+			chromedp.Sleep(200*time.Millisecond),
+			chromedp.MouseClickXY(origin.X+320, origin.Y+300),
+			chromedp.Sleep(200*time.Millisecond),
+			chromedp.MouseClickXY(origin.X+155, origin.Y+155),
+			chromedp.Sleep(600*time.Millisecond),
+			chromedp.Evaluate(`(function () {
+				var e = window.MESHTENDER_MAPS["region-map"];
+				return { mode: e.draw.getMode(),
+				         filled: document.getElementById("region_geojson").value !== "" };
+			})()`, &st)),
 	); err != nil {
 		t.Fatalf("closing by click: %v", err)
 	}
