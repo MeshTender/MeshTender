@@ -173,3 +173,15 @@
 
 {{/* heard-unheard fills a value that only its adverts can tell. */}}
 {{define "heard-unheard"}}<span class="text-secondary">Not heard yet</span>{{end}}
+
+{{/* flood-interval shows a repeater's estimated flood advert interval with
+     which firmware default it matches — an old default stands out, since it
+     usually means a repeater nobody reconfigured. Pass a *web.HeardView. */}}
+{{define "flood-interval"}}
+{{- with .FloodInterval -}}
+<span title="Estimated from {{.Samples}} gaps between its flood adverts">Every {{.Hours}} h</span>
+{{- with $.VintageLabel}} <span class="badge {{if $.Vintage.Outdated}}bg-orange-lt{{else}}bg-green-lt{{end}}" data-testid="flood-vintage">{{.}}</span>{{end}}
+{{- else -}}
+<span class="text-secondary">Not enough flood adverts yet</span>
+{{- end -}}
+{{end}}

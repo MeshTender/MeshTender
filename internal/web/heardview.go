@@ -136,16 +136,3 @@ func (h *HeardView) VintageLabel() string {
 // RecommendedFloodHours is the current firmware default, for the hint that
 // an outdated repeater should move to it.
 func (h *HeardView) RecommendedFloodHours() int { return observe.FloodAdvertDefaultCurrent }
-
-// HeardViews builds the org list's per-repeater summaries, by repeater id:
-// one observation query for the whole list. Location and name aren't compared
-// there, so only the scope matters from regions.
-func HeardViews(obs map[string]store.RepeaterObservation, reps []store.OrgRepeaterInfo, regions []store.RegionName) map[int64]*HeardView {
-	out := make(map[int64]*HeardView, len(obs))
-	for _, r := range reps {
-		if o, ok := obs[r.PublicKeyHex]; ok {
-			out[r.RepeaterID] = NewHeardView(&o, r.Name, nil, nil, regions)
-		}
-	}
-	return out
-}

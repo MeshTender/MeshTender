@@ -140,14 +140,14 @@
     <div class="card mt-3" id="heard">
       <div class="card-header"><h2 class="card-title">Repeaters on the mesh</h2></div>
       <div class="card-body">
-        <p>Approved observers also hear the organization's own repeaters advertise. MeshTender checks each advert's signature and keeps what it says on the repeater's <strong>Heard on the mesh</strong> card: when it was last heard, the name and location it broadcasts, its path hash size, and the region its flood adverts are scoped to. It never changes what's registered by itself. If the advertised name or location differs, the card says so and offers to use the advertised one.</p>
+        <p>Approved observers also hear the organization's own repeaters advertise. MeshTender checks each advert's signature and shows what it says in the repeater's <strong>Details</strong>: when it was last heard, its path hash size, the region its flood adverts are scoped to, and whether its clock is right. It never changes what's registered by itself. If the name or location it advertises differs, a warning beside the registered one says what it advertises, and the owner can use the advertised one from <strong>Settings › Details</strong>.</p>
         <p>It also estimates how often the repeater sends a <strong>flood advert</strong>, from the gaps between the ones heard, and says which firmware default the result matches. The default has changed twice:</p>
         <ul>
           <li><strong>3 hours</strong> before firmware 1.8</li>
           <li><strong>12 hours</strong> from 1.8 through 1.15</li>
           <li><strong>47 hours</strong> from 1.16 on</li>
         </ul>
-        <p>Updating the firmware doesn't change a repeater's saved setting, so a repeater still on an old default is flagged, on its page and on the organization's repeater list. Set it with <code>set flood.advert.interval 47</code>.</p>
+        <p>Updating the firmware doesn't change a repeater's saved setting, so a repeater still on an old default is flagged on its page. Set it with <code>set flood.advert.interval 47</code>.</p>
         <p class="mb-0">The estimate needs at least two matching gaps, so it takes a few intervals to appear. A missed advert, a manual <code>advert</code> or a reboot changes one gap, but the most common gap still wins.</p>
       </div>
     </div>

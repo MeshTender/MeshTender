@@ -135,8 +135,14 @@ func TestAdoptHeardValues(t *testing.T) {
 		t.Error("47 h not shown as the current default")
 	}
 
-	// The org list shows it too, for members.
-	if list := getBody(t, ts, h.app, "/orgs/"+org.Slug+"/repeaters", memberSess); !strings.Contains(list, `data-testid="org-rep-interval"`) || !strings.Contains(list, "Every 47 h") {
-		t.Error("org repeater list lacks the flood advert interval")
+	// The org list shows when it was last heard, and sorts by it, for members.
+	list := getBody(t, ts, h.app, "/orgs/"+org.Slug+"/repeaters", memberSess)
+	for _, want := range []string{`data-testid="org-rep-heard"`, "Heard <time", `data-sort-heard="`, `data-sort-added="`, `value="heard:desc"`} {
+		if !strings.Contains(list, want) {
+			t.Errorf("org repeater list lacks %q", want)
+		}
+	}
+	if strings.Contains(list, "Every 47 h") {
+		t.Error("org repeater list shows the flood advert interval")
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/MeshTender/MeshTender/internal/config"
 	"github.com/MeshTender/MeshTender/internal/store"
@@ -323,9 +324,9 @@ type RepeatersView struct {
 	HasMap     bool
 	Full       bool
 	NextCursor string
-	// Heard is what each repeater's adverts say, by repeater id (full view
-	// only: an outsider has no business knowing which nodes need attention).
-	Heard map[int64]*HeardView
+	// LastHeard is when each repeater's adverts were last heard, by repeater id
+	// (full view only, from LoadLastHeard).
+	LastHeard map[int64]time.Time
 }
 
 // BuildRepeatersView loads an org's repeaters for display. full selects the member
@@ -352,10 +353,9 @@ func BuildRepeatersView(ctx context.Context, st *store.Store, orgID int64, full 
 	return RepeatersView{Repeaters: reps, MapPoints: points, HasMap: len(points) > 0, Full: full}, nil
 }
 
-// LoadHeard fills v.Heard with what its repeaters have been heard advertising,
-// naming scopes from the org's regions: two queries for the whole list. Only
-// for the full view, which is the only one with public keys.
-func (v *RepeatersView) LoadHeard(ctx context.Context, st *store.Store, orgID int64) error {
+// LoadLastHeard fills v.LastHeard: one query for the whole list. Only for the
+// full view, which is the only one with public keys.
+func (v *RepeatersView) LoadLastHeard(ctx context.Context, st *store.Store) error {
 	keys := make([]string, len(v.Repeaters))
 	for i, r := range v.Repeaters {
 		keys[i] = r.PublicKeyHex
@@ -364,15 +364,12 @@ func (v *RepeatersView) LoadHeard(ctx context.Context, st *store.Store, orgID in
 	if err != nil {
 		return err
 	}
-	regions, err := st.ListRegions(ctx, orgID)
-	if err != nil {
-		return err
+	v.LastHeard = make(map[int64]time.Time, len(obs))
+	for _, r := range v.Repeaters {
+		if o, ok := obs[r.PublicKeyHex]; ok {
+			v.LastHeard[r.RepeaterID] = o.LastHeardAt
+		}
 	}
-	names := make([]store.RegionName, len(regions))
-	for i, r := range regions {
-		names[i] = store.RegionName{Token: r.Token, DisplayName: r.DisplayName}
-	}
-	v.Heard = HeardViews(obs, v.Repeaters, names)
 	return nil
 }
 

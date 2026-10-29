@@ -5,22 +5,26 @@
 {{define "rep-rows"}}
 {{range .Reps.Repeaters}}
 {{if $.Reps.Full}}
-<a class="list-group-item list-group-item-action d-flex align-items-center gap-2" href="/repeaters/{{.RepeaterPublicID}}">
-  <span class="text-secondary">{{template "icon-antenna" ""}}</span>
-  <div class="flex-fill text-truncate">
-    <div class="d-flex align-items-center flex-wrap gap-2">
-      <span class="fw-bold">{{.Name}}</span>
-      {{/* Same badges as the owner's own repeater list, from the one shared
-           definition: a node nobody has reached, or one where MeshTender holds only
-           guest access and so cannot run anything. Members only — the public branch
-           below shows neither, since which of an org's nodes are misconfigured is
-           not an outsider's business. */}}
-      {{template "repstatus" .}}
+{{/* listfilter.js hides a row with [hidden], which the row's own .d-flex
+     (display:flex !important) would beat, so the flex layout is on an inner
+     div. */}}
+{{$heard := index $.Reps.LastHeard .RepeaterID}}
+<a class="list-group-item list-group-item-action" href="/repeaters/{{.RepeaterPublicID}}" data-filter-item
+   data-name="{{.Name}} {{.OwnerName}}" data-sort-name="{{.Name}}" data-sort-added="{{.CreatedAt.Unix}}"{{if not $heard.IsZero}} data-sort-heard="{{$heard.Unix}}"{{end}}>
+  <div class="d-flex align-items-center gap-2">
+    <span class="text-secondary">{{template "icon-antenna" ""}}</span>
+    <div class="flex-fill text-truncate">
+      <div class="d-flex align-items-center flex-wrap gap-2">
+        <span class="fw-bold">{{.Name}}</span>
+        {{/* Same badges as the owner's own repeater list, from the one shared
+             definition: a node nobody has reached, or one where MeshTender holds only
+             guest access and so cannot run anything. Members only — the public branch
+             below shows neither, since which of an org's nodes are misconfigured is
+             not an outsider's business. */}}
+        {{template "repstatus" .}}
+      </div>
+      <div class="text-secondary small">Owned by {{.OwnerName}} · Added {{ts .CreatedAt "date"}} · <span data-testid="org-rep-heard">{{if $heard.IsZero}}Not heard yet{{else}}Heard {{ts $heard "relative"}}{{end}}</span></div>
     </div>
-    <div class="text-secondary small">Owned by {{.OwnerName}}
-      {{- /* What its adverts say (see HeardView): an old flood advert default
-           stands out here, so admins can find the repeaters to update. */ -}}
-      {{with index $.Reps.Heard .RepeaterID}} · Heard {{ts .LastHeardAt "relative"}} · <span data-testid="org-rep-interval">{{template "flood-interval" .}}</span>{{end}}</div>
   </div>
 </a>
 {{else}}
@@ -53,16 +57,33 @@
 <div class="row row-cards">
   <!-- Left: list -->
   <div class="col-lg-8">
-    <div class="card">
+    <div class="card"{{if .Reps.Full}} data-filter-root{{end}}>
+      {{/* Members get search and sort above the list, like the other list
+           pages; the public list is paged by the server instead. */}}
+      {{if and .Reps.Full .Reps.Repeaters}}
       <div class="card-header">
-        <h2 class="card-title">Repeaters</h2>
-        {{if .Nav.ShowConfig}}<div class="card-actions">{{template "org-config-link" .Nav}}</div>{{end}}
+        <div class="d-flex flex-wrap align-items-center gap-2 w-100" role="search">
+          <div class="input-icon flex-fill" style="min-width:12rem">
+            <span class="input-icon-addon">{{template "icon-search" ""}}</span>
+            <input type="search" class="form-control" id="org-rep-search" data-filter-search placeholder="Name or owner" autocomplete="off" aria-label="Search repeaters">
+          </div>
+          <select class="form-select w-auto" data-filter-sort aria-label="Sort repeaters" data-testid="org-rep-sort">
+            <option value="">By name</option>
+            <option value="added:desc">Recently added</option>
+            <option value="heard:desc">Most recently heard</option>
+          </select>
+          <span class="text-secondary ms-auto">{{len .Reps.Repeaters}} repeater{{if ne (len .Reps.Repeaters) 1}}s{{end}}</span>
+        </div>
       </div>
+      {{else}}
+      <div class="card-header"><h2 class="card-title">Repeaters</h2></div>
+      {{end}}
       {{if .Reps.Repeaters}}
       <div class="list-group list-group-flush" id="rep-list">
         {{template "rep-rows" .}}
         {{if .Reps.NextCursor}}{{template "rep-more" .}}{{end}}
       </div>
+      {{if .Reps.Full}}<div class="card-body text-secondary" data-filter-empty hidden>No repeater matches.</div>{{end}}
       {{else}}
       <div class="card-body"><p class="text-secondary mb-0">
         {{if .Reps.Full}}No repeaters are shared yet. A member's repeaters are shared automatically; they can opt one out from its sharing page.
@@ -92,6 +113,7 @@
       <div class="card-body"><p class="text-secondary mb-0">No repeater locations to map.</p></div>
       {{end}}
     </div>
+    {{if .Nav.ShowConfig}}<div class="d-grid mt-3">{{template "org-config-link" .Nav}}</div>{{end}}
   </div>
 </div>
 {{end}}

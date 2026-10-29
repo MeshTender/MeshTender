@@ -36,7 +36,8 @@ func TestFilterControlsPrecedeTheList(t *testing.T) {
 	}
 	// Each of these pages renders its filter sidebar only when it has content, so the
 	// fixtures below are what keep the assertions from being vacuous.
-	if _, err := st.CreateOrg(ctx, "Filter Order Org", user.ID); err != nil {
+	org, err := st.CreateOrg(ctx, "Filter Order Org", user.ID)
+	if err != nil {
 		t.Fatalf("create org: %v", err)
 	}
 	if _, err := st.CreateRepeater(ctx, &store.Repeater{
@@ -57,6 +58,7 @@ func TestFilterControlsPrecedeTheList(t *testing.T) {
 	}{
 		{"public org directory", h.root, "/orgs", `id="org-q"`, `id="org-list"`, false},
 		{"your repeaters", h.app, "/repeaters", `data-filter-search`, `data-filter-item`, false},
+		{"an org's repeaters", h.app, "/orgs/" + org.Slug + "/repeaters", `data-filter-search`, `data-filter-item`, false},
 		{"admin user list", h.app, "/admin/users", `id="user-q"`, `data-testid="user-row"`, true},
 	} {
 		resp := do(t, ts, page.host, page.path, cookies...)
