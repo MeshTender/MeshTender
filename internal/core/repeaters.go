@@ -108,6 +108,12 @@ func (s *Handlers) pageRepeater(w http.ResponseWriter, r *http.Request) {
 	if qr, ok := web.QRDataURI(contactURI); ok {
 		data["ContactQR"] = qr
 	}
+	heard, err := s.heardView(r.Context(), rep)
+	if err != nil {
+		s.ServerError(w, r, "could not load what the repeater advertised", err)
+		return
+	}
+	data["Heard"] = heard
 	if isOwner {
 		orgs, err := s.Store.ListRepeaterOrgs(r.Context(), id)
 		if err != nil {

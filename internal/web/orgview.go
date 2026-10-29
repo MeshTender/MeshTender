@@ -323,6 +323,9 @@ type RepeatersView struct {
 	HasMap     bool
 	Full       bool
 	NextCursor string
+	// Heard is what each repeater's adverts say, by repeater id (full view
+	// only: an outsider has no business knowing which nodes need attention).
+	Heard map[int64]*HeardView
 }
 
 // BuildRepeatersView loads an org's repeaters for display. full selects the member
@@ -347,6 +350,30 @@ func BuildRepeatersView(ctx context.Context, st *store.Store, orgID int64, full 
 		}
 	}
 	return RepeatersView{Repeaters: reps, MapPoints: points, HasMap: len(points) > 0, Full: full}, nil
+}
+
+// LoadHeard fills v.Heard with what its repeaters have been heard advertising,
+// naming scopes from the org's regions: two queries for the whole list. Only
+// for the full view, which is the only one with public keys.
+func (v *RepeatersView) LoadHeard(ctx context.Context, st *store.Store, orgID int64) error {
+	keys := make([]string, len(v.Repeaters))
+	for i, r := range v.Repeaters {
+		keys[i] = r.PublicKeyHex
+	}
+	obs, err := st.ListRepeaterObservations(ctx, keys)
+	if err != nil {
+		return err
+	}
+	regions, err := st.ListRegions(ctx, orgID)
+	if err != nil {
+		return err
+	}
+	names := make([]store.RegionName, len(regions))
+	for i, r := range regions {
+		names[i] = store.RegionName{Token: r.Token, DisplayName: r.DisplayName}
+	}
+	v.Heard = HeardViews(obs, v.Repeaters, names)
+	return nil
 }
 
 // PreviewLatLon parses the optional ?lat=&lon= config-preview coordinates.

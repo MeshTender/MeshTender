@@ -226,6 +226,8 @@ func (s *Handlers) appRouter() chi.Router {
 			r.Get("/repeaters/{id}/config.json", s.consoleConfigJSON)
 			r.Get("/repeaters/{id}/config", s.redirectToConfigure("configuration"))
 			r.Post("/repeaters/{id}/location", s.handleSetRepeaterLocation)
+			r.Post("/repeaters/{id}/heard/name", s.handleAdoptHeardName)
+			r.Post("/repeaters/{id}/heard/location", s.handleAdoptHeardLocation)
 			r.Get("/repeaters/{id}/log", s.redirectToConfigure("history"))
 			r.Get("/repeaters/{id}/docs", s.redirectToSettings(settingsDocs))
 			r.Post("/repeaters/{id}/docs", s.handleRepeaterDocs)

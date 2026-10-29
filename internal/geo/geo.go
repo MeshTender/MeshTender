@@ -94,3 +94,16 @@ func Rectangle(minLat, minLon, maxLat, maxLon float64) []byte {
 		`{"type":"Polygon","coordinates":[[[%g,%g],[%g,%g],[%g,%g],[%g,%g],[%g,%g]]]}`,
 		minLon, minLat, maxLon, minLat, maxLon, maxLat, minLon, maxLat, minLon, minLat))
 }
+
+// earthRadiusM is the mean Earth radius, in meters.
+const earthRadiusM = 6_371_008.8
+
+// Distance is the great-circle (haversine) distance between two points, in
+// meters.
+func Distance(lat1, lon1, lat2, lon2 float64) float64 {
+	rad := math.Pi / 180
+	dLat, dLon := (lat2-lat1)*rad, (lon2-lon1)*rad
+	a := math.Sin(dLat/2)*math.Sin(dLat/2) +
+		math.Cos(lat1*rad)*math.Cos(lat2*rad)*math.Sin(dLon/2)*math.Sin(dLon/2)
+	return 2 * earthRadiusM * math.Asin(math.Sqrt(a))
+}

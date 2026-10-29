@@ -27,3 +27,15 @@
      and a copy button for the whole key. The button sits above a row's
      .stretched-link, so it can live in a clickable row. Pass the 64-hex key. */}}
 {{define "pubkey"}}<span class="d-inline-flex align-items-center"><span class="font-monospace" title="{{.}}">{{if gt (len .) 8}}{{slice . 0 8}}…{{else}}{{.}}{{end}}</span><button type="button" class="btn btn-sm btn-ghost-secondary btn-icon position-relative ms-1 p-0" style="z-index:2" data-copy="{{.}}" aria-label="Copy public key" title="Copy public key">{{template "icon-copy" ""}}</button></span>{{end}}
+
+{{/* flood-interval shows a repeater's estimated flood advert interval with
+     which firmware default it matches — an old default stands out, since it
+     usually means a repeater nobody reconfigured. Pass a *web.HeardView. */}}
+{{define "flood-interval"}}
+{{- with .FloodInterval -}}
+<span title="Estimated from {{.Samples}} gaps between its flood adverts">Every {{.Hours}} h</span>
+{{- with $.VintageLabel}} <span class="badge {{if $.Vintage.Outdated}}bg-orange-lt{{else}}bg-green-lt{{end}}" data-testid="flood-vintage">{{.}}</span>{{end}}
+{{- else -}}
+<span class="text-secondary">Not enough flood adverts yet</span>
+{{- end -}}
+{{end}}

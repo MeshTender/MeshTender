@@ -25,6 +25,7 @@
         <a class="list-group-item list-group-item-action" href="#sharing">Sharing &amp; stewards</a>
         <div class="list-group-header">For organization admins</div>
         <a class="list-group-item list-group-item-action" href="#observers">Observers</a>
+        <a class="list-group-item list-group-item-action" href="#heard">Repeaters on the mesh</a>
         <div class="list-group-header">With a KISS modem</div>
         <a class="list-group-item list-group-item-action" href="#kiss">What's a KISS modem?</a>
         <a class="list-group-item list-group-item-action" href="#on-air">Running a net on the air</a>
@@ -134,6 +135,20 @@
         <p>An <strong>observer</strong> is a MeshCore radio that uploads the packets it hears to an MQTT broker. An organization's admins point MeshTender at that broker in <strong>Settings › MQTT</strong> — a <code>wss://</code> address for a broker behind HTTPS, or <code>tls://</code> / <code>tcp://</code> for raw MQTT, on the public internet.</p>
         <p>Observers that report their status on the broker show up there by themselves; an admin <strong>approves</strong> the ones the organization vouches for, or adds one by its public key. MeshTender only listens, and only counts what <em>approved</em> observers upload, so an unknown uplink on the same broker can't check anyone in.</p>
         <p class="mb-0">More observers in more places means more of your members' adverts are heard.</p>
+      </div>
+    </div>
+    <div class="card mt-3" id="heard">
+      <div class="card-header"><h2 class="card-title">Repeaters on the mesh</h2></div>
+      <div class="card-body">
+        <p>Approved observers also hear the organization's own repeaters advertise. MeshTender checks each advert's signature and keeps what it says on the repeater's <strong>Heard on the mesh</strong> card: when it was last heard, the name and location it broadcasts, its path hash size, and the region its flood adverts are scoped to. It never changes what's registered by itself. If the advertised name or location differs, the card says so and offers to use the advertised one.</p>
+        <p>It also estimates how often the repeater sends a <strong>flood advert</strong>, from the gaps between the ones heard, and says which firmware default the result matches. The default has changed twice:</p>
+        <ul>
+          <li><strong>3 hours</strong> before firmware 1.8</li>
+          <li><strong>12 hours</strong> from 1.8 through 1.15</li>
+          <li><strong>47 hours</strong> from 1.16 on</li>
+        </ul>
+        <p>Updating the firmware doesn't change a repeater's saved setting, so a repeater still on an old default is flagged, on its page and on the organization's repeater list. Set it with <code>set flood.advert.interval 47</code>.</p>
+        <p class="mb-0">The estimate needs at least two matching gaps, so it takes a few intervals to appear. A missed advert, a manual <code>advert</code> or a reboot changes one gap, but the most common gap still wins.</p>
       </div>
     </div>
 

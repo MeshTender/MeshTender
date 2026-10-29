@@ -9,6 +9,7 @@ import (
 
 	mailer "github.com/MeshTender/MeshTender/internal/mail"
 	"github.com/MeshTender/MeshTender/internal/store"
+	"github.com/MeshTender/MeshTender/internal/web"
 )
 
 // ErrResetNotAllowed reports that a redeemed reset token can no longer be used to set
@@ -139,7 +140,7 @@ Open this link to choose a new password:
 %s
 
 The link works once and expires in %s.
-`, atName(links[0].user), links[0].url, humanDuration(store.ResetTokenTTL))
+`, atName(links[0].user), links[0].url, web.HumanDuration(store.ResetTokenTTL))
 
 	case len(links) > 1:
 		fmt.Fprintf(&b, `Someone asked to reset a MeshTender password for %s.
@@ -150,7 +151,7 @@ More than one account uses this address. Open the link for the account you want:
 			fmt.Fprintf(&b, "\n%s\n%s\n", atName(l.user), l.url)
 		}
 		fmt.Fprintf(&b, "\nEach link works once and expires in %s.\n",
-			humanDuration(store.ResetTokenTTL))
+			web.HumanDuration(store.ResetTokenTTL))
 
 	default:
 		// Nothing resettable at all. Explaining beats silence: without this the person

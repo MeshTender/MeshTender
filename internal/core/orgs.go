@@ -198,6 +198,9 @@ func (s *Handlers) pageOrgRepeaters(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rv, err := web.BuildRepeatersView(r.Context(), s.Store, id, isMember)
+	if err == nil && rv.Full {
+		err = rv.LoadHeard(r.Context(), s.Store, id)
+	}
 	if err != nil {
 		s.ServerError(w, r, "could not load repeaters", err)
 		return

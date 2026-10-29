@@ -1,6 +1,9 @@
 package geo
 
-import "testing"
+import (
+	"math"
+	"testing"
+)
 
 func mustParse(t *testing.T, data []byte) *Shape {
 	t.Helper()
@@ -116,5 +119,23 @@ func TestBadGeometry(t *testing.T) {
 	}
 	if _, err := Parse([]byte(`{"type":"Polygon","coordinates":[[[0,0],[1,1]]]}`)); err == nil {
 		t.Errorf("a 2-point ring should be rejected")
+	}
+}
+
+func TestDistance(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name                   string
+		lat1, lon1, lat2, lon2 float64
+		want, tol              float64
+	}{
+		{"same point", 42.9, -78.8, 42.9, -78.8, 0, 1e-9},
+		{"one degree of latitude", 0, 0, 1, 0, 111_195, 1},
+		{"Buffalo to Rochester", 42.8864, -78.8784, 43.1566, -77.6088, 107_700, 500},
+	}
+	for _, c := range cases {
+		if got := Distance(c.lat1, c.lon1, c.lat2, c.lon2); math.Abs(got-c.want) > c.tol {
+			t.Errorf("%s: %.1f m, want %.0f ± %.0f", c.name, got, c.want, c.tol)
+		}
 	}
 }

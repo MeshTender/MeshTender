@@ -14,6 +14,7 @@ import (
 
 	mailer "github.com/MeshTender/MeshTender/internal/mail"
 	"github.com/MeshTender/MeshTender/internal/store"
+	"github.com/MeshTender/MeshTender/internal/web"
 )
 
 // ErrTooManyEmails reports that an account has asked for more messages of one kind
@@ -111,7 +112,7 @@ The link works once and expires in %s.
 
 If you didn't add this address to a MeshTender account, ignore this message —
 nothing will change, and the address won't be used for anything.
-`, atName(u), link, humanDuration(store.VerifyTokenTTL)),
+`, atName(u), link, web.HumanDuration(store.VerifyTokenTTL)),
 	})
 }
 
@@ -153,20 +154,3 @@ func hashForIdempotency(token string) string {
 // username, not the display name: it's what they type to sign in, and the reset mail
 // has to name accounts unambiguously when several share one address.
 func atName(u *store.User) string { return "@" + u.Username }
-
-// humanDuration renders a TTL the way copy should read it ("24 hours", "45
-// minutes"), so the stated shelf life can't drift from the constant that enforces it.
-func humanDuration(d time.Duration) string {
-	if d >= time.Hour {
-		h := int(d.Hours())
-		if h == 1 {
-			return "1 hour"
-		}
-		return fmt.Sprintf("%d hours", h)
-	}
-	m := int(d.Minutes())
-	if m == 1 {
-		return "1 minute"
-	}
-	return fmt.Sprintf("%d minutes", m)
-}

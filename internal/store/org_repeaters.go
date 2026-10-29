@@ -67,10 +67,13 @@ func (s *Store) IsRepeaterOrgExcluded(ctx context.Context, orgID, repeaterID int
 type OrgRepeaterInfo struct {
 	RepeaterID       int64
 	RepeaterPublicID string
-	Name             string
-	OwnerName        string
-	HasLocation      bool
-	Lat, Lon         float64
+	// PublicKeyHex is filled by ListOrgRepeaters only, to look up what the
+	// repeater has been heard advertising.
+	PublicKeyHex string
+	Name         string
+	OwnerName    string
+	HasLocation  bool
+	Lat, Lon     float64
 
 	// Confirmed and ConfirmedAdmin mirror the repeater's cached access state so the
 	// member list can flag a node that nobody has reached, or one where MeshTender
@@ -110,7 +113,7 @@ func (s *Store) ExcludeOwnerRepeatersFromOrg(ctx context.Context, orgID, ownerID
 // member, not opted out), with location when the owner stored it.
 func (s *Store) ListOrgRepeaters(ctx context.Context, orgID int64) ([]OrgRepeaterInfo, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT r.id, r.public_id, r.name, COALESCE(NULLIF(ou.display_name, ''), ou.username, '?'),
+		SELECT r.id, r.public_id, r.public_key_hex, r.name, COALESCE(NULLIF(ou.display_name, ''), ou.username, '?'),
 		       r.latitude, r.longitude, r.confirmed, r.confirmed_admin
 		FROM repeaters r
 		JOIN org_members om ON om.org_id = $1 AND om.user_id = r.owner_id
@@ -124,7 +127,7 @@ func (s *Store) ListOrgRepeaters(ctx context.Context, orgID int64) ([]OrgRepeate
 	return collectRows(rows, func(r pgx.Row) (OrgRepeaterInfo, error) {
 		var ri OrgRepeaterInfo
 		var lat, lon *float64
-		err := r.Scan(&ri.RepeaterID, &ri.RepeaterPublicID, &ri.Name, &ri.OwnerName, &lat, &lon,
+		err := r.Scan(&ri.RepeaterID, &ri.RepeaterPublicID, &ri.PublicKeyHex, &ri.Name, &ri.OwnerName, &lat, &lon,
 			&ri.Confirmed, &ri.ConfirmedAdmin)
 		setLocation(&ri, lat, lon)
 		return ri, err

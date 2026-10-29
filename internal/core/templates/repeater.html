@@ -74,6 +74,60 @@
         </div>
       </div>
     </div>
+
+    {{/* What the repeater's own adverts say, as heard by its organizations'
+    MQTT observers: observed state, beside what's registered above. A mismatch
+    is flagged with a button to adopt the advertised value; the server reads
+    the value from what was heard, not from the form. */}}
+    <div class="card mt-3" data-testid="repeater-heard">
+      <div class="card-header">
+        <div><h2 class="card-title">Heard on the mesh</h2><div class="card-subtitle">What its own adverts say, as heard by its organizations' observers.</div></div>
+      </div>
+      {{with .Heard}}
+      <div class="list-group list-group-flush">
+        <div class="list-group-item">
+          <div class="d-flex align-items-center gap-2"><span class="text-secondary">Last heard</span><span class="ms-auto" data-testid="heard-last">{{ts .LastHeardAt "relative"}}</span></div>
+          <div class="small text-secondary mt-1">Flood advert: {{with .LastFloodAt}}{{ts . "relative"}}{{else}}not yet{{end}} · Zero-hop advert: {{with .LastZeroHopAt}}{{ts . "relative"}}{{else}}not yet{{end}}</div>
+        </div>
+        <div class="list-group-item">
+          <div class="d-flex align-items-center gap-2"><span class="text-secondary">Advertised name</span>
+            <span class="ms-auto text-end">{{if .AdvertName}}{{.AdvertName}}{{else}}<span class="text-secondary">None</span>{{end}}{{if .NameDiffers}} <span class="badge bg-orange-lt" data-testid="heard-name-differs">Differs</span>{{end}}</span></div>
+          {{if .NameDiffers}}
+          <div class="d-flex align-items-center gap-2 mt-1">
+            <span class="small text-secondary">Registered here as “{{$.Repeater.Name}}”.</span>
+            {{if $.IsOwner}}<form method="post" action="/repeaters/{{$.Repeater.PublicID}}/heard/name" class="ms-auto"><button type="submit" class="btn btn-sm" data-testid="adopt-name">Use advertised name</button></form>{{end}}
+          </div>
+          {{end}}
+        </div>
+        <div class="list-group-item">
+          <div class="d-flex align-items-center gap-2"><span class="text-secondary">Advertised location</span>
+            <span class="ms-auto text-end">{{if .AdvertLat}}<span class="font-monospace small">{{.AdvertLat}}, {{.AdvertLon}}</span>{{else}}<span class="text-secondary">Not advertised</span>{{end}}{{if .LocationDiffers}} <span class="badge bg-orange-lt" data-testid="heard-location-differs">{{if $.Repeater.Latitude}}{{.LocationOffText}} away{{else}}None registered{{end}}</span>{{end}}</span></div>
+          {{if .LocationDiffers}}
+          <div class="d-flex align-items-center gap-2 mt-1">
+            <span class="small text-secondary">{{if $.Repeater.Latitude}}It advertises a location {{.LocationOffText}} from the one registered here.{{else}}No location is registered here.{{end}}</span>
+            <form method="post" action="/repeaters/{{$.Repeater.PublicID}}/heard/location" class="ms-auto"><button type="submit" class="btn btn-sm" data-testid="adopt-location">Use advertised location</button></form>
+          </div>
+          {{end}}
+        </div>
+        <div class="list-group-item d-flex align-items-center gap-2"><span class="text-secondary">Path hash size</span>
+          <span class="ms-auto">{{with .PathHashSize}}{{.}}-byte{{else}}<span class="text-secondary">Not heard in a flood advert yet</span>{{end}}</span></div>
+        <div class="list-group-item d-flex align-items-center gap-2"><span class="text-secondary">Flood scope</span>
+          <span class="ms-auto text-end" data-testid="heard-scope">{{if not .LastFloodPacket}}<span class="text-secondary">Not heard in a flood advert yet</span>{{else if .ScopeName}}{{.ScopeName}} <code>{{.Scope.Region}}</code>{{else if .Scope.Scoped}}A region none of its organizations define{{else}}Unscoped{{end}}</span></div>
+        <div class="list-group-item">
+          <div class="d-flex align-items-center gap-2"><span class="text-secondary">Flood adverts</span><span class="ms-auto text-end" data-testid="heard-interval">{{template "flood-interval" .}}</span></div>
+          {{if .Vintage.Outdated}}<div class="small text-secondary mt-1">Still on an old firmware default. The current default is every {{.RecommendedFloodHours}} hours: <code>set flood.advert.interval {{.RecommendedFloodHours}}</code></div>{{end}}
+        </div>
+        {{if .ClockOff}}
+        <div class="list-group-item">
+          <div class="d-flex align-items-center gap-2"><span class="text-secondary">Clock</span><span class="ms-auto"><span class="badge bg-orange-lt" data-testid="heard-clock">{{.ClockOffText}} {{if .ClockBehind}}behind{{else}}ahead{{end}}</span></span></div>
+          <div class="small text-secondary mt-1">It timestamps its adverts with this clock. <code>clock sync</code> sets it from the device you send the command from.</div>
+        </div>
+        {{end}}
+      </div>
+      {{else}}
+      {{template "empty-state" (dict "Compact" true "Title" "Not heard yet" "Line" "Its adverts are recorded when an organization it's in has MQTT observers that hear them.")}}
+      {{end}}
+    </div>
   </div>
 
   <div class="col-lg-4 d-flex flex-column gap-3">
