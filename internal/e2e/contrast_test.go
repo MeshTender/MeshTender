@@ -280,7 +280,7 @@ func TestContrastMeetsWCAGAA(t *testing.T) {
 			step("open "+label,
 				chromedp.Navigate(url),
 				chromedp.WaitVisible(`body`, chromedp.ByQuery),
-				chromedp.Sleep(700*time.Millisecond)),
+				chromedp.Poll(pageAtRest, nil)),
 			step("measure "+label+"'s contrast", chromedp.Evaluate(contrastProbe, &raw)),
 		)
 		if err := chromedp.Run(bctx, actions...); err != nil {
@@ -340,3 +340,12 @@ func TestContrastMeetsWCAGAA(t *testing.T) {
 		t.Logf("%d contrast failure(s) across %d pages", total, pages)
 	}
 }
+
+// pageAtRest holds once a page has loaded, its fonts are in, and nothing is
+// mid-transition (an alert fading in, a collapse opening), so the colors read
+// are the ones that stay. An endless animation (a spinner) never settles, so
+// it doesn't count.
+const pageAtRest = `document.readyState === "complete" && document.fonts.status === "loaded" &&
+	document.getAnimations().every(function (a) {
+		return a.playState !== "running" || a.effect.getComputedTiming().iterations === Infinity;
+	})`

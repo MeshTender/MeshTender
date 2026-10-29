@@ -166,7 +166,10 @@ func TestE2EApplyConfigOverUSB(t *testing.T) {
 // log — what a timed-out wait would otherwise leave unexplained.
 func configureState(ctx context.Context) string {
 	var state string
-	dctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	// Detached from ctx's deadline: this runs after a failure, which may be the
+	// test's own deadline expiring, and an expired context would read nothing.
+	// WithoutCancel keeps the tab (ctx's values) while dropping its deadline.
+	dctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
 	_ = chromedp.Run(dctx, chromedp.Evaluate(`JSON.stringify({
 		runAllDisabled: (document.querySelector('[data-testid="config-run-all"]') || {}).disabled,
@@ -180,4 +183,29 @@ func configureState(ctx context.Context) string {
 		log: Array.from(document.querySelectorAll('#log li')).map(function (l) { return l.textContent; })
 	})`, &state))
 	return state
+}
+
+// TestConfigureStateSurvivesAnExpiredDeadline: the diagnostic runs after a
+// failure, which can be the test's own deadline running out. It must still read
+// the page then, not come back empty.
+func TestConfigureStateSurvivesAnExpiredDeadline(t *testing.T) {
+	srv := newE2EServer(t)
+	user, cookie := srv.login(t, "e2ediagnose")
+	rep := srv.newRepeater(t, user.ID, "Diagnosed")
+
+	bctx, cancel, _ := startBrowser(t)
+	defer cancel()
+	if err := chromedp.Run(bctx,
+		setSessionCookie(cookie),
+		step("open the configuration pane",
+			chromedp.Navigate(srv.appURL+"/repeaters/"+rep.PublicID+"/configure?pane=configuration"),
+			chromedp.WaitVisible(`.tab-pane.active`, chromedp.ByQuery)),
+	); err != nil {
+		t.Fatalf("open configure: %v", err)
+	}
+	expired, cancelExpired := context.WithDeadline(bctx, time.Now().Add(-time.Second))
+	defer cancelExpired()
+	if got := configureState(expired); !strings.Contains(got, `"pane":`) {
+		t.Fatalf("configureState under an expired deadline = %q, want the page's state", got)
+	}
 }

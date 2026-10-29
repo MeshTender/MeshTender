@@ -36,6 +36,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -569,10 +570,47 @@ func stepWithin(name string, limit time.Duration, actions ...chromedp.Action) ch
 // The handler runs in its own goroutine because chromedp.Run can't be called
 // from inside a target listener on the same context — the listener holds the
 // dispatch loop, so an inline Run would deadlock against itself.
-func acceptDialogs(ctx context.Context) {
+func acceptDialogs(ctx context.Context) *dialogLog {
+	log := &dialogLog{}
 	chromedp.ListenTarget(ctx, func(ev interface{}) {
-		if _, ok := ev.(*page.EventJavascriptDialogOpening); ok {
+		if e, ok := ev.(*page.EventJavascriptDialogOpening); ok {
+			log.add(e.Message)
 			go func() { _ = chromedp.Run(ctx, page.HandleJavaScriptDialog(true)) }()
+		}
+	})
+	return log
+}
+
+// dialogLog is what acceptDialogs has accepted, in order, so a test can wait
+// for a dialog (an alert() refusing a form, say) rather than sleep and hope.
+type dialogLog struct {
+	mu       sync.Mutex
+	messages []string
+}
+
+func (d *dialogLog) add(msg string) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.messages = append(d.messages, msg)
+}
+
+// waitFor waits for a dialog whose message contains substr; the step it runs in
+// bounds the wait.
+func (d *dialogLog) waitFor(substr string) chromedp.Action {
+	return chromedp.ActionFunc(func(ctx context.Context) error {
+		for {
+			d.mu.Lock()
+			seen := slices.ContainsFunc(d.messages, func(m string) bool { return strings.Contains(m, substr) })
+			all := slices.Clone(d.messages)
+			d.mu.Unlock()
+			if seen {
+				return nil
+			}
+			select {
+			case <-ctx.Done():
+				return fmt.Errorf("no dialog saying %q (dialogs so far: %q): %w", substr, all, ctx.Err())
+			case <-time.After(50 * time.Millisecond):
+			}
 		}
 	})
 }

@@ -281,9 +281,16 @@ async function initSignupEmphasis() {
   // Not the sign-up page (or a markup change) — do nothing rather than guess.
   if (!passkeySection || !passwordSection || !password || !form) return;
 
+  // decided marks the form with the state it settled on, so a test can wait for
+  // the (asynchronous) decision instead of guessing how long it takes.
+  function decided(state) {
+    form.dataset.emphasis = state;
+  }
+
   // State 1: WebAuthn is unavailable, so the passkey button cannot work.
   if (passkeysUnsupported()) {
     if (unavailable) unavailable.classList.remove("d-none");
+    decided("unsupported");
     return;
   }
 
@@ -296,7 +303,10 @@ async function initSignupEmphasis() {
     platform = false; // treat an unclear answer as state 2 and change nothing
   }
   // State 2: leave the form exactly as rendered.
-  if (!platform || !useWrap || !useBtn) return;
+  if (!platform || !useWrap || !useBtn) {
+    decided("unchanged");
+    return;
+  }
 
   // State 3: collapse the password half.
   //
@@ -317,6 +327,7 @@ async function initSignupEmphasis() {
     useWrap.classList.add("d-none");
     password.focus();
   });
+  decided("collapsed");
 
   // With the password half collapsed, Enter in the username field should start the
   // passkey ceremony — the visible primary action — instead of posting an empty

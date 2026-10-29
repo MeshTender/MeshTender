@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/chromedp/cdproto/network"
+	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
 
 	"github.com/MeshTender/MeshTender/internal/store"
@@ -78,12 +79,17 @@ func TestCSPViolationIsReportedByARealBrowser(t *testing.T) {
 	// 'self', data: and the CARTO tile host, so a foreign image host is blocked
 	// before any request leaves the browser. No network dependency, and it exercises
 	// the blocked-URI normalization (a full URL must be stored as scheme://host).
-	const violate = `(() => {
+	//
+	// It resolves once the browser has blocked the image (the page's own
+	// securitypolicyviolation event), which is when a report is queued.
+	const violate = `new Promise((resolve) => {
+	  document.addEventListener("securitypolicyviolation", (e) => {
+	    if (e.blockedURI.includes("csp-violation.invalid")) resolve(true);
+	  });
 	  const img = document.createElement("img");
 	  img.src = "https://csp-violation.invalid/pixel.png";
 	  document.body.appendChild(img);
-	  return true;
-	})()`
+	})`
 
 	var ok bool
 	err := chromedp.Run(bctx,
@@ -93,9 +99,9 @@ func TestCSPViolationIsReportedByARealBrowser(t *testing.T) {
 			chromedp.Navigate(srv.appURL+"/repeaters"),
 			chromedp.WaitVisible(`body`, chromedp.ByQuery)),
 		step("violate the CSP",
-			chromedp.Evaluate(violate, &ok),
-			// Give the browser a moment to notice the violation before we start polling.
-			chromedp.Sleep(time.Second)),
+			chromedp.Evaluate(violate, &ok, func(p *runtime.EvaluateParams) *runtime.EvaluateParams {
+				return p.WithAwaitPromise(true)
+			})),
 	)
 	if err != nil {
 		t.Fatalf("drive browser: %v", err)

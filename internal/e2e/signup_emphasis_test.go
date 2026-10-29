@@ -5,7 +5,6 @@ package e2e
 import (
 	"encoding/json"
 	"testing"
-	"time"
 
 	cdplog "github.com/chromedp/cdproto/log"
 	"github.com/chromedp/cdproto/network"
@@ -59,9 +58,10 @@ func readSignupState(t *testing.T, srv *e2eServer, withAuth bool) signupState {
 		step("open the sign-up page",
 			chromedp.Navigate(srv.authURL+"/signup"),
 			chromedp.WaitVisible(`#signup-form`, chromedp.ByQuery)),
-		// The adaptation awaits a promise, so give the microtask queue a beat.
+		// The adaptation awaits the browser's answer about passkeys; the form says
+		// when it has decided (data-emphasis, set by webauthn.js).
 		step("read how the form adapted",
-			chromedp.Sleep(700*time.Millisecond),
+			chromedp.WaitReady(`#signup-form[data-emphasis]`, chromedp.ByQuery),
 			chromedp.Evaluate(probe, &raw)),
 	); err != nil {
 		t.Fatalf("read signup state: %v", err)

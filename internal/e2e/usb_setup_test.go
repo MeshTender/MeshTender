@@ -32,7 +32,7 @@ func TestE2EUSBSetupRunsEachCommand(t *testing.T) {
 
 	bctx, cancel, watch := startBrowser(t)
 	defer cancel()
-	acceptDialogs(bctx)
+	dialogs := acceptDialogs(bctx)
 	fake := installFakeRepeater(t, bctx, strings.Repeat("ab", 32))
 
 	var failure, preview string
@@ -50,7 +50,7 @@ func TestE2EUSBSetupRunsEachCommand(t *testing.T) {
 			// it short, so setup refuses it (the alert is auto-accepted).
 			chromedp.Evaluate(`document.getElementById("admin_password").value = "fifteen-chars-é"`, nil),
 			chromedp.Click(`#generate`, chromedp.ByQuery),
-			chromedp.Sleep(500*time.Millisecond),
+			dialogs.waitFor("The admin password can be at most"),
 			chromedp.Evaluate(`document.getElementById("review-card").hidden`, &refused)),
 		step("review the setup commands",
 			chromedp.Evaluate(`document.getElementById("admin_password").value = "s3cret admin"`, nil),

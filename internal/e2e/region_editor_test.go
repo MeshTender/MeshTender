@@ -3,6 +3,8 @@
 package e2e
 
 import (
+	"context"
+	"errors"
 	"strconv"
 	"strings"
 	"testing"
@@ -334,7 +336,7 @@ func TestE2ERegionAreaDraftEnablesDrawing(t *testing.T) {
 		t.Errorf("draft area status = %q, want %q", draftStatus, "No area yet")
 	}
 	if draftDrawDisabled != "false" {
-		t.Errorf("draft draw button aria-disabled = %q, want %q — a draft's area page must leave the draw tools usable",
+		t.Errorf("draft draw button disabled = %q, want %q — a draft's area page must leave the draw tools usable",
 			draftDrawDisabled, "false")
 	}
 
@@ -356,7 +358,7 @@ func TestE2ERegionAreaDraftEnablesDrawing(t *testing.T) {
 		t.Fatalf("browser run against the shaped region's area page: %v", err)
 	}
 	if shapedDrawDisabled != "true" {
-		t.Errorf("shaped draw button aria-disabled = %q, want %q — one region holds one polygon, so drawing waits for a clear",
+		t.Errorf("shaped draw button disabled = %q, want %q — one region holds one polygon, so drawing waits for a clear",
 			shapedDrawDisabled, "true")
 	}
 	watch.assertClean(t)
@@ -604,22 +606,17 @@ func TestE2ERegionAreaDrawsAConcaveArea(t *testing.T) {
 		Y float64 `json:"y"`
 	}
 	mapOrigin := chromedp.Tasks{
+		// Instant: the page scrolls smoothly by default, and an origin read
+		// mid-scroll is as stale as one read before it.
 		chromedp.Evaluate(`(function () {
-			document.getElementById("region-map").scrollIntoView({ block: "start" });
+			document.getElementById("region-map").scrollIntoView({ block: "start", behavior: "instant" });
 			return true;
 		})()`, nil),
-		chromedp.Sleep(300 * time.Millisecond),
 		chromedp.Evaluate(`(function () {
 			var r = document.getElementById("region-map").getBoundingClientRect();
 			return { x: r.left, y: r.top };
 		})()`, &origin),
 	}
-	// ringLength is how many coordinates the shape under the cursor currently has.
-	const ringLength = `(function () {
-		var f = window.MESHTENDER_MAPS["region-map"].draw.getSnapshot()
-			.filter(function (x) { return x.geometry.type === "Polygon"; })[0];
-		return f ? f.geometry.coordinates[0].length : 0;
-	})()`
 
 	areaURL := srv.appURL + "/orgs/" + org.Slug + "/config/regions/" + strconv.FormatInt(rid, 10) + "/area"
 	if err := chromedp.Run(bctx,
@@ -645,8 +642,7 @@ func TestE2ERegionAreaDrawsAConcaveArea(t *testing.T) {
 	for i, c := range concave {
 		var ring int
 		if err := chromedp.Run(bctx, step("click corner "+strconv.Itoa(i+1),
-			chromedp.MouseClickXY(origin.X+c.dx, origin.Y+c.dy),
-			chromedp.Sleep(250*time.Millisecond),
+			clickCorner(origin.X+c.dx, origin.Y+c.dy),
 			chromedp.Evaluate(ringLength, &ring)),
 		); err != nil {
 			t.Fatalf("corner %d: %v", i+1, err)
@@ -683,10 +679,10 @@ func TestE2ERegionAreaDrawsAConcaveArea(t *testing.T) {
 	); err != nil {
 		t.Fatalf("clearing before the crossed outline: %v", err)
 	}
+	// Every corner lands: the crossing is only judged when the outline is closed.
 	for _, c := range []struct{ dx, dy float64 }{{120, 80}, {330, 80}, {120, 220}, {330, 220}} {
 		if err := chromedp.Run(bctx, step("click a crossed corner",
-			chromedp.MouseClickXY(origin.X+c.dx, origin.Y+c.dy),
-			chromedp.Sleep(250*time.Millisecond)),
+			clickCorner(origin.X+c.dx, origin.Y+c.dy)),
 		); err != nil {
 			t.Fatalf("crossed outline: %v", err)
 		}
@@ -694,7 +690,9 @@ func TestE2ERegionAreaDrawsAConcaveArea(t *testing.T) {
 	var crossedStatus, crossedValue string
 	if err := chromedp.Run(bctx, step("close the crossed outline",
 		chromedp.KeyEvent("\r"),
-		chromedp.Sleep(700*time.Millisecond),
+		// Refused (the status says why) or, if the bug is back, accepted.
+		pageSettles(`document.getElementById("region-area-status").textContent.indexOf("cross") !== -1 ||
+			document.getElementById("region_geojson").value !== ""`),
 		chromedp.Text(`#region-area-status`, &crossedStatus, chromedp.ByQuery),
 		chromedp.Value(`#region_geojson`, &crossedValue, chromedp.ByQuery)),
 	); err != nil {
@@ -752,21 +750,16 @@ func TestE2ERegionAreaVertexSpacing(t *testing.T) {
 			mapReady("region-map", "siblings-fill")),
 		step("pick the polygon tool",
 			chromedp.Click(`[data-testid="region-draw-polygon"]`, chromedp.ByQuery),
+			// Instant, as in TestE2ERegionAreaDrawsAConcaveArea's mapOrigin.
 			chromedp.Evaluate(`(function () {
-				document.getElementById("region-map").scrollIntoView({ block: "start" });
+				document.getElementById("region-map").scrollIntoView({ block: "start", behavior: "instant" });
 				return true;
 			})()`, nil),
-			chromedp.Sleep(300*time.Millisecond),
 			chromedp.Evaluate(`(function () {
 				var r = document.getElementById("region-map").getBoundingClientRect();
 				return { x: r.left, y: r.top };
 			})()`, &origin)),
 	}
-	const ringLength = `(function () {
-		var f = window.MESHTENDER_MAPS["region-map"].draw.getSnapshot()
-			.filter(function (x) { return x.geometry.type === "Polygon"; })[0];
-		return f ? f.geometry.coordinates[0].length : 0;
-	})()`
 
 	// Detail: a staircase whose corners are ~14px apart — well inside the old 40px
 	// floor. Every click must land.
@@ -782,8 +775,7 @@ func TestE2ERegionAreaVertexSpacing(t *testing.T) {
 	}
 	for i := range 5 {
 		if err := chromedp.Run(bctx, step("click close-spaced corner "+strconv.Itoa(i+1),
-			chromedp.MouseClickXY(origin.X+150+float64(i)*gap, origin.Y+150+float64(i%2)*gap),
-			chromedp.Sleep(220*time.Millisecond),
+			clickCorner(origin.X+150+float64(i)*gap, origin.Y+150+float64(i%2)*gap),
 			chromedp.Evaluate(ringLength, &ring)),
 		); err != nil {
 			t.Fatalf("close-spaced corner %d: %v", i+1, err)
@@ -805,14 +797,13 @@ func TestE2ERegionAreaVertexSpacing(t *testing.T) {
 	if err := chromedp.Run(bctx,
 		startDrawing,
 		step("draw three corners and click the first again",
-			chromedp.MouseClickXY(origin.X+150, origin.Y+150),
-			chromedp.Sleep(200*time.Millisecond),
-			chromedp.MouseClickXY(origin.X+320, origin.Y+150),
-			chromedp.Sleep(200*time.Millisecond),
-			chromedp.MouseClickXY(origin.X+320, origin.Y+300),
-			chromedp.Sleep(200*time.Millisecond),
+			clickCorner(origin.X+150, origin.Y+150),
+			clickCorner(origin.X+320, origin.Y+150),
+			clickCorner(origin.X+320, origin.Y+300),
 			chromedp.MouseClickXY(origin.X+155, origin.Y+155),
-			chromedp.Sleep(600*time.Millisecond),
+			// Closed and handed to the edit tool — or, if the target is too small,
+			// still drawing, which the check below reports.
+			pageSettles(`window.MESHTENDER_MAPS["region-map"].draw.getMode() === "select"`),
 			chromedp.Evaluate(`(function () {
 				var e = window.MESHTENDER_MAPS["region-map"];
 				return { mode: e.draw.getMode(),
@@ -828,3 +819,45 @@ func TestE2ERegionAreaVertexSpacing(t *testing.T) {
 	}
 	watch.assertClean(t)
 }
+
+// ringLength is how many coordinates the shape under the cursor currently has.
+const ringLength = `(function () {
+	var f = window.MESHTENDER_MAPS["region-map"].draw.getSnapshot()
+		.filter(function (x) { return x.geometry.type === "Polygon"; })[0];
+	return f ? f.geometry.coordinates[0].length : 0;
+})()`
+
+// clickCorner clicks the map at (x, y) and waits for the ring being drawn to
+// take the corner (grow past its length before the click). Drawing validates
+// only when the outline is closed, so every corner click should land; one that
+// doesn't is caught by the caller's ring-length check.
+func clickCorner(x, y float64) chromedp.Action {
+	return chromedp.ActionFunc(func(ctx context.Context) error {
+		var before int
+		if err := chromedp.Evaluate(ringLength, &before).Do(ctx); err != nil {
+			return err
+		}
+		if err := chromedp.MouseClickXY(x, y).Do(ctx); err != nil {
+			return err
+		}
+		return pageSettles(ringLength + " > " + strconv.Itoa(before)).Do(ctx)
+	})
+}
+
+// pageSettles waits up to settleWithin for cond to hold in the page, then lets
+// the test carry on whether or not it did. A click or keypress on the map lands
+// within a frame or two, so this is a wait for the page, not a tolerance: the
+// assertion after it reports what went wrong in its own words (a swallowed
+// corner, a silent refusal), which a bare timeout wouldn't.
+func pageSettles(cond string) chromedp.Action {
+	return chromedp.ActionFunc(func(ctx context.Context) error {
+		err := chromedp.Poll(cond, nil, chromedp.WithPollingTimeout(settleWithin)).Do(ctx)
+		if errors.Is(err, chromedp.ErrPollingTimeout) {
+			return nil
+		}
+		return err
+	})
+}
+
+// settleWithin bounds pageSettles, well inside a step's limit.
+const settleWithin = 2 * time.Second
