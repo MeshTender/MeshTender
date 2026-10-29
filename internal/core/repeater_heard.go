@@ -43,6 +43,9 @@ func (s *Handlers) adoptedObservation(w http.ResponseWriter, r *http.Request, re
 	return o
 }
 
+// The adopt buttons live in Settings › Details (owner only): the Overview
+// flags a mismatch, Settings fixes it.
+
 // handleAdoptHeardName renames an owned repeater to the name it advertises.
 func (s *Handlers) handleAdoptHeardName(w http.ResponseWriter, r *http.Request) {
 	rep, id, ok := s.requireRepeaterOwned(w, r)
@@ -53,7 +56,7 @@ func (s *Handlers) handleAdoptHeardName(w http.ResponseWriter, r *http.Request) 
 	if o == nil {
 		return
 	}
-	back := "/repeaters/" + rep.PublicID
+	back := settingsPath(rep.PublicID, settingsDetails)
 	name, ok := cleanRepeaterName(o.AdvertName)
 	if !ok {
 		web.RedirectErr(w, r, back, "The advertised name can't be used as the repeater's name: it must be 31 characters or fewer.")
@@ -67,11 +70,10 @@ func (s *Handlers) handleAdoptHeardName(w http.ResponseWriter, r *http.Request) 
 	web.RedirectOK(w, r, back, "Renamed to the advertised name.")
 }
 
-// handleAdoptHeardLocation sets a repeater's location to the one it
-// advertises. Gated like setting it from the console map: anyone who can
-// operate the repeater.
+// handleAdoptHeardLocation sets an owned repeater's location to the one it
+// advertises.
 func (s *Handlers) handleAdoptHeardLocation(w http.ResponseWriter, r *http.Request) {
-	rep, id, ok := s.requireRepeaterAccess(w, r)
+	rep, id, ok := s.requireRepeaterOwned(w, r)
 	if !ok {
 		return
 	}
@@ -79,7 +81,7 @@ func (s *Handlers) handleAdoptHeardLocation(w http.ResponseWriter, r *http.Reque
 	if o == nil {
 		return
 	}
-	back := "/repeaters/" + rep.PublicID
+	back := settingsPath(rep.PublicID, settingsDetails)
 	if o.AdvertLat == nil || o.AdvertLon == nil {
 		web.RedirectErr(w, r, back, "The repeater doesn't advertise a location.")
 		return

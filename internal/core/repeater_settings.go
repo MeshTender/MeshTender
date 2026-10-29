@@ -69,6 +69,14 @@ func (s *Handlers) pageRepeaterSettings(w http.ResponseWriter, r *http.Request) 
 				data["PublicPageQR"] = qr
 			}
 		}
+		// What the repeater advertises, so a name or location that differs can
+		// be adopted here (the Overview only flags it).
+		heard, err := s.heardView(r.Context(), rep)
+		if err != nil {
+			s.ServerError(w, r, "could not load what the repeater advertised", err)
+			return
+		}
+		data["Heard"] = heard
 		data["Radio"] = newRadioFields(config.RadioDefaults{FreqHz: uint32(rep.RadioFreqHz), BwHz: uint32(rep.RadioBwHz), SF: uint8(rep.RadioSF), CR: uint8(rep.RadioCR)}, true) //nolint:gosec // G115: radio config value is bounded (preset-constrained)
 	case settingsPeople:
 		if err := s.peopleData(r, id, data); err != nil {

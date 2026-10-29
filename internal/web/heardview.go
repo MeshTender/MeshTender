@@ -2,6 +2,7 @@ package web
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/MeshTender/MeshTender/internal/geo"
@@ -32,6 +33,7 @@ type HeardView struct {
 	// zero when none is registered).
 	LocationDiffers bool
 	LocationOffM    float64
+	locationKnown   bool // a location is registered
 
 	// Scope is the flood scope of its newest flood advert; ScopeName is the
 	// matched region's label.
@@ -53,6 +55,7 @@ func NewHeardView(o *store.RepeaterObservation, name string, lat, lon *float64, 
 	h := &HeardView{RepeaterObservation: o, NameDiffers: o.AdvertName != "" && o.AdvertName != name}
 	if o.AdvertLat != nil && o.AdvertLon != nil {
 		if lat != nil && lon != nil {
+			h.locationKnown = true
 			h.LocationOffM = geo.Distance(*lat, *lon, *o.AdvertLat, *o.AdvertLon)
 			h.LocationDiffers = h.LocationOffM > heardLocationTolerance
 		} else {
@@ -97,6 +100,23 @@ func (h *HeardView) LocationOffText() string {
 		return fmt.Sprintf("%.0f m", h.LocationOffM)
 	}
 	return fmt.Sprintf("%.1f km", h.LocationOffM/1000)
+}
+
+// AdvertLocationText is the advertised location for reading, "" for none.
+func (h *HeardView) AdvertLocationText() string {
+	if h.AdvertLat == nil || h.AdvertLon == nil {
+		return ""
+	}
+	return strconv.FormatFloat(*h.AdvertLat, 'f', -1, 64) + ", " + strconv.FormatFloat(*h.AdvertLon, 'f', -1, 64)
+}
+
+// LocationNote says what location the repeater advertises, and how far it
+// is from the registered one when there is one.
+func (h *HeardView) LocationNote() string {
+	if h.locationKnown {
+		return "It advertises " + h.AdvertLocationText() + ", " + h.LocationOffText() + " from this."
+	}
+	return "It advertises " + h.AdvertLocationText() + "."
 }
 
 // VintageLabel names the firmware default the flood interval matches, ""

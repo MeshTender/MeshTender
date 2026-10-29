@@ -1,6 +1,7 @@
 package core
 
 import (
+	"html"
 	"net/http"
 	"net/url"
 	"strings"
@@ -112,7 +113,8 @@ func TestOverviewConfirmationWording(t *testing.T) {
 	}
 	base := "/repeaters/" + rep.PublicID
 
-	if page := readBody(t, do(t, ts, h.app, base, ownerSess)); !strings.Contains(page, "You've reached it over the air") {
+	// The wording is the status badge's hover text, so it's attribute-escaped.
+	if page := html.UnescapeString(readBody(t, do(t, ts, h.app, base, ownerSess))); !strings.Contains(page, "You've reached it over the air") {
 		t.Error("the owner isn't told they've reached it")
 	}
 
@@ -120,7 +122,7 @@ func TestOverviewConfirmationWording(t *testing.T) {
 	if _, err := st.AddShare(ctx, rep.ID, guest.ID); err != nil {
 		t.Fatal(err)
 	}
-	page := readBody(t, do(t, ts, h.app, base, guestSess))
+	page := html.UnescapeString(readBody(t, do(t, ts, h.app, base, guestSess)))
 	if strings.Contains(page, "You've reached it") {
 		t.Error("someone who never connected is told they've reached it")
 	}

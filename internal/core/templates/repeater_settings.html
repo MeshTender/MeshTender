@@ -26,6 +26,14 @@
   <div class="mb-3">
     <label class="form-label" for="name">Name</label>
     <input type="text" class="form-control" id="name" name="name" value="{{.Repeater.Name}}" maxlength="31" required>
+    {{with .Heard}}{{if .NameDiffers}}
+    {{/* The adopt buttons submit their own forms (below this one: forms can't
+    nest), via the form= attribute. The value comes from what was heard. */}}
+    <div class="form-text d-flex align-items-center gap-2" data-testid="settings-name-differs">
+      <span>{{template "icon-alert" "text-warning"}} It advertises “{{.AdvertName}}”.</span>
+      <button type="submit" form="adopt-name" class="btn btn-sm" data-testid="adopt-name">Use advertised name</button>
+    </div>
+    {{end}}{{end}}
   </div>
   <div class="mb-3">
     <div class="form-label">Public key</div>
@@ -33,6 +41,17 @@
     <div class="form-text">The repeater's identity on the mesh, so it can't be changed here.</div>
   </div>
   {{template "radio-fields" .Radio}}
+
+  {{with .Heard}}{{if .LocationDiffers}}
+  <div class="mt-3 mb-3" data-testid="settings-location-differs">
+    <div class="form-label">Location</div>
+    <div>{{if $.Repeater.Latitude}}<span class="font-monospace small">{{$.Repeater.Latitude}}, {{$.Repeater.Longitude}}</span>{{else}}<span class="text-secondary">Not set</span>{{end}}</div>
+    <div class="form-text d-flex align-items-center gap-2">
+      <span>{{template "icon-alert" "text-warning"}} {{.LocationNote}}</span>
+      <button type="submit" form="adopt-location" class="btn btn-sm" data-testid="adopt-location">Use advertised location</button>
+    </div>
+  </div>
+  {{end}}{{end}}
 
   {{template "settings-subheading" (dict "Title" "Visibility")}}
   <label class="form-check form-switch">
@@ -65,6 +84,10 @@
     <button type="submit" class="btn btn-primary">Save details</button>
   </div>
 </form>
+{{with .Heard}}
+{{if .NameDiffers}}<form id="adopt-name" method="post" action="/repeaters/{{$.Repeater.PublicID}}/heard/name"></form>{{end}}
+{{if .LocationDiffers}}<form id="adopt-location" method="post" action="/repeaters/{{$.Repeater.PublicID}}/heard/location"></form>{{end}}
+{{end}}
 <script src="{{ asset "/static/radio-preset.js" }}"></script>
 {{end}}
 

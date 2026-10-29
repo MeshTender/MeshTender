@@ -114,6 +114,11 @@ func (s *Handlers) pageRepeater(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data["Heard"] = heard
+	// Where a mismatch flagged on the Overview gets fixed.
+	data["FixHint"] = " Its owner can update it."
+	if isOwner {
+		data["FixHint"] = " Change it in Settings › Details."
+	}
 	if isOwner {
 		orgs, err := s.Store.ListRepeaterOrgs(r.Context(), id)
 		if err != nil {

@@ -10,60 +10,100 @@
       <div>MeshTender only has <strong>guest</strong> access, which anyone gets with a blank password, so it can't manage this repeater. Grant it admin with <a href="{{.RootURL}}/docs#setperm"><code>setperm</code></a>, then connect through a KISS modem on the <a href="/repeaters/{{.Repeater.PublicID}}/configure">Configure</a> tab again.</div>
     </div>
     {{end}}
-    {{/* One panel for what the repeater is: its details and identity, and its
-    documentation, as Bootstrap tabs (data attributes only, CSP-safe). Read-only,
-    like the org Home: the owner edits in Settings, which the empty states point
-    to. card-header-tabs fills the whole header (Tabler gives it flex:1 and its
-    own background), so nothing else goes in it. */}}
+    {{/* What the repeater is: what's registered for it and what its own
+    adverts say (.Heard, from its organizations' MQTT observers), in one
+    datagrid. A registered value its adverts disagree with gets a warning icon
+    whose hover text says what's advertised; the owner adopts it in Settings ›
+    Details. Read-only, like the org Home. */}}
     <div class="card" data-testid="repeater-details">
+      <div class="card-header"><h2 class="card-title">Details</h2></div>
+      <div class="card-body">
+        <div class="datagrid">
+          <div class="datagrid-item">
+            <div class="datagrid-title">Name</div>
+            <div class="datagrid-content">{{.Repeater.Name}}{{with .Heard}}{{if .NameDiffers}}{{template "heard-warn" (dict "ID" "heard-name-differs" "Text" (print "It advertises “" .AdvertName "”." $.FixHint))}}{{end}}{{end}}</div>
+          </div>
+          <div class="datagrid-item">
+            <div class="datagrid-title">Owner</div>
+            <div class="datagrid-content">{{.Repeater.OwnerName}}</div>
+          </div>
+          <div class="datagrid-item">
+            <div class="datagrid-title">Status</div>
+            <div class="datagrid-content">
+              {{/* SelfConfirmed is the OWNER having reached it, not the viewer,
+              so the wording follows who's looking. */}}
+              {{- $why := "" -}}
+              {{- if .Repeater.Corroborated}}{{$why = "Reached over the air by "}}{{if .Repeater.SelfConfirmed}}{{if .IsOwner}}{{$why = print $why "you, "}}{{else}}{{$why = print $why .Repeater.OwnerName ", "}}{{end}}{{end}}{{range $i, $n := .Repeater.Corroborators}}{{if $i}}{{$why = print $why ", "}}{{end}}{{$why = print $why $n}}{{end}}{{$why = print $why "."}}
+              {{- else if .Repeater.SelfConfirmed}}{{if .IsOwner}}{{$why = "You've reached it over the air; no one else has yet."}}{{else}}{{$why = print .Repeater.OwnerName ", its owner, has reached it over the air; no one else has yet."}}{{end}}
+              {{- else if .Repeater.Confirmed}}{{$why = "Reached over the air through MeshTender."}}
+              {{- else}}{{$why = "No one has reached it over the air through MeshTender yet. Connecting to it through a KISS modem on the Configure tab confirms it."}}{{end -}}
+              <span data-tooltip title="{{$why}}" tabindex="0" data-testid="repeater-status">{{if .Repeater.Confirmed}}<span class="badge bg-green-lt">Confirmed</span>{{else}}<span class="badge bg-orange-lt">Not confirmed</span>{{end}}</span>
+            </div>
+          </div>
+          <div class="datagrid-item">
+            <div class="datagrid-title">MeshTender's access</div>
+            <div class="datagrid-content">{{if .Repeater.AccessKnown}}{{if .Repeater.IsAdmin}}<span class="badge bg-blue-lt">Admin</span>{{else}}<span class="badge bg-red-lt">Guest only</span>{{end}}{{else}}<span class="text-secondary">Not known yet</span>{{end}}</div>
+          </div>
+          <div class="datagrid-item">
+            <div class="datagrid-title">Radio</div>
+            <div class="datagrid-content font-monospace small">{{.Radio}}</div>
+          </div>
+          {{/* The rest comes from its adverts. Every item renders either way, so
+          the grid keeps its pairs; "Not heard yet" until it has something. */}}
+          <div class="datagrid-item">
+            <div class="datagrid-title">Path hash size</div>
+            <div class="datagrid-content">{{with .Heard}}{{with .PathHashSize}}{{.}}-byte{{else}}{{template "heard-unheard"}}{{end}}{{else}}{{template "heard-unheard"}}{{end}}</div>
+          </div>
+          <div class="datagrid-item">
+            <div class="datagrid-title">Flood scope</div>
+            <div class="datagrid-content" data-testid="heard-scope">{{with .Heard}}{{if not .LastFloodPacket}}{{template "heard-unheard"}}{{else if .ScopeName}}{{.ScopeName}} <code>{{.Scope.Region}}</code>{{else if .Scope.Scoped}}Unrecognized{{template "heard-note" "Scoped to a region none of its organizations define."}}{{else}}Unscoped{{end}}{{else}}{{template "heard-unheard"}}{{end}}</div>
+          </div>
+          <div class="datagrid-item">
+            <div class="datagrid-title">Flood adverts</div>
+            <div class="datagrid-content" data-testid="heard-interval">{{with .Heard}}{{template "flood-interval" .}}{{if .Vintage.Outdated}}{{template "heard-warn" (dict "ID" "heard-interval-outdated" "Text" (print "Still on an old firmware default. The current default is every " .RecommendedFloodHours " hours: set flood.advert.interval " .RecommendedFloodHours))}}{{end}}{{else}}{{template "heard-unheard"}}{{end}}</div>
+          </div>
+          <div class="datagrid-item">
+            <div class="datagrid-title">Last heard</div>
+            <div class="datagrid-content" data-testid="heard-last">{{with .Heard}}{{ts .LastHeardAt "relative"}}{{else}}<span class="text-secondary">Not yet</span>{{template "heard-note" "Its adverts are recorded when an organization it's in has MQTT observers that hear them."}}{{end}}</div>
+          </div>
+          <div class="datagrid-item">
+            <div class="datagrid-title">Added</div>
+            <div class="datagrid-content">{{ts .Repeater.CreatedAt "date"}}</div>
+          </div>
+          <div class="datagrid-item">
+            <div class="datagrid-title">Public key</div>
+            <div class="datagrid-content d-flex align-items-center gap-1" data-testid="repeater-pubkey">{{template "pubkey" .Repeater.PublicKeyHex}}
+              {{if .ContactQR}}<button class="btn btn-icon btn-sm btn-ghost-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#contact-qr" aria-expanded="false" aria-controls="contact-qr" aria-label="Contact QR code" title="Contact QR code">{{template "icon-qrcode" ""}}</button>{{end}}</div>
+          </div>
+          <div class="datagrid-item">
+            <div class="datagrid-title">Clock</div>
+            <div class="datagrid-content">{{with .Heard}}{{if .ClockOff}}{{.ClockOffText}} {{if .ClockBehind}}behind{{else}}ahead{{end}}{{template "heard-warn" (dict "ID" "heard-clock" "Text" "It timestamps its adverts with this clock. “clock sync” sets it from the device you send the command from.")}}{{else}}In sync{{end}}{{else}}{{template "heard-unheard"}}{{end}}</div>
+          </div>
+        </div>
+        {{if .ContactQR}}
+        <div class="collapse" id="contact-qr">
+          <div class="mt-3">
+            <img src="{{.ContactQR}}" width="200" height="200" class="img-fluid" style="max-width:200px" alt="MeshCore contact QR code for {{.Repeater.Name}}">
+            <p class="text-secondary small mt-2 mb-0">Scan with the MeshCore app to add this repeater as a contact.</p>
+          </div>
+        </div>
+        {{end}}
+      </div>
+    </div>
+
+    {{/* Its documentation, as Bootstrap tabs (data attributes only, CSP-safe).
+    The owner edits it in Settings, which the empty states point to.
+    card-header-tabs fills the whole header (Tabler gives it flex:1 and its own
+    background), so nothing else goes in it. */}}
+    <div class="card mt-3" data-testid="repeater-docs">
       <div class="card-header">
         <ul class="nav nav-tabs card-header-tabs" role="tablist">
-          <li class="nav-item" role="presentation"><a class="nav-link active" href="#rep-details" data-bs-toggle="tab" role="tab" aria-controls="rep-details" aria-selected="true">Details</a></li>
-          <li class="nav-item" role="presentation"><a class="nav-link" href="#doc-public" data-bs-toggle="tab" role="tab" aria-controls="doc-public" aria-selected="false" data-testid="doc-public-tab">Documentation</a></li>
+          <li class="nav-item" role="presentation"><a class="nav-link active" href="#doc-public" data-bs-toggle="tab" role="tab" aria-controls="doc-public" aria-selected="true" data-testid="doc-public-tab">Documentation</a></li>
           <li class="nav-item" role="presentation"><a class="nav-link" href="#doc-internal" data-bs-toggle="tab" role="tab" aria-controls="doc-internal" aria-selected="false" data-testid="doc-internal-tab">Internal notes</a></li>
         </ul>
       </div>
       <div class="tab-content">
-        <div class="tab-pane active show" id="rep-details" role="tabpanel">
-          <div class="list-group list-group-flush">
-            <div class="list-group-item">
-              <div class="d-flex align-items-center gap-2"><span class="text-secondary">Status</span>
-                <span class="ms-auto">{{if .Repeater.Confirmed}}<span class="badge bg-green-lt">Confirmed</span>{{else}}<span class="badge bg-orange-lt">Not confirmed</span>{{end}}</span></div>
-              <div class="small text-secondary mt-1">
-                {{/* SelfConfirmed is the OWNER having reached it, not the viewer,
-                so the wording follows who's looking. */}}
-                {{if .Repeater.Corroborated}}Reached over the air by {{if .Repeater.SelfConfirmed}}{{if .IsOwner}}you{{else}}{{.Repeater.OwnerName}}{{end}}, {{end}}{{range $i, $n := .Repeater.Corroborators}}{{if $i}}, {{end}}{{$n}}{{end}}.
-                {{else if .Repeater.SelfConfirmed}}{{if .IsOwner}}You've reached it over the air; no one else has yet.{{else}}{{.Repeater.OwnerName}}, its owner, has reached it over the air; no one else has yet.{{end}}
-                {{else if .Repeater.Confirmed}}Reached over the air through MeshTender.
-                {{else}}No one has reached it over the air through MeshTender yet. Connecting to it through a KISS modem on the Configure tab confirms it.{{end}}
-              </div>
-            </div>
-            <div class="list-group-item d-flex align-items-center gap-2"><span class="text-secondary">MeshTender's access</span>
-              <span class="ms-auto">{{if .Repeater.AccessKnown}}{{if .Repeater.IsAdmin}}<span class="badge bg-blue-lt">Admin</span>{{else}}<span class="badge bg-red-lt">Guest only</span>{{end}}{{else}}<span class="text-secondary">Not known yet</span>{{end}}</span></div>
-            {{if not .IsOwner}}
-            <div class="list-group-item d-flex align-items-center gap-2"><span class="text-secondary">Owner</span><span class="ms-auto">{{.Repeater.OwnerName}}</span></div>
-            {{end}}
-            <div class="list-group-item d-flex align-items-center gap-2"><span class="text-secondary">Added</span><span class="ms-auto">{{ts .Repeater.CreatedAt "date"}}</span></div>
-            <div class="list-group-item d-flex align-items-center gap-2"><span class="text-secondary">Radio</span><span class="ms-auto font-monospace small">{{.Radio}}</span></div>
-            <div class="list-group-item">
-              <div class="text-secondary mb-1">Public key</div>
-              <div class="d-flex align-items-start gap-2">
-                <code class="pk flex-fill text-break" data-testid="repeater-pubkey">{{.Repeater.PublicKeyHex}}</code>
-                <button type="button" class="btn btn-icon btn-sm btn-ghost-secondary" title="Copy public key" aria-label="Copy public key" data-copy="{{.Repeater.PublicKeyHex}}">{{template "icon-copy" ""}}</button>
-              </div>
-              {{if .ContactQR}}
-              <button class="btn btn-sm mt-2" type="button" data-bs-toggle="collapse" data-bs-target="#contact-qr" aria-expanded="false" aria-controls="contact-qr">{{template "icon-qrcode" "me-1"}}<span class="collapse-show">Show</span><span class="collapse-hide">Hide</span>&nbsp;contact QR code</button>
-              <div class="collapse" id="contact-qr">
-                <div class="mt-3">
-                  <img src="{{.ContactQR}}" width="200" height="200" class="img-fluid" style="max-width:200px" alt="MeshCore contact QR code for {{.Repeater.Name}}">
-                  <p class="text-secondary small mt-2 mb-0">Scan with the MeshCore app to add this repeater as a contact.</p>
-                </div>
-              </div>
-              {{end}}
-            </div>
-          </div>
-        </div>
-        <div class="tab-pane card-body" id="doc-public" role="tabpanel">
+        <div class="tab-pane active show card-body" id="doc-public" role="tabpanel">
           {{if .Repeater.DocPublic}}<div class="markdown">{{markdown .Repeater.DocPublic}}</div>
           {{else}}<p class="text-secondary mb-0">No documentation yet.{{if .IsOwner}} Note its hardware, antenna, power and how to service it in <a href="/repeaters/{{.Repeater.PublicID}}/settings/docs">Settings</a>.{{end}}</p>{{end}}
         </div>
@@ -74,67 +114,17 @@
         </div>
       </div>
     </div>
-
-    {{/* What the repeater's own adverts say, as heard by its organizations'
-    MQTT observers: observed state, beside what's registered above. A mismatch
-    is flagged with a button to adopt the advertised value; the server reads
-    the value from what was heard, not from the form. */}}
-    <div class="card mt-3" data-testid="repeater-heard">
-      <div class="card-header">
-        <div><h2 class="card-title">Heard on the mesh</h2><div class="card-subtitle">What its own adverts say, as heard by its organizations' observers.</div></div>
-      </div>
-      {{with .Heard}}
-      <div class="list-group list-group-flush">
-        <div class="list-group-item">
-          <div class="d-flex align-items-center gap-2"><span class="text-secondary">Last heard</span><span class="ms-auto" data-testid="heard-last">{{ts .LastHeardAt "relative"}}</span></div>
-          <div class="small text-secondary mt-1">Flood advert: {{with .LastFloodAt}}{{ts . "relative"}}{{else}}not yet{{end}} · Zero-hop advert: {{with .LastZeroHopAt}}{{ts . "relative"}}{{else}}not yet{{end}}</div>
-        </div>
-        <div class="list-group-item">
-          <div class="d-flex align-items-center gap-2"><span class="text-secondary">Advertised name</span>
-            <span class="ms-auto text-end">{{if .AdvertName}}{{.AdvertName}}{{else}}<span class="text-secondary">None</span>{{end}}{{if .NameDiffers}} <span class="badge bg-orange-lt" data-testid="heard-name-differs">Differs</span>{{end}}</span></div>
-          {{if .NameDiffers}}
-          <div class="d-flex align-items-center gap-2 mt-1">
-            <span class="small text-secondary">Registered here as “{{$.Repeater.Name}}”.</span>
-            {{if $.IsOwner}}<form method="post" action="/repeaters/{{$.Repeater.PublicID}}/heard/name" class="ms-auto"><button type="submit" class="btn btn-sm" data-testid="adopt-name">Use advertised name</button></form>{{end}}
-          </div>
-          {{end}}
-        </div>
-        <div class="list-group-item">
-          <div class="d-flex align-items-center gap-2"><span class="text-secondary">Advertised location</span>
-            <span class="ms-auto text-end">{{if .AdvertLat}}<span class="font-monospace small">{{.AdvertLat}}, {{.AdvertLon}}</span>{{else}}<span class="text-secondary">Not advertised</span>{{end}}{{if .LocationDiffers}} <span class="badge bg-orange-lt" data-testid="heard-location-differs">{{if $.Repeater.Latitude}}{{.LocationOffText}} away{{else}}None registered{{end}}</span>{{end}}</span></div>
-          {{if .LocationDiffers}}
-          <div class="d-flex align-items-center gap-2 mt-1">
-            <span class="small text-secondary">{{if $.Repeater.Latitude}}It advertises a location {{.LocationOffText}} from the one registered here.{{else}}No location is registered here.{{end}}</span>
-            <form method="post" action="/repeaters/{{$.Repeater.PublicID}}/heard/location" class="ms-auto"><button type="submit" class="btn btn-sm" data-testid="adopt-location">Use advertised location</button></form>
-          </div>
-          {{end}}
-        </div>
-        <div class="list-group-item d-flex align-items-center gap-2"><span class="text-secondary">Path hash size</span>
-          <span class="ms-auto">{{with .PathHashSize}}{{.}}-byte{{else}}<span class="text-secondary">Not heard in a flood advert yet</span>{{end}}</span></div>
-        <div class="list-group-item d-flex align-items-center gap-2"><span class="text-secondary">Flood scope</span>
-          <span class="ms-auto text-end" data-testid="heard-scope">{{if not .LastFloodPacket}}<span class="text-secondary">Not heard in a flood advert yet</span>{{else if .ScopeName}}{{.ScopeName}} <code>{{.Scope.Region}}</code>{{else if .Scope.Scoped}}A region none of its organizations define{{else}}Unscoped{{end}}</span></div>
-        <div class="list-group-item">
-          <div class="d-flex align-items-center gap-2"><span class="text-secondary">Flood adverts</span><span class="ms-auto text-end" data-testid="heard-interval">{{template "flood-interval" .}}</span></div>
-          {{if .Vintage.Outdated}}<div class="small text-secondary mt-1">Still on an old firmware default. The current default is every {{.RecommendedFloodHours}} hours: <code>set flood.advert.interval {{.RecommendedFloodHours}}</code></div>{{end}}
-        </div>
-        {{if .ClockOff}}
-        <div class="list-group-item">
-          <div class="d-flex align-items-center gap-2"><span class="text-secondary">Clock</span><span class="ms-auto"><span class="badge bg-orange-lt" data-testid="heard-clock">{{.ClockOffText}} {{if .ClockBehind}}behind{{else}}ahead{{end}}</span></span></div>
-          <div class="small text-secondary mt-1">It timestamps its adverts with this clock. <code>clock sync</code> sets it from the device you send the command from.</div>
-        </div>
-        {{end}}
-      </div>
-      {{else}}
-      {{template "empty-state" (dict "Compact" true "Title" "Not heard yet" "Line" "Its adverts are recorded when an organization it's in has MQTT observers that hear them.")}}
-      {{end}}
-    </div>
   </div>
 
   <div class="col-lg-4 d-flex flex-column gap-3">
-    {{if .Repeater.Latitude}}
-    <div class="card">
+    {{/* The registered location, flagged when its adverts carry another one.
+    A repeater with none registered gets the card only to show that flag. */}}
+    {{$locWarn := and .Heard .Heard.LocationDiffers}}
+    {{if or .Repeater.Latitude $locWarn}}
+    <div class="card" data-testid="repeater-location">
       <div class="card-header"><h2 class="card-title">Location</h2></div>
       <div class="card-body p-2">
+        {{if .Repeater.Latitude}}
         {{template "map-styles"}}
         <div id="map" style="height:240px" role="region" aria-label="Map of this repeater's location"></div>
         {{template "map-scripts"}}
@@ -142,7 +132,9 @@
         <script nonce="{{.Nonce}}">
           meshMap('map', [{name: {{.Repeater.Name}}, lat: {{.Repeater.Latitude}}, lon: {{.Repeater.Longitude}}}]);
         </script>
-        <div class="text-secondary small mt-2 text-center">{{template "icon-map-pin" "me-1"}}<span class="font-monospace">{{.Repeater.Latitude}}, {{.Repeater.Longitude}}</span></div>
+        {{end}}
+        <div class="text-secondary small {{if .Repeater.Latitude}}mt-2{{else}}p-2{{end}} text-center">{{if .Repeater.Latitude}}{{template "icon-map-pin" "me-1"}}<span class="font-monospace">{{.Repeater.Latitude}}, {{.Repeater.Longitude}}</span>{{else}}Not set{{end}}
+          {{- if $locWarn}}{{template "heard-warn" (dict "ID" "heard-location-differs" "Text" (print .Heard.LocationNote .FixHint))}}{{end}}</div>
       </div>
     </div>
     {{end}}
@@ -170,3 +162,14 @@
 </div>
 
 {{end}}
+
+{{/* heard-warn flags a value the repeater's adverts disagree with: an amber
+     icon whose hover/focus text (dict Text) says what's advertised. ID is its
+     data-testid. */}}
+{{define "heard-warn"}}<span class="text-warning ms-1" tabindex="0" role="img" aria-label="{{.Text}}" title="{{.Text}}" data-tooltip data-testid="{{.ID}}">{{template "icon-alert" ""}}</span>{{end}}
+
+{{/* heard-note is heard-warn's neutral twin: an explanation, not a problem. */}}
+{{define "heard-note"}}<span class="text-secondary ms-1" tabindex="0" role="img" aria-label="{{.}}" title="{{.}}" data-tooltip>{{template "icon-help" ""}}</span>{{end}}
+
+{{/* heard-unheard fills a value that only its adverts can tell. */}}
+{{define "heard-unheard"}}<span class="text-secondary">Not heard yet</span>{{end}}

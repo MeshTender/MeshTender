@@ -36,23 +36,29 @@ func TestRepeaterPageHeard(t *testing.T) {
 	page := "/repeaters/" + rep.PublicID
 
 	body := getBody(t, ts, h.app, page, sess)
-	if !strings.Contains(body, `data-testid="repeater-heard"`) || !strings.Contains(body, "Not heard yet") {
-		t.Fatal("unheard repeater: no empty Heard card")
+	// The grid keeps every item, so its pairs line up either way.
+	if !strings.Contains(body, "Path hash size") || strings.Count(body, "Not heard yet") != 4 {
+		t.Fatalf("unheard repeater: want its advert details as \"Not heard yet\", got %d", strings.Count(body, "Not heard yet"))
 	}
 
 	heardRepeater(t, st, rep, "Hilltop NEW", 42.9, -78.8, 3*time.Hour)
 	body = getBody(t, ts, h.app, page, sess)
+	// Mismatches are flagged with the advertised value as hover text, and the
+	// fix is in Settings, not here.
 	for _, want := range []string{
-		"Hilltop NEW", `data-testid="heard-name-differs"`, `data-testid="adopt-name"`,
-		`data-testid="heard-location-differs"`, "None registered", `data-testid="adopt-location"`,
-		"2-byte", "Unscoped", "Every 3 h", "Old default (before 1.8)", "set flood.advert.interval 47",
+		`data-testid="heard-name-differs"`, "It advertises “Hilltop NEW”. Change it in Settings › Details.",
+		`data-testid="heard-location-differs"`, "It advertises 42.9, -78.8.",
+		"2-byte", "Unscoped", "Every 3 h", "Old default (before 1.8)", "In sync",
+		`data-testid="heard-interval-outdated"`, "set flood.advert.interval 47",
 	} {
 		if !strings.Contains(body, want) {
-			t.Errorf("heard card lacks %q", want)
+			t.Errorf("overview lacks %q", want)
 		}
 	}
-	if strings.Contains(body, `data-testid="heard-clock"`) {
-		t.Error("in-sync clock flagged")
+	for _, unwanted := range []string{`data-testid="heard-clock"`, `data-testid="adopt-name"`, `data-testid="adopt-location"`} {
+		if strings.Contains(body, unwanted) {
+			t.Errorf("overview has %q", unwanted)
+		}
 	}
 }
 
@@ -70,44 +76,57 @@ func TestAdoptHeardValues(t *testing.T) {
 	}
 	rep := newOwnedRepeater(t, st, ctx, owner.ID, "Hilltop")
 	page := "/repeaters/" + rep.PublicID
+	settings := page + "/settings"
 
-	// Nothing heard yet: nothing to adopt.
+	// Nothing heard yet: nothing to adopt, and Settings offers nothing.
 	resp := post(t, ts, h.app, page+"/heard/name", nil, sess)
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("adopt unheard name = %d, want 404", resp.StatusCode)
 	}
+	if body := getBody(t, ts, h.app, settings, sess); strings.Contains(body, `data-testid="adopt-name"`) {
+		t.Fatal("Settings offers to adopt from an unheard repeater")
+	}
 
 	heardRepeater(t, st, rep, "Hilltop NEW", 42.9, -78.8, 47*time.Hour)
 
-	// A co-member can adopt the location but not rename someone else's repeater.
-	resp = post(t, ts, h.app, page+"/heard/name", nil, memberSess)
-	resp.Body.Close()
-	if resp.StatusCode != http.StatusNotFound {
-		t.Fatalf("member adopt name = %d, want 404", resp.StatusCode)
+	body := getBody(t, ts, h.app, settings, sess)
+	for _, want := range []string{`data-testid="adopt-name"`, "It advertises “Hilltop NEW”.",
+		`data-testid="adopt-location"`, "It advertises 42.9, -78.8."} {
+		if !strings.Contains(body, want) {
+			t.Errorf("Settings lacks %q", want)
+		}
 	}
-	// The value comes from what was heard, whatever the form says.
-	resp = post(t, ts, h.app, page+"/heard/location", url.Values{"lat": {"1"}, "lon": {"1"}}, memberSess)
+	// A non-owner sees the flags on the Overview but can't adopt either value.
+	if body := getBody(t, ts, h.app, page, memberSess); !strings.Contains(body, "Its owner can update it.") {
+		t.Error("non-owner's hover text points at Settings")
+	}
+	for _, path := range []string{"/heard/name", "/heard/location"} {
+		resp = post(t, ts, h.app, page+path, nil, memberSess)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusNotFound {
+			t.Fatalf("member adopt %s = %d, want 404", path, resp.StatusCode)
+		}
+	}
+
+	// The values come from what was heard, whatever the form says.
+	resp = post(t, ts, h.app, page+"/heard/location", url.Values{"lat": {"1"}, "lon": {"1"}}, sess)
 	resp.Body.Close()
-	assertRedirect(t, resp, page, "member adopt location")
+	assertRedirect(t, resp, settings, "adopt location")
+	resp = post(t, ts, h.app, page+"/heard/name", url.Values{"name": {"Forged"}}, sess)
+	resp.Body.Close()
+	assertRedirect(t, resp, settings, "adopt name")
 	got, err := st.GetRepeaterForUser(ctx, owner.ID, rep.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Latitude == nil || *got.Latitude != 42.9 || *got.Longitude != -78.8 {
-		t.Fatalf("location = %v,%v, want the advertised one", got.Latitude, got.Longitude)
-	}
-
-	resp = post(t, ts, h.app, page+"/heard/name", url.Values{"name": {"Forged"}}, sess)
-	resp.Body.Close()
-	assertRedirect(t, resp, page, "owner adopt name")
-	if got, _ = st.GetRepeaterForUser(ctx, owner.ID, rep.ID); got.Name != "Hilltop NEW" {
-		t.Fatalf("name = %q, want the advertised one", got.Name)
+	if got.Name != "Hilltop NEW" || got.Latitude == nil || *got.Latitude != 42.9 || *got.Longitude != -78.8 {
+		t.Fatalf("repeater = %q %v,%v, want the advertised name and location", got.Name, got.Latitude, got.Longitude)
 	}
 
 	// Once adopted, nothing differs, and the current default isn't flagged.
-	body := getBody(t, ts, h.app, page, sess)
-	for _, gone := range []string{`data-testid="heard-name-differs"`, `data-testid="heard-location-differs"`, "set flood.advert.interval"} {
+	body = getBody(t, ts, h.app, page, sess)
+	for _, gone := range []string{`data-testid="heard-name-differs"`, `data-testid="heard-location-differs"`, `data-testid="heard-interval-outdated"`} {
 		if strings.Contains(body, gone) {
 			t.Errorf("after adopting, page still has %q", gone)
 		}
