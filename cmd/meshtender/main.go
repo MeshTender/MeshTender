@@ -167,6 +167,8 @@ func run(logger *slog.Logger) error {
 			// when no replica is leading.
 			janitorSweep{"advert relay sets", st.PruneAdvertSets},
 			janitorSweep{"unconfirmed companions", st.PruneUnconfirmedCompanions},
+			// Repeater adverts age out once too old for the interval estimate.
+			janitorSweep{"repeater adverts", st.PruneRepeaterAdverts},
 			janitorSweep{"net sessions", func(ctx context.Context) (int64, error) {
 				return 0, st.EnsureUpcomingNetSessions(ctx, time.Now())
 			}},

@@ -1,6 +1,6 @@
 // Package ingest connects to each org's MQTT broker, discovers the observers
-// publishing to it, and records verified adverts from registered companions,
-// as heard by the org's approved observers, and the channel messages a running
+// publishing to it, and records verified adverts from registered companions
+// and repeaters, as heard by the org's approved observers, and the channel messages a running
 // net logs (see netair). The Supervisor owns the broker connections (on one
 // elected replica); the Ingester turns each message into store writes.
 package ingest
@@ -126,7 +126,7 @@ func (in *Ingester) touch(ctx context.Context, m Message, observer string) {
 }
 
 // handlePacket records what the org's observers hear that MeshTender cares
-// about: adverts from registered companions, and channel messages a running
+// about: adverts from registered companions and repeaters, and channel messages a running
 // net logs. The checks run cheapest first: most packets are neither
 // (in-memory decode), and the observer lookup waits until one is.
 func (in *Ingester) handlePacket(ctx context.Context, m Message, observer string) {
@@ -146,15 +146,21 @@ func (in *Ingester) handlePacket(ctx context.Context, m Message, observer string
 	}
 }
 
-// handleAdvert records a verified advert from a registered companion. Most
-// adverts aren't from one (one indexed lookup), and only then is the
-// signature checked.
+// handleAdvert records a verified advert from a registered companion or
+// repeater. Most adverts are from neither (one indexed lookup each), and only
+// then is the signature checked.
 func (in *Ingester) handleAdvert(ctx context.Context, m Message, observer string, raw []byte) {
-	adv, companionID, err := RegisteredAdvert(ctx, in.Store, raw)
+	adv, err := observe.DecodeAdvert(raw)
 	if err != nil {
-		if !errors.Is(err, ErrNotRegistered) {
-			in.Log.Warn("ingest: companion lookup", "err", err)
-		}
+		return
+	}
+	companionID, err := companionFor(ctx, in.Store, adv)
+	switch {
+	case errors.Is(err, ErrNotRegistered):
+		in.handleRepeaterAdvert(ctx, m, observer, adv)
+		return
+	case err != nil:
+		in.Log.Warn("ingest: companion lookup", "err", err)
 		return
 	}
 	if !in.isObserver(ctx, m, observer) {
@@ -168,6 +174,40 @@ func (in *Ingester) handleAdvert(ctx context.Context, m Message, observer string
 	case errors.Is(err, ErrAdvertSkew):
 	case err != nil:
 		in.Log.Warn("ingest: record check-in", "err", err)
+	}
+}
+
+// handleRepeaterAdvert records a verified advert from a repeater in the
+// observer's org. Unlike a check-in there's no clock-skew bound: repeater
+// clocks are often wrong (one without a battery-backed RTC restarts in 2024),
+// a replay of an advert already heard changes nothing, and the offset is
+// shown instead.
+func (in *Ingester) handleRepeaterAdvert(ctx context.Context, m Message, observer string, adv *observe.Advert) {
+	key := adv.PublicKey.String()
+	ok, err := in.Store.OrgHasRepeaterKey(ctx, m.OrgID, key)
+	if err != nil {
+		in.Log.Warn("ingest: repeater lookup", "err", err)
+		return
+	}
+	if !ok || !in.isObserver(ctx, m, observer) {
+		return
+	}
+	if !adv.Verify() {
+		in.Log.Warn("ingest: advert signature invalid", "org", m.OrgID, "observer", observer, "repeater", key)
+		return
+	}
+	if _, err := in.Store.RecordRepeaterAdvert(ctx, store.RepeaterAdvert{
+		PublicKeyHex: key,
+		AdvertTS:     adv.Timestamp,
+		ReceivedAt:   m.ReceivedAt,
+		Flood:        adv.Flood(),
+		Name:         adv.Name,
+		Lat:          adv.Lat,
+		Lon:          adv.Lon,
+		PathHashSize: adv.PathHashSize,
+		Packet:       adv.Raw,
+	}); err != nil {
+		in.Log.Warn("ingest: record repeater advert", "err", err)
 	}
 }
 
@@ -243,14 +283,21 @@ func RegisteredAdvert(ctx context.Context, st *store.Store, raw []byte) (*observ
 	if err != nil {
 		return nil, 0, ErrNotRegistered
 	}
-	companionID, err := st.CompanionIDForKey(ctx, adv.PublicKey.String())
-	if errors.Is(err, store.ErrNotFound) {
-		return nil, 0, ErrNotRegistered
-	}
+	companionID, err := companionFor(ctx, st, adv)
 	if err != nil {
 		return nil, 0, err
 	}
 	return adv, companionID, nil
+}
+
+// companionFor returns the id of the companion registered with adv's key, or
+// ErrNotRegistered.
+func companionFor(ctx context.Context, st *store.Store, adv *observe.Advert) (int64, error) {
+	companionID, err := st.CompanionIDForKey(ctx, adv.PublicKey.String())
+	if errors.Is(err, store.ErrNotFound) {
+		return 0, ErrNotRegistered
+	}
+	return companionID, err
 }
 
 // RecordAdvert verifies a registered companion's advert and records it as a

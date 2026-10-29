@@ -56,6 +56,13 @@
           recorded in that repeater's log with the command, the time, the reply, and a snapshot of your
           username as it was at that moment.
         </p>
+        <p>
+          When an organization's observers hear a registered repeater's own advert and its signature
+          checks out, we record what the advert says about the repeater: the name and location it
+          broadcasts, its clock, its path hash size and flood scope, and when it was heard. Adverts are
+          public broadcasts of the repeater itself, so this says nothing about any person. The times its
+          recent adverts were heard are kept to estimate how often it adverts.
+        </p>
 
         <h3>Companions and check-ins</h3>
         <p>
@@ -200,6 +207,7 @@
           <li><strong>Check-ins, and net sessions</strong> with their rosters, acknowledgements and channel logs — one year, then deleted.</li>
           <li><strong>Which repeaters and observers heard an advert</strong> — a few minutes, only to count them.</li>
           <li><strong>A companion registration that's never heard</strong> — 24 hours.</li>
+          <li><strong>When a repeater's adverts were heard</strong> — 35 days for flood adverts and 2 days for zero-hop ones. The latest of what it advertised is kept while the repeater is registered.</li>
           <li><strong>Raw traffic events</strong> — 90 days, then deleted. Daily totals (counts only, with nothing about individuals) are kept.</li>
           <li><strong>Password reset links</strong> — 45 minutes, and one use.</li>
           <li><strong>Email confirmation links</strong> — 24 hours, and one use.</li>
