@@ -2,6 +2,7 @@ package core
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strconv"
 	"strings"
@@ -368,6 +369,92 @@ func TestNetControlAcknowledgements(t *testing.T) {
 	}
 	if strings.Count(body, "by @&lt;net-control&gt;") != 2 {
 		t.Error("roster doesn't credit a deleted net control as @<net-control>")
+	}
+}
+
+// htmxRequest issues a request as htmx would from the page at currentURL:
+// HX-Request plus HX-Current-URL, without following a redirect.
+func htmxRequest(t *testing.T, ts *httptest.Server, host, method, path, currentURL string, form url.Values, cookie *http.Cookie) *http.Response {
+	t.Helper()
+	req, err := http.NewRequest(method, ts.URL+path, strings.NewReader(form.Encode()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Host = host
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("HX-Request", "true")
+	req.Header.Set("HX-Current-URL", currentURL)
+	req.AddCookie(cookie)
+	resp, err := noRedirect().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return resp
+}
+
+// TestNetSessionActionsSwapInPlace: net control's actions on a live session
+// page are htmx posts, because a full page load drops the modem connected
+// through it. Each redirects back to the page as the user is viewing it — log
+// filter kept — and htmx follows that to the live fragment, which carries any
+// error, since the layout's flash isn't part of the swap.
+func TestNetSessionActionsSwapInPlace(t *testing.T) {
+	t.Parallel()
+	st, ctx, ts, h := splitServer(t)
+	admin, sess := appLogin(t, ts, st, ctx, h.app, "swapadmin")
+	org, err := st.CreateOrg(ctx, "Swap Org", admin.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	net, err := st.CreateNet(ctx, org.ID, store.NetInput{Name: "Swap", Weekday: now.Weekday(), StartMinute: max(0, now.Hour()*60+now.Minute()-10),
+		DurationMinutes: 120, Timezone: "UTC", Active: true, ManualAck: true}, admin.ID, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cur, err := st.NextNetSession(ctx, net.ID, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sessPath := "/orgs/" + org.Slug + "/nets/" + strconv.FormatInt(net.ID, 10) + "/sessions/" + strconv.FormatInt(cur.ID, 10)
+	page := "https://" + h.app + sessPath
+	member := url.Values{"user_id": {strconv.FormatInt(admin.ID, 10)}}
+
+	// The page's forms and filter links swap the live part instead of navigating.
+	body := getBody(t, ts, h.app, sessPath, sess)
+	for _, want := range []string{
+		`hx-post="` + sessPath + `/acks" hx-target="#session-live" hx-swap="outerHTML"`,
+		`hx-get="` + sessPath + `?log=checkins" hx-target="#session-live" hx-swap="outerHTML" hx-replace-url="true"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("session page lacks %s", want)
+		}
+	}
+
+	// Acknowledging while viewing check-ins comes back to check-ins.
+	if q := redirectTo(t, htmxRequest(t, ts, h.app, http.MethodPost, sessPath+"/acks", page+"?log=checkins", member, sess), sessPath); q.Get("log") != "checkins" {
+		t.Errorf("acknowledge redirect query = %v, want log=checkins", q)
+	}
+	// Undo, too; a filter the page doesn't offer isn't carried along.
+	if q := redirectTo(t, htmxRequest(t, ts, h.app, http.MethodPost, sessPath+"/acks/"+strconv.FormatInt(admin.ID, 10)+"/delete", page+"?log=news", nil, sess), sessPath); q.Get("log") != "news" {
+		t.Errorf("undo redirect query = %v, want log=news", q)
+	}
+	if q := redirectTo(t, htmxRequest(t, ts, h.app, http.MethodPost, sessPath+"/acks", page+"?log=%2F%2Fevil.example", member, sess), sessPath); q.Has("log") {
+		t.Errorf("redirect carried an unknown filter: %v", q)
+	}
+	// A plain post (no htmx) still lands on the page.
+	redirectTo(t, post(t, ts, h.app, sessPath+"/acks", member, sess), sessPath)
+
+	// An error comes back in the fragment htmx swaps in, once.
+	q := redirectTo(t, htmxRequest(t, ts, h.app, http.MethodPost, sessPath+"/acks", page, url.Values{}, sess), sessPath)
+	if q.Get("error") == "" {
+		t.Fatalf("missing member redirect query = %v, want an error", q)
+	}
+	frag := readBody(t, htmxRequest(t, ts, h.app, http.MethodGet, sessPath+"?"+q.Encode(), page, nil, sess))
+	if !strings.HasPrefix(strings.TrimSpace(frag), `<div id="session-live"`) || strings.Count(frag, `data-testid="flash-error"`) != 1 {
+		t.Errorf("fragment doesn't carry the error once: %.300s", frag)
+	}
+	if full := getBody(t, ts, h.app, sessPath+"?"+q.Encode(), sess); strings.Count(full, `data-testid="flash-error"`) != 1 {
+		t.Error("the full page shows the error other than once")
 	}
 }
 

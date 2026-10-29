@@ -3,6 +3,7 @@
 package e2e
 
 import (
+	"context"
 	"encoding/hex"
 	"fmt"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	cdplog "github.com/chromedp/cdproto/log"
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/chromedp"
+	"github.com/chromedp/chromedp/kb"
 
 	"github.com/MeshTender/MeshTender/internal/config"
 	"github.com/MeshTender/MeshTender/internal/observe/observetest"
@@ -462,6 +464,128 @@ func TestE2ENetModemPanel(t *testing.T) {
 	}
 	if !strings.Contains(channelLog, "Bob") || !strings.Contains(channelLog, "road closed") || strings.Contains(channelLog, "unverified") {
 		t.Errorf("channel log: %q", channelLog)
+	}
+	watch.assertClean(t)
+}
+
+// TestE2ENetSessionActionsKeepThePage: net control's modem is connected through
+// the live session page, so nothing net control does there may load a new page
+// — that ends the modem session (it did: Acknowledge dropped the modem before
+// the "Copied" went out). The log filter, Acknowledge, Undo and Add a check-in
+// each swap the live part in place; a marker set on window survives them all.
+func TestE2ENetSessionActionsKeepThePage(t *testing.T) {
+	srv := newE2EServer(t)
+	user, cookie := srv.login(t, "e2enetkeep")
+	org, err := srv.store.CreateOrg(srv.ctx, "Keep Org", user.ID)
+	if err != nil {
+		t.Fatalf("create org: %v", err)
+	}
+	if err := srv.store.SetOrgRadio(srv.ctx, org.ID, &config.RadioDefaults{FreqHz: 910_525_000, BwHz: 62_500, SF: 7, CR: 5}); err != nil {
+		t.Fatal(err)
+	}
+	radioless, err := srv.store.CreateUser(srv.ctx, "e2ekeeprita", "Radioless Rita")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := srv.store.AddOrgMember(srv.ctx, org.ID, radioless.ID, "member"); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	net, err := srv.store.CreateNet(srv.ctx, org.ID, store.NetInput{Name: "Keep Net", Weekday: now.Weekday(),
+		StartMinute: max(0, now.Hour()*60+now.Minute()-10), DurationMinutes: 120, Timezone: "UTC", Active: true, ManualAck: true}, user.ID, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sess, err := srv.store.NextNetSession(srv.ctx, net.ID, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := srv.store.CreateCompanion(srv.ctx, user.ID, "Keep T1", observetest.NewIdentity(t).String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	at := time.Now().Add(time.Second)
+	if _, err := srv.store.RecordAdvertHeard(srv.ctx, store.AdvertHeard{CompanionID: c.ID,
+		ObserverPublicKeyHex: strings.Repeat("ab", 32), ReceivedAt: at, AdvertTS: uint32(at.Unix())}); err != nil { //nolint:gosec // test clock
+		t.Fatal(err)
+	}
+
+	const samePage = `window.__samePage === true`
+	stillSamePage := func(after string) chromedp.Action {
+		return chromedp.ActionFunc(func(ctx context.Context) error {
+			var same bool
+			if err := chromedp.Evaluate(samePage, &same).Do(ctx); err != nil {
+				return err
+			}
+			if !same {
+				return fmt.Errorf("the page reloaded after %s, which drops the modem", after)
+			}
+			return nil
+		})
+	}
+	// htmx wires up swapped-in content as it settles, a moment after the swap;
+	// a click before that would be an ordinary form post. Too quick for a
+	// person, not for a test, so each action waits for the settle.
+	settled := chromedp.ActionFunc(func(ctx context.Context) error {
+		if err := chromedp.Poll(`window.__settled === true`, nil).Do(ctx); err != nil {
+			return err
+		}
+		return chromedp.Evaluate(`window.__settled = false`, nil).Do(ctx)
+	})
+	bctx, cancel, watch := startBrowser(t)
+	defer cancel()
+	var search, location string
+	if err := chromedp.Run(bctx,
+		network.Enable(),
+		cdplog.Enable(),
+		setSessionCookie(cookie),
+		step("open the live session",
+			chromedp.Navigate(fmt.Sprintf("%s/orgs/%s/nets/%d/sessions/%d", srv.appURL, org.Slug, net.ID, sess.ID)),
+			chromedp.WaitVisible(`[data-testid="net-modem"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(`[data-testid="acknowledge"]`, chromedp.ByQuery),
+			chromedp.Evaluate(`window.__samePage = true;
+				document.body.addEventListener("htmx:afterSettle", () => { window.__settled = true; })`, nil)),
+		step("show only check-ins",
+			chromedp.Click(`[data-testid="log-filter-checkins"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(`[data-testid="log-filter-checkins"].active`, chromedp.ByQuery),
+			stillSamePage("filtering the log"),
+			settled),
+		step("acknowledge the check-in",
+			chromedp.Click(`[data-testid="acknowledge"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(`[data-testid="acked"]`, chromedp.ByQuery),
+			stillSamePage("acknowledging"),
+			settled,
+			chromedp.Evaluate(`location.search`, &location)),
+		step("undo the acknowledgement",
+			chromedp.Click(`[data-testid="log-actions"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(`[data-testid="undo"]`, chromedp.ByQuery),
+			chromedp.Click(`[data-testid="undo"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(`[data-testid="acknowledge"]`, chromedp.ByQuery),
+			stillSamePage("undoing"),
+			settled),
+		step("add a check-in by hand",
+			chromedp.SendKeys(`[data-testid="add-search"]`, "rita", chromedp.ByQuery),
+			chromedp.WaitVisible(`[data-testid="add-member"]`, chromedp.ByQuery),
+			settled,
+			// Enter in the search picks no one, so it mustn't submit the form.
+			chromedp.SendKeys(`[data-testid="add-search"]`, kb.Enter, chromedp.ByQuery),
+			stillSamePage("pressing Enter in the member search"),
+			chromedp.Click(`[data-testid="add-member"]`, chromedp.ByQuery)),
+		step("see the hand-added check-in",
+			chromedp.WaitVisible(`[data-testid="added-by-hand"]`, chromedp.ByQuery),
+			stillSamePage("adding a check-in")),
+		step("see the search start over",
+			// The search starts over, so Rita's stale Add button is gone.
+			chromedp.WaitNotPresent(`[data-testid="add-member"]`, chromedp.ByQuery),
+			chromedp.Value(`[data-testid="add-search"]`, &search, chromedp.ByQuery)),
+	); err != nil {
+		t.Fatalf("net control actions: %v", err)
+	}
+	if location != "?log=checkins" {
+		t.Errorf("after acknowledging, location.search = %q, want the filter kept", location)
+	}
+	if search != "" {
+		t.Errorf("member search = %q after adding, want it cleared", search)
 	}
 	watch.assertClean(t)
 }

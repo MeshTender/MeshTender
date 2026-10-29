@@ -37,10 +37,16 @@
      in progress it reloads itself every 10 seconds (htmx, same-origin; the
      handler returns just this for an HX-Request), so check-ins show up as
      they're heard. The rail lives outside it, so a refresh never clears what
-     net control is typing. */}}
+     net control is typing.
+
+     Net control's actions (acknowledge, undo, add a check-in) and the log
+     filter swap this in place too, never loading a new page: a page load ends
+     the modem session connected through the rail. Swapped in, it shows the
+     action's flash itself, since the layout's isn't part of the swap. */}}
 {{define "session-live"}}
 <div id="session-live" class="d-flex flex-column gap-3" data-testid="roster-card"
      {{if .InProgress}}hx-get="{{.PollURL}}" hx-trigger="every 10s" hx-swap="outerHTML"{{end}}>
+  {{if .Fragment}}{{template "flash" .}}{{end}}
   {{if and .NetControl .Waiting}}
   <div class="card border-orange" data-testid="waiting">
     <div class="card-header"><h2 class="card-title">Waiting for acknowledgement</h2></div>
@@ -52,7 +58,7 @@
             <span class="text-secondary">· {{ts .HeardAt "time"}}</span></div>
           <div class="text-secondary small">{{template "checkin-reach" .}}</div>
         </div>
-        <form method="post" action="{{$.SessionURL}}/acks" class="m-0">
+        <form method="post" action="{{$.SessionURL}}/acks" hx-post="{{$.SessionURL}}/acks" hx-target="#session-live" hx-swap="outerHTML" class="m-0">
           <input type="hidden" name="user_id" value="{{.MemberID}}">
           <button type="submit" class="btn btn-primary btn-sm" data-testid="acknowledge">Acknowledge</button>
         </form>
@@ -96,7 +102,7 @@
         <div class="dropdown">
           <button type="button" class="btn btn-sm btn-ghost-secondary btn-icon" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Actions for {{.MemberName}}" data-testid="log-actions">{{template "icon-chevron-down" ""}}</button>
           <div class="dropdown-menu dropdown-menu-end">
-            <form method="post" action="{{$.SessionURL}}/acks/{{.MemberID}}/delete" class="m-0">
+            <form method="post" action="{{$.SessionURL}}/acks/{{.MemberID}}/delete" hx-post="{{$.SessionURL}}/acks/{{.MemberID}}/delete" hx-target="#session-live" hx-swap="outerHTML" class="m-0">
               <button type="submit" class="dropdown-item" data-testid="undo">{{if .Heard}}Undo acknowledgement{{else}}Remove check-in{{end}}</button>
             </form>
           </div>
@@ -127,7 +133,7 @@
 {{/* log-filter is one choice of the session log's filter. Data: dict Page,
      Value, Label. */}}
 {{define "log-filter"}}
-<a class="btn{{if eq .Page.LogFilter .Value}} active{{end}}" href="{{.Page.SessionURL}}{{with .Value}}?log={{.}}{{end}}"{{if eq .Page.LogFilter .Value}} aria-current="page"{{end}} data-testid="log-filter-{{or .Value "all"}}"{{with .Title}} title="{{.}}"{{end}}>{{.Label}}</a>
+<a class="btn{{if eq .Page.LogFilter .Value}} active{{end}}" href="{{.Page.SessionURL}}{{with .Value}}?log={{.}}{{end}}" hx-get="{{.Page.SessionURL}}{{with .Value}}?log={{.}}{{end}}" hx-target="#session-live" hx-swap="outerHTML" hx-replace-url="true"{{if eq .Page.LogFilter .Value}} aria-current="page"{{end}} data-testid="log-filter-{{or .Value "all"}}"{{with .Title}} title="{{.}}"{{end}}>{{.Label}}</a>
 {{end}}
 
 {{/* checkin-reach is how far a heard check-in got. Pass a store.RosterEntry. */}}
@@ -135,7 +141,8 @@
 
 {{/* session-modem is net control's modem: connected through the browser like
      the repeater console (mesh-bridge.js); netcontrol.js drives it. Everything
-     on the air happens server-side. */}}
+     on the air happens server-side. The scripts are deferred: netcontrol.js
+     also wires up "Add a check-in", which comes after this card. */}}
 {{define "session-modem"}}
 {{with .Modem}}
 <div class="card" data-net-modem data-ws-path="{{.WSPath}}" data-testid="net-modem">
@@ -166,25 +173,26 @@
     {{end}}
   </div>
 </div>
-<script src="{{ asset "/static/serial-port.js" }}"></script>
-<script src="{{ asset "/static/mesh-bridge.js" }}"></script>
-<script src="{{ asset "/static/netcontrol.js" }}"></script>
+<script src="{{ asset "/static/serial-port.js" }}" defer></script>
+<script src="{{ asset "/static/mesh-bridge.js" }}" defer></script>
+<script src="{{ asset "/static/netcontrol.js" }}" defer></script>
 {{end}}
 {{end}}
 
 {{/* session-add is net control's "Add a check-in": search the org's members
      (htmx, answered by member-search) and add one by hand, e.g. someone who
      checked in by channel message or has no companion. A result's Add button
-     submits this form with that member's id. */}}
+     submits this form with that member's id. The search names its own swap: it
+     would otherwise inherit the form's outerHTML and replace #add-results. */}}
 {{define "session-add"}}
 <div class="card" data-testid="add-checkin">
   <div class="card-header"><h2 class="card-title">Add a check-in</h2></div>
   <div class="card-body">
-    <form method="post" action="{{.SessionURL}}/acks">
+    <form method="post" action="{{.SessionURL}}/acks" hx-post="{{.SessionURL}}/acks" hx-target="#session-live" hx-swap="outerHTML" data-nc-add>
       <div class="mb-2">
         <label class="visually-hidden" for="add-search">Find a member</label>
         <input type="search" id="add-search" name="q" class="form-control" placeholder="Find a member…" autocomplete="off"
-               hx-get="{{.SessionURL}}/members" hx-trigger="input changed delay:250ms, search" hx-target="#add-results" data-testid="add-search">
+               hx-get="{{.SessionURL}}/members" hx-trigger="input changed delay:250ms, search" hx-target="#add-results" hx-swap="innerHTML" data-testid="add-search">
       </div>
       <div class="mb-2">
         <label class="visually-hidden" for="add-note">Note</label>

@@ -509,20 +509,20 @@ func (s *Handlers) handleAcknowledge(w http.ResponseWriter, r *http.Request) {
 	}
 	member, err := strconv.ParseInt(r.FormValue("user_id"), 10, 64)
 	if err != nil {
-		web.RedirectErr(w, r, sessionURL(r), "Choose a member.")
+		web.RedirectErr(w, r, sessionReturnURL(r), "Choose a member.")
 		return
 	}
 	err = s.Store.AcknowledgeMember(r.Context(), c.org.ID, c.session.ID, member, s.Auth.CurrentUserID(r.Context()),
 		strings.TrimSpace(r.FormValue("note")), time.Now())
 	if errors.Is(err, store.ErrNotFound) {
-		web.RedirectErr(w, r, sessionURL(r), "That member isn't in this organization.")
+		web.RedirectErr(w, r, sessionReturnURL(r), "That member isn't in this organization.")
 		return
 	}
 	if err != nil {
 		s.ServerError(w, r, "Couldn't record the acknowledgement.", err)
 		return
 	}
-	http.Redirect(w, r, sessionURL(r), http.StatusSeeOther) //nolint:gosec // G710: local path
+	http.Redirect(w, r, sessionReturnURL(r), http.StatusSeeOther) //nolint:gosec // G710: local path
 }
 
 func (s *Handlers) handleRemoveAcknowledge(w http.ResponseWriter, r *http.Request) {
@@ -546,5 +546,5 @@ func (s *Handlers) handleRemoveAcknowledge(w http.ResponseWriter, r *http.Reques
 		s.ServerError(w, r, "Couldn't undo the acknowledgement.", err)
 		return
 	}
-	http.Redirect(w, r, sessionURL(r), http.StatusSeeOther) //nolint:gosec // G710: local path
+	http.Redirect(w, r, sessionReturnURL(r), http.StatusSeeOther) //nolint:gosec // G710: local path
 }

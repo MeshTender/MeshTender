@@ -2,6 +2,7 @@ package core
 
 import (
 	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 	"time"
@@ -59,12 +60,28 @@ func sessionLog(roster []store.RosterEntry, messages []store.NetSessionMessage, 
 }
 
 // logFilter reads ?log=, defaulting to everything.
-func logFilter(r *http.Request) string {
-	switch f := r.URL.Query().Get("log"); f {
+func logFilter(r *http.Request) string { return knownLogFilter(r.URL.Query().Get("log")) }
+
+// knownLogFilter keeps only the filters the page offers.
+func knownLogFilter(f string) string {
+	switch f {
 	case logCheckIns, logNews:
 		return f
 	}
 	return logAll
+}
+
+// sessionReturnURL is where net control's actions land: the session page with
+// the log filter they were viewing. htmx sends the page's URL as HX-Current-URL
+// (the filter links update it in place); a plain post shows everything.
+func sessionReturnURL(r *http.Request) string {
+	u := sessionURL(r)
+	if cur, err := url.Parse(r.Header.Get("HX-Current-URL")); err == nil {
+		if f := knownLogFilter(cur.Query().Get("log")); f != logAll {
+			u += "?log=" + f
+		}
+	}
+	return u
 }
 
 func (s *Handlers) pageNetSession(w http.ResponseWriter, r *http.Request) {
@@ -157,9 +174,12 @@ func (s *Handlers) pageNetSession(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	// The in-progress page polls itself (htmx) so net control sees adverts
-	// arrive; that request gets just the live part.
+	// arrive, and net control's actions and the log filter swap the live part
+	// in place rather than reloading the page (which would drop the modem).
+	// Those requests get just the live part, which then shows any flash itself.
 	if r.Header.Get("HX-Request") != "" {
 		data["Layout"] = "session-live"
+		data["Fragment"] = true
 	}
 	s.Render(w, r, "net_session.html", data)
 }
