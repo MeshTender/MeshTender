@@ -247,7 +247,7 @@ func TestE2ERootFloodSwitchAutosubmits(t *testing.T) {
 			chromedp.WaitVisible(sw, chromedp.ByQuery)),
 		// Clicking it submits the form; the page reloads with the switch off.
 		step("toggle the root flood switch",
-			chromedp.Click(sw, chromedp.ByQuery),
+			reloadedBy(chromedp.Click(sw, chromedp.ByQuery)),
 			chromedp.WaitVisible(sw, chromedp.ByQuery),
 			chromedp.Evaluate(`document.querySelector('`+sw+`').checked`, &checked)),
 	); err != nil {
@@ -256,20 +256,11 @@ func TestE2ERootFloodSwitchAutosubmits(t *testing.T) {
 	if checked {
 		t.Error("the root flood switch should render unchecked after toggling it off")
 	}
-	// Polling is necessary rather than sloppy: form.submit() navigates
-	// asynchronously, so chromedp.Run can return before the POST has been handled.
-	// Wait for the write to land instead of assuming it already has.
-	denied := false
-	for i := 0; i < 25 && !denied; i++ {
-		allow, err := srv.store.RootAllowFlood(srv.ctx, org.ID)
-		if err != nil {
-			t.Fatalf("read root flood: %v", err)
-		}
-		if denied = !allow; !denied {
-			time.Sleep(200 * time.Millisecond)
-		}
-	}
-	if !denied {
+	// The reloaded page only exists once the POST has been handled, so the
+	// write has landed by now.
+	if allow, err := srv.store.RootAllowFlood(srv.ctx, org.ID); err != nil {
+		t.Fatalf("read root flood: %v", err)
+	} else if allow {
 		t.Error("toggling the root flood switch did not persist a deny")
 	}
 	watch.assertClean(t)

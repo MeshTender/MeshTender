@@ -43,6 +43,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/chromedp/cdproto/emulation"
 	cdplog "github.com/chromedp/cdproto/log"
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/cdproto/page"
@@ -507,10 +508,23 @@ func startBrowser(t *testing.T) (context.Context, context.CancelFunc, *consoleWa
 	// The suite serves a self-signed cert; trust it for every test (also gives
 	// WebAuthn its required secure context). This first Run also creates the
 	// target the listener above attaches to.
-	if err := chromedp.Run(ctx, security.SetIgnoreCertificateErrors(true)); err != nil {
+	//
+	// And no motion. chromedp clicks by measuring where an element is, then
+	// pressing the mouse there; anything still moving in between — a smooth
+	// scroll to a URL's #anchor, a collapse opening, a fade — puts something
+	// else under the pointer, and the click misses only when the timing is
+	// unlucky (TestE2EPageIsStillOnceLoaded). Tabler honors the user setting
+	// for reduced motion by turning all of that off, so ask for it: once a page
+	// has loaded, it stays still. No test is about animation.
+	if err := chromedp.Run(ctx,
+		security.SetIgnoreCertificateErrors(true),
+		emulation.SetEmulatedMedia().WithFeatures([]*emulation.MediaFeature{
+			{Name: "prefers-reduced-motion", Value: "reduce"},
+		}),
+	); err != nil {
 		cancelCtx()
 		cancelAlloc()
-		t.Fatalf("ignore certificate errors: %v", err)
+		t.Fatalf("set up the browser: %v", err)
 	}
 
 	// Every test runs under testDeadline, so one that hangs fails on its own,
@@ -560,6 +574,37 @@ func stepWithin(name string, limit time.Duration, actions ...chromedp.Action) ch
 		}
 		return nil
 	})
+}
+
+// reloadedBy runs trigger (a click that submits a form, say) and waits for the
+// page it causes to finish loading. A form that posts back to the page it's on
+// reloads into the same markup, so waiting for an element would find it on the
+// old page before it unloads, and anything read next would race the unload.
+// The old document is marked first; only a new one lacks the mark.
+//
+// The wait asks from Go, not with chromedp.Poll: a poll runs inside the old
+// document and dies with it ("Inspected target navigated or closed"), and the
+// navigation is exactly what this waits for. Errors while the old page unloads
+// mean "not yet"; the step bounds the whole wait.
+func reloadedBy(trigger chromedp.Action) chromedp.Action {
+	return chromedp.Tasks{
+		chromedp.Evaluate(`window.__e2eOldPage = true`, nil),
+		trigger,
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			for {
+				var loaded bool
+				err := chromedp.Evaluate(`!window.__e2eOldPage && document.readyState === "complete"`, &loaded).Do(ctx)
+				if err == nil && loaded {
+					return nil
+				}
+				select {
+				case <-ctx.Done():
+					return fmt.Errorf("no new page finished loading: %w", ctx.Err())
+				case <-time.After(50 * time.Millisecond):
+				}
+			}
+		}),
+	}
 }
 
 // acceptDialogs auto-accepts window.confirm/alert dialogs for the rest of the

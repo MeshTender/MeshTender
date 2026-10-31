@@ -107,10 +107,13 @@ Nothing in the UI should be slow, so a step that needs longer has usually found
 a bug; the few that are slow on purpose (maps, the fake repeater's device
 timing, CSP report batching) use `stepWithin` with a comment saying why. Every
 test also has a 2-minute backstop (`testDeadline`), so one hang can't stall the
-whole run. Give elements a stable `data-testid`/class hook rather than selecting
-on Bootstrap layout classes. CI runs these non-gating (the `e2e` job in
-`.github/workflows/ci.yml`); `E2E_DEVTOOLS_URL`/`E2E_BROWSER_HOST` override the
-addresses there.
+whole run. The browser runs with reduced motion (no smooth scrolling, collapse
+or fade), so a page is still once it has loaded; a click that submits a form
+back to the same page goes in `reloadedBy(...)`, which waits for the new page
+rather than finding the old one's markup. Give elements a stable
+`data-testid`/class hook rather than selecting on Bootstrap layout classes. CI
+runs these non-gating (the `e2e` job in `.github/workflows/ci.yml`);
+`E2E_DEVTOOLS_URL`/`E2E_BROWSER_HOST` override the addresses there.
 
 **Tabler markup gotchas — the CSS decides the DOM you must write.** A component
 can silently demand a particular child structure, and getting it wrong renders
