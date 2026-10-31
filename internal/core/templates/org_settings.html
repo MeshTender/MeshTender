@@ -148,7 +148,7 @@
 {{/* Denying the wildcard is the one setting here that can quietly take an org off
      the air, so it gets a standing alert rather than a line of small print. */}}
 <div class="alert alert-danger" role="alert" data-testid="config-root-deny-warning">
-  <div>{{template "icon-alert" "alert-icon"}}</div>
+  {{template "icon-alert" "alert-icon"}}
   <div>
     <div class="fw-bold">Unscoped packets are being dropped</div>
     <p class="mb-0">

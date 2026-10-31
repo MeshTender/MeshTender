@@ -24,7 +24,7 @@
     </p>
     {{if .Preview.LastSiteAdmin}}
     <div class="alert alert-warning" role="alert">
-      <div>{{template "icon-alert" "alert-icon"}}</div>
+      {{template "icon-alert" "alert-icon"}}
       <div>
         <h3 class="alert-title">You're the last administrator of this site</h3>
         <div class="text-secondary">
@@ -36,7 +36,7 @@
     {{end}}
     {{if .Preview.OrgsBlocked}}
     <div class="alert alert-warning mb-0" role="alert">
-      <div>{{template "icon-alert" "alert-icon"}}</div>
+      {{template "icon-alert" "alert-icon"}}
       <div>
         <h3 class="alert-title">
           You're the only admin of {{if eq (len .Preview.OrgsBlocked) 1}}an organization{{else}}some organizations{{end}} with other members

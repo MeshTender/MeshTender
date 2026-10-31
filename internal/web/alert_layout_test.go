@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -12,33 +13,29 @@ import (
 
 // templateAction matches a Go template action. They're stripped before parsing so
 // a conditional or a field interpolation inside an alert isn't mistaken for
-// content of its own.
+// markup of its own.
 var templateAction = regexp.MustCompile(`\{\{[^}]*\}\}`)
 
-// TestAlertBodiesAreSingleChild enforces that a Tabler .alert wraps its body in
-// exactly one child element.
+// iconAction matches an icon partial invocation, `{{template "icon-…" "classes"}}`,
+// capturing its classes. It's expanded to a stand-in <svg> before the other
+// actions are stripped, so the icon's position in the tree survives parsing.
+var iconAction = regexp.MustCompile(`\{\{template "icon-[a-z0-9-]+" "([^"]*)"\}\}`)
+
+// TestAlertIconsAreDirectChildren enforces that a Tabler .alert-icon sits
+// directly inside its .alert.
 //
-// Tabler styles .alert as `display:flex; flex-direction:row; gap:1rem`, which
-// makes every child node a flex COLUMN. An alert written the obvious way —
-// prose with an inline <code> or <strong> in the middle, or a heading above a
-// list — therefore renders as several side-by-side columns with 1rem gutters
-// instead of flowing or stacking. Nothing errors, no test fails, and the CSP is
-// happy; it just looks wrong, which is why this is worth pinning.
-//
-// The fix is always the same: put the body in a single <div>.
-//
-//	<div class="alert alert-info" role="alert">
-//	  <div>… prose with <code>inline</code> markup …</div>
-//	</div>
-//
-// The one intentional multi-column case is Tabler's icon layout, where a leading
-// icon really is meant to sit beside the body:
+// Tabler (1.7+) lays the icon out with `.alert > .alert-icon` (absolutely
+// positioned in the left padding) and `.alert:has(> .alert-icon)` (which widens
+// that padding to make room). Both selectors are child combinators, so an icon
+// wrapped in anything — the `<div>` slot the pre-1.7 flex layout wanted — matches
+// neither: it drops into normal flow and renders above the title instead of
+// beside it. Nothing errors; it just looks wrong.
 //
 //	<div class="alert alert-warning" role="alert">
-//	  <div>{{template "icon-alert" "alert-icon"}}</div>
+//	  {{template "icon-alert" "alert-icon"}}
 //	  <div>… body …</div>
 //	</div>
-func TestAlertBodiesAreSingleChild(t *testing.T) {
+func TestAlertIconsAreDirectChildren(t *testing.T) {
 	t.Parallel()
 	root := moduleRoot(t)
 
@@ -55,18 +52,18 @@ func TestAlertBodiesAreSingleChild(t *testing.T) {
 		}
 		rel, _ := filepath.Rel(root, path)
 
-		// Strip template actions first: `{{if …}}` would otherwise parse as a text
-		// node and read as a second child.
-		src := templateAction.ReplaceAll(b, nil)
+		src := iconAction.ReplaceAll(b, []byte(`<svg class="icon $1"></svg>`))
+		src = templateAction.ReplaceAll(src, nil)
 		doc, err := html.Parse(strings.NewReader(string(src)))
 		if err != nil {
 			t.Errorf("%s: parse: %v", rel, err)
 			return nil
 		}
-		for _, alert := range findAlerts(doc) {
-			if n := meaningfulChildren(alert); n > 1 {
-				t.Errorf("%s: .alert has %d children, want 1 — .alert is display:flex, so each child "+
-					"becomes a side-by-side column. Wrap the body in a single <div>.", rel, n)
+		for _, icon := range findByClass(doc, "alert-icon") {
+			if p := icon.Parent; p == nil || !hasClass(p, "alert") {
+				t.Errorf("%s: .alert-icon is not a direct child of .alert — Tabler positions it "+
+					"with `.alert > .alert-icon`, so a wrapped icon renders above the title. "+
+					"Drop the wrapper element.", rel)
 			}
 		}
 		return nil
@@ -77,7 +74,7 @@ func TestAlertBodiesAreSingleChild(t *testing.T) {
 }
 
 // TestFullWidthFlexButtonsAreTextStart is the same class of trap as
-// TestAlertBodiesAreSingleChild: a component whose default styling quietly
+// TestAlertIconsAreDirectChildren: a component whose default styling quietly
 // contradicts the layout it's being used for.
 //
 // A <button> centers its text. That's invisible on an ordinary button, whose text
@@ -126,24 +123,13 @@ func TestFullWidthFlexButtonsAreTextStart(t *testing.T) {
 	}
 }
 
-// findAlerts returns every element carrying the bare "alert" class. Modifier
-// classes (alert-title, alert-icon, alert-heading) are not flex containers and
-// are deliberately excluded.
-func findAlerts(n *html.Node) []*html.Node {
+// findByClass returns every element carrying class.
+func findByClass(n *html.Node, class string) []*html.Node {
 	var out []*html.Node
 	var walk func(*html.Node)
 	walk = func(n *html.Node) {
-		if n.Type == html.ElementNode {
-			for _, a := range n.Attr {
-				if a.Key != "class" {
-					continue
-				}
-				for _, c := range strings.Fields(a.Val) {
-					if c == "alert" {
-						out = append(out, n)
-					}
-				}
-			}
+		if n.Type == html.ElementNode && hasClass(n, class) {
+			out = append(out, n)
 		}
 		for c := n.FirstChild; c != nil; c = c.NextSibling {
 			walk(c)
@@ -153,40 +139,12 @@ func findAlerts(n *html.Node) []*html.Node {
 	return out
 }
 
-// meaningfulChildren counts the child nodes that become flex body columns:
-// elements and non-whitespace text. Comments and whitespace don't.
-//
-// An icon slot doesn't either. Tabler's icon layout puts the icon in its own
-// leading child, which is meant to be a separate column; since this file strips
-// template actions before parsing, that child ({{template "icon-…"}} and nothing
-// else) is left empty, and an empty element is how we recognize it.
-func meaningfulChildren(n *html.Node) int {
-	count := 0
-	for c := n.FirstChild; c != nil; c = c.NextSibling {
-		switch c.Type {
-		case html.ElementNode:
-			if !isEmptyElement(c) {
-				count++
-			}
-		case html.TextNode:
-			if strings.TrimSpace(c.Data) != "" {
-				count++
-			}
+// hasClass reports whether element n's class attribute includes class.
+func hasClass(n *html.Node, class string) bool {
+	for _, a := range n.Attr {
+		if a.Key == "class" && slices.Contains(strings.Fields(a.Val), class) {
+			return true
 		}
 	}
-	return count
-}
-
-// isEmptyElement reports whether an element has no element children and no
-// non-whitespace text.
-func isEmptyElement(n *html.Node) bool {
-	for c := n.FirstChild; c != nil; c = c.NextSibling {
-		if c.Type == html.ElementNode {
-			return false
-		}
-		if c.Type == html.TextNode && strings.TrimSpace(c.Data) != "" {
-			return false
-		}
-	}
-	return true
+	return false
 }

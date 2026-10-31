@@ -121,21 +121,20 @@ badly without failing anything (no error, no CSP violation, no test). Check the
 component's rule in `internal/web/static/tabler.min.css` before writing new
 markup for it. The one that has already bitten us:
 
-- **`.alert` is `display:flex; flex-direction:row; gap:1rem`.** Every child node
-  becomes a side-by-side COLUMN. So the natural way to write an alert — prose
-  with an inline `<code>`/`<strong>` in the middle, or a heading above a list —
-  breaks the box into gutters instead of flowing or stacking. **Wrap the whole
-  body in a single `<div>`:**
+- **An `.alert-icon` must be a direct child of `.alert`.** Tabler 1.7+
+  positions it with `.alert > .alert-icon` (absolute, in the left padding) and
+  `.alert:has(> .alert-icon)` (widens that padding). Wrap the icon in anything —
+  e.g. the `<div>` slot Tabler's old flex layout wanted — and it matches
+  neither, so it lands above the title instead of beside it:
   ```html
-  <div class="alert alert-info" role="alert">
-    <div>… prose with <code>inline</code> markup …</div>
+  <div class="alert alert-warning" role="alert">
+    {{template "icon-alert" "alert-icon"}}
+    <div>… body …</div>
   </div>
   ```
-  The only intentional multi-column case is Tabler's icon layout
-  (`<div>{{template "icon-alert" "alert-icon"}}</div>` followed by the body
-  div). `TestAlertBodiesAreSingleChild` (`internal/web/alert_layout_test.go`)
-  enforces this; it parses the templates structurally, so extend it there if you
-  find another flex-container component with the same trap.
+  `TestAlertIconsAreDirectChildren` (`internal/web/alert_layout_test.go`)
+  enforces this; it parses the templates structurally, so extend that file if
+  you find another component with a child-structure trap.
 
 - **Fix Tabler in `app.css`, never in `tabler.min.css`** — that file's hash is
   pinned by `internal/licenses`. Example: Tabler before 1.7 shifted every
