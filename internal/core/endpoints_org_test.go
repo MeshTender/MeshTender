@@ -253,7 +253,7 @@ func TestOrgSettingsProfileInline(t *testing.T) {
 }
 
 // TestOrgTabsHeaderConsistent: every org page renders the same header and tabs —
-// Home, Members, Repeaters, Check-ins, and Settings for admins — with the tab the
+// Home, Check-ins, Members, Repeaters, and Settings for admins — with the tab the
 // page lives under marked active, and its sub-nav where the tab groups pages.
 // Plain members get no Settings tab.
 func TestOrgTabsHeaderConsistent(t *testing.T) {
@@ -292,7 +292,7 @@ func TestOrgTabsHeaderConsistent(t *testing.T) {
 		if strings.Contains(body, `data-testid="org-actions"`) {
 			t.Errorf("%q: the old Actions menu is back", c.path)
 		}
-		for _, tab := range []string{"org-tab-home", "org-tab-members", "org-tab-repeaters", "org-tab-checkins", "org-tab-settings"} {
+		for _, tab := range []string{"org-tab-home", "org-tab-checkins", "org-tab-members", "org-tab-repeaters", "org-tab-settings"} {
 			if !strings.Contains(body, `data-testid="`+tab+`"`) {
 				t.Errorf("%q: missing tab %s", c.path, tab)
 			}

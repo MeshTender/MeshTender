@@ -36,8 +36,8 @@
               {{- if .Repeater.Corroborated}}{{$why = "Reached over the air by "}}{{if .Repeater.SelfConfirmed}}{{if .IsOwner}}{{$why = print $why "you, "}}{{else}}{{$why = print $why .Repeater.OwnerName ", "}}{{end}}{{end}}{{range $i, $n := .Repeater.Corroborators}}{{if $i}}{{$why = print $why ", "}}{{end}}{{$why = print $why $n}}{{end}}{{$why = print $why "."}}
               {{- else if .Repeater.SelfConfirmed}}{{if .IsOwner}}{{$why = "You've reached it over the air; no one else has yet."}}{{else}}{{$why = print .Repeater.OwnerName ", its owner, has reached it over the air; no one else has yet."}}{{end}}
               {{- else if .Repeater.Confirmed}}{{$why = "Reached over the air through MeshTender."}}
-              {{- else}}{{$why = "No one has reached it over the air through MeshTender yet. Connecting to it through a KISS modem on the Configure tab confirms it."}}{{end -}}
-              <span data-tooltip title="{{$why}}" tabindex="0" data-testid="repeater-status">{{if .Repeater.Confirmed}}<span class="badge bg-green-lt">Confirmed</span>{{else}}<span class="badge bg-orange-lt">Not confirmed</span>{{end}}</span>
+              {{- else}}{{$why = "MeshTender hasn't logged in to it yet, so its admin grant isn't verified. That happens automatically the first time anyone connects to it."}}{{end -}}
+              <span data-tooltip title="{{$why}}" tabindex="0" data-testid="repeater-status">{{if .Repeater.Confirmed}}<span class="badge bg-green-lt">Confirmed</span>{{else}}<span class="badge bg-secondary-lt" data-testid="unconfirmed-badge">Not confirmed</span>{{end}}</span>
             </div>
           </div>
           <div class="datagrid-item">

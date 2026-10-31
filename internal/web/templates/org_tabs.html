@@ -31,16 +31,17 @@
 </div>
 {{end}}
 
-{{/* org-tabs: Home, Members, Repeaters and Check-ins, plus Settings for admins on
-     the right. Members and Check-ins are members-only — they carry personal info —
-     so a public view shows Home and Repeaters. The recommended configuration
+{{/* org-tabs: Home, Check-ins, Members and Repeaters, plus Settings for admins on
+     the right. Taking part comes first; repeaters are a bonus. Check-ins and
+     Members are members-only — they carry personal info — so a public view
+     shows Home and Repeaters. The recommended configuration
      isn't a tab: Home and Repeaters link to it. */}}
 {{define "org-tabs"}}
 <ul class="nav nav-tabs mb-3" role="tablist" data-testid="org-tabs">
   <li class="nav-item"><a class="nav-link{{if eq .Tab "home"}} active{{end}}" href="/orgs/{{.Slug}}" data-testid="org-tab-home">{{template "icon-home" "me-1"}}Home</a></li>
+  {{if .IsMember}}<li class="nav-item"><a class="nav-link{{if eq .Tab "checkins"}} active{{end}}" href="/orgs/{{.Slug}}/nets" data-testid="org-tab-checkins">{{template "icon-calendar-event" "me-1"}}Check-ins</a></li>{{end}}
   {{if .IsMember}}<li class="nav-item"><a class="nav-link{{if eq .Tab "members"}} active{{end}}" href="/orgs/{{.Slug}}/members" data-testid="org-tab-members">{{template "icon-users" "me-1"}}Members</a></li>{{end}}
   <li class="nav-item"><a class="nav-link{{if eq .Tab "repeaters"}} active{{end}}" href="/orgs/{{.Slug}}/repeaters" data-testid="org-tab-repeaters">{{template "icon-antenna" "me-1"}}Repeaters</a></li>
-  {{if .IsMember}}<li class="nav-item"><a class="nav-link{{if eq .Tab "checkins"}} active{{end}}" href="/orgs/{{.Slug}}/nets" data-testid="org-tab-checkins">{{template "icon-calendar-event" "me-1"}}Check-ins</a></li>{{end}}
   {{if and .IsMember .IsAdmin}}<li class="nav-item ms-auto"><a class="nav-link{{if eq .Tab "settings"}} active{{end}}" href="/orgs/{{.Slug}}/settings" data-testid="org-tab-settings">{{template "icon-settings" "me-1"}}Settings</a></li>{{end}}
 </ul>
 {{end}}
@@ -53,15 +54,15 @@
   <div class="list-group list-group-transparent mb-3">
     {{template "org-settings-item" (dict "Nav" . "Section" "profile" "Label" "Profile" "Icon" "world")}}
   </div>
-  <h2 class="subheader">Repeaters</h2>
-  <div class="list-group list-group-transparent mb-3">
-    {{template "org-settings-item" (dict "Nav" . "Section" "regions" "Label" "Regions" "Icon" "map-pin")}}
-    {{template "org-settings-item" (dict "Nav" . "Section" "profiles" "Label" "Configuration profiles" "Icon" "list")}}
-  </div>
   <h2 class="subheader">Check-ins</h2>
-  <div class="list-group list-group-transparent">
+  <div class="list-group list-group-transparent mb-3">
     {{template "org-settings-item" (dict "Nav" . "Section" "mqtt" "Label" "MQTT" "Icon" "access-point")}}
     {{template "org-settings-item" (dict "Nav" . "Section" "nets" "Label" "Nets" "Icon" "calendar-event")}}
+  </div>
+  <h2 class="subheader">Repeaters</h2>
+  <div class="list-group list-group-transparent">
+    {{template "org-settings-item" (dict "Nav" . "Section" "regions" "Label" "Regions" "Icon" "map-pin")}}
+    {{template "org-settings-item" (dict "Nav" . "Section" "profiles" "Label" "Configuration profiles" "Icon" "list")}}
   </div>
 </nav>
 {{end}}

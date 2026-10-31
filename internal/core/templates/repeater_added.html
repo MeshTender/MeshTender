@@ -10,33 +10,30 @@
 <ul class="steps steps-counter mb-4">
   <li class="step-item">Grant access</li>
   <li class="step-item">Repeater details</li>
-  <li class="step-item active">Confirm &amp; share</li>
+  <li class="step-item active">Finish</li>
 </ul>
 
 <div class="card">
   <div class="card-body">
     <h2 class="card-title">{{template "icon-check" "me-1 text-success"}}“{{.Repeater.Name}}” added</h2>
     <p class="text-secondary mb-0">
-      It's registered but <strong>unconfirmed</strong> — MeshTender hasn't reached it yet. Both options
-      below are optional; your repeater is already usable by anyone you share it with.
+      It's registered and already usable by anyone you share it with. Both options below are optional.
     </p>
   </div>
 </div>
 
 <div class="card mt-3">
   <div class="card-body">
-    <h2 class="card-title">Confirm it works <span class="text-secondary">(optional)</span></h2>
+    <h2 class="card-title">Confirm it over the air <span class="text-secondary">(optional)</span></h2>
     <p class="text-secondary">
-      Connect a MeshCore KISS modem and have MeshTender login to verify it has admin access. Confirming
-      now marks it <span class="badge bg-azure-lt">Self-confirmed</span>. Later, if another member reaches it
-      from their modem, it becomes <span class="badge bg-success-lt">Corroborated</span> — proof that more than
-      one person can reach it.
+      Confirming only verifies that MeshTender's admin grant took: MeshTender logs in to the repeater and
+      checks the reply. If you have a MeshCore KISS modem, you can do that now.
     </p>
-    <p class="text-secondary">No modem handy? Skip this — anyone you share it with can corroborate it for you later.</p>
-    <div class="btn-list">
-      <a class="btn btn-primary" href="/repeaters/{{.Repeater.PublicID}}/configure">Connect and confirm now</a>
-      <a class="btn" href="/">Skip for now</a>
-    </div>
+    <p class="text-secondary" data-testid="confirm-not-needed">
+      No modem? That's fine. It's confirmed automatically the first time anyone connects to it through
+      MeshTender, such as an admin of an organization you share it with.
+    </p>
+    <a class="btn" href="/repeaters/{{.Repeater.PublicID}}/configure">Connect with a KISS modem</a>
   </div>
 </div>
 

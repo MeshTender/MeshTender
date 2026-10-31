@@ -6,8 +6,8 @@ import (
 )
 
 // TestDocsPage renders the public help page on the root host and confirms it
-// shows the live setperm command (with the instance's real key filled in) and
-// the key sidebar — the whole reason the page exists.
+// shows the live setperm command, with the instance's real key filled in, and
+// says confirming a repeater is optional.
 func TestDocsPage(t *testing.T) {
 	_, _, ts, h := splitServer(t)
 	body := readBody(t, do(t, ts, h.root, "/docs"))
@@ -15,7 +15,7 @@ func TestDocsPage(t *testing.T) {
 		"How MeshTender works",
 		"Granting MeshTender admin",
 		"setperm ", // the live command, e.g. "setperm <hex> 3"
-		"MeshTender server public key",
+		"Confirming is <strong>optional</strong>",
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("docs page missing %q", want)

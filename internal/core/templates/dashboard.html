@@ -98,7 +98,7 @@
         </a>
         <a class="list-group-item list-group-item-action d-flex align-items-center" href="/repeaters">
           {{template "icon-antenna" "me-2 text-secondary"}}Repeaters
-          <span class="ms-auto">{{if .Unconfirmed}}<span class="badge bg-orange-lt me-2">{{.Unconfirmed}} not confirmed</span>{{end}}<span class="fw-bold">{{.OwnedCount}}</span></span>
+          <span class="ms-auto fw-bold">{{.OwnedCount}}</span>
         </a>
         {{if .SharedCount}}
         <a class="list-group-item list-group-item-action d-flex align-items-center" href="/repeaters">

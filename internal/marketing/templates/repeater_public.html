@@ -33,7 +33,7 @@
     <div class="card" data-testid="public-repeater-details">
       <div class="list-group list-group-flush">
         <div class="list-group-item d-flex align-items-center gap-2"><span class="text-secondary">Status</span>
-          <span class="ms-auto">{{if .Repeater.Confirmed}}<span class="badge bg-green-lt">Confirmed</span>{{else}}<span class="badge bg-orange-lt" title="No one has reached it over the air through MeshTender yet">Not confirmed</span>{{end}}</span></div>
+          <span class="ms-auto">{{if .Repeater.Confirmed}}<span class="badge bg-green-lt">Confirmed</span>{{else}}{{template "unconfirmed-badge"}}{{end}}</span></div>
         <div class="list-group-item d-flex align-items-center gap-2"><span class="text-secondary">Added</span><span class="ms-auto">{{ts .Repeater.CreatedAt "date"}}</span></div>
         <div class="list-group-item d-flex align-items-center gap-2"><span class="text-secondary">Radio</span><span class="ms-auto font-monospace small">{{.Radio}}</span></div>
         <div class="list-group-item d-flex align-items-center gap-2"><span class="text-secondary">Public key</span><span class="ms-auto">{{template "pubkey" .Repeater.PublicKeyHex}}</span></div>

@@ -486,12 +486,8 @@ func (s *Handlers) pageDashboard(w http.ResponseWriter, r *http.Request) {
 		orgs[i] = dashboardOrg{OrgMembership: m, Net: soonest[m.Org.ID]}
 	}
 
-	unconfirmed := 0
 	var mapped []*store.Repeater
 	for _, rp := range owned {
-		if !rp.Confirmed {
-			unconfirmed++
-		}
 		if rp.Latitude != nil && rp.Longitude != nil {
 			mapped = append(mapped, rp)
 		}
@@ -592,7 +588,6 @@ func (s *Handlers) pageDashboard(w http.ResponseWriter, r *http.Request) {
 		"LiveNets":        live,
 		"Orgs":            orgs,
 		"OwnedCount":      len(owned),
-		"Unconfirmed":     unconfirmed,
 		"SharedCount":     len(shared),
 		"CompanionCount":  len(companions),
 		"Unheard":         unheard,

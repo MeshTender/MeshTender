@@ -37,15 +37,6 @@
         <a class="list-group-item list-group-item-action" href="/docs/regions" data-testid="docs-regions-link">Regions &amp; scoping</a>
       </div>
     </div>
-    {{if .ServerKey}}
-    <div class="card mt-3">
-      <div class="card-header"><h2 class="card-title">MeshTender's key</h2></div>
-      <div class="card-body">
-        <div class="form-label">MeshTender server public key</div>
-        <code class="pk d-block">{{.ServerKey}}</code>
-      </div>
-    </div>
-    {{end}}
   </div>
 
   <div class="col-lg-8">
@@ -98,7 +89,7 @@
           <li><strong>Set up a brand-new repeater (USB)</strong> — connect a freshly-flashed repeater over USB serial and MeshTender runs the whole setup for you from your organization's configuration profile: identity, radio, region, name, and the admin grant. You need only the repeater and a USB cable — no modem, not even a companion.</li>
           <li><strong>Add one that's already on the network (over the air)</strong> — for a repeater you've already configured, MeshTender reaches it over the air through a <a href="#kiss">KISS modem</a> attached to your browser. You grant MeshTender admin with the <a href="#setperm"><code>setperm</code></a> command yourself first, then register it here.</li>
         </ul>
-        <p>A registered repeater shows as <strong>confirmed</strong> once MeshTender has actually reached it. There's nothing to click for that: open the repeater's <strong>Configure</strong> tab and connect through your KISS modem, and the signed login that opens every session doubles as the proof — it confirms the repeater the first time it replies. If the reply reports guest access, the <code>setperm</code> grant hasn't been applied yet; run it, then connect again.</p>
+        <p>A registered repeater shows as <strong>confirmed</strong> once MeshTender has actually reached it, which verifies that the <code>setperm</code> grant took. Confirming is <strong>optional</strong>, and it needn't be you who does it: the signed login that opens every session doubles as the proof, so the first time anyone connects to the repeater through a <a href="#kiss">KISS modem</a> — you, or an admin of an organization you share it with — it's confirmed. If that login reports guest access, the grant hasn't been applied yet; run it, then connect again.</p>
         <p class="mb-0">Either way, the device must already be running MeshCore's <strong>Repeater</strong> firmware — MeshTender configures repeaters, it doesn't flash them. A MeshCore device runs one firmware at a time (Repeater, a Companion variant, or KISS modem), so switching roles means re-flashing.</p>
       </div>
     </div>

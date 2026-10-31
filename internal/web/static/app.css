@@ -38,7 +38,6 @@ a.back-link:hover {
 }
 
 /* ---------- Public-key / monospace code blocks ---------- */
-code.pk,
 code.pubkey {
   display: block;
   word-break: break-all;

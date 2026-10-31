@@ -166,9 +166,9 @@
       <ul class="navbar-nav" data-testid="topnav">
         {{if .UserName}}
         {{template "topnav-item" (dict "Page" . "Section" "dashboard" "Href" (printf "%s/" .AppURL) "Icon" "home" "Label" "Dashboard")}}
-        {{template "topnav-item" (dict "Page" . "Section" "repeaters" "Href" (printf "%s/repeaters" .AppURL) "Icon" "antenna" "Label" "Repeaters")}}
-        {{template "topnav-item" (dict "Page" . "Section" "companions" "Href" (printf "%s/companions" .AppURL) "Icon" "radio" "Label" "Companions")}}
         {{template "topnav-item" (dict "Page" . "Section" "organizations" "Href" (printf "%s/orgs" .AppURL) "Icon" "world" "Label" "Organizations")}}
+        {{template "topnav-item" (dict "Page" . "Section" "companions" "Href" (printf "%s/companions" .AppURL) "Icon" "radio" "Label" "Companions")}}
+        {{template "topnav-item" (dict "Page" . "Section" "repeaters" "Href" (printf "%s/repeaters" .AppURL) "Icon" "antenna" "Label" "Repeaters")}}
         {{else}}
         {{template "topnav-item" (dict "Page" . "Section" "organizations" "Href" (printf "%s/orgs" .RootURL) "Icon" "world" "Label" "Organizations")}}
         {{end}}
@@ -245,11 +245,14 @@
 
 {{/* repstatus renders confirmation provenance + access badges for a *store.Repeater. */}}
 {{define "repstatus"}}
-{{- if not .Confirmed -}}
-  <span class="badge bg-orange-lt" title="No one has reached it over the air through MeshTender yet">Not confirmed</span>
-{{- end -}}
+{{- if not .Confirmed}}{{template "unconfirmed-badge"}}{{end -}}
 {{- if and .AccessKnown (not .IsAdmin)}}<span class="badge bg-red-lt" title="MeshTender hasn't been given admin on it">Guest access only</span>{{end -}}
 {{end}}
+
+{{/* unconfirmed-badge marks a repeater MeshTender hasn't logged in to yet. It's
+     gray, not a warning color: confirming is optional — it only verifies the
+     setperm grant, and happens on its own the first time anyone connects. */}}
+{{define "unconfirmed-badge"}}<span class="badge bg-secondary-lt" title="MeshTender hasn't logged in to it yet, so its admin grant isn't verified. That happens automatically the first time anyone connects to it." data-testid="unconfirmed-badge">Not confirmed</span>{{end}}
 
 {{/* map-styles / map-scripts are the vendored map stack, in one place rather than
      hand-listed by each of the ten pages that render a map — which is how the
