@@ -14,7 +14,7 @@ import (
 // gutter beside its body rather than stacked above it. Tabler only positions an
 // .alert-icon that is a direct child of the .alert; one wrapped in a <div> fell
 // into normal flow above the title (see TestAlertIconsAreDirectChildren). The
-// add-repeater consent step carries two icon alerts, so it exercises both.
+// add-repeater consent step's admin-grant warning is the alert checked.
 func TestE2EAlertIconsSitBesideTheBody(t *testing.T) {
 	srv := newE2EServer(t)
 	_, cookie := srv.login(t, "alerter")
@@ -44,8 +44,8 @@ func TestE2EAlertIconsSitBesideTheBody(t *testing.T) {
 	); err != nil {
 		t.Fatalf("browser run: %v", err)
 	}
-	if len(beside) < 2 {
-		t.Fatalf("found %d icon alerts with a title, want at least 2", len(beside))
+	if len(beside) == 0 {
+		t.Fatal("found no icon alerts with a title")
 	}
 	for i, ok := range beside {
 		if !ok {

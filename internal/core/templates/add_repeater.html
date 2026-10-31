@@ -72,30 +72,6 @@
       </div>
     </div>
 
-    {{if ne .Method "serial"}}
-    {{/* Add-existing only: USB setup sets the location explicitly, so there's no
-    fetch to disclose there. */}}
-    <div class="alert alert-info" role="alert">
-      {{template "icon-map-pin" "alert-icon"}}
-      <div>
-        <h3 class="alert-title">MeshTender will read the repeater's location</h3>
-        <p class="text-secondary mb-0">
-          MeshTender reads this repeater's coordinates by running <code>get lat</code> / <code>get lon</code> through a
-          connected modem, when someone permitted to run those commands asks for them with “Fetch location” in the
-          console. Both sends are recorded in this repeater's command log, naming who asked — they're ordinary
-          commands, not something the site does invisibly. The coordinates place the repeater on the map and tailor
-          its <code>region</code> configuration. You stay in control: you decide who may run those commands, and you
-          can keep the repeater off the public map.
-        </p>
-      </div>
-    </div>
-    {{end}}
-
-    <div class="mb-3">
-      <div class="form-label">MeshTender server public key</div>
-      <code class="pubkey">{{.ServerPubKey}}</code>
-    </div>
-
     {{if eq .Method "serial"}}
     <div class="alert alert-info" role="alert">
       <div>MeshTender will run this command <strong>for you</strong> as part of the USB setup — you don't need to run
@@ -121,7 +97,8 @@
         <code class="form-control font-monospace">{{.SetPermCommand}}</code>
         <button type="button" class="btn" data-copy-prev>{{template "icon-copy" ""}}Copy</button>
       </div>
-      <small class="form-hint">Run it through the repeater console in the MeshCore companion app, or directly over USB serial.</small>
+      <small class="form-hint">Run it through the repeater console in the MeshCore companion app, or directly over
+        USB serial, to grant access to MeshTender's public key.</small>
     </div>
     {{template "revokedoc" .RevokeCommand}}
     <label class="form-check mt-3">

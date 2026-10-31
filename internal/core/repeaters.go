@@ -48,7 +48,6 @@ func (s *Handlers) pageAddRepeater(w http.ResponseWriter, r *http.Request) {
 	data := map[string]any{
 		"Step":           step,
 		"Method":         method,
-		"ServerPubKey":   s.Identity.PublicKeyHex(),
 		"SetPermCommand": s.Identity.SetPermCommand(),
 		"RevokeCommand":  s.Identity.RevokePermCommand(),
 		"Radio":          newRadioFields(defaultRadio(), true),

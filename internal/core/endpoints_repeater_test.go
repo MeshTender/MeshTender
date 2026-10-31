@@ -596,3 +596,24 @@ func TestAdminPosts(t *testing.T) {
 	setCaps.Body.Close()
 	assertRedirect(t, setCaps, "/admin/users", "set user caps")
 }
+
+// TestAddRepeaterConsentStepIsLean: the consent step shows the setperm command
+// (which already carries MeshTender's key) and the admin warning, but not the
+// standalone server-key box or the location-read notice that used to crowd it.
+func TestAddRepeaterConsentStepIsLean(t *testing.T) {
+	t.Parallel()
+	st, ctx, ts, h := splitServer(t)
+	_, sess := appLogin(t, ts, st, ctx, h.app, "consent")
+
+	for _, method := range []string{"kiss", "serial"} {
+		body := getBody(t, ts, h.app, "/repeaters/add?step=consent&method="+method, sess)
+		if !strings.Contains(body, "setperm ") {
+			t.Errorf("method=%s: consent step is missing the setperm command", method)
+		}
+		for _, gone := range []string{"MeshTender server public key", "read the repeater"} {
+			if strings.Contains(body, gone) {
+				t.Errorf("method=%s: consent step still shows %q", method, gone)
+			}
+		}
+	}
+}
