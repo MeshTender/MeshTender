@@ -30,12 +30,6 @@ func settingsURL(slug, section string) string {
 	return "/orgs/" + slug + "/settings/" + section
 }
 
-// profileForm is the org profile form's values: the org's own, or what was
-// submitted when it's re-shown with an error.
-type profileForm struct {
-	Name, Slug, Region, Description string
-}
-
 // requireSettings resolves the org for a Settings page, writing a 404 for anyone
 // but an org admin. ok is false when a response was written.
 func (s *Handlers) requireSettings(w http.ResponseWriter, r *http.Request) (*store.Org, bool) {
@@ -152,7 +146,8 @@ func (s *Handlers) settingsData(ctx context.Context, r *http.Request, org *store
 		if err != nil {
 			return nil, err
 		}
-		data["ProfileForm"] = profileForm{Name: org.Name, Slug: org.Slug, Region: org.Region, Description: org.Description}
+		data["ProfileForm"] = store.OrgProfile{Slug: org.Slug, Name: org.Name, Summary: org.Summary, Description: org.Description, Region: org.Region}
+		data["MaxOrgSummary"] = store.MaxOrgSummary
 		data["Links"] = links
 		data["Platforms"] = store.LinkPlatforms()
 		data["PlatformsJS"] = web.LinkPlatformsJS(store.LinkPlatforms())

@@ -105,10 +105,9 @@ func (s *Handlers) renderOrgPublic(w http.ResponseWriter, r *http.Request, org *
 		s.ServerError(w, r, "could not load organization", err)
 		return
 	}
-	// The schedule is public — it's what a visitor would be joining. Rosters and
-	// check-ins stay members-only.
-	now := time.Now()
-	nets, err := s.Store.ListOrgNetSummaries(r.Context(), org.ID, now)
+	// The radio and the net schedule are public — they're what a visitor would be
+	// joining. Rosters and check-ins stay members-only.
+	guide, err := web.BuildOrgGuide(r.Context(), s.Store, org.ID, time.Now())
 	if err != nil {
 		s.ServerError(w, r, "could not load organization", err)
 		return
@@ -128,8 +127,7 @@ func (s *Handlers) renderOrgPublic(w http.ResponseWriter, r *http.Request, org *
 		"MemberCount":   memberCount,
 		"RepeaterCount": repeaterCount,
 		"Links":         links,
-		"Nets":          web.ScheduledNets(nets),
-		"Now":           now,
+		"Guide":         guide,
 		"HasMap":        hasMap,
 		"MapURL":        orgMapURL(org.Slug),
 		"IsMember":      isMember,

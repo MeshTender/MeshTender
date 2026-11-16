@@ -194,8 +194,9 @@ func TestOrgConfigProfilesFlow(t *testing.T) {
 		t.Fatalf("a non-admin member should not see the config tab when there's no config")
 	}
 
-	// A config-less org hides the Configuration tab on its public page; the
-	// configured org shows it.
+	// A config-less org's public page doesn't point at a configuration it doesn't
+	// have; a configured org's is published in Guide › Repeater setup, which every
+	// public page reaches through its Guide tab.
 	empty, err := st.CreateOrg(ctx, "Empty Org", admin.ID)
 	if err != nil {
 		t.Fatalf("create org: %v", err)
@@ -205,7 +206,10 @@ func TestOrgConfigProfilesFlow(t *testing.T) {
 		t.Fatalf("public org page should hide the config tab when there's no config")
 	}
 	pub2 := readBody(t, do(t, ts, h.root, "/orgs/"+org.Slug))
-	if !strings.Contains(pub2, "/orgs/"+org.Slug+"/guide/repeaters") {
-		t.Fatalf("public org page should show the config tab when config exists")
+	if !strings.Contains(pub2, `href="/orgs/`+org.Slug+`/guide" data-testid="org-tab-guide"`) {
+		t.Fatalf("public org page should link its Guide")
+	}
+	if setup := readBody(t, do(t, ts, h.root, "/orgs/"+org.Slug+"/guide/repeaters")); !strings.Contains(setup, `data-testid="config-profile-list"`) {
+		t.Fatalf("Guide › Repeater setup should publish the configured org's profiles")
 	}
 }

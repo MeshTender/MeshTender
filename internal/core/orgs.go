@@ -2,10 +2,12 @@ package core
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/go-chi/chi/v5"
 
@@ -118,10 +120,9 @@ func (s *Handlers) renderOrgPublic(w http.ResponseWriter, r *http.Request, org *
 		s.ServerError(w, r, "could not load organization", err)
 		return
 	}
-	// The schedule is public — it's what a visitor would be joining. Rosters and
-	// check-ins stay members-only.
-	now := time.Now()
-	nets, err := s.Store.ListOrgNetSummaries(r.Context(), org.ID, now)
+	// The radio and the net schedule are public — they're what a visitor would be
+	// joining. Rosters and check-ins stay members-only.
+	guide, err := web.BuildOrgGuide(r.Context(), s.Store, org.ID, time.Now())
 	if err != nil {
 		s.ServerError(w, r, "could not load organization", err)
 		return
@@ -141,8 +142,7 @@ func (s *Handlers) renderOrgPublic(w http.ResponseWriter, r *http.Request, org *
 		"RepeaterCount": repeaterCount,
 		"Repeaters":     pubReps,
 		"Links":         links,
-		"Nets":          web.ScheduledNets(nets),
-		"Now":           now,
+		"Guide":         guide,
 		"HasMap":        len(pubReps) > 0,
 		"IsMember":      isMember,
 		"LoggedIn":      uid != 0,
@@ -227,17 +227,18 @@ func (s *Handlers) pageOrgRepeaters(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// handleEditOrg saves the org's name, URL slug, region and description from
-// Settings › Profile (admin only). A validation error re-shows the form with what
-// was entered.
+// handleEditOrg saves the org's name, URL slug, region, summary and description
+// from Settings › Profile (admin only). A validation error re-shows the form with
+// what was entered.
 func (s *Handlers) handleEditOrg(w http.ResponseWriter, r *http.Request) {
 	id, ok := s.requireOrgAdmin(w, r)
 	if !ok {
 		return
 	}
-	entered := profileForm{
+	entered := store.OrgProfile{
 		Name:        strings.TrimSpace(r.FormValue("name")),
 		Slug:        strings.ToLower(strings.TrimSpace(r.FormValue("slug"))),
+		Summary:     strings.Join(strings.Fields(r.FormValue("summary")), " "), // one line
 		Description: strings.TrimSpace(r.FormValue("description")),
 		Region:      strings.TrimSpace(r.FormValue("region")),
 	}
@@ -257,9 +258,13 @@ func (s *Handlers) handleEditOrg(w http.ResponseWriter, r *http.Request) {
 		fail("Slug must be 3–40 lowercase letters, numbers, and hyphens (and not reserved).")
 		return
 	}
-	desc := web.Clip(entered.Description, 2000)
-	region := web.Clip(entered.Region, 120)
-	if err := s.Store.UpdateOrg(r.Context(), id, entered.Slug, entered.Name, desc, region); errors.Is(err, store.ErrDuplicate) {
+	if utf8.RuneCountInString(entered.Summary) > store.MaxOrgSummary {
+		fail(fmt.Sprintf("Keep the summary to %d characters; the description has room for more.", store.MaxOrgSummary))
+		return
+	}
+	entered.Description = web.Clip(entered.Description, 2000)
+	entered.Region = web.Clip(entered.Region, 120)
+	if err := s.Store.UpdateOrg(r.Context(), id, entered); errors.Is(err, store.ErrDuplicate) {
 		fail("That URL slug is already taken.")
 		return
 	} else if err != nil {

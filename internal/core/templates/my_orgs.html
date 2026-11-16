@@ -39,7 +39,7 @@
         {{if eq .Role "admin"}}<span class="badge bg-blue-lt">Admin</span>{{end}}
         {{with .Org.Region}}<span class="text-secondary small ms-auto d-flex align-items-center">{{template "icon-map-pin" "me-1"}}{{.}}</span>{{end}}
       </div>
-      {{if .Org.Description}}<p class="text-secondary mb-0 mt-1 text-truncate">{{markdowntext .Org.Description}}</p>{{end}}
+      {{template "org-blurb" (dict "Summary" .Org.Summary "Description" .Org.Description)}}
     </a>
     {{end}}
   </div>

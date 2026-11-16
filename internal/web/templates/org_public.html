@@ -2,62 +2,111 @@
 {{define "header"}}{{template "org-header" .}}{{end}}
 {{define "content"}}
 {{template "org-tabs" .Nav}}
-{{/* The public face of an organization, laid out like the members' Home: About
-     (with its region and links) and its nets — what a visitor would be joining —
-     then a sidebar with how big it is, how to set up a repeater for it, where its
-     public repeaters are, and who runs it. */}}
-<div class="row row-cards">
-  <div class="col-lg-8 d-flex flex-column gap-3">
-    <div class="card" data-testid="public-about">
-      <div class="card-header">
-        <h2 class="card-title">About</h2>
-        {{with .Org.Region}}<div class="card-actions text-secondary d-flex align-items-center">{{template "icon-map-pin" "me-1"}}{{.}}</div>{{end}}
-      </div>
-      <div class="card-body">
-        {{if .Org.Description}}<div class="markdown">{{markdown .Org.Description}}</div>{{else}}<p class="text-secondary mb-0">This organization hasn't added a description yet.</p>{{end}}
-      </div>
-      {{if .Links}}{{template "org-links-list" .Links}}{{end}}
+{{/* The public face of an organization: the pitch to join. Who it is (its
+     one-line summary and size) and when it next meets, then its full About,
+     where its repeaters are and who runs it, and the call to action again at the
+     bottom. How to take part in general — the radio, registering, checking in —
+     is the Guide's. Members get Home instead; what doesn't
+     change week to week is here and in the Guide. */}}
+<div class="d-flex flex-column gap-3">
+  <section class="row g-3 align-items-center" data-testid="public-hero">
+    {{if or .Org.Summary .Org.Region}}
+    <div class="col-lg-7">
+      {{with .Org.Region}}<div class="text-secondary d-flex align-items-center mb-1">{{template "icon-map-pin" "me-1"}}{{.}}</div>{{end}}
+      {{with .Org.Summary}}<p class="fs-3 mb-0" data-testid="public-summary">{{.}}</p>{{end}}
     </div>
-    {{if .Nets}}{{template "org-nets-card" (dict "Nets" .Nets "Now" .Now)}}{{end}}
-  </div>
+    {{end}}
+    <div class="{{if or .Org.Summary .Org.Region}}col-lg-5{{else}}col-12{{end}}">
+      <div class="row g-2" data-testid="public-counts">
+        <div class="col-4"><div class="card card-sm"><div class="card-body">
+          <div class="h2 mb-0">{{.MemberCount}}</div><div class="text-secondary small">member{{if ne .MemberCount 1}}s{{end}}</div>
+        </div></div></div>
+        <div class="col-4"><div class="card card-sm"><div class="card-body">
+          <div class="h2 mb-0">{{len .Guide.Nets}}</div><div class="text-secondary small">weekly net{{if ne (len .Guide.Nets) 1}}s{{end}}</div>
+        </div></div></div>
+        <div class="col-4"><a class="card card-sm card-link text-reset" href="/orgs/{{.Org.Slug}}/repeaters"><div class="card-body">
+          <div class="h2 mb-0">{{.RepeaterCount}}</div><div class="text-secondary small">repeater{{if ne .RepeaterCount 1}}s{{end}}</div>
+        </div></a></div>
+      </div>
+    </div>
+  </section>
 
-  <div class="col-lg-4 d-flex flex-column gap-3">
-    <div class="card" data-testid="public-counts">
-      <div class="list-group list-group-flush">
-        <div class="list-group-item d-flex align-items-center">{{template "icon-users" "me-2 text-secondary"}}Members<span class="ms-auto fw-bold">{{.MemberCount}}</span></div>
-        <a class="list-group-item list-group-item-action d-flex align-items-center" href="{{.RootURL}}/orgs/{{.Org.Slug}}/repeaters">{{template "icon-antenna" "me-2 text-secondary"}}Repeaters<span class="ms-auto fw-bold">{{.RepeaterCount}}</span></a>
+  {{/* The next net, in one line: when to tune in is the most concrete thing about
+     the org. The how-to (radio preset, registering, checking in) is general
+     MeshCore, so it lives in the Guide behind one link. */}}
+  {{with .Guide.Nets}}{{$next := index . 0}}
+  <div class="card" data-testid="public-next-net">
+    <div class="card-body d-flex flex-wrap align-items-center gap-3 py-3">
+      {{if $.Guide.Now.Before $next.Next.StartsAt}}<span class="subheader">Next net</span>
+      {{else}}<span class="badge bg-green-lt">On the air now</span>{{end}}
+      <div class="flex-fill" style="min-width:0">
+        <span class="fw-bold">{{$next.Name}}</span> ·
+        {{if $.Guide.Now.Before $next.Next.StartsAt}}{{ts $next.Next.StartsAt "datetime"}}{{else}}until {{ts $next.Next.EndsAt "time"}}{{end}}
+        <span class="text-secondary">· {{$next.Schedule}}{{with $.Guide.MoreNets}} · +{{.}} more{{end}}</span>
       </div>
+      <a href="/orgs/{{$.Org.Slug}}/guide" data-testid="public-guide-link">How to take part</a>
     </div>
-    {{template "org-config-card" .Nav}}
+  </div>
+  {{else}}
+  <div><a href="/orgs/{{.Org.Slug}}/guide" data-testid="public-guide-link">How to take part in {{.Org.Name}}{{template "icon-arrow-right" "ms-1"}}</a></div>
+  {{end}}
+
+  {{if .Org.Description}}
+  <div class="card" data-testid="public-about">
+    <div class="card-header"><h2 class="card-title">About {{.Org.Name}}</h2></div>
+    <div class="card-body"><div class="markdown">{{markdown .Org.Description}}</div></div>
+  </div>
+  {{end}}
+
+  {{if or .HasMap .Admins .Links}}
+  <div class="row row-cards">
     {{if .HasMap}}
-    <div class="card">
-      <div class="card-header"><h2 class="card-title">Where its repeaters are</h2></div>
-      <div class="card-body p-2">
-        {{template "map-styles"}}
-        <div id="map" style="height:260px" role="region" aria-label="Map of organization repeater locations"></div>
-        {{template "map-scripts"}}
-        <script src="{{ asset "/static/meshmap.js" }}"></script>
-        <script nonce="{{.Nonce}}">
-          {{if .MapURL}}meshMapFromURL('map', {{.MapURL}});{{else}}meshMap('map', [
-            {{range .Repeaters}}{{if .HasLocation}}{name: {{.Name}}, lat: {{.Lat}}, lon: {{.Lon}}},{{end}}{{end}}
-          ]);{{end}}
-        </script>
+    <div class="{{if or .Admins .Links}}col-lg-8{{else}}col-12{{end}}">
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">Where its repeaters are</h2>
+          {{if .Nav.ShowConfig}}<div class="card-actions"><a href="/orgs/{{.Org.Slug}}/guide/repeaters" data-testid="org-config-link">Repeater setup</a></div>{{end}}
+        </div>
+        <div class="card-body p-2">
+          {{template "map-styles"}}
+          <div id="map" style="height:300px" role="region" aria-label="Map of organization repeater locations"></div>
+          {{template "map-scripts"}}
+          <script src="{{ asset "/static/meshmap.js" }}"></script>
+          <script nonce="{{.Nonce}}">
+            {{if .MapURL}}meshMapFromURL('map', {{.MapURL}});{{else}}meshMap('map', [
+              {{range .Repeaters}}{{if .HasLocation}}{name: {{.Name}}, lat: {{.Lat}}, lon: {{.Lon}}},{{end}}{{end}}
+            ]);{{end}}
+          </script>
+        </div>
       </div>
     </div>
     {{end}}
-    {{if .Admins}}
-    <div class="card">
-      <div class="card-header"><h2 class="card-title">Admins</h2></div>
-      <div class="list-group list-group-flush">
-        {{range .Admins}}
-        <a class="list-group-item list-group-item-action d-flex align-items-center gap-2" href="{{$.RootURL}}/u/{{.Username}}">
-          <span class="text-secondary d-flex">{{template "icon-user" ""}}</span>
-          <span class="flex-fill text-truncate">{{.Name}}</span>
-        </a>
+    {{if or .Admins .Links}}
+    <div class="{{if .HasMap}}col-lg-4{{else}}col-12{{end}}">
+      <div class="card" data-testid="public-who">
+        <div class="card-header"><h2 class="card-title">Who runs it</h2></div>
+        {{if .Admins}}
+        <div class="list-group list-group-flush">
+          {{range .Admins}}
+          <a class="list-group-item list-group-item-action d-flex align-items-center gap-2" href="{{$.RootURL}}/u/{{.Username}}">
+            <span class="text-secondary d-flex">{{template "icon-user" ""}}</span>
+            <span class="flex-fill text-truncate">{{.Name}}</span>
+          </a>
+          {{end}}
+        </div>
         {{end}}
+        {{if .Links}}{{template "org-links-list" .Links}}{{end}}
       </div>
     </div>
     {{end}}
   </div>
+  {{end}}
+
+  {{if not .Nav.CanGoToOrg}}
+  <section class="d-flex flex-wrap align-items-center justify-content-center gap-3 py-3" data-testid="public-join">
+    <span class="text-secondary">Want to take part in {{.Org.Name}}?</span>
+    {{template "org-cta" .}}
+  </section>
+  {{end}}
 </div>
 {{end}}

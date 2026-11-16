@@ -128,7 +128,7 @@ func TestListPublicOrgsPageSearch(t *testing.T) {
 		if err != nil {
 			t.Fatalf("create %q: %v", name, err)
 		}
-		if err := st.UpdateOrg(ctx, o.ID, o.Slug, name, desc, region); err != nil {
+		if err := st.UpdateOrg(ctx, o.ID, OrgProfile{Slug: o.Slug, Name: name, Description: desc, Region: region}); err != nil {
 			t.Fatalf("update %q: %v", name, err)
 		}
 	}

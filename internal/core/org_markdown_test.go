@@ -3,6 +3,8 @@ package core
 import (
 	"strings"
 	"testing"
+
+	"github.com/MeshTender/MeshTender/internal/store"
 )
 
 // TestOrgDescriptionRendersMarkdown verifies the public org page renders the org
@@ -18,7 +20,8 @@ func TestOrgDescriptionRendersMarkdown(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := st.UpdateOrg(ctx, org.ID, org.Slug, org.Name, "We run **many** repeaters.\n\n- one\n- two", "NA"); err != nil {
+	if err := st.UpdateOrg(ctx, org.ID, store.OrgProfile{Slug: org.Slug, Name: org.Name,
+		Description: "We run **many** repeaters.\n\n- one\n- two", Region: "NA"}); err != nil {
 		t.Fatal(err)
 	}
 

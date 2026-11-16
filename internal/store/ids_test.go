@@ -74,11 +74,11 @@ func TestOrgSlugGeneration(t *testing.T) {
 	}
 
 	// Renaming o2's slug to o1's is rejected as a duplicate.
-	if err := st.UpdateOrg(ctx, o2.ID, "buffalo-mesh", "X", "", ""); !errors.Is(err, ErrDuplicate) {
+	if err := st.UpdateOrg(ctx, o2.ID, OrgProfile{Slug: "buffalo-mesh", Name: "X"}); !errors.Is(err, ErrDuplicate) {
 		t.Fatalf("update to taken slug = %v, want ErrDuplicate", err)
 	}
 	// A free slug is accepted.
-	if err := st.UpdateOrg(ctx, o2.ID, "buffalo-backup", "X", "", ""); err != nil {
+	if err := st.UpdateOrg(ctx, o2.ID, OrgProfile{Slug: "buffalo-backup", Name: "X"}); err != nil {
 		t.Fatalf("update to free slug: %v", err)
 	}
 }

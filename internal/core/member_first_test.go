@@ -111,10 +111,11 @@ func TestRepeaterConfirmationIsOptional(t *testing.T) {
 	}
 }
 
-// TestPublicOrgPageShowsNetSchedule: the public org page shows the org's
-// scheduled nets — what a visitor would be joining — to anonymous visitors and
-// signed-in non-members alike, without linking into the members-only net pages
-// and without inactive nets. The directory row names the next one.
+// TestPublicOrgPageShowsNetSchedule: the public org page names the org's next
+// net — the soonest active one, with how many more there are — to anonymous
+// visitors and signed-in non-members alike, without linking into the
+// members-only net pages; an org without nets shows no strip. The directory row
+// names the next net too.
 func TestPublicOrgPageShowsNetSchedule(t *testing.T) {
 	t.Parallel()
 	st, ctx, ts, h := splitServer(t)
@@ -133,6 +134,9 @@ func TestPublicOrgPageShowsNetSchedule(t *testing.T) {
 	if _, err := st.CreateNet(ctx, org.ID, weekly, admin.ID, now); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := st.CreateNet(ctx, org.ID, netAround("Later Net", now.Add(5*time.Hour)), admin.ID, now); err != nil {
+		t.Fatal(err)
+	}
 	paused := netAround("Paused Net", now.Add(time.Hour))
 	paused.Active = false
 	if _, err := st.CreateNet(ctx, org.ID, paused, admin.ID, now); err != nil {
@@ -143,19 +147,21 @@ func TestPublicOrgPageShowsNetSchedule(t *testing.T) {
 		"anonymous (root host)": getBody(t, ts, h.root, "/orgs/"+org.Slug),
 		"non-member (app host)": getBody(t, ts, h.app, "/orgs/"+org.Slug, visitor),
 	} {
-		_, nets, ok := strings.Cut(body, `data-testid="org-nets"`)
-		if !ok || !strings.Contains(nets, "Sunday Check-in") || !strings.Contains(nets, weekly.Schedule()) {
-			t.Errorf("%s: public page lacks the net schedule", name)
+		_, next, ok := strings.Cut(body, `data-testid="public-next-net"`)
+		next, _, _ = strings.Cut(next, `data-testid="public-guide-link"`)
+		if !ok || !strings.Contains(next, "Sunday Check-in") || !strings.Contains(next, weekly.Schedule()) || !strings.Contains(next, "+1 more") {
+			t.Errorf("%s: the next-net strip lacks the soonest net, its schedule, or the count of the rest: %q", name, next)
 		}
-		if strings.Contains(body, "Paused Net") {
-			t.Errorf("%s: public page lists an inactive net", name)
+		if strings.Contains(body, "Paused Net") || strings.Contains(next, "Later Net") {
+			t.Errorf("%s: the strip names an inactive net or a later one", name)
 		}
 		if strings.Contains(body, `/orgs/`+org.Slug+`/nets/`) {
 			t.Errorf("%s: public page links into the members-only net pages", name)
 		}
 	}
-	if body := getBody(t, ts, h.root, "/orgs/"+quiet.Slug); strings.Contains(body, `data-testid="org-nets"`) {
-		t.Error("an org without nets shows an empty Nets card publicly")
+	if body := getBody(t, ts, h.root, "/orgs/"+quiet.Slug); strings.Contains(body, `data-testid="public-next-net"`) ||
+		!strings.Contains(body, `data-testid="public-guide-link"`) {
+		t.Error("an org without nets should show just the link to its Guide")
 	}
 
 	dir := getBody(t, ts, h.root, "/orgs?sort=name")

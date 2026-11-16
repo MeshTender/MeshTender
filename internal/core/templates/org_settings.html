@@ -57,9 +57,16 @@
     <input type="text" class="form-control" id="org_region" name="region" value="{{.ProfileForm.Region}}" maxlength="120" placeholder="e.g. Buffalo, NY">
   </div>
   <div class="mb-3">
+    <label class="form-label" for="org_summary">Summary <span class="text-secondary">(optional)</span></label>
+    <input type="text" class="form-control" id="org_summary" name="summary" value="{{.ProfileForm.Summary}}" maxlength="{{.MaxOrgSummary}}"
+           data-char-count="#org_summary_count" placeholder="e.g. Volunteer MeshCore network around Buffalo. Weekly check-in net; new members welcome.">
+    <small class="form-hint d-flex gap-2"><span class="flex-fill">One line, shown in the directory and at the top of your public page.</span>
+      <span class="text-nowrap" id="org_summary_count" data-testid="org-summary-count" aria-live="polite"></span></small>
+  </div>
+  <div class="mb-3">
     <label class="form-label" for="org_description">Description</label>
     <textarea class="form-control" id="org_description" name="description" rows="4" maxlength="2000" placeholder="What this organization is about, where it operates, etc.">{{.ProfileForm.Description}}</textarea>
-    <small class="form-hint">Markdown supported — headings, lists, links, and emphasis.</small>
+    <small class="form-hint">The About section of your public page. Markdown supported — headings, lists, links, and emphasis.</small>
   </div>
   <button type="submit" class="btn btn-primary" data-testid="save-profile-settings">Save profile</button>
 </form>

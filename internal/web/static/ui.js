@@ -31,6 +31,9 @@
 //                                    on hover/focus, instead of the browser's slow
 //                                    native one. Use it on icon-only controls,
 //                                    where the icon alone doesn't say what it does.
+//   [data-char-count="#sel"]      — a text input or textarea with a maxlength that
+//                                    keeps the target's text at "used / max"
+//                                    characters as it's typed in.
 //   [data-popover]                — like data-tooltip but for a paragraph rather
 //                                    than a label: title= is the heading and
 //                                    data-bs-content= the body. Put it on a
@@ -181,10 +184,25 @@
     target.hidden = !!box.checked;
   }
 
+  // A field's "used / max" character count. maxlength counts UTF-16 code units,
+  // as value.length does, so the two agree with what the browser lets you type.
+  function syncCharCounts(scope) {
+    var fields = (scope || document).querySelectorAll("[data-char-count]");
+    for (var i = 0; i < fields.length; i++) applyCharCount(fields[i]);
+  }
+
+  function applyCharCount(field) {
+    var target = document.querySelector(String(field.getAttribute("data-char-count") || ""));
+    var max = Number(field.getAttribute("maxlength"));
+    if (!target || !(max > 0)) return;
+    target.textContent = String(field.value || "").length + " / " + max;
+  }
+
   function onReady() {
     formatTimes(document);
     localTodayInputs(document);
     syncHideTargets(document);
+    syncCharCounts(document);
   }
 
   if (document.readyState === "loading") {
@@ -196,6 +214,12 @@
   document.body && document.addEventListener("htmx:afterSwap", function (e) {
     formatTimes(e.target || document);
     syncHideTargets(e.target || document);
+    syncCharCounts(e.target || document);
+  });
+
+  document.addEventListener("input", function (e) {
+    var el = e.target;
+    if (el && el.matches && el.matches("[data-char-count]")) applyCharCount(el);
   });
 
   document.addEventListener("submit", function (e) {

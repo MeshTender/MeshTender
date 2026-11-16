@@ -389,8 +389,8 @@ func PreviewLatLon(r *http.Request) (lat, lon float64, ok bool) {
 }
 
 // ScheduledNets keeps an org's active nets that have a session coming up (or in
-// progress), soonest first — the public page's org-nets-card. nets is bounded
-// by store.MaxNetsPerOrg.
+// progress), soonest first: the public page's next net, the Guide's schedule
+// and members' Home. nets is bounded by store.MaxNetsPerOrg.
 func ScheduledNets(nets []store.NetSummary) []store.NetSummary {
 	out := make([]store.NetSummary, 0, len(nets))
 	for _, n := range nets {
@@ -409,6 +409,9 @@ type OrgGuide struct {
 	Nets  []store.NetSummary
 	Now   time.Time
 }
+
+// MoreNets is how many scheduled nets there are besides the soonest.
+func (g OrgGuide) MoreNets() int { return max(len(g.Nets)-1, 0) }
 
 // BuildOrgGuide loads an org's OrgGuide. The Guide is public, so it holds only
 // what already is: the radio settings and the net schedule.

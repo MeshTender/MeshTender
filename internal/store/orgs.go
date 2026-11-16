@@ -16,8 +16,11 @@ import (
 type Org struct {
 	ID int64
 	// Slug is the admin-chosen, non-enumerable identifier used in URLs.
-	Slug        string
-	Name        string
+	Slug string
+	Name string
+	// Summary is one plain-text line (MaxOrgSummary); Description is the long
+	// markdown About.
+	Summary     string
 	Description string
 	Region      string
 	// RootAllowFlood is the flood policy for the org's root region (*): whether
@@ -32,6 +35,7 @@ type OrgSummary struct {
 	ID            int64
 	Slug          string
 	Name          string
+	Summary       string
 	Description   string
 	Region        string
 	MemberCount   int
@@ -130,8 +134,8 @@ func (s *Store) CreateOrg(ctx context.Context, name string, creatorID int64) (*O
 		}
 		if err := tx.QueryRow(ctx,
 			`INSERT INTO organizations (slug, name, created_by) VALUES ($1, $2, $3)
-			 RETURNING id, slug, name, description, region, root_allow_flood, created_by, created_at`,
-			slug, name, creatorID).Scan(&o.ID, &o.Slug, &o.Name, &o.Description, &o.Region, &o.RootAllowFlood, &o.CreatedBy, &o.CreatedAt); err != nil {
+			 RETURNING id, slug, name, summary, description, region, root_allow_flood, created_by, created_at`,
+			slug, name, creatorID).Scan(&o.ID, &o.Slug, &o.Name, &o.Summary, &o.Description, &o.Region, &o.RootAllowFlood, &o.CreatedBy, &o.CreatedAt); err != nil {
 			return fmt.Errorf("insert org: %w", err)
 		}
 		if _, err := tx.Exec(ctx,
@@ -153,8 +157,8 @@ func (s *Store) CreateOrg(ctx context.Context, name string, creatorID int64) (*O
 func (s *Store) GetOrg(ctx context.Context, id int64) (*Org, error) {
 	var o Org
 	err := s.pool.QueryRow(ctx,
-		`SELECT id, slug, name, description, region, root_allow_flood, created_by, created_at FROM organizations WHERE id = $1`, id).
-		Scan(&o.ID, &o.Slug, &o.Name, &o.Description, &o.Region, &o.RootAllowFlood, &o.CreatedBy, &o.CreatedAt)
+		`SELECT id, slug, name, summary, description, region, root_allow_flood, created_by, created_at FROM organizations WHERE id = $1`, id).
+		Scan(&o.ID, &o.Slug, &o.Name, &o.Summary, &o.Description, &o.Region, &o.RootAllowFlood, &o.CreatedBy, &o.CreatedAt)
 	if err != nil {
 		return nil, notFoundOr(err, "get org")
 	}
@@ -172,12 +176,21 @@ func (s *Store) OrgIDBySlug(ctx context.Context, slug string) (int64, error) {
 	return id, nil
 }
 
-// UpdateOrg updates an org's slug, name, description, and region. Returns
+// MaxOrgSummary is the most characters an org's summary may have (the column's
+// CHECK says the same): about a line, so it fits a directory row and a hero.
+const MaxOrgSummary = 160
+
+// OrgProfile is what an admin edits in Settings › Profile.
+type OrgProfile struct {
+	Slug, Name, Summary, Description, Region string
+}
+
+// UpdateOrg updates an org's profile: slug, name, summary, description, region. Returns
 // ErrDuplicate if the slug is already taken by another org.
-func (s *Store) UpdateOrg(ctx context.Context, orgID int64, slug, name, description, region string) error {
+func (s *Store) UpdateOrg(ctx context.Context, orgID int64, p OrgProfile) error {
 	tag, err := s.pool.Exec(ctx,
-		`UPDATE organizations SET slug = $2, name = $3, description = $4, region = $5 WHERE id = $1`,
-		orgID, slug, name, description, region)
+		`UPDATE organizations SET slug = $2, name = $3, summary = $4, description = $5, region = $6 WHERE id = $1`,
+		orgID, p.Slug, p.Name, p.Summary, p.Description, p.Region)
 	if isUniqueViolation(err) {
 		return ErrDuplicate
 	}
@@ -244,8 +257,8 @@ func escapeLikePattern(s string) string {
 }
 
 // ListPublicOrgsPage returns one keyset page of the public org directory in the
-// requested order, optionally filtered by a search term over name/description/
-// region, seeking strictly past p's cursor (or starting at the beginning when
+// requested order, optionally filtered by a search term over name/summary/
+// description/region, seeking strictly past p's cursor (or starting at the beginning when
 // HasCursor is false). It returns the page (capped at OrgsPageSize) and whether
 // more rows follow.
 //
@@ -255,7 +268,8 @@ func escapeLikePattern(s string) string {
 // 0033), so every ordering sorts and seeks on an indexed column rather than a
 // correlated count subquery computed per org on each page load.
 // orgSearchFilter builds the directory's substring-search predicate over
-// name/description/region (trigram-indexed, migration 0033), registering its argument
+// name/summary/description/region (trigram-indexed, migrations 0033 and 0056),
+// registering its argument
 // through add. Returns "" when no search is active.
 //
 // Shared by ListPublicOrgsPage and CountPublicOrgs so the two can never disagree about
@@ -267,7 +281,7 @@ func orgSearchFilter(query string, add func(any) string) string {
 		return ""
 	}
 	ph := add("%" + escapeLikePattern(q) + "%")
-	return fmt.Sprintf("(o.name ILIKE %[1]s OR o.description ILIKE %[1]s OR o.region ILIKE %[1]s)", ph)
+	return fmt.Sprintf("(o.name ILIKE %[1]s OR o.summary ILIKE %[1]s OR o.description ILIKE %[1]s OR o.region ILIKE %[1]s)", ph)
 }
 
 // CountPublicOrgs returns how many organizations match the directory's search filter,
@@ -338,7 +352,7 @@ func (s *Store) ListPublicOrgsPage(ctx context.Context, p OrgListParams) ([]OrgS
 	// Their columns are prefixed so they can't collide with the unqualified
 	// names the ORDER BY and keyset seek use.
 	query := fmt.Sprintf(`
-		SELECT o.id, o.slug, o.name, o.description, o.region, o.member_count, o.repeater_count, o.created_at,
+		SELECT o.id, o.slug, o.name, o.summary, o.description, o.region, o.member_count, o.repeater_count, o.created_at,
 		       nc.net_count, nx.net_name, nx.net_weekday, nx.net_start_minute, nx.net_duration_minutes, nx.net_timezone
 		FROM organizations o
 		CROSS JOIN LATERAL (
@@ -366,7 +380,7 @@ func (s *Store) ListPublicOrgsPage(ctx context.Context, p OrgListParams) ([]OrgS
 		var netName, netTZ *string
 		var weekday, startMinute *int16
 		var duration *int
-		err := r.Scan(&o.ID, &o.Slug, &o.Name, &o.Description, &o.Region, &o.MemberCount, &o.RepeaterCount, &o.CreatedAt,
+		err := r.Scan(&o.ID, &o.Slug, &o.Name, &o.Summary, &o.Description, &o.Region, &o.MemberCount, &o.RepeaterCount, &o.CreatedAt,
 			&o.NetCount, &netName, &weekday, &startMinute, &duration, &netTZ)
 		if netName != nil {
 			o.NextNet = &NetInput{Name: *netName, Weekday: time.Weekday(*weekday), StartMinute: int(*startMinute),
@@ -402,7 +416,7 @@ func (s *Store) OrgCounts(ctx context.Context, orgID int64) (members, repeaters 
 // ListOrgsForUser returns the orgs a user belongs to with their role.
 func (s *Store) ListOrgsForUser(ctx context.Context, userID int64) ([]OrgMembership, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT o.id, o.slug, o.name, o.description, o.created_by, o.created_at, m.role
+		SELECT o.id, o.slug, o.name, o.summary, o.description, o.region, o.created_by, o.created_at, m.role
 		FROM org_members m JOIN organizations o ON o.id = m.org_id
 		WHERE m.user_id = $1 ORDER BY lower(o.name), o.id`, userID)
 	if err != nil {
@@ -411,7 +425,7 @@ func (s *Store) ListOrgsForUser(ctx context.Context, userID int64) ([]OrgMembers
 	return collectRows(rows, func(r pgx.Row) (OrgMembership, error) {
 		var o Org
 		var role string
-		err := r.Scan(&o.ID, &o.Slug, &o.Name, &o.Description, &o.CreatedBy, &o.CreatedAt, &role)
+		err := r.Scan(&o.ID, &o.Slug, &o.Name, &o.Summary, &o.Description, &o.Region, &o.CreatedBy, &o.CreatedAt, &role)
 		return OrgMembership{Org: &o, Role: role}, err
 	})
 }

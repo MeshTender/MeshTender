@@ -20,15 +20,25 @@
   <div class="col-auto ms-auto d-print-none">
     {{if .Nav.Manage}}
     <a class="btn btn-ghost-secondary" href="{{.RootURL}}/orgs/{{.Nav.Slug}}" data-testid="org-public-page">{{template "icon-world" "me-1"}}Public page</a>
-    {{else if .Nav.CanGoToOrg}}
-    <a class="btn btn-primary" href="{{.AppURL}}/orgs/{{.Nav.Slug}}">{{template "icon-arrow-right" "me-1"}}Go to organization</a>
-    {{else if .Nav.CanJoin}}
-    <a class="btn btn-primary" href="{{.AppURL}}/orgs/{{.Nav.Slug}}/join">{{template "icon-users" "me-1"}}Join organization</a>
     {{else}}
-    <a class="btn btn-primary" href="{{.AppURL}}/orgs/{{.Nav.Slug}}/join">Sign in to join</a>
+    {{template "org-cta" .}}
     {{end}}
   </div>
 </div>
+{{end}}
+
+{{/* org-cta is the public call to action: "Go to organization" for a member
+     previewing the public page, "Join organization" for a signed-in non-member,
+     "Sign in to join" for anyone else. The header carries it, and the public page
+     repeats it at the bottom. Pass the full page data. */}}
+{{define "org-cta"}}
+{{if .Nav.CanGoToOrg}}
+<a class="btn btn-primary" href="{{.AppURL}}/orgs/{{.Nav.Slug}}">{{template "icon-arrow-right" "me-1"}}Go to organization</a>
+{{else if .Nav.CanJoin}}
+<a class="btn btn-primary" href="{{.AppURL}}/orgs/{{.Nav.Slug}}/join">{{template "icon-users" "me-1"}}Join organization</a>
+{{else}}
+<a class="btn btn-primary" href="{{.AppURL}}/orgs/{{.Nav.Slug}}/join">Sign in to join</a>
+{{end}}
 {{end}}
 
 {{/* org-tabs: Home, Check-ins, Guide, Members and Repeaters, plus Settings for
@@ -149,40 +159,6 @@
 {{if .ShowConfig}}<a class="btn" href="/orgs/{{.Slug}}/guide/repeaters" data-testid="org-config-link">{{template "icon-settings" "me-1"}}Recommended configuration</a>{{end}}
 {{end}}
 
-{{/* org-config-card is the public page's pointer to the recommended
-     configuration (members' Home has a fuller Repeater setup card). Pass .Nav. */}}
-{{define "org-config-card"}}
-{{if .ShowConfig}}
-<div class="card" data-testid="org-config-card">
-  <div class="card-body">
-    <h2 class="card-title mb-1">Repeater setup</h2>
-    <p class="text-secondary">The radio settings and configuration this organization recommends for its repeaters.</p>
-    {{template "org-config-link" .}}
-  </div>
-</div>
-{{end}}
-{{end}}
-
-{{/* org-nets-card lists an org's scheduled nets (web.ScheduledNets), soonest
-     first, on the public page: what a visitor would be joining. Only the
-     schedule is public, so the rows don't link into the members-only net pages.
-     Data: dict Nets, Now. The page omits the card when there are no nets. */}}
-{{define "org-nets-card"}}
-<div class="card" data-testid="org-nets">
-  <div class="card-header">
-    <div>
-      <h2 class="card-title">Nets</h2>
-      <div class="card-subtitle">Weekly windows when members check in by sending a flood advert from their companion.</div>
-    </div>
-  </div>
-  <div class="list-group list-group-flush">
-    {{range .Nets}}
-    <div class="list-group-item" data-testid="org-net">{{template "org-net-row" (dict "Net" . "Now" $.Now)}}</div>
-    {{end}}
-  </div>
-</div>
-{{end}}
-
 {{/* guide-layout-open / -close wrap a Guide page: the section rail in a card of
      its own on the left — Tabler's transparent list group pulls its items out by
      the card body's padding, so outside a card the active item would spill past
@@ -219,8 +195,8 @@
 {{end}}
 
 {{/* org-net-row is one scheduled net: its name, when its next session starts (or
-     that one is in progress), and its schedule. The public Nets card and members'
-     Home share it. Data: dict Net (store.NetSummary with a Next), Now. */}}
+     that one is in progress), and its schedule. Members' Home lists them. Data:
+     dict Net (store.NetSummary with a Next), Now. */}}
 {{define "org-net-row"}}
 <div class="d-flex align-items-center flex-wrap gap-2">
   <span class="fw-bold">{{.Net.Name}}</span>
@@ -228,4 +204,13 @@
   {{else}}<span class="badge bg-green-lt ms-auto">In progress</span>{{end}}
 </div>
 <div class="text-secondary small">{{.Net.Schedule}}</div>
+{{end}}
+
+{{/* org-blurb is an org's line in a list (the directory, My orgs): its summary,
+     or, until an admin writes one, its description flattened to text and
+     clamped to two lines — a long About would otherwise swamp the list. Data:
+     dict Summary, Description. */}}
+{{define "org-blurb"}}
+{{if .Summary}}<p class="text-secondary mb-1 mt-1" data-testid="org-blurb-summary">{{.Summary}}</p>
+{{else if .Description}}<p class="text-secondary mb-1 mt-1 text-clamp-2" data-testid="org-blurb-description">{{markdowntext .Description}}</p>{{end}}
 {{end}}

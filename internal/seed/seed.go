@@ -278,7 +278,10 @@ func seedOrgs(ctx context.Context, st *store.Store, f *gofakeit.Faker, users []*
 			logger.Warn("seed: create org", "err", err)
 			continue
 		}
-		_ = st.UpdateOrg(ctx, org.ID, org.Slug, org.Name, f.Sentence(f.Number(8, 20)), f.State())
+		summary := []rune(f.Sentence(f.Number(6, 12)))
+		summary = summary[:min(len(summary), store.MaxOrgSummary)] // the column's CHECK would reject the whole update
+		_ = st.UpdateOrg(ctx, org.ID, store.OrgProfile{Slug: org.Slug, Name: org.Name,
+			Summary: string(summary), Description: f.Sentence(f.Number(8, 20)), Region: f.State()})
 		if links := seedOrgLinks(f); len(links) > 0 {
 			_ = st.ReplaceOrgLinks(ctx, org.ID, links)
 		}
