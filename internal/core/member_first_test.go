@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"strings"
 	"testing"
+	"time"
 
 	meshcore "github.com/meshcore-go/meshcore-go"
 
@@ -107,5 +108,60 @@ func TestRepeaterConfirmationIsOptional(t *testing.T) {
 		if strings.Contains(added, stale) {
 			t.Errorf("post-add page still promises a %q badge that no longer exists", stale)
 		}
+	}
+}
+
+// TestPublicOrgPageShowsNetSchedule: the public org page shows the org's
+// scheduled nets — what a visitor would be joining — to anonymous visitors and
+// signed-in non-members alike, without linking into the members-only net pages
+// and without inactive nets. The directory row names the next one.
+func TestPublicOrgPageShowsNetSchedule(t *testing.T) {
+	t.Parallel()
+	st, ctx, ts, h := splitServer(t)
+	admin, _ := appLogin(t, ts, st, ctx, h.app, "pubnetsadmin")
+	_, visitor := appLogin(t, ts, st, ctx, h.app, "pubnetsvisitor")
+	org, err := st.CreateOrg(ctx, "Public Nets Org", admin.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	quiet, err := st.CreateOrg(ctx, "Quiet Org", admin.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	weekly := netAround("Sunday Check-in", now.Add(2*time.Hour))
+	if _, err := st.CreateNet(ctx, org.ID, weekly, admin.ID, now); err != nil {
+		t.Fatal(err)
+	}
+	paused := netAround("Paused Net", now.Add(time.Hour))
+	paused.Active = false
+	if _, err := st.CreateNet(ctx, org.ID, paused, admin.ID, now); err != nil {
+		t.Fatal(err)
+	}
+
+	for name, body := range map[string]string{
+		"anonymous (root host)": getBody(t, ts, h.root, "/orgs/"+org.Slug),
+		"non-member (app host)": getBody(t, ts, h.app, "/orgs/"+org.Slug, visitor),
+	} {
+		_, nets, ok := strings.Cut(body, `data-testid="org-nets"`)
+		if !ok || !strings.Contains(nets, "Sunday Check-in") || !strings.Contains(nets, weekly.Schedule()) {
+			t.Errorf("%s: public page lacks the net schedule", name)
+		}
+		if strings.Contains(body, "Paused Net") {
+			t.Errorf("%s: public page lists an inactive net", name)
+		}
+		if strings.Contains(body, `/orgs/`+org.Slug+`/nets/`) {
+			t.Errorf("%s: public page links into the members-only net pages", name)
+		}
+	}
+	if body := getBody(t, ts, h.root, "/orgs/"+quiet.Slug); strings.Contains(body, `data-testid="org-nets"`) {
+		t.Error("an org without nets shows an empty Nets card publicly")
+	}
+
+	dir := getBody(t, ts, h.root, "/orgs?sort=name")
+	_, row, _ := strings.Cut(dir, "Public Nets Org")
+	row, _, _ = strings.Cut(row, `data-testid="org-row"`)
+	if !strings.Contains(row, `data-testid="org-row-net"`) || !strings.Contains(row, "Sunday Check-in") || !strings.Contains(row, weekly.Schedule()) {
+		t.Error("directory row doesn't name the org's next net")
 	}
 }

@@ -3,8 +3,9 @@
 {{define "content"}}
 {{template "org-tabs" .Nav}}
 {{/* The public face of an organization, laid out like the members' Home: About
-     (with its region and links) first, then a sidebar with how big it is, how to
-     set up a repeater for it, where its public repeaters are, and who runs it. */}}
+     (with its region and links) and its nets — what a visitor would be joining —
+     then a sidebar with how big it is, how to set up a repeater for it, where its
+     public repeaters are, and who runs it. */}}
 <div class="row row-cards">
   <div class="col-lg-8 d-flex flex-column gap-3">
     <div class="card" data-testid="public-about">
@@ -17,6 +18,7 @@
       </div>
       {{if .Links}}{{template "org-links-list" .Links}}{{end}}
     </div>
+    {{if .Nets}}{{template "org-nets-card" (dict "Nets" .Nets "Now" .Now)}}{{end}}
   </div>
 
   <div class="col-lg-4 d-flex flex-column gap-3">

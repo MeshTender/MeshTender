@@ -161,3 +161,30 @@
 </div>
 {{end}}
 {{end}}
+
+{{/* org-nets-card lists an org's scheduled nets (web.ScheduledNets), soonest
+     first, on the public page: what a visitor would be joining. Only the
+     schedule is public, so the rows don't link into the members-only net pages.
+     Data: dict Nets, Now. The page omits the card when there are no nets. */}}
+{{define "org-nets-card"}}
+<div class="card" data-testid="org-nets">
+  <div class="card-header">
+    <div>
+      <h2 class="card-title">Nets</h2>
+      <div class="card-subtitle">Weekly windows when members check in by sending a flood advert from their companion.</div>
+    </div>
+  </div>
+  <div class="list-group list-group-flush">
+    {{range .Nets}}
+    <div class="list-group-item" data-testid="org-net">
+      <div class="d-flex align-items-center flex-wrap gap-2">
+        <span class="fw-bold">{{.Name}}</span>
+        {{if $.Now.Before .Next.StartsAt}}<span class="ms-auto text-secondary small">Next {{ts .Next.StartsAt "datetime"}}</span>
+        {{else}}<span class="badge bg-green-lt ms-auto">In progress</span>{{end}}
+      </div>
+      <div class="text-secondary small">{{.Schedule}}</div>
+    </div>
+    {{end}}
+  </div>
+</div>
+{{end}}

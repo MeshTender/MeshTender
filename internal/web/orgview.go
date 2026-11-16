@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -383,4 +384,18 @@ func PreviewLatLon(r *http.Request) (lat, lon float64, ok bool) {
 	lat, err1 = strconv.ParseFloat(ls, 64)
 	lon, err2 = strconv.ParseFloat(ns, 64)
 	return lat, lon, err1 == nil && err2 == nil
+}
+
+// ScheduledNets keeps an org's active nets that have a session coming up (or in
+// progress), soonest first — the public page's org-nets-card. nets is bounded
+// by store.MaxNetsPerOrg.
+func ScheduledNets(nets []store.NetSummary) []store.NetSummary {
+	out := make([]store.NetSummary, 0, len(nets))
+	for _, n := range nets {
+		if n.Active && n.Next != nil {
+			out = append(out, n)
+		}
+	}
+	slices.SortStableFunc(out, func(a, b store.NetSummary) int { return a.Next.StartsAt.Compare(b.Next.StartsAt) })
+	return out
 }

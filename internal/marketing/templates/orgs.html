@@ -25,13 +25,14 @@
 {{/* org-rows renders just the directory rows; shared by the full page and the
      htmx "load more" fragment so appended pages match the first. */}}
 {{define "org-rows"}}
-{{range .All}}
+{{range $o := .All}}
 <a class="list-group-item list-group-item-action" href="/orgs/{{.Slug}}" data-testid="org-row">
   <div class="d-flex align-items-center gap-2">
     <span class="fw-bold">{{.Name}}</span>
     {{if .Region}}<span class="badge bg-secondary-lt">{{.Region}}</span>{{end}}
   </div>
   {{if .Description}}<p class="text-secondary mb-1 mt-1">{{markdowntext .Description}}</p>{{end}}
+  {{with .NextNet}}<div class="small d-flex align-items-center gap-1" data-testid="org-row-net">{{template "icon-calendar-event" "text-secondary"}}<span><strong>{{.Name}}</strong> · {{.Schedule}}{{with $o.OtherNets}} <span class="text-secondary">+{{.}} more</span>{{end}}</span></div>{{end}}
   <div class="text-secondary small">{{.MemberCount}} member{{if ne .MemberCount 1}}s{{end}} · {{.RepeaterCount}} repeater{{if ne .RepeaterCount 1}}s{{end}}</div>
 </a>
 {{end}}

@@ -201,13 +201,13 @@ func (s *Handlers) settingsData(ctx context.Context, r *http.Request, org *store
 		data["Now"] = time.Now()
 	case "nets":
 		now := time.Now()
-		views, err := s.netSummaryViews(ctx, org.ID, now)
+		nets, err := s.Store.ListOrgNetSummaries(ctx, org.ID, now)
 		if err != nil {
 			return nil, err
 		}
-		data["Nets"] = views
+		data["Nets"] = nets
 		data["Now"] = now
-		data["CanAdd"] = len(views) < store.MaxNetsPerOrg
+		data["CanAdd"] = len(nets) < store.MaxNetsPerOrg
 		data["Form"] = s.netFormDefaults(r)
 		data["Weekdays"] = weekdays
 	}

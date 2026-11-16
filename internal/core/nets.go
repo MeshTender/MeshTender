@@ -1,9 +1,7 @@
 package core
 
 import (
-	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -23,30 +21,6 @@ const maxNetDescription = 2000
 
 // weekdays orders the weekday picker Sunday-first, matching time.Weekday.
 var weekdays = []time.Weekday{time.Sunday, time.Monday, time.Tuesday, time.Wednesday, time.Thursday, time.Friday, time.Saturday}
-
-// netSchedule describes a net's recurrence in its own zone, in the same 12-hour
-// style as every timestamp, e.g. "Sundays, 7:00–8:00 PM, New York time" or, when
-// it crosses noon or midnight, "Fridays, 11:00 PM–1:00 AM, …". Session times
-// elsewhere are shown in the viewer's zone; this line is the net's definition.
-func netSchedule(n *store.Net) string {
-	start := time.Date(2000, 1, 1, n.StartMinute/60, n.StartMinute%60, 0, 0, time.UTC)
-	end := start.Add(time.Duration(n.DurationMinutes) * time.Minute)
-	from := start.Format("3:04 PM")
-	if start.Format("PM") == end.Format("PM") {
-		from = start.Format("3:04")
-	}
-	return fmt.Sprintf("%ss, %s–%s, %s", n.Weekday, from, end.Format("3:04 PM"), zoneName(n.Timezone))
-}
-
-// zoneName is an IANA zone as people say it: "America/New_York" → "New York
-// time". UTC and anything without a city stay as they are.
-func zoneName(tz string) string {
-	i := strings.LastIndex(tz, "/")
-	if i < 0 {
-		return tz
-	}
-	return strings.ReplaceAll(tz[i+1:], "_", " ") + " time"
-}
 
 // parseNetForm validates the create/edit form. msg is a user-facing error.
 func parseNetForm(r *http.Request) (in store.NetInput, msg string) {
@@ -93,12 +67,6 @@ func (s *Handlers) netFormDefaults(r *http.Request) store.NetInput {
 	return in
 }
 
-// netSummaryView is a net on the list page.
-type netSummaryView struct {
-	store.NetSummary
-	Schedule string
-}
-
 func (s *Handlers) pageOrgNets(w http.ResponseWriter, r *http.Request) {
 	org, isAdmin, ok := s.orgMemberPage(w, r)
 	if !ok {
@@ -106,7 +74,7 @@ func (s *Handlers) pageOrgNets(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx := r.Context()
 	now := time.Now()
-	views, err := s.netSummaryViews(ctx, org.ID, now)
+	nets, err := s.Store.ListOrgNetSummaries(ctx, org.ID, now)
 	if err != nil {
 		s.ServerError(w, r, "Couldn't load nets.", err)
 		return
@@ -115,7 +83,7 @@ func (s *Handlers) pageOrgNets(w http.ResponseWriter, r *http.Request) {
 		"Org":     org,
 		"Nav":     s.orgNav(ctx, org, "nets", isAdmin),
 		"IsAdmin": isAdmin,
-		"Nets":    views,
+		"Nets":    nets,
 		"Now":     now,
 	}
 	if err := s.companionActivity(r, org.ID, data); err != nil {
@@ -123,19 +91,6 @@ func (s *Handlers) pageOrgNets(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Render(w, r, "org_nets.html", data)
-}
-
-// netSummaryViews loads an org's nets for the "net-list" partial.
-func (s *Handlers) netSummaryViews(ctx context.Context, orgID int64, now time.Time) ([]netSummaryView, error) {
-	nets, err := s.Store.ListOrgNetSummaries(ctx, orgID, now)
-	if err != nil {
-		return nil, err
-	}
-	views := make([]netSummaryView, len(nets))
-	for i := range nets {
-		views[i] = netSummaryView{NetSummary: nets[i], Schedule: netSchedule(&nets[i].Net)}
-	}
-	return views, nil
 }
 
 func (s *Handlers) handleCreateNet(w http.ResponseWriter, r *http.Request) {
@@ -241,7 +196,7 @@ func (s *Handlers) pageOrgNet(w http.ResponseWriter, r *http.Request) {
 		"Net":         net,
 		"Controls":    controls,
 		"Air":         netAirView{NetAir: air},
-		"Schedule":    netSchedule(net),
+		"Schedule":    net.Schedule(),
 		"Next":        next,
 		"LiveCount":   live,
 		"Now":         now,

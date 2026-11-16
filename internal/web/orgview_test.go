@@ -3,6 +3,7 @@ package web
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/MeshTender/MeshTender/internal/store"
 )
@@ -133,5 +134,31 @@ func TestRegionColorWrapsAround(t *testing.T) {
 		if RegionColor(i) == "" {
 			t.Fatalf("RegionColor(%d) is empty", i)
 		}
+	}
+}
+
+// TestScheduledNets: only active nets with a session ahead are listed, soonest
+// first — an inactive net, or one with nothing materialized, isn't a schedule
+// anyone can tune in to.
+func TestScheduledNets(t *testing.T) {
+	t.Parallel()
+	at := func(h int) *store.NetSession {
+		return &store.NetSession{StartsAt: time.Date(2026, 11, 1, h, 0, 0, 0, time.UTC)}
+	}
+	net := func(name string, active bool, next *store.NetSession) store.NetSummary {
+		return store.NetSummary{Net: store.Net{NetInput: store.NetInput{Name: name, Active: active}}, Next: next}
+	}
+	got := ScheduledNets([]store.NetSummary{
+		net("Late", true, at(20)),
+		net("Paused", false, at(1)),
+		net("Unmaterialized", true, nil),
+		net("Early", true, at(9)),
+	})
+	var names []string
+	for _, n := range got {
+		names = append(names, n.Name)
+	}
+	if strings.Join(names, ",") != "Early,Late" {
+		t.Errorf("ScheduledNets = %v, want [Early Late]", names)
 	}
 }

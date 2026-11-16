@@ -37,7 +37,15 @@ type OrgSummary struct {
 	MemberCount   int
 	RepeaterCount int
 	CreatedAt     time.Time
+	// NetCount is how many active nets the org runs, and NextNet the one whose
+	// next session starts soonest (nil without one) — the directory's sign that
+	// there's something to take part in.
+	NetCount int
+	NextNet  *NetInput
 }
+
+// OtherNets is how many active nets the org runs besides NextNet.
+func (o OrgSummary) OtherNets() int { return max(o.NetCount-1, 0) }
 
 // OrgMembership pairs an org with the querying user's role in it.
 type OrgMembership struct {
@@ -219,6 +227,9 @@ type OrgListParams struct {
 	Sort  OrgSort
 	Query string
 
+	// Now picks each org's next net: the soonest session that hasn't ended.
+	Now time.Time
+
 	HasCursor  bool
 	AfterName  string
 	AfterCount int
@@ -321,12 +332,30 @@ func (s *Store) ListPublicOrgsPage(ctx context.Context, p OrgListParams) ([]OrgS
 
 	// Fetch one extra row to detect whether a further page exists.
 	limit := add(OrgsPageSize + 1)
+	now := add(p.Now)
+	// The nets come from LATERALs over the page's rows only, each bounded by
+	// MaxNetsPerOrg and walking the (org_id, …) and (net_id, starts_at) indexes.
+	// Their columns are prefixed so they can't collide with the unqualified
+	// names the ORDER BY and keyset seek use.
 	query := fmt.Sprintf(`
-		SELECT o.id, o.slug, o.name, o.description, o.region, o.member_count, o.repeater_count, o.created_at
+		SELECT o.id, o.slug, o.name, o.description, o.region, o.member_count, o.repeater_count, o.created_at,
+		       nc.net_count, nx.net_name, nx.net_weekday, nx.net_start_minute, nx.net_duration_minutes, nx.net_timezone
 		FROM organizations o
+		CROSS JOIN LATERAL (
+			SELECT count(*) AS net_count FROM check_in_nets WHERE org_id = o.id AND active) nc
+		LEFT JOIN LATERAL (
+			SELECT n.name AS net_name, n.weekday AS net_weekday, n.start_minute AS net_start_minute,
+			       n.duration_minutes AS net_duration_minutes, n.timezone AS net_timezone
+			FROM check_in_nets n
+			JOIN LATERAL (
+				SELECT starts_at FROM net_sessions
+				WHERE net_id = n.id AND ends_at > %s ORDER BY starts_at LIMIT 1) ns ON TRUE
+			WHERE n.org_id = o.id AND n.active
+			ORDER BY ns.starts_at, n.id
+			LIMIT 1) nx ON TRUE
 		%s
 		ORDER BY %s
-		LIMIT %s`, whereClause, order, limit)
+		LIMIT %s`, now, whereClause, order, limit)
 
 	rows, err := s.pool.Query(ctx, query, args...)
 	if err != nil {
@@ -334,7 +363,15 @@ func (s *Store) ListPublicOrgsPage(ctx context.Context, p OrgListParams) ([]OrgS
 	}
 	out, err := collectRows(rows, func(r pgx.Row) (OrgSummary, error) {
 		var o OrgSummary
-		err := r.Scan(&o.ID, &o.Slug, &o.Name, &o.Description, &o.Region, &o.MemberCount, &o.RepeaterCount, &o.CreatedAt)
+		var netName, netTZ *string
+		var weekday, startMinute *int16
+		var duration *int
+		err := r.Scan(&o.ID, &o.Slug, &o.Name, &o.Description, &o.Region, &o.MemberCount, &o.RepeaterCount, &o.CreatedAt,
+			&o.NetCount, &netName, &weekday, &startMinute, &duration, &netTZ)
+		if netName != nil {
+			o.NextNet = &NetInput{Name: *netName, Weekday: time.Weekday(*weekday), StartMinute: int(*startMinute),
+				DurationMinutes: *duration, Timezone: *netTZ, Active: true}
+		}
 		return o, err
 	})
 	if err != nil {

@@ -35,6 +35,7 @@ func (s *Handlers) pageOrgs(w http.ResponseWriter, r *http.Request) {
 	}
 	p.Sort = sortKey
 	p.Query = query
+	p.Now = time.Now()
 
 	all, hasMore, err := s.Store.ListPublicOrgsPage(r.Context(), p)
 	if err != nil {
@@ -104,6 +105,14 @@ func (s *Handlers) renderOrgPublic(w http.ResponseWriter, r *http.Request, org *
 		s.ServerError(w, r, "could not load organization", err)
 		return
 	}
+	// The schedule is public — it's what a visitor would be joining. Rosters and
+	// check-ins stay members-only.
+	now := time.Now()
+	nets, err := s.Store.ListOrgNetSummaries(r.Context(), org.ID, now)
+	if err != nil {
+		s.ServerError(w, r, "could not load organization", err)
+		return
+	}
 	uid := s.Auth.CurrentUserID(r.Context())
 	s.Render(w, r, "org_public.html", map[string]any{
 		"Org": org,
@@ -119,6 +128,8 @@ func (s *Handlers) renderOrgPublic(w http.ResponseWriter, r *http.Request, org *
 		"MemberCount":   memberCount,
 		"RepeaterCount": repeaterCount,
 		"Links":         links,
+		"Nets":          web.ScheduledNets(nets),
+		"Now":           now,
 		"HasMap":        hasMap,
 		"MapURL":        orgMapURL(org.Slug),
 		"IsMember":      isMember,

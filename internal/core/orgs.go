@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -117,6 +118,14 @@ func (s *Handlers) renderOrgPublic(w http.ResponseWriter, r *http.Request, org *
 		s.ServerError(w, r, "could not load organization", err)
 		return
 	}
+	// The schedule is public — it's what a visitor would be joining. Rosters and
+	// check-ins stay members-only.
+	now := time.Now()
+	nets, err := s.Store.ListOrgNetSummaries(r.Context(), org.ID, now)
+	if err != nil {
+		s.ServerError(w, r, "could not load organization", err)
+		return
+	}
 	uid := s.Auth.CurrentUserID(r.Context())
 	s.Render(w, r, "org_public.html", map[string]any{
 		"Org": org,
@@ -132,6 +141,8 @@ func (s *Handlers) renderOrgPublic(w http.ResponseWriter, r *http.Request, org *
 		"RepeaterCount": repeaterCount,
 		"Repeaters":     pubReps,
 		"Links":         links,
+		"Nets":          web.ScheduledNets(nets),
+		"Now":           now,
 		"HasMap":        len(pubReps) > 0,
 		"IsMember":      isMember,
 		"LoggedIn":      uid != 0,

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -42,6 +43,30 @@ type NetInput struct {
 // StartClock is the local start time as "15:04", for a time input.
 func (in NetInput) StartClock() string {
 	return fmt.Sprintf("%02d:%02d", in.StartMinute/60, in.StartMinute%60)
+}
+
+// Schedule describes the net's recurrence in its own zone, in the same 12-hour
+// style as every timestamp, e.g. "Sundays, 7:00–8:00 PM, New York time" or, when
+// it crosses noon or midnight, "Fridays, 11:00 PM–1:00 AM, …". Session times
+// elsewhere are shown in the viewer's zone; this line is the net's definition.
+func (in NetInput) Schedule() string {
+	start := time.Date(2000, 1, 1, in.StartMinute/60, in.StartMinute%60, 0, 0, time.UTC)
+	end := start.Add(time.Duration(in.DurationMinutes) * time.Minute)
+	from := start.Format("3:04 PM")
+	if start.Format("PM") == end.Format("PM") {
+		from = start.Format("3:04")
+	}
+	return fmt.Sprintf("%ss, %s–%s, %s", in.Weekday, from, end.Format("3:04 PM"), zoneName(in.Timezone))
+}
+
+// zoneName is an IANA zone as people say it: "America/New_York" → "New York
+// time". UTC and anything without a city stay as they are.
+func zoneName(tz string) string {
+	i := strings.LastIndex(tz, "/")
+	if i < 0 {
+		return tz
+	}
+	return strings.ReplaceAll(tz[i+1:], "_", " ") + " time"
 }
 
 // Net is a check-in net.

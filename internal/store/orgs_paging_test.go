@@ -3,6 +3,7 @@ package store
 import (
 	"fmt"
 	"testing"
+	"time"
 )
 
 // TestListPublicOrgsPageByName walks the name-sorted directory and checks every
@@ -159,5 +160,47 @@ func TestListPublicOrgsPageSearch(t *testing.T) {
 	// "%" is a literal, not a wildcard: it matches only Desert Net's "100%".
 	if got := find("%"); len(got) != 1 || got[0] != "Desert Net" {
 		t.Errorf(`search "%%" (literal) = %v, want [Desert Net]`, got)
+	}
+}
+
+// TestListPublicOrgsPageNextNet: each directory row carries how many active nets
+// the org runs and the one starting soonest — not an inactive net, even one
+// that would be sooner, and nothing for an org without nets.
+func TestListPublicOrgsPageNextNet(t *testing.T) {
+	t.Parallel()
+	st, ctx := orgTestStore(t)
+	owner := mustUser(t, st, ctx, "dirnets")
+	withNets := mustOrg(t, st, ctx, "Has Nets", owner)
+	without := mustOrg(t, st, ctx, "No Nets", owner)
+
+	now := time.Now()
+	in := func(name string, startsIn time.Duration, active bool) NetInput {
+		start := now.Add(startsIn).UTC()
+		return NetInput{Name: name, Weekday: start.Weekday(), StartMinute: start.Hour()*60 + start.Minute(),
+			DurationMinutes: 30, Timezone: "UTC", Active: active}
+	}
+	for _, n := range []NetInput{in("Later", 5*time.Hour, true), in("Sooner", 2*time.Hour, true), in("Paused", time.Hour, false)} {
+		if _, err := st.CreateNet(ctx, withNets, n, owner, now); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	page, _, err := st.ListPublicOrgsPage(ctx, OrgListParams{Sort: OrgSortName, Now: now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	byID := map[int64]OrgSummary{}
+	for _, o := range page {
+		byID[o.ID] = o
+	}
+	got := byID[withNets]
+	if got.NextNet == nil || got.NextNet.Name != "Sooner" || got.NetCount != 2 || got.OtherNets() != 1 {
+		t.Errorf("org with nets: NextNet %+v, NetCount %d, want Sooner of 2", got.NextNet, got.NetCount)
+	}
+	if got.NextNet != nil && got.NextNet.Schedule() == "" {
+		t.Error("next net has no schedule")
+	}
+	if o := byID[without]; o.NextNet != nil || o.NetCount != 0 || o.OtherNets() != 0 {
+		t.Errorf("org without nets: NextNet %+v, NetCount %d, want none", o.NextNet, o.NetCount)
 	}
 }
