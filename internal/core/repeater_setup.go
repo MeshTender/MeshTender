@@ -75,20 +75,21 @@ func (s *Handlers) handleSetupCommands(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "no access to that organization", http.StatusForbidden)
 			return
 		}
-		orgRadio, err := s.Store.OrgRadio(r.Context(), req.OrgID)
+		mesh, err := s.Store.OrgMesh(r.Context(), req.OrgID)
 		if err != nil {
 			s.ServerError(w, r, "could not load radio settings", err)
 			return
 		}
+		orgRadio := mesh.Radio
 		if req.Profile != "" {
 			s2, err := s.profileSteps(r.Context(), req.OrgID, req.Profile)
 			if err != nil {
 				s.ServerError(w, r, "could not load profile", err)
 				return
 			}
-			filled, ok := store.ExpandSteps(s2, orgRadio)
+			filled, ok := store.ExpandSteps(s2, mesh)
 			if !ok {
-				http.Error(w, "this profile uses the organization's radio settings, which aren't set", http.StatusConflict)
+				http.Error(w, "this profile uses a setting the organization hasn't set (its radio or path hash size)", http.StatusConflict)
 				return
 			}
 			steps = filled

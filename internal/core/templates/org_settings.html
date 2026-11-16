@@ -9,6 +9,7 @@
 {{define "content"}}
 {{template "settings-layout-open" .Nav}}
 {{if eq .Section "profile"}}{{template "settings-profile" .}}
+{{else if eq .Section "radio"}}{{template "settings-radio" .}}
 {{else if eq .Section "regions"}}{{template "settings-regions" .}}
 {{else if eq .Section "profiles"}}{{template "settings-profiles" .}}
 {{else if and (eq .Section "mqtt") .New}}{{template "settings-observer-new" .}}
@@ -34,7 +35,7 @@
 </form>
 {{end}}
 
-{{/* ======== Profile: the org's public profile, its links, and its radio. ======== */}}
+{{/* ======== Profile: the org's public profile and its links. ======== */}}
 {{define "settings-profile"}}
 {{template "settings-heading" (dict "Title" "Profile")}}
 {{template "settings-form-error" .ProfileError}}
@@ -119,7 +120,17 @@
   </div>
 </form>
 
-{{template "settings-subheading" (dict "Title" "Radio" "ID" "radio")}}
+{{/* Per-platform link config for the links editor above (link-editor.js). */}}
+<script nonce="{{.Nonce}}">window.MESHTENDER_LINK_PLATFORMS = {{.PlatformsJS}};</script>
+<script src="{{ asset "/static/link-editor.js" }}"></script>
+{{/* Custom domains — hidden for now; the hosting/TLS infrastructure isn't in place
+     yet. When it is, give it its own subsection here (plus the /domains routes in
+     web.go); the card it had on the old org page is in git history. */}}
+{{end}}
+
+{{/* ======== Radio: what every companion and repeater on the mesh is set to. ======== */}}
+{{define "settings-radio"}}
+{{template "settings-heading" (dict "Title" "Radio")}}
 <p class="card-subtitle mb-3">
   The LoRa settings this organization's mesh runs on{{if .RadioSet}}{{with .Preset}} — currently <strong>{{.}}</strong>{{end}}{{else}} — not set yet{{end}}.
   Profiles use them through <code>{{"{{ radio.freq }}"}}</code>, <code>{{"{{ radio.bw }}"}}</code>, <code>{{"{{ radio.sf }}"}}</code> and <code>{{"{{ radio.cr }}"}}</code>; net control's modem is tuned to them; and a repeater set up from a profile that doesn't set its radio gets them.
@@ -138,13 +149,24 @@
 </form>
 {{end}}
 
-{{/* Per-platform link config for the links editor above (link-editor.js). */}}
-<script nonce="{{.Nonce}}">window.MESHTENDER_LINK_PLATFORMS = {{.PlatformsJS}};</script>
-<script src="{{ asset "/static/link-editor.js" }}"></script>
+{{template "settings-subheading" (dict "Title" "Path hash size" "ID" "path-hash")}}
+<p class="card-subtitle mb-3">
+  How many bytes of each node's ID a packet's path records — MeshCore's <code>set path.hash.mode</code>. The Guide tells members{{if .PathHashSet}} it's <strong>{{template "path-hash-size" .PathHashMode}}</strong>{{else}} once you set it{{end}}, and profiles can use it as <code>{{"{{ path.hash.mode }}"}}</code>.
+</p>
+{{template "settings-form-error" .PathHashError}}
+<form method="post" action="/orgs/{{.Org.Slug}}/config/path-hash" data-testid="settings-path-hash" style="max-width:40rem">
+  <label class="form-label" for="path_hash_mode">Path hash size</label>
+  <select class="form-select" id="path_hash_mode" name="path_hash_mode">
+    <option value=""{{if not .PathHashSet}} selected{{end}}>Not set (the firmware default is 1 byte)</option>
+    {{range .PathHashModes}}<option value="{{.}}"{{if and $.PathHashSet (eq $.PathHashMode .)}} selected{{end}}>{{template "path-hash-size" .}}</option>{{end}}
+  </select>
+  {{/* docs/cli_commands.md, "View or change this node's advert path hash size". */}}
+  <div class="alert alert-warning mt-3" role="alert">
+    <div>Firmware before 1.14 drops packets with 2- or 3-byte path hashes. Only raise this once most of your mesh runs 1.14 or later.</div>
+  </div>
+  <button type="submit" class="btn btn-primary" data-testid="save-path-hash">Save path hash size</button>
+</form>
 <script src="{{ asset "/static/radio-preset.js" }}"></script>
-{{/* Custom domains — hidden for now; the hosting/TLS infrastructure isn't in place
-     yet. When it is, give it its own subsection here (plus the /domains routes in
-     web.go); the card it had on the old org page is in git history. */}}
 {{end}}
 
 {{/* ======== Regions: the map on top, the list below. ======== */}}
@@ -520,7 +542,7 @@
 
 {{template "settings-subheading" (dict "Title" "On the air" "ID" "on-air" "Hint" "When net control connects a modem during a session, announcements and acknowledgements go out as channel messages here.")}}
 <div style="max-width:40rem" data-testid="net-air">
-  <p class="text-secondary small">{{with .Radio}}On the organization's radio, {{template "radio-values" .}}.{{else}}<span class="text-danger-emphasis" data-testid="net-air-no-radio">The organization's radio isn't set, so net control can't connect a modem. Set it in <a href="/orgs/{{$.Org.Slug}}/settings#radio">Settings › Profile</a>.</span>{{end}}</p>
+  <p class="text-secondary small">{{with .Radio}}On the organization's radio, {{template "radio-values" .}}.{{else}}<span class="text-danger-emphasis" data-testid="net-air-no-radio">The organization's radio isn't set, so net control can't connect a modem. Set it in <a href="/orgs/{{$.Org.Slug}}/settings/radio">Settings › Radio</a>.</span>{{end}}</p>
   {{if .Air.UnjoinableHashtag}}
   <div class="alert alert-warning" role="alert" data-testid="net-air-uppercase">
     <div>The channel name <code>#{{.Air.ChannelName}}</code> has uppercase letters. The companion app only lets members type lowercase hashtag names, and the channel's key comes from the exact name, so they can't join this one. Use <code>#{{.Air.LowerChannelName}}</code> instead.</div>

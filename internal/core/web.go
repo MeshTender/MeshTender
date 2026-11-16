@@ -326,6 +326,7 @@ func (s *Handlers) appRouter() chi.Router {
 			r.Post("/orgs/{id}/config/regions/{rid}/area", s.handleSaveRegionArea)
 			r.Post("/orgs/{id}/config/root-flood", s.handleSetRootFlood)
 			r.Post("/orgs/{id}/config/radio", s.handleSetRadio)
+			r.Post("/orgs/{id}/config/path-hash", s.handleSetPathHash)
 			// Custom org domains are hidden for now — the hosting/TLS infrastructure
 			// isn't in place yet. Leave the handlers in tree but don't expose them.
 			// r.Post("/orgs/{id}/domains", s.handleAddOrgDomain)

@@ -100,10 +100,11 @@ type ConfigView struct {
 	RegionDef       []string    // region def/save commands for the previewed location
 	PreviewActive   bool
 	// Radio is the org's radio settings (nil when unset). SelectedSteps already
-	// have its {{ radio.* }} placeholders filled in; RadioMissing means some
-	// couldn't be, so those lines are shown as written and must not be run.
-	Radio        *config.RadioDefaults
-	RadioMissing bool
+	// have their placeholders ({{ radio.* }}, {{ path.hash.mode }}) filled in;
+	// SettingsMissing means some couldn't be, because the org hasn't set what
+	// they stand for, so those lines are shown as written and must not be run.
+	Radio           *config.RadioDefaults
+	SettingsMissing bool
 	// HideMapHint drops the preview's "click the map" hint on a page with no
 	// map to click (Settings › Profiles).
 	HideMapHint bool
@@ -201,13 +202,13 @@ func BuildConfigView(ctx context.Context, st *store.Store, orgID int64, selected
 	if err != nil {
 		return ConfigView{}, err
 	}
-	radio, err := st.OrgRadio(ctx, orgID)
+	mesh, err := st.OrgMesh(ctx, orgID)
 	if err != nil {
 		return ConfigView{}, err
 	}
 	cv := ConfigView{
-		HasConfig:     len(profiles) > 0 || len(regions) > 0 || radio != nil,
-		Radio:         radio,
+		HasConfig:     len(profiles) > 0 || len(regions) > 0 || mesh.Radio != nil,
+		Radio:         mesh.Radio,
 		HasRegions:    len(regions) > 0,
 		PreviewActive: lat != nil && lon != nil,
 	}
@@ -224,9 +225,9 @@ func BuildConfigView(ctx context.Context, st *store.Store, orgID int64, selected
 		}
 		cv.Selected = profiles[idx].Name
 		// Every surface that assembles commands from this view (the page, the
-		// console) gets them with the org's radio filled in.
-		filled, ok := store.ExpandSteps(profiles[idx].Steps, radio)
-		cv.SelectedSteps, cv.RadioMissing = filled, !ok
+		// console) gets them with the org's settings filled in.
+		filled, ok := store.ExpandSteps(profiles[idx].Steps, mesh)
+		cv.SelectedSteps, cv.SettingsMissing = filled, !ok
 	}
 	// Frame the location-preview map. Prefer the primary region's geofence; if
 	// none is set (or it has no shape), fall back to the org's public repeaters;
@@ -402,12 +403,17 @@ func ScheduledNets(nets []store.NetSummary) []store.NetSummary {
 	return out
 }
 
-// OrgGuide is the data for the Guide's "Get on the air" page: the radio settings
-// a companion needs (nil until an admin sets them) and the nets to check in to.
+// OrgGuide is the data for the Guide's "Get on the air" page: how to set up a
+// companion — the radio settings and default scope (nil until an admin sets
+// them) and the path hash mode (PathHashSet says whether it's set) — and the
+// nets to check in to.
 type OrgGuide struct {
-	Radio *config.RadioDefaults
-	Nets  []store.NetSummary
-	Now   time.Time
+	Radio        *config.RadioDefaults
+	PathHashSet  bool
+	PathHashMode int
+	DefaultScope *store.Region
+	Nets         []store.NetSummary
+	Now          time.Time
 }
 
 // MoreNets is how many scheduled nets there are besides the soonest.
@@ -416,7 +422,11 @@ func (g OrgGuide) MoreNets() int { return max(len(g.Nets)-1, 0) }
 // BuildOrgGuide loads an org's OrgGuide. The Guide is public, so it holds only
 // what already is: the radio settings and the net schedule.
 func BuildOrgGuide(ctx context.Context, st *store.Store, orgID int64, now time.Time) (OrgGuide, error) {
-	radio, err := st.OrgRadio(ctx, orgID)
+	mesh, err := st.OrgMesh(ctx, orgID)
+	if err != nil {
+		return OrgGuide{}, err
+	}
+	regions, err := st.ListRegions(ctx, orgID)
 	if err != nil {
 		return OrgGuide{}, err
 	}
@@ -424,7 +434,16 @@ func BuildOrgGuide(ctx context.Context, st *store.Store, orgID int64, now time.T
 	if err != nil {
 		return OrgGuide{}, err
 	}
-	return OrgGuide{Radio: radio, Nets: ScheduledNets(nets), Now: now}, nil
+	g := OrgGuide{Radio: mesh.Radio, Nets: ScheduledNets(nets), Now: now}
+	if mesh.PathHashMode != nil {
+		g.PathHashSet, g.PathHashMode = true, *mesh.PathHashMode
+	}
+	for i := range regions {
+		if regions[i].DefaultScope {
+			g.DefaultScope = &regions[i]
+		}
+	}
+	return g, nil
 }
 
 // RedirectOrgConfig sends the recommended configuration's old address,

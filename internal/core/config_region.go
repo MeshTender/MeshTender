@@ -16,7 +16,7 @@ import (
 
 // Regions are edited one at a time, split by what each part needs from the screen:
 //
-//   - Attributes (name, token, level, primary, flood) are a small form, on a
+//   - Attributes (name, token, level, primary, default scope, flood) are a small form, on a
 //     Settings page of its own — the same pattern as profiles.
 //   - The area is drawn on a map, which needs the width and the spatial context of
 //     the neighboring regions, so it gets its own workspace page.
@@ -33,6 +33,7 @@ type configRegionView struct {
 	Token        string
 	Layer        int
 	Primary      bool
+	DefaultScope bool
 	AllowFlood   bool
 	GeofenceJSON string
 }
@@ -139,12 +140,13 @@ func (s *Handlers) saveRegion(w http.ResponseWriter, r *http.Request, orgID, rid
 	}
 	layer, _ := strconv.Atoi(strings.TrimSpace(r.FormValue("region_layer")))
 	zv := configRegionView{
-		ID:          rid,
-		DisplayName: strings.TrimSpace(r.FormValue("region_display")),
-		Token:       strings.TrimSpace(r.FormValue("region_token")),
-		Layer:       layer,
-		Primary:     r.FormValue("region_primary") == "1",
-		AllowFlood:  r.FormValue("region_allow_flood") == "1",
+		ID:           rid,
+		DisplayName:  strings.TrimSpace(r.FormValue("region_display")),
+		Token:        strings.TrimSpace(r.FormValue("region_token")),
+		Layer:        layer,
+		Primary:      r.FormValue("region_primary") == "1",
+		DefaultScope: r.FormValue("region_default_scope") == "1",
+		AllowFlood:   r.FormValue("region_allow_flood") == "1",
 	}
 
 	var errs []string
@@ -164,7 +166,7 @@ func (s *Handlers) saveRegion(w http.ResponseWriter, r *http.Request, orgID, rid
 	if len(errs) == 0 {
 		in := store.RegionInput{
 			Token: zv.Token, DisplayName: display, Layer: zv.Layer,
-			Primary: zv.Primary, AllowFlood: zv.AllowFlood,
+			Primary: zv.Primary, DefaultScope: zv.DefaultScope, AllowFlood: zv.AllowFlood,
 		}
 		// Only the area endpoint writes a geofence, so neither branch here can drop a
 		// shape that's already been drawn.
@@ -362,7 +364,7 @@ func splitRegionAndSiblings(regions []store.Region, rid int64) (configRegionView
 func regionView(z store.Region) configRegionView {
 	return configRegionView{
 		ID: z.ID, DisplayName: z.DisplayName, Token: z.Token, Layer: z.Layer,
-		Primary: z.Primary, AllowFlood: z.AllowFlood, GeofenceJSON: string(z.GeofenceJSON),
+		Primary: z.Primary, DefaultScope: z.DefaultScope, AllowFlood: z.AllowFlood, GeofenceJSON: string(z.GeofenceJSON),
 	}
 }
 

@@ -20,7 +20,7 @@ import (
 // MQTT broker — is a form on its section's page; a list — regions, configuration
 // profiles, observers, nets — has a New button and per-row actions, with creating
 // and editing on pages of their own.
-var settingsSections = []string{"profile", "regions", "profiles", "mqtt", "nets"}
+var settingsSections = []string{"profile", "radio", "regions", "profiles", "mqtt", "nets"}
 
 // settingsURL is a Settings section's page; "profile" is the tab's landing page.
 func settingsURL(slug, section string) string {
@@ -142,22 +142,27 @@ func (s *Handlers) settingsData(ctx context.Context, r *http.Request, org *store
 		if err != nil {
 			return nil, err
 		}
-		radio, err := s.Store.OrgRadio(ctx, org.ID)
-		if err != nil {
-			return nil, err
-		}
 		data["ProfileForm"] = store.OrgProfile{Slug: org.Slug, Name: org.Name, Summary: org.Summary, Description: org.Description, Region: org.Region}
 		data["MaxOrgSummary"] = store.MaxOrgSummary
 		data["Links"] = links
 		data["Platforms"] = store.LinkPlatforms()
 		data["PlatformsJS"] = web.LinkPlatformsJS(store.LinkPlatforms())
-		shown := defaultRadio()
-		if radio != nil {
-			shown = *radio
-			data["Preset"] = radio.PresetName()
+	case "radio":
+		mesh, err := s.Store.OrgMesh(ctx, org.ID)
+		if err != nil {
+			return nil, err
 		}
-		data["RadioSet"] = radio != nil
+		shown := defaultRadio()
+		if mesh.Radio != nil {
+			shown = *mesh.Radio
+			data["Preset"] = mesh.Radio.PresetName()
+		}
+		data["RadioSet"] = mesh.Radio != nil
 		data["RadioFields"] = newRadioFields(shown, true)
+		data["PathHashModes"] = []int{0, 1, 2}
+		if mesh.PathHashMode != nil {
+			data["PathHashSet"], data["PathHashMode"] = true, *mesh.PathHashMode
+		}
 	case "regions", "profiles":
 		cv, err := web.BuildConfigView(ctx, s.Store, org.ID, r.URL.Query().Get("profile"), nil, nil)
 		if err != nil {

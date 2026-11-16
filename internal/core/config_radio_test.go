@@ -14,7 +14,7 @@ import (
 
 var uscaRadio = config.RadioDefaults{FreqHz: 910_525_000, BwHz: 62_500, SF: 7, CR: 5}
 
-// TestOrgRadioSettings: an admin sets the org's radio in Settings › Profile (the
+// TestOrgRadioSettings: an admin sets the org's radio in Settings › Radio (the
 // firmware's ranges enforced), the Configuration page shows it, a profile can
 // then reference it through placeholders and is shown filled in, and the radio
 // can't be cleared while that profile uses it. Members can't edit it.
@@ -28,18 +28,18 @@ func TestOrgRadioSettings(t *testing.T) {
 	}
 	base := "/orgs/" + org.Slug + "/config"
 	guide := "/orgs/" + org.Slug + "/guide/repeaters"
-	settings := "/orgs/" + org.Slug + "/settings"
+	settings := "/orgs/" + org.Slug + "/settings/radio"
 
-	// Settings › Profile has the radio form, opening on the default preset.
+	// Settings › Radio has the radio form, opening on the default preset.
 	page := readBody(t, do(t, ts, h.app, settings, sess))
 	if !strings.Contains(page, `data-testid="settings-radio"`) || !strings.Contains(page, "not set yet") ||
 		!strings.Contains(page, `selected>USA/Canada`) || strings.Contains(page, "clear-radio") {
-		t.Fatal("Settings › Profile should offer to set the radio")
+		t.Fatal("Settings › Radio should offer to set the radio")
 	}
 	// A profile can't reference a radio the org hasn't set.
 	bad := post(t, ts, h.app, base+"/profiles",
 		url.Values{"profile_name": {"Std"}, "profile_steps": {"set radio {{radio.freq}},{{radio.bw}},{{radio.sf}},{{radio.cr}}"}}, sess)
-	if body := readBody(t, bad); bad.StatusCode != http.StatusOK || !strings.Contains(body, "set them under Radio first") {
+	if body := readBody(t, bad); bad.StatusCode != http.StatusOK || !strings.Contains(body, "set it under Settings › Radio first") {
 		t.Fatalf("placeholder profile saved without an org radio: %q", body)
 	}
 
@@ -141,7 +141,7 @@ func TestOrgRadioFillsAssembledCommands(t *testing.T) {
 
 	// No radio yet: shown as written, not runnable, and setup refuses.
 	cc := getConsoleConfig(t, ts, h.app, configJSON, sess)
-	if len(cc.Commands) == 0 || cc.Commands[0].Runnable || !strings.Contains(cc.Commands[0].Reason, "radio settings aren't set") {
+	if len(cc.Commands) == 0 || cc.Commands[0].Runnable || !strings.Contains(cc.Commands[0].Reason, "hasn't set (its radio or path hash size)") {
 		t.Fatalf("unfilled line = %+v", cc.Commands)
 	}
 	if page := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/guide/repeaters?profile=Std", sess)); !strings.Contains(page, "config-radio-missing") {

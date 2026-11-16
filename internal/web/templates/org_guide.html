@@ -14,7 +14,7 @@
 
   <div class="card" data-testid="guide-radio">
     <div class="card-body">
-      <h2 class="card-title">1 · Set your radio</h2>
+      <h2 class="card-title">1 · Set up your companion</h2>
       {{with .Guide.Radio}}
       <p data-testid="guide-on-the-mesh">{{with .PresetName}}Pick the <strong>{{.}}</strong> preset{{else}}Enter these settings{{end}} in the companion app's radio settings. If you're within range of {{$.Org.Name}}'s repeaters or other companions, you should be able to send and receive messages.</p>
       <div class="row g-3">
@@ -25,7 +25,24 @@
       </div>
       {{else}}
       <p class="text-secondary mb-0" data-testid="guide-no-radio">{{.Org.Name}} hasn't published its radio settings yet.
-        {{if .Nav.IsAdmin}}<a href="/orgs/{{.Org.Slug}}/settings#radio">Set them in Settings</a>.{{else}}Ask an admin which to use.{{end}}</p>
+        {{if .Nav.IsAdmin}}<a href="/orgs/{{.Org.Slug}}/settings/radio">Set them in Settings</a>.{{else}}Ask an admin which to use.{{end}}</p>
+      {{end}}
+      {{if or .Guide.PathHashSet .Guide.DefaultScope}}
+      <div class="row g-3 border-top mt-3 pt-1" data-testid="guide-companion-extras">
+        {{if .Guide.PathHashSet}}
+        <div class="col-md-6" data-testid="guide-path-hash">
+          <div class="datagrid-title">Path hash size</div>
+          <div class="datagrid-content">{{template "path-hash-size" .Guide.PathHashMode}}</div>
+          {{if ne .Guide.PathHashMode 0}}<div class="text-secondary small">Needs firmware 1.14 or later.</div>{{end}}
+        </div>
+        {{end}}
+        {{with .Guide.DefaultScope}}
+        <div class="col-md-6" data-testid="guide-default-scope">
+          <div class="datagrid-title">Default scope</div>
+          <div class="datagrid-content"><code>{{.Token}}</code>{{if ne .DisplayName .Token}} · {{.DisplayName}}{{end}}</div>
+        </div>
+        {{end}}
+      </div>
       {{end}}
     </div>
   </div>

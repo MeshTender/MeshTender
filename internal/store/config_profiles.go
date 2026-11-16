@@ -85,6 +85,7 @@ type Region struct {
 	DisplayName  string
 	Layer        int
 	Primary      bool // the org's primary region (frames the config preview map)
+	DefaultScope bool // the region members set as their companion's default flood scope
 	AllowFlood   bool // whether flooding is allowed in this region (region allowf/denyf)
 	Geofence     *geo.Shape
 	GeofenceJSON []byte
@@ -102,6 +103,7 @@ type RegionInput struct {
 	DisplayName  string
 	Layer        int
 	Primary      bool
+	DefaultScope bool
 	AllowFlood   bool
 	GeofenceJSON []byte
 }
@@ -213,14 +215,14 @@ func (s *Store) ListOrgProfileNamesForUser(ctx context.Context, userID int64) ([
 // the order their tokens appear in a `region def` chain.
 func (s *Store) ListRegions(ctx context.Context, orgID int64) ([]Region, error) {
 	rrows, err := s.pool.Query(ctx,
-		`SELECT id, token, display_name, layer, is_primary, allow_flood, geofence FROM config_regions WHERE org_id = $1 ORDER BY layer, token`, orgID)
+		`SELECT id, token, display_name, layer, is_primary, is_default_scope, allow_flood, geofence FROM config_regions WHERE org_id = $1 ORDER BY layer, token`, orgID)
 	if err != nil {
 		return nil, fmt.Errorf("list regions: %w", err)
 	}
 	regions, err := collectRows(rrows, func(r pgx.Row) (Region, error) {
 		var z Region
 		var raw []byte
-		if err := r.Scan(&z.ID, &z.Token, &z.DisplayName, &z.Layer, &z.Primary, &z.AllowFlood, &raw); err != nil {
+		if err := r.Scan(&z.ID, &z.Token, &z.DisplayName, &z.Layer, &z.Primary, &z.DefaultScope, &z.AllowFlood, &raw); err != nil {
 			return Region{}, err
 		}
 		if z.Geofence, err = geo.Parse(raw); err != nil {
@@ -358,13 +360,13 @@ func (s *Store) DeleteProfile(ctx context.Context, orgID, profileID int64) error
 func (s *Store) CreateRegion(ctx context.Context, orgID int64, z RegionInput) (int64, error) {
 	var id int64
 	err := s.inTx(ctx, func(tx pgx.Tx) error {
-		if err := clearOtherPrimaries(ctx, tx, orgID, 0, z.Primary); err != nil {
+		if err := clearOneOfFlags(ctx, tx, orgID, 0, z); err != nil {
 			return err
 		}
 		return tx.QueryRow(ctx,
-			`INSERT INTO config_regions (org_id, token, display_name, layer, is_primary, allow_flood, geofence)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-			orgID, z.Token, z.DisplayName, z.Layer, z.Primary, z.AllowFlood, nilIfEmpty(z.GeofenceJSON)).Scan(&id)
+			`INSERT INTO config_regions (org_id, token, display_name, layer, is_primary, is_default_scope, allow_flood, geofence)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+			orgID, z.Token, z.DisplayName, z.Layer, z.Primary, z.DefaultScope, z.AllowFlood, nilIfEmpty(z.GeofenceJSON)).Scan(&id)
 	})
 	if isUniqueViolation(err) {
 		return 0, ErrDuplicate
@@ -381,9 +383,9 @@ func (s *Store) GetRegion(ctx context.Context, orgID, regionID int64) (*Region, 
 	var z Region
 	var raw []byte
 	err := s.pool.QueryRow(ctx,
-		`SELECT id, token, display_name, layer, is_primary, allow_flood, geofence
+		`SELECT id, token, display_name, layer, is_primary, is_default_scope, allow_flood, geofence
 		 FROM config_regions WHERE id = $1 AND org_id = $2`, regionID, orgID).
-		Scan(&z.ID, &z.Token, &z.DisplayName, &z.Layer, &z.Primary, &z.AllowFlood, &raw)
+		Scan(&z.ID, &z.Token, &z.DisplayName, &z.Layer, &z.Primary, &z.DefaultScope, &z.AllowFlood, &raw)
 	if err != nil {
 		return nil, notFoundOr(err, "get region")
 	}
@@ -400,13 +402,13 @@ func (s *Store) GetRegion(ctx context.Context, orgID, regionID int64) (*Region, 
 // or ErrDuplicate if the new token collides with another of its regions.
 func (s *Store) UpdateRegion(ctx context.Context, orgID, regionID int64, z RegionInput) error {
 	err := s.inTx(ctx, func(tx pgx.Tx) error {
-		if err := clearOtherPrimaries(ctx, tx, orgID, regionID, z.Primary); err != nil {
+		if err := clearOneOfFlags(ctx, tx, orgID, regionID, z); err != nil {
 			return err
 		}
 		tag, err := tx.Exec(ctx,
-			`UPDATE config_regions SET token = $3, display_name = $4, layer = $5, is_primary = $6, allow_flood = $7
+			`UPDATE config_regions SET token = $3, display_name = $4, layer = $5, is_primary = $6, is_default_scope = $7, allow_flood = $8
 			 WHERE id = $1 AND org_id = $2`,
-			regionID, orgID, z.Token, z.DisplayName, z.Layer, z.Primary, z.AllowFlood)
+			regionID, orgID, z.Token, z.DisplayName, z.Layer, z.Primary, z.DefaultScope, z.AllowFlood)
 		if err != nil {
 			return fmt.Errorf("update region: %w", err)
 		}
@@ -460,19 +462,24 @@ func (s *Store) SetRootAllowFlood(ctx context.Context, orgID int64, allow bool) 
 	return nil
 }
 
-// clearOtherPrimaries demotes the org's other primary regions so the one being
-// written can take the flag. keepID is excluded (0 when inserting). A no-op when
-// the region isn't becoming primary — turning the flag off never touches siblings.
-// This runs before the write, so config_regions_one_primary_idx never actually
-// fires; the index is there to keep the invariant if anything else writes the table.
-func clearOtherPrimaries(ctx context.Context, tx pgx.Tx, orgID, keepID int64, primary bool) error {
-	if !primary {
-		return nil
-	}
-	if _, err := tx.Exec(ctx,
-		`UPDATE config_regions SET is_primary = false WHERE org_id = $1 AND id <> $2 AND is_primary`,
-		orgID, keepID); err != nil {
-		return fmt.Errorf("clear other primary regions: %w", err)
+// clearOneOfFlags takes the org's one-per-org region flags (primary, default
+// scope) from its other regions when the one being written claims them, so it
+// can. keepID is excluded (0 when inserting). Turning a flag off never touches
+// siblings. This runs before the write, so the one-per-org unique indexes never
+// actually fire; they keep the invariant if anything else writes the table.
+func clearOneOfFlags(ctx context.Context, tx pgx.Tx, orgID, keepID int64, z RegionInput) error {
+	for _, f := range []struct {
+		column string // a fixed column name, never input
+		set    bool
+	}{{"is_primary", z.Primary}, {"is_default_scope", z.DefaultScope}} {
+		if !f.set {
+			continue
+		}
+		if _, err := tx.Exec(ctx,
+			fmt.Sprintf(`UPDATE config_regions SET %[1]s = false WHERE org_id = $1 AND id <> $2 AND %[1]s`, f.column),
+			orgID, keepID); err != nil {
+			return fmt.Errorf("clear other regions' %s: %w", f.column, err)
+		}
 	}
 	return nil
 }
@@ -507,8 +514,8 @@ func replaceRegionsTx(ctx context.Context, tx pgx.Tx, orgID int64, regions []Reg
 	}
 	for _, z := range regions {
 		if _, err := tx.Exec(ctx,
-			`INSERT INTO config_regions (org_id, token, display_name, layer, is_primary, allow_flood, geofence) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-			orgID, z.Token, z.DisplayName, z.Layer, z.Primary, z.AllowFlood, nilIfEmpty(z.GeofenceJSON)); err != nil {
+			`INSERT INTO config_regions (org_id, token, display_name, layer, is_primary, is_default_scope, allow_flood, geofence) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+			orgID, z.Token, z.DisplayName, z.Layer, z.Primary, z.DefaultScope, z.AllowFlood, nilIfEmpty(z.GeofenceJSON)); err != nil {
 			return fmt.Errorf("insert region %q: %w", z.Token, err)
 		}
 	}

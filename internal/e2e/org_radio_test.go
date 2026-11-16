@@ -27,10 +27,11 @@ func editRadioField(id, value string) chromedp.Action {
 const radioState = `["radio-preset","radio_freq_mhz","radio_bw_khz","radio_sf","radio_cr"]
 	.map(id => document.getElementById(id).value).join(" ")`
 
-// TestE2EOrgRadioSettings: an admin sets the org's radio on Settings › Profile.
+// TestE2EOrgRadioSettings: an admin sets the org's radio on Settings › Radio.
 // The delegated preset script (radio-preset.js) drives the picker under the CSP:
 // a preset fills the fields, editing one moves the picker to Custom, and the
-// saved values come back. The same shared picker drives the add-repeater form.
+// saved values come back. The path hash size saves beside it. The same shared
+// picker drives the add-repeater form.
 func TestE2EOrgRadioSettings(t *testing.T) {
 	srv := newE2EServer(t)
 	user, cookie := srv.login(t, "e2eradio")
@@ -42,13 +43,13 @@ func TestE2EOrgRadioSettings(t *testing.T) {
 	bctx, cancel, watch := startBrowser(t)
 	defer cancel()
 
-	var afterPreset, afterEdit, saved string
+	var afterPreset, afterEdit, saved, pathHash string
 	if err := chromedp.Run(bctx,
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		step("open the org's settings",
-			chromedp.Navigate(srv.appURL+"/orgs/"+org.Slug+"/settings"),
+		step("open the org's radio settings",
+			chromedp.Navigate(srv.appURL+"/orgs/"+org.Slug+"/settings/radio"),
 			chromedp.WaitVisible(`#radio-preset`, chromedp.ByQuery)),
 		step("pick a preset",
 			pickPreset("ch"),
@@ -60,6 +61,10 @@ func TestE2EOrgRadioSettings(t *testing.T) {
 			chromedp.Click(`[data-testid="save-radio"]`, chromedp.ByQuery),
 			chromedp.WaitVisible(`[data-testid="flash-ok"]`, chromedp.ByQuery),
 			chromedp.Evaluate(radioState, &saved)),
+		step("save a path hash size",
+			chromedp.SetValue(`#path_hash_mode`, "1", chromedp.ByQuery),
+			reloadedBy(chromedp.Click(`[data-testid="save-path-hash"]`, chromedp.ByQuery)),
+			chromedp.Value(`#path_hash_mode`, &pathHash, chromedp.ByQuery)),
 	); err != nil {
 		t.Fatalf("set org radio: %v", err)
 	}
@@ -71,6 +76,9 @@ func TestE2EOrgRadioSettings(t *testing.T) {
 	}
 	if saved != "custom 869.618 62.5 9 8" {
 		t.Errorf("radio after saving = %q", saved)
+	}
+	if pathHash != "1" {
+		t.Errorf("path hash mode after saving = %q, want 1 (2 bytes)", pathHash)
 	}
 
 	var addForm string

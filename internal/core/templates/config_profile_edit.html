@@ -53,6 +53,6 @@
   <label class="form-label" for="profile_steps">Base settings</label>
   <textarea class="form-control font-monospace" id="profile_steps" name="profile_steps" rows="10" spellcheck="false" placeholder="set tx 22&#10;# notes start with #">{{.StepsText}}</textarea>
   <small class="form-hint">One command per line; lines starting with <code>#</code> are notes. Put <code>{{"{{ region }}"}}</code> on its own line to insert this organization's region settings there — otherwise they run after all steps.
-    <code>{{"{{ radio.freq }}"}}</code>, <code>{{"{{ radio.bw }}"}}</code>, <code>{{"{{ radio.sf }}"}}</code> and <code>{{"{{ radio.cr }}"}}</code> stand for this organization's radio settings, e.g. <code>set radio {{"{{ radio.freq }}"}},{{"{{ radio.bw }}"}},{{"{{ radio.sf }}"}},{{"{{ radio.cr }}"}}</code>.</small>
+    <code>{{"{{ radio.freq }}"}}</code>, <code>{{"{{ radio.bw }}"}}</code>, <code>{{"{{ radio.sf }}"}}</code> and <code>{{"{{ radio.cr }}"}}</code> stand for this organization's radio settings, e.g. <code>set radio {{"{{ radio.freq }}"}},{{"{{ radio.bw }}"}},{{"{{ radio.sf }}"}},{{"{{ radio.cr }}"}}</code>, and <code>{{"{{ path.hash.mode }}"}}</code> for its path hash size, as in <code>set path.hash.mode {{"{{ path.hash.mode }}"}}</code>. Both are set under Settings › Radio.</small>
 </div>
 {{end}}

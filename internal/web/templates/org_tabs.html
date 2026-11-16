@@ -70,9 +70,13 @@
     {{template "org-settings-item" (dict "Nav" . "Section" "mqtt" "Label" "MQTT" "Icon" "access-point")}}
     {{template "org-settings-item" (dict "Nav" . "Section" "nets" "Label" "Nets" "Icon" "calendar-event")}}
   </div>
+  <h2 class="subheader">Mesh</h2>
+  <div class="list-group list-group-transparent mb-3">
+    {{template "org-settings-item" (dict "Nav" . "Section" "radio" "Label" "Radio" "Icon" "wave-sine")}}
+    {{template "org-settings-item" (dict "Nav" . "Section" "regions" "Label" "Regions" "Icon" "map-pin")}}
+  </div>
   <h2 class="subheader">Repeaters</h2>
   <div class="list-group list-group-transparent">
-    {{template "org-settings-item" (dict "Nav" . "Section" "regions" "Label" "Regions" "Icon" "map-pin")}}
     {{template "org-settings-item" (dict "Nav" . "Section" "profiles" "Label" "Configuration profiles" "Icon" "list")}}
   </div>
 </nav>
@@ -87,7 +91,7 @@
 
 {{/* org-settings-icon picks the rail icon by name (template names can't be computed). */}}
 {{define "org-settings-icon"}}
-{{if eq . "world"}}{{template "icon-world" "me-2"}}{{else if eq . "map-pin"}}{{template "icon-map-pin" "me-2"}}{{else if eq . "list"}}{{template "icon-list" "me-2"}}{{else if eq . "access-point"}}{{template "icon-access-point" "me-2"}}{{else if eq . "calendar-event"}}{{template "icon-calendar-event" "me-2"}}{{end}}
+{{if eq . "world"}}{{template "icon-world" "me-2"}}{{else if eq . "map-pin"}}{{template "icon-map-pin" "me-2"}}{{else if eq . "list"}}{{template "icon-list" "me-2"}}{{else if eq . "wave-sine"}}{{template "icon-wave-sine" "me-2"}}{{else if eq . "access-point"}}{{template "icon-access-point" "me-2"}}{{else if eq . "calendar-event"}}{{template "icon-calendar-event" "me-2"}}{{end}}
 {{end}}
 
 {{/* settings-layout-open / -close wrap a Settings page's content in one card,

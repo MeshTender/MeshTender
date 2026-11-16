@@ -115,8 +115,8 @@ func (s *Handlers) consoleConfigJSON(w http.ResponseWriter, r *http.Request) {
 	runnable := func(line string) (bool, string) {
 		if store.HasPlaceholders(line) {
 			// BuildConfigView filled in everything it could; what's left needs
-			// radio settings the org hasn't set.
-			return false, "the organization's radio settings aren't set"
+			// settings the org hasn't set.
+			return false, "it uses a setting the organization hasn't set (its radio or path hash size)"
 		}
 		if overUSB {
 			return true, ""

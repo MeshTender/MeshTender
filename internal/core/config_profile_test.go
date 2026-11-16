@@ -29,7 +29,7 @@ func TestParseConfigSteps(t *testing.T) {
 	}, "\n")
 
 	var errs, risky []string
-	persist := parseConfigSteps(text, catalog, nil, "base", &errs, &risky)
+	persist := parseConfigSteps(text, catalog, store.OrgMesh{}, "base", &errs, &risky)
 
 	// One unknown command recorded.
 	if len(errs) != 1 || !strings.Contains(errs[0], "set nonsense 1") {
@@ -58,7 +58,7 @@ func TestParseConfigStepsRegionMarker(t *testing.T) {
 	// A marker (in flexible spelling) becomes one marker step that canonicalizes
 	// and round-trips; it is neither a comment nor a runnable command.
 	var errs, risky []string
-	persist := parseConfigSteps("set tx 22\n{{region}}\nset tx 23", catalog, nil, "base", &errs, &risky)
+	persist := parseConfigSteps("set tx 22\n{{region}}\nset tx 23", catalog, store.OrgMesh{}, "base", &errs, &risky)
 	if len(errs) != 0 {
 		t.Fatalf("errs = %v, want none", errs)
 	}
@@ -74,7 +74,7 @@ func TestParseConfigStepsRegionMarker(t *testing.T) {
 
 	// A second marker is rejected.
 	errs, risky = nil, nil
-	_ = parseConfigSteps("{{ region }}\n{{ REGION }}", catalog, nil, "base", &errs, &risky)
+	_ = parseConfigSteps("{{ region }}\n{{ REGION }}", catalog, store.OrgMesh{}, "base", &errs, &risky)
 	if len(errs) != 1 || !strings.Contains(errs[0], "once") {
 		t.Fatalf("errs = %v, want one 'only once' error", errs)
 	}
@@ -87,7 +87,7 @@ func TestParseConfigStepsRegionMarker(t *testing.T) {
 func TestParseConfigStepsRadioPlaceholders(t *testing.T) {
 	t.Parallel()
 	catalog := configCatalog()
-	radio := &config.RadioDefaults{FreqHz: 910_525_000, BwHz: 62_500, SF: 7, CR: 5}
+	radio := store.OrgMesh{Radio: &config.RadioDefaults{FreqHz: 910_525_000, BwHz: 62_500, SF: 7, CR: 5}}
 	line := "set radio {{radio.freq}},{{ RADIO.BW }},{{ radio.sf  }},{{radio.cr }}"
 
 	var errs, risky []string
@@ -102,8 +102,8 @@ func TestParseConfigStepsRadioPlaceholders(t *testing.T) {
 
 	// No org radio: nothing to fill in, so the line is rejected.
 	errs = nil
-	if got := parseConfigSteps(line, catalog, nil, "base", &errs, &risky); len(got) != 0 ||
-		len(errs) != 1 || !strings.Contains(errs[0], "aren't set") {
+	if got := parseConfigSteps(line, catalog, store.OrgMesh{}, "base", &errs, &risky); len(got) != 0 ||
+		len(errs) != 1 || !strings.Contains(errs[0], "set it under Settings › Radio") {
 		t.Fatalf("without a radio: steps %+v, errs %v", got, errs)
 	}
 

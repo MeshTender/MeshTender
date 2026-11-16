@@ -64,7 +64,7 @@ func TestOrgGuideWithoutRadio(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	settings := `href="/orgs/` + org.Slug + `/settings#radio"`
+	settings := `href="/orgs/` + org.Slug + `/settings/radio"`
 
 	adminView := getBody(t, ts, h.app, "/orgs/"+org.Slug+"/guide", adminSess)
 	if !strings.Contains(adminView, `data-testid="guide-no-radio"`) || !strings.Contains(adminView, settings) {

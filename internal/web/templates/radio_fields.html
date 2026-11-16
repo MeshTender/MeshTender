@@ -26,3 +26,7 @@
   </div>
 </div>
 {{end}}
+
+{{/* path-hash-size names a path hash mode (0–2) by the size it sets: MeshCore's
+     `set path.hash.mode` 0, 1 or 2 is a 1-, 2- or 3-byte path hash. */}}
+{{define "path-hash-size"}}{{if eq . 0}}1 byte{{else if eq . 1}}2 bytes{{else}}3 bytes{{end}}{{end}}

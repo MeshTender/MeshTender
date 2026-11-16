@@ -222,10 +222,21 @@ func TestOrgSettingsProfileInline(t *testing.T) {
 	for _, want := range []string{
 		`action="/orgs/` + org.Slug + `/edit"`, `name="slug"`, // profile
 		`action="/orgs/` + org.Slug + `/links"`, "data-link-editor", // links
-		`action="/orgs/` + org.Slug + `/config/radio"`, `name="radio_freq_mhz"`, // radio
 	} {
 		if !strings.Contains(settings, want) {
 			t.Errorf("Settings › Profile missing %q", want)
+		}
+	}
+	if strings.Contains(settings, `name="radio_freq_mhz"`) {
+		t.Error("Settings › Profile still has the radio form; it's on Settings › Radio")
+	}
+	radio := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/settings/radio", sess))
+	for _, want := range []string{
+		`action="/orgs/` + org.Slug + `/config/radio"`, `name="radio_freq_mhz"`,
+		`action="/orgs/` + org.Slug + `/config/path-hash"`, `name="path_hash_mode"`,
+	} {
+		if !strings.Contains(radio, want) {
+			t.Errorf("Settings › Radio missing %q", want)
 		}
 	}
 	if strings.Contains(settings, `data-bs-toggle="modal"`) {

@@ -11,7 +11,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/MeshTender/MeshTender/internal/config"
 	"github.com/MeshTender/MeshTender/internal/store"
 	"github.com/MeshTender/MeshTender/internal/web"
 )
@@ -191,12 +190,12 @@ func (s *Handlers) saveProfile(w http.ResponseWriter, r *http.Request, orgID, pi
 	if name == "" {
 		errs = append(errs, "Give the profile a name.")
 	}
-	radio, err := s.Store.OrgRadio(r.Context(), orgID)
+	mesh, err := s.Store.OrgMesh(r.Context(), orgID)
 	if err != nil {
 		s.ServerError(w, r, "could not load radio settings", err)
 		return
 	}
-	steps := parseConfigSteps(stepsText, catalog, radio, "profile", &errs, &risky)
+	steps := parseConfigSteps(stepsText, catalog, mesh, "profile", &errs, &risky)
 
 	if len(errs) == 0 {
 		if pid == 0 {
@@ -247,7 +246,7 @@ func (s *Handlers) handleDeleteProfile(w http.ResponseWriter, r *http.Request) {
 // placeholders are stored canonical and validated filled in from radio — the
 // org's radio settings — so a profile can't reference settings the org hasn't
 // set.
-func parseConfigSteps(text string, catalog []*store.Command, radio *config.RadioDefaults, label string, errs, risky *[]string) []store.ConfigStep {
+func parseConfigSteps(text string, catalog []*store.Command, mesh store.OrgMesh, label string, errs, risky *[]string) []store.ConfigStep {
 	var steps []store.ConfigStep
 	markerSeen := false
 	for _, raw := range strings.Split(text, "\n") {
@@ -273,9 +272,9 @@ func parseConfigSteps(text string, catalog []*store.Command, radio *config.Radio
 			*errs = append(*errs, fmt.Sprintf("%s: unknown placeholder %s in %q.", label, strings.Join(unknown, ", "), line))
 			continue
 		}
-		filled, ok := store.ExpandPlaceholders(line, radio)
+		filled, ok := store.ExpandPlaceholders(line, mesh)
 		if !ok {
-			*errs = append(*errs, fmt.Sprintf("%s: %q uses the organization's radio settings, which aren't set — set them under Radio first.", label, line))
+			*errs = append(*errs, fmt.Sprintf("%s: %q uses a setting the organization hasn't set yet — set it under Settings › Radio first.", label, line))
 			continue
 		}
 		if !validCommandText(filled) { // what reaches the device

@@ -13,9 +13,9 @@
     </div>
   </div>
   <div class="card-body">{{template "config-lines" .Config.AssembledLines}}</div>
-  {{if .Config.RadioMissing}}
+  {{if .Config.SettingsMissing}}
   <div class="card-footer text-danger small" data-testid="config-radio-missing">
-    Some lines use this organization's radio settings, which aren't set, so they can't be run.
+    Some lines use settings this organization hasn't set yet (its radio or path hash size), so they can't be run.
   </div>
   {{end}}
   {{if .Config.PreviewActive}}
