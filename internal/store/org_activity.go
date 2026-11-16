@@ -109,23 +109,3 @@ func (s *Store) NetSessionsCheckedIn(ctx context.Context, orgID int64, ids []int
 	}
 	return out, rows.Err()
 }
-
-// OrgConfigSummary is what an org recommends for its repeaters, in brief: its
-// profiles' names in display order, and whether it has any regions.
-type OrgConfigSummary struct {
-	Profiles   []string
-	HasRegions bool
-}
-
-// GetOrgConfigSummary loads the org's OrgConfigSummary. Profiles are bounded by
-// what an admin creates (a handful).
-func (s *Store) GetOrgConfigSummary(ctx context.Context, orgID int64) (OrgConfigSummary, error) {
-	var sum OrgConfigSummary
-	if err := s.pool.QueryRow(ctx, `
-		SELECT COALESCE((SELECT array_agg(name ORDER BY position, name) FROM config_profiles WHERE org_id = $1), '{}'),
-		       EXISTS (SELECT 1 FROM config_regions WHERE org_id = $1)`, orgID).
-		Scan(&sum.Profiles, &sum.HasRegions); err != nil {
-		return sum, fmt.Errorf("org config summary: %w", err)
-	}
-	return sum, nil
-}

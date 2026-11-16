@@ -2,23 +2,20 @@ package core
 
 import (
 	"net/http"
-	"slices"
 	"time"
 
 	"github.com/MeshTender/MeshTender/internal/store"
 	"github.com/MeshTender/MeshTender/internal/web"
 )
 
-// Org Home, for members: a banner for each net in session, the org's About and
-// links, how to set up a repeater, and a sidebar with counts, the next nets and
-// recent activity.
+// Org Home, for members: what's happening week to week. A banner for each net
+// in session, a nudge while the member has no registered companion, the
+// upcoming nets and recent activity. What doesn't change week to week lives
+// elsewhere: About on the public page, the radio and configuration in the Guide,
+// repeaters and members on their tabs.
 
-const (
-	// homeUpcomingNets caps the "Next nets" card.
-	homeUpcomingNets = 3
-	// homeActivity caps the "Recent activity" card.
-	homeActivity = 8
-)
+// homeActivity caps the "Recent activity" card.
+const homeActivity = 8
 
 // homeLiveNet is a net whose session is in progress, for Home's banner.
 type homeLiveNet struct {
@@ -27,21 +24,15 @@ type homeLiveNet struct {
 	CheckedIn int
 }
 
-// homeNets splits an org's nets into those in session now and the next few
-// to start, soonest first. nets is bounded by store.MaxNetsPerOrg.
-func homeNets(nets []store.NetSummary, now time.Time) (live []homeLiveNet, upcoming []store.NetSummary) {
-	for _, n := range nets {
-		switch {
-		case n.Next == nil:
-		case !n.Next.StartsAt.After(now):
-			live = append(live, homeLiveNet{Net: n.Net, Session: *n.Next})
-		default:
+// homeNets splits an org's scheduled nets (web.ScheduledNets: active, soonest
+// first) into those in session now and those still to start.
+func homeNets(scheduled []store.NetSummary, now time.Time) (live []homeLiveNet, upcoming []store.NetSummary) {
+	for _, n := range scheduled {
+		if n.Next.StartsAt.After(now) {
 			upcoming = append(upcoming, n)
+		} else {
+			live = append(live, homeLiveNet{Net: n.Net, Session: *n.Next})
 		}
-	}
-	slices.SortStableFunc(upcoming, func(a, b store.NetSummary) int { return a.Next.StartsAt.Compare(b.Next.StartsAt) })
-	if len(upcoming) > homeUpcomingNets {
-		upcoming = upcoming[:homeUpcomingNets]
 	}
 	return live, upcoming
 }
@@ -52,22 +43,12 @@ func (s *Handlers) renderOrgHome(w http.ResponseWriter, r *http.Request, org *st
 	now := time.Now()
 	fail := func(err error) { s.ServerError(w, r, "could not load organization", err) }
 
-	memberCount, repeaterCount, err := s.Store.OrgCounts(ctx, org.ID)
-	if err != nil {
-		fail(err)
-		return
-	}
-	links, err := s.Store.ListOrgLinks(ctx, org.ID)
-	if err != nil {
-		fail(err)
-		return
-	}
 	nets, err := s.Store.ListOrgNetSummaries(ctx, org.ID, now)
 	if err != nil {
 		fail(err)
 		return
 	}
-	live, upcoming := homeNets(nets, now)
+	live, upcoming := homeNets(web.ScheduledNets(nets), now)
 	ids := make([]int64, len(live))
 	for i := range live {
 		ids[i] = live[i].Session.ID
@@ -85,52 +66,20 @@ func (s *Handlers) renderOrgHome(w http.ResponseWriter, r *http.Request, org *st
 		fail(err)
 		return
 	}
-	radio, err := s.Store.OrgRadio(ctx, org.ID)
+	// Bounded by store.MaxCompanionsPerUser.
+	companions, err := s.Store.ListCompanionsForUser(ctx, s.Auth.CurrentUserID(ctx))
 	if err != nil {
 		fail(err)
 		return
 	}
-	config, err := s.Store.GetOrgConfigSummary(ctx, org.ID)
-	if err != nil {
-		fail(err)
-		return
-	}
-	reps, err := web.BuildRepeatersView(ctx, s.Store, org.ID, true)
-	if err != nil {
-		fail(err)
-		return
-	}
-	data := map[string]any{
-		"Org":           org,
-		"Nav":           s.orgNav(ctx, org, "home", isAdmin),
-		"IsAdmin":       isAdmin,
-		"Links":         links,
-		"MemberCount":   memberCount,
-		"RepeaterCount": repeaterCount,
-		"LiveNets":      live,
-		"UpcomingNets":  upcoming,
-		"Activity":      activity,
-		"Radio":         radio,
-		"Config":        config,
-		"MapPoints":     reps.MapPoints,
-	}
-	if radio != nil {
-		data["Preset"] = radio.PresetName()
-	}
-	if isAdmin {
-		// Observer health is an admin's concern: they register and run them.
-		observers, err := s.Store.ListOrgObservers(ctx, org.ID, store.ObserversApproved)
-		if err != nil {
-			fail(err)
-			return
-		}
-		online := 0
-		for _, o := range observers {
-			if o.OnlineAt(now) {
-				online++
-			}
-		}
-		data["Observers"], data["ObserversOnline"] = len(observers), online
-	}
-	s.Render(w, r, "org.html", data)
+	s.Render(w, r, "org.html", map[string]any{
+		"Org":          org,
+		"Nav":          s.orgNav(ctx, org, "home", isAdmin),
+		"IsAdmin":      isAdmin,
+		"Now":          now,
+		"LiveNets":     live,
+		"UpcomingNets": upcoming,
+		"Activity":     activity,
+		"HasCompanion": len(companions) > 0,
+	})
 }

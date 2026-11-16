@@ -2,6 +2,9 @@
 {{define "header"}}{{template "org-header" .}}{{end}}
 {{define "content"}}
 {{template "org-tabs" .Nav}}
+{{/* Home is for members, week to week: what's on now, what's next, what just
+     happened — one column, since most orgs run a single net. What doesn't change week to week lives elsewhere — About on the
+     public page, the radio and configuration in the Guide. */}}
 
 {{/* A banner for each net in session: the thing to do right now. */}}
 {{range .LiveNets}}
@@ -17,129 +20,53 @@
 </div>
 {{end}}
 
-<div class="row row-cards">
-  <div class="col-lg-8 d-flex flex-column gap-3">
-    <div class="card" data-testid="home-about">
-      <div class="card-header">
-        <h2 class="card-title">About</h2>
-        {{with .Org.Region}}<div class="card-actions text-secondary d-flex align-items-center">{{template "icon-map-pin" "me-1"}}{{.}}</div>{{end}}
-      </div>
-      <div class="card-body">
-        {{if .Org.Description}}
-        <div class="markdown">{{markdown .Org.Description}}</div>
-        {{else}}
-        <p class="text-secondary mb-0">No description yet.{{if .IsAdmin}} <a href="/orgs/{{.Org.Slug}}/settings">Add one in Settings</a>.{{end}}</p>
-        {{end}}
-      </div>
-      {{if .Links}}{{template "org-links-list" .Links}}{{end}}
-    </div>
-
-    {{if .Nav.ShowConfig}}
-    <div class="card" data-testid="org-config-card">
-      <div class="card-header">
-        <h2 class="card-title">Recommended configuration</h2>
-        <div class="card-actions"><a class="btn btn-sm" href="/orgs/{{.Org.Slug}}/guide/repeaters" data-testid="org-config-link">See the commands</a></div>
-      </div>
-      <div class="card-body">
-        <div class="row g-3">
-          <div class="col-md-6">
-            <div class="subheader">Radio</div>
-            {{with .Radio}}
-            <div class="fw-bold" data-testid="home-radio">{{template "radio-values" .}}</div>
-            {{with $.Preset}}<div class="text-secondary small">{{.}}</div>{{end}}
-            {{else}}
-            <div class="text-secondary">Not set</div>
-            {{end}}
-          </div>
-          <div class="col-md-6">
-            <div class="subheader">Configuration profiles</div>
-            {{if .Config.Profiles}}
-            <div class="fw-bold" data-testid="home-profiles">{{range $i, $p := .Config.Profiles}}{{if $i}} · {{end}}{{$p}}{{end}}</div>
-            {{else}}
-            <div class="text-secondary">None yet</div>
-            {{end}}
-            {{if .Config.HasRegions}}<div class="text-secondary small">plus settings by region</div>{{end}}
-          </div>
-        </div>
-      </div>
-    </div>
-    {{end}}
-
-    {{if .MapPoints}}
-    <div class="card">
-      <div class="card-header"><h2 class="card-title">Repeaters</h2></div>
-      <div class="card-body p-2">
-        {{template "map-styles"}}
-        <div id="map" style="height:300px" role="region" aria-label="Map of organization repeater locations"></div>
-        {{template "map-scripts"}}
-        <script src="{{ asset "/static/meshmap.js" }}"></script>
-        <script nonce="{{.Nonce}}">
-          meshMap('map', [
-            {{range .MapPoints}}{name: {{.Name}}, lat: {{.Lat}}, lon: {{.Lon}}},{{end}}
-          ]);
-        </script>
-      </div>
-    </div>
-    {{end}}
+{{if not .HasCompanion}}
+<div class="alert alert-info" role="alert" data-testid="home-companion-nudge">
+  <div class="d-flex flex-wrap align-items-center gap-2">
+    {{/* Body color: Tabler's info-alert text is 4.4:1 on the dark theme, under AA. */}}
+    <span class="flex-fill text-body">Register a companion so your adverts count as check-ins for this organization's nets.</span>
+    <a href="/orgs/{{.Org.Slug}}/guide" data-testid="home-companion-nudge-link">Get on the air</a>
   </div>
+</div>
+{{end}}
 
-  <div class="col-lg-4 d-flex flex-column gap-3">
-    <div class="card" data-testid="home-counts">
-      <div class="list-group list-group-flush">
-        <a class="list-group-item list-group-item-action d-flex align-items-center" href="/orgs/{{.Org.Slug}}/members">
-          {{template "icon-users" "me-2 text-secondary"}}Members<span class="ms-auto fw-bold">{{.MemberCount}}</span>
-        </a>
-        <a class="list-group-item list-group-item-action d-flex align-items-center" href="/orgs/{{.Org.Slug}}/repeaters">
-          {{template "icon-antenna" "me-2 text-secondary"}}Repeaters<span class="ms-auto fw-bold">{{.RepeaterCount}}</span>
-        </a>
-        {{if .IsAdmin}}
-        <a class="list-group-item list-group-item-action d-flex align-items-center" href="/orgs/{{.Org.Slug}}/settings/mqtt" data-testid="home-observers">
-          {{template "icon-access-point" "me-2 text-secondary"}}Observers online
-          <span class="ms-auto fw-bold">{{if .Observers}}{{.ObserversOnline}} of {{.Observers}}{{else}}<span class="text-secondary fw-normal">None registered</span>{{end}}</span>
-        </a>
-        {{end}}
-      </div>
-    </div>
-
+<div class="d-flex flex-column gap-3">
+  <div class="card" data-testid="home-upcoming">
+    <div class="card-header"><h2 class="card-title">Upcoming nets</h2></div>
     {{if .UpcomingNets}}
-    <div class="card" data-testid="home-upcoming">
-      <div class="card-header"><h2 class="card-title">Next nets</h2></div>
-      <div class="list-group list-group-flush">
-        {{range .UpcomingNets}}
-        <a class="list-group-item list-group-item-action" href="/orgs/{{$.Org.Slug}}/nets/{{.ID}}">
-          <div class="fw-bold">{{.Name}}</div>
-          <div class="text-secondary small">{{ts .Next.StartsAt "datetime"}}</div>
-        </a>
-        {{end}}
-      </div>
-    </div>
-    {{end}}
-
-    <div class="card" data-testid="home-activity">
-      <div class="card-header"><h2 class="card-title">Recent activity</h2></div>
-      {{if .Activity}}
-      <div class="list-group list-group-flush">
-        {{range .Activity}}
-        <div class="list-group-item d-flex gap-2" data-testid="home-activity-{{.Kind}}">
-          {{if eq .Kind "repeater_added"}}
-          <span class="text-secondary d-flex">{{template "icon-antenna" ""}}</span>
-          <div><div><strong>{{.Name}}</strong> joined the organization</div>
-            <div class="text-secondary small">{{ts .At "relative"}}</div></div>
-          {{else}}
-          <span class="text-secondary d-flex">{{template "icon-calendar-event" ""}}</span>
-          <div>
-            <div><a href="/orgs/{{$.Org.Slug}}/nets/{{.NetID}}/sessions/{{.SessionID}}">{{.Name}}</a>
-              {{if eq .Kind "net_started"}}started{{else}}ended · {{.CheckedIn}} checked in{{end}}</div>
-            <div class="text-secondary small">{{ts .At "relative"}}</div>
-          </div>
-          {{end}}
-        </div>
-        {{end}}
-      </div>
-      {{else}}
-      <div class="card-body text-secondary">Nothing yet. New repeaters and net sessions show up here.</div>
+    <div class="list-group list-group-flush">
+      {{range .UpcomingNets}}
+      <a class="list-group-item list-group-item-action" href="/orgs/{{$.Org.Slug}}/nets/{{.ID}}" data-testid="home-upcoming-net">{{template "org-net-row" (dict "Net" . "Now" $.Now)}}</a>
       {{end}}
     </div>
+    {{else}}
+    {{template "empty-state" (dict "Compact" true "Title" "No nets coming up" "Line" (or (and .IsAdmin "Schedule one under Settings › Nets.") "An admin schedules them."))}}
+    {{end}}
+  </div>
+  <div class="card" data-testid="home-activity">
+    <div class="card-header"><h2 class="card-title">Recent activity</h2></div>
+    {{if .Activity}}
+    <div class="list-group list-group-flush">
+      {{range .Activity}}
+      <div class="list-group-item d-flex gap-2" data-testid="home-activity-{{.Kind}}">
+        {{if eq .Kind "repeater_added"}}
+        <span class="text-secondary d-flex">{{template "icon-antenna" ""}}</span>
+        <div><div><strong>{{.Name}}</strong> joined the organization</div>
+          <div class="text-secondary small">{{ts .At "relative"}}</div></div>
+        {{else}}
+        <span class="text-secondary d-flex">{{template "icon-calendar-event" ""}}</span>
+        <div>
+          <div><a href="/orgs/{{$.Org.Slug}}/nets/{{.NetID}}/sessions/{{.SessionID}}">{{.Name}}</a>
+            {{if eq .Kind "net_started"}}started{{else}}ended · {{.CheckedIn}} checked in{{end}}</div>
+          <div class="text-secondary small">{{ts .At "relative"}}</div>
+        </div>
+        {{end}}
+      </div>
+      {{end}}
+    </div>
+    {{else}}
+    <div class="card-body text-secondary">Nothing yet. New repeaters and net sessions show up here.</div>
+    {{end}}
   </div>
 </div>
 

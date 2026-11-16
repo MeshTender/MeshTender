@@ -1,7 +1,6 @@
 package store
 
 import (
-	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -108,32 +107,6 @@ func TestListOrgActivity(t *testing.T) {
 	}
 	if _, ok := counts[otherEnded]; ok {
 		t.Fatalf("another org's session counted: %v", counts)
-	}
-}
-
-func TestGetOrgConfigSummary(t *testing.T) {
-	t.Parallel()
-	st, ctx := orgTestStore(t)
-	admin := mustUser(t, st, ctx, "sumadmin")
-	org := mustOrg(t, st, ctx, "SumOrg", admin)
-
-	if sum, err := st.GetOrgConfigSummary(ctx, org); err != nil || len(sum.Profiles) != 0 || sum.HasRegions {
-		t.Fatalf("empty summary = %+v, %v", sum, err)
-	}
-	for _, name := range []string{"RAK 4631", "Heltec V3"} {
-		if _, err := st.CreateProfile(ctx, org, name, nil); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if _, err := st.CreateRegion(ctx, org, RegionInput{Token: "wny", DisplayName: "WNY", Layer: 1}); err != nil {
-		t.Fatal(err)
-	}
-	sum, err := st.GetOrgConfigSummary(ctx, org)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !slices.Equal(sum.Profiles, []string{"RAK 4631", "Heltec V3"}) || !sum.HasRegions {
-		t.Fatalf("summary = %+v", sum)
 	}
 }
 

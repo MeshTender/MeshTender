@@ -61,9 +61,8 @@ func TestE2EOrgNavigation(t *testing.T) {
 		t.Errorf("public page link = %q, want the root host's org page", publicHref)
 	}
 
-	// With some config, Home links a plain member to the recommended
-	// configuration, Guide › Repeater setup: the Guide tab is active and there's
-	// no Settings.
+	// A plain member reaches the recommended configuration through the Guide
+	// tab's Repeater setup: the Guide tab is active and there's no Settings.
 	if _, err := srv.store.CreateProfile(srv.ctx, org.ID, "Std", nil); err != nil {
 		t.Fatal(err)
 	}
@@ -75,12 +74,13 @@ func TestE2EOrgNavigation(t *testing.T) {
 	var settingsShown bool
 	if err := chromedp.Run(bctx,
 		setSessionCookie(memberCookie),
-		step("open the org's home as a member",
+		step("open the org's Guide as a member",
 			chromedp.Navigate(srv.appURL+"/orgs/"+org.Slug),
-			chromedp.WaitVisible(`[data-testid="org-config-card"] [data-testid="org-config-link"]`, chromedp.ByQuery)),
+			chromedp.Click(`[data-testid="org-tab-guide"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(`[data-testid="org-guide-repeaters"]`, chromedp.ByQuery)),
 		step("open the recommended configuration",
-			chromedp.Click(`[data-testid="org-config-card"] [data-testid="org-config-link"]`, chromedp.ByQuery),
-			chromedp.WaitVisible(`[data-testid="org-guide-nav"]`, chromedp.ByQuery),
+			chromedp.Click(`[data-testid="org-guide-repeaters"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(`[data-testid="org-guide-repeaters"][aria-current="page"]`, chromedp.ByQuery),
 			chromedp.Evaluate(activeTab, &memberTab),
 			chromedp.Evaluate(`!!document.querySelector('[data-testid="org-tab-settings"]')`, &settingsShown)),
 	); err != nil {

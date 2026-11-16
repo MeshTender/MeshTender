@@ -15,7 +15,8 @@ import (
 )
 
 // TestE2EOrgHomeLiveNetBanner: while a net is in session, the org's Home shows
-// a banner whose "Open roster" goes to the session's roster, under the strict
+// a banner whose "Open roster" goes to the session's roster; and a member with
+// no companion is nudged to the Guide's Get on the air — all under the strict
 // CSP.
 func TestE2EOrgHomeLiveNetBanner(t *testing.T) {
 	srv := newE2EServer(t)
@@ -47,6 +48,10 @@ func TestE2EOrgHomeLiveNetBanner(t *testing.T) {
 		step("open the live net's roster",
 			chromedp.Click(`[data-testid="home-live-roster"]`, chromedp.ByQuery),
 			chromedp.WaitVisible(`[data-testid="roster-card"]`, chromedp.ByQuery)),
+		step("follow the companion nudge to the Guide",
+			chromedp.Navigate(homeURL),
+			chromedp.Click(`[data-testid="home-companion-nudge-link"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(`[data-testid="guide-radio"]`, chromedp.ByQuery)),
 	); err != nil {
 		t.Fatalf("browser run against %s: %v", homeURL, err)
 	}

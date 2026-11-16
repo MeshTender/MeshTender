@@ -177,14 +177,7 @@
   </div>
   <div class="list-group list-group-flush">
     {{range .Nets}}
-    <div class="list-group-item" data-testid="org-net">
-      <div class="d-flex align-items-center flex-wrap gap-2">
-        <span class="fw-bold">{{.Name}}</span>
-        {{if $.Now.Before .Next.StartsAt}}<span class="ms-auto text-secondary small">Next {{ts .Next.StartsAt "datetime"}}</span>
-        {{else}}<span class="badge bg-green-lt ms-auto">In progress</span>{{end}}
-      </div>
-      <div class="text-secondary small">{{.Schedule}}</div>
-    </div>
+    <div class="list-group-item" data-testid="org-net">{{template "org-net-row" (dict "Net" . "Now" $.Now)}}</div>
     {{end}}
   </div>
 </div>
@@ -223,4 +216,16 @@
 {{$active := eq .Nav.Active .Page}}
 <a class="list-group-item list-group-item-action{{if $active}} active{{end}}" href="/orgs/{{.Nav.Slug}}/guide{{.Path}}"{{if $active}} aria-current="page"{{end}}
    data-testid="org-{{.Page}}">{{.Label}}</a>
+{{end}}
+
+{{/* org-net-row is one scheduled net: its name, when its next session starts (or
+     that one is in progress), and its schedule. The public Nets card and members'
+     Home share it. Data: dict Net (store.NetSummary with a Next), Now. */}}
+{{define "org-net-row"}}
+<div class="d-flex align-items-center flex-wrap gap-2">
+  <span class="fw-bold">{{.Net.Name}}</span>
+  {{if .Now.Before .Net.Next.StartsAt}}<span class="ms-auto text-secondary small">Next {{ts .Net.Next.StartsAt "datetime"}}</span>
+  {{else}}<span class="badge bg-green-lt ms-auto">In progress</span>{{end}}
+</div>
+<div class="text-secondary small">{{.Net.Schedule}}</div>
 {{end}}
