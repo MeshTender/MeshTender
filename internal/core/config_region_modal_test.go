@@ -212,9 +212,9 @@ func TestConfigRegionEditingIsAdminOnly(t *testing.T) {
 		name string
 		body string
 	}{
-		{"admin", readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/config", adminSess))},
-		{"member", readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/config", memberSess))},
-		{"anonymous", readBody(t, do(t, ts, h.root, "/orgs/"+org.Slug+"/config"))},
+		{"admin", readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/guide/repeaters", adminSess))},
+		{"member", readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/guide/repeaters", memberSess))},
+		{"anonymous", readBody(t, do(t, ts, h.root, "/orgs/"+org.Slug+"/guide/repeaters"))},
 	} {
 		// Regions are public information — a member or visitor needs to see which
 		// areas an org defines and where they apply. Only the controls are admin-only.
@@ -286,7 +286,7 @@ func TestConfigMapMarksPrimaryRegion(t *testing.T) {
 		}
 	}
 
-	body := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/config", sess))
+	body := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/guide/repeaters", sess))
 	// Exactly one region in the map payload is flagged primary, and it's the one the
 	// org marked — not simply the first drawn.
 	if got := strings.Count(body, `"primary":true`); got != 1 {

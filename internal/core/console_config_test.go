@@ -421,7 +421,7 @@ func TestConfigMapHintOnce(t *testing.T) {
 	if err := st.ReplaceOrgConfig(ctx, org.ID, profiles, regions); err != nil {
 		t.Fatal(err)
 	}
-	base := "/orgs/" + org.Slug + "/config?profile="
+	base := "/orgs/" + org.Slug + "/guide/repeaters?profile="
 	marked := readBody(t, do(t, ts, h.root, base+"Marked"))
 	if !strings.Contains(marked, "click a spot on the map") || strings.Contains(marked, `data-testid="config-map-hint"`) {
 		t.Error("a profile with a region marker should say it inline only")

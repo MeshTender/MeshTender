@@ -115,7 +115,7 @@ func (s *Handlers) renderOrgHome(w http.ResponseWriter, r *http.Request, org *st
 		"MapPoints":     reps.MapPoints,
 	}
 	if radio != nil {
-		data["Preset"] = presetName(*radio)
+		data["Preset"] = radio.PresetName()
 	}
 	if isAdmin {
 		// Observer health is an admin's concern: they register and run them.

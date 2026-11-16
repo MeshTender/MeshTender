@@ -6,12 +6,10 @@ import (
 	"net/http"
 	"slices"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/MeshTender/MeshTender/internal/config"
 	"github.com/MeshTender/MeshTender/internal/ingest"
 	"github.com/MeshTender/MeshTender/internal/store"
 	"github.com/MeshTender/MeshTender/internal/web"
@@ -161,7 +159,7 @@ func (s *Handlers) settingsData(ctx context.Context, r *http.Request, org *store
 		shown := defaultRadio()
 		if radio != nil {
 			shown = *radio
-			data["Preset"] = presetName(*radio)
+			data["Preset"] = radio.PresetName()
 		}
 		data["RadioSet"] = radio != nil
 		data["RadioFields"] = newRadioFields(shown, true)
@@ -212,19 +210,6 @@ func (s *Handlers) settingsData(ctx context.Context, r *http.Request, org *store
 		data["Weekdays"] = weekdays
 	}
 	return data, nil
-}
-
-// presetName is the name of the preset a radio matches ("" for a custom one),
-// without the values its label repeats after " — ".
-func presetName(radio config.RadioDefaults) string {
-	id := presetIDFor(radio)
-	for _, p := range radioPresets {
-		if p.ID == id {
-			name, _, _ := strings.Cut(p.Label, " — ")
-			return name
-		}
-	}
-	return ""
 }
 
 // redirectToObserverSettings keeps the old /orgs/{id}/observers address working:

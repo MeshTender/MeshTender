@@ -48,7 +48,7 @@ func TestMemberFeaturesLeadNavigation(t *testing.T) {
 
 	home := getBody(t, ts, h.app, "/orgs/"+org.Slug, sess)
 	assertInOrder(t, "org tabs", home,
-		`data-testid="org-tab-home"`, `data-testid="org-tab-checkins"`, `data-testid="org-tab-members"`,
+		`data-testid="org-tab-home"`, `data-testid="org-tab-checkins"`, `data-testid="org-tab-guide"`, `data-testid="org-tab-members"`,
 		`data-testid="org-tab-repeaters"`, `data-testid="org-tab-settings"`)
 
 	settings := getBody(t, ts, h.app, "/orgs/"+org.Slug+"/settings", sess)

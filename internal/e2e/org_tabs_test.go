@@ -62,7 +62,8 @@ func TestE2EOrgNavigation(t *testing.T) {
 	}
 
 	// With some config, Home links a plain member to the recommended
-	// configuration: Home stays the active tab and there's no Settings.
+	// configuration, Guide › Repeater setup: the Guide tab is active and there's
+	// no Settings.
 	if _, err := srv.store.CreateProfile(srv.ctx, org.ID, "Std", nil); err != nil {
 		t.Fatal(err)
 	}
@@ -79,13 +80,13 @@ func TestE2EOrgNavigation(t *testing.T) {
 			chromedp.WaitVisible(`[data-testid="org-config-card"] [data-testid="org-config-link"]`, chromedp.ByQuery)),
 		step("open the recommended configuration",
 			chromedp.Click(`[data-testid="org-config-card"] [data-testid="org-config-link"]`, chromedp.ByQuery),
-			chromedp.WaitVisible(`.breadcrumb`, chromedp.ByQuery),
+			chromedp.WaitVisible(`[data-testid="org-guide-nav"]`, chromedp.ByQuery),
 			chromedp.Evaluate(activeTab, &memberTab),
 			chromedp.Evaluate(`!!document.querySelector('[data-testid="org-tab-settings"]')`, &settingsShown)),
 	); err != nil {
 		t.Fatalf("member to recommended configuration: %v", err)
 	}
-	if memberTab != "org-tab-home" || settingsShown {
+	if memberTab != "org-tab-guide" || settingsShown {
 		t.Errorf("member on recommended config: active %q, Settings shown %v", memberTab, settingsShown)
 	}
 	watch.assertClean(t)

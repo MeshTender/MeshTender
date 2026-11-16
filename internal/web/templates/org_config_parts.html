@@ -47,7 +47,7 @@
 <script nonce="{{$p.Nonce}}">
   regionMapView('region-map', {
     regions: {{$p.Config.MapRegions}}{{if .PickURL}},
-    pickURL: '/orgs/{{$p.Org.Slug}}/config?{{if $p.Config.Profiles}}profile={{$p.Config.Selected | urlquery}}&{{end}}'{{if $p.Config.PreviewActive}},
+    pickURL: '/orgs/{{$p.Org.Slug}}/guide/repeaters?{{if $p.Config.Profiles}}profile={{$p.Config.Selected | urlquery}}&{{end}}'{{if $p.Config.PreviewActive}},
     preview: {lat: {{$p.PreviewLat}}, lon: {{$p.PreviewLon}}}{{end}}{{end}}
   });
 </script>

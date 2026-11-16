@@ -27,6 +27,7 @@ func TestOrgRadioSettings(t *testing.T) {
 		t.Fatal(err)
 	}
 	base := "/orgs/" + org.Slug + "/config"
+	guide := "/orgs/" + org.Slug + "/guide/repeaters"
 	settings := "/orgs/" + org.Slug + "/settings"
 
 	// Settings › Profile has the radio form, opening on the default preset.
@@ -70,7 +71,7 @@ func TestOrgRadioSettings(t *testing.T) {
 	if ok.StatusCode != http.StatusSeeOther {
 		t.Fatal("placeholder profile not saved once the radio was set")
 	}
-	page = readBody(t, do(t, ts, h.app, base, sess))
+	page = readBody(t, do(t, ts, h.app, guide, sess))
 	for _, want := range []string{"910.525 MHz · BW62.5 · SF7 · CR5", "set radio 910.525,62.5,7,5"} {
 		if !strings.Contains(page, want) {
 			t.Errorf("config page missing %q", want)
@@ -97,7 +98,7 @@ func TestOrgRadioSettings(t *testing.T) {
 	if got, _ := st.OrgRadio(ctx, org.ID); got == nil || *got != uscaRadio {
 		t.Fatalf("member changed the radio: %v", got)
 	}
-	if page := readBody(t, do(t, ts, h.app, base, memberSess)); !strings.Contains(page, "910.525 MHz") || strings.Contains(page, "settings-radio") {
+	if page := readBody(t, do(t, ts, h.app, guide, memberSess)); !strings.Contains(page, "910.525 MHz") || strings.Contains(page, "settings-radio") {
 		t.Error("member view of the radio card")
 	}
 }
@@ -143,7 +144,7 @@ func TestOrgRadioFillsAssembledCommands(t *testing.T) {
 	if len(cc.Commands) == 0 || cc.Commands[0].Runnable || !strings.Contains(cc.Commands[0].Reason, "radio settings aren't set") {
 		t.Fatalf("unfilled line = %+v", cc.Commands)
 	}
-	if page := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/config?profile=Std", sess)); !strings.Contains(page, "config-radio-missing") {
+	if page := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/guide/repeaters?profile=Std", sess)); !strings.Contains(page, "config-radio-missing") {
 		t.Error("config page doesn't warn about the unfilled lines")
 	}
 	if r := setup("Std"); r.StatusCode != http.StatusConflict {

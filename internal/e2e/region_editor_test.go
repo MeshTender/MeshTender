@@ -111,7 +111,7 @@ func TestE2EConfigMapShowsRegionsAndPicksLocation(t *testing.T) {
 	defer cancel()
 
 	// Signed out, on the public root host.
-	cfgURL := srv.rootURL + "/orgs/" + org.Slug + "/config"
+	cfgURL := srv.rootURL + "/orgs/" + org.Slug + "/guide/repeaters"
 	var counts sourceCounts
 	var rows int
 	if err := chromedp.Run(bctx,

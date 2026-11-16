@@ -1,0 +1,63 @@
+{{/* Guide › Get on the air: everything a member needs to take part — the radio
+     settings for their companion (all it takes to be on the mesh), registering
+     it (optional: it makes adverts count as check-ins), and how a check-in works.
+     Public, like the radio settings and net schedule it shows; the steps follow
+     the site docs (#companions, #nets). Data: Org, Nav, Guide (web.OrgGuide). */}}
+{{define "title"}}Get on the air · {{.Org.Name}} · MeshTender{{end}}
+{{define "header"}}{{template "org-header" .}}{{end}}
+{{define "content"}}
+{{template "guide-layout-open" .Nav}}
+  <div>
+    <h2 class="mb-1" data-testid="guide-section-title">Get on the air</h2>
+    <p class="text-secondary mb-0">All you need is a MeshCore companion radio and its app. No repeater, no modem.</p>
+  </div>
+
+  <div class="card" data-testid="guide-radio">
+    <div class="card-body">
+      <h2 class="card-title">1 · Set your radio</h2>
+      {{with .Guide.Radio}}
+      <p data-testid="guide-on-the-mesh">{{with .PresetName}}Pick the <strong>{{.}}</strong> preset{{else}}Enter these settings{{end}} in the companion app's radio settings. If you're within range of {{$.Org.Name}}'s repeaters or other companions, you should be able to send and receive messages.</p>
+      <div class="row g-3">
+        <div class="col-6 col-md-3"><div class="datagrid-title">Frequency</div><div class="datagrid-content">{{.MHz}} MHz</div></div>
+        <div class="col-6 col-md-3"><div class="datagrid-title">Bandwidth</div><div class="datagrid-content">{{.KHz}} kHz</div></div>
+        <div class="col-6 col-md-3"><div class="datagrid-title">Spreading factor</div><div class="datagrid-content">{{.SF}}</div></div>
+        <div class="col-6 col-md-3"><div class="datagrid-title">Coding rate</div><div class="datagrid-content">{{.CR}}</div></div>
+      </div>
+      {{else}}
+      <p class="text-secondary mb-0" data-testid="guide-no-radio">{{.Org.Name}} hasn't published its radio settings yet.
+        {{if .Nav.IsAdmin}}<a href="/orgs/{{.Org.Slug}}/settings#radio">Set them in Settings</a>.{{else}}Ask an admin which to use.{{end}}</p>
+      {{end}}
+    </div>
+  </div>
+
+  <div class="card" data-testid="guide-register">
+    <div class="card-body">
+      <h2 class="card-title">2 · Register your companion <span class="badge bg-secondary-lt ms-1" data-testid="guide-register-optional">Optional</span></h2>
+      <p>You don't need to register to use the mesh. Registering lets MeshTender count your adverts as check-ins for nets. Copy its public key from the app and add it under Companions, then send a <strong>flood advert</strong> within 24 hours: once an observer hears it, the companion is confirmed. A registration that's never heard expires.</p>
+      <a class="btn btn-primary" href="{{.AppURL}}/companions/new" data-testid="guide-register-link">Register a companion</a>
+    </div>
+  </div>
+
+  <div class="card" data-testid="guide-checkin">
+    <div class="card-body">
+      <h2 class="card-title">3 · Check in during a net</h2>
+      <p>While a net is in session, send a flood advert from any companion you've registered. That's your check-in.</p>
+      <ul class="text-secondary">
+        <li>Your companion's clock must be within ten minutes; the app sets it from your phone.</li>
+        <li>A zero-hop advert counts, but only observers in direct range hear it.</li>
+      </ul>
+      {{if .Guide.Nets}}
+      <div class="list-group list-group-flush border-top" data-testid="guide-nets">
+        {{range .Guide.Nets}}
+        <div class="list-group-item px-0 d-flex flex-wrap gap-2"><span class="fw-bold">{{.Name}}</span><span class="text-secondary">{{.Schedule}}</span></div>
+        {{end}}
+      </div>
+      {{else}}
+      <p class="text-secondary mb-0">No nets are scheduled yet.</p>
+      {{end}}
+    </div>
+  </div>
+
+  <p class="text-secondary small mb-0">More on companions and check-ins in the <a href="{{.RootURL}}/docs#companions">MeshTender docs</a>.</p>
+{{template "guide-layout-close"}}
+{{end}}

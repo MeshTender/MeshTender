@@ -34,7 +34,7 @@ func TestE2EConfigProfileSelect(t *testing.T) {
 
 	var heading, steps string
 	var rowActive bool
-	cfgURL := srv.appURL + "/orgs/" + org.Slug + "/config"
+	cfgURL := srv.appURL + "/orgs/" + org.Slug + "/guide/repeaters"
 	if err := chromedp.Run(bctx,
 		network.Enable(),
 		cdplog.Enable(),

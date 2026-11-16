@@ -169,24 +169,49 @@ func (s *Handlers) orgRepeatersJSON(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// pageOrgConfig renders an org's recommended configuration read-only for anonymous
-// visitors (the app host serves the same shared page to signed-in users).
-func (s *Handlers) pageOrgConfig(w http.ResponseWriter, r *http.Request) {
+// guidePage starts a public Guide page's data: the org and its public nav with
+// the given page active. ok is false once it has responded. The app host serves
+// the same shared pages to signed-in users.
+func (s *Handlers) guidePage(w http.ResponseWriter, r *http.Request, active string) (data map[string]any, orgID int64, ok bool) {
 	id, ok := s.orgID(r)
 	if !ok {
 		s.NotFound(w, r)
-		return
+		return nil, 0, false
 	}
 	org, err := s.Store.GetOrg(r.Context(), id)
 	if err != nil {
 		s.NotFound(w, r)
-		return
+		return nil, 0, false
 	}
 	canGoToOrg, canJoin := s.publicCTA(r, id)
-	data := map[string]any{"Org": org, "Nav": s.OrgNavFor(r.Context(), web.OrgNavArgs{
-		OrgID: org.ID, Name: org.Name, Slug: org.Slug, Active: "config", Manage: false,
+	return map[string]any{"Org": org, "Nav": s.OrgNavFor(r.Context(), web.OrgNavArgs{
+		OrgID: org.ID, Name: org.Name, Slug: org.Slug, Active: active, Manage: false,
 		CanGoToOrg: canGoToOrg, CanJoin: canJoin,
-	})}
+	})}, id, true
+}
+
+// pageOrgGuide renders Guide › Get on the air for anonymous visitors.
+func (s *Handlers) pageOrgGuide(w http.ResponseWriter, r *http.Request) {
+	data, id, ok := s.guidePage(w, r, "guide")
+	if !ok {
+		return
+	}
+	guide, err := web.BuildOrgGuide(r.Context(), s.Store, id, time.Now())
+	if err != nil {
+		s.ServerError(w, r, "could not load the guide", err)
+		return
+	}
+	data["Guide"] = guide
+	s.Render(w, r, "org_guide.html", data)
+}
+
+// pageOrgConfig renders Guide › Repeater setup, an org's recommended
+// configuration, read-only for anonymous visitors.
+func (s *Handlers) pageOrgConfig(w http.ResponseWriter, r *http.Request) {
+	data, id, ok := s.guidePage(w, r, "guide-repeaters")
+	if !ok {
+		return
+	}
 	var latP, lonP *float64
 	if lat, lon, ok := web.PreviewLatLon(r); ok {
 		latP, lonP = &lat, &lon

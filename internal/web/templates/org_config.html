@@ -1,15 +1,17 @@
-{{/* The recommended configuration, read-only, for members and the public alike
-     (admins edit it under Settings): the assembled commands for a chosen profile,
-     the radio, and the region map. ?profile= picks the profile; clicking the map
-     (?lat=&lon=) splices in the region commands a repeater there would run. */}}
-{{define "title"}}Recommended configuration · {{.Org.Name}} · MeshTender{{end}}
+{{/* Guide › Repeater setup: the recommended configuration, read-only, for
+     members and the public alike (admins edit it under Settings): the assembled
+     commands for a chosen profile, the radio, and the region map. ?profile= picks
+     the profile; clicking the map (?lat=&lon=) splices in the region commands a
+     repeater there would run. Beside the Guide's rail, its own two columns stack
+     until the screen is wide enough for both. */}}
+{{define "title"}}Repeater setup · {{.Org.Name}} · MeshTender{{end}}
 {{define "header"}}{{template "org-header" .}}{{end}}
 {{define "content"}}
-{{template "org-tabs" .Nav}}
-<ol class="breadcrumb mb-3" aria-label="Breadcrumb">
-  <li class="breadcrumb-item"><a href="/orgs/{{.Nav.Slug}}">Home</a></li>
-  <li class="breadcrumb-item active" aria-current="page">Recommended configuration</li>
-</ol>
+{{template "guide-layout-open" .Nav}}
+<div>
+  <h2 class="mb-1" data-testid="guide-section-title">Repeater setup</h2>
+  <p class="text-secondary mb-0">The radio settings and configuration {{.Org.Name}} recommends for its repeaters.</p>
+</div>
 
 {{if not .Config.HasConfig}}
 <div class="card">
@@ -26,7 +28,7 @@
      profile picker and the regions legend; main comes first in the DOM so a
      narrow screen reads content before its picker. */}}
 <div class="row row-cards">
-  <div class="col-lg-8 d-flex flex-column gap-3">
+  <div class="col-xl-8 d-flex flex-column gap-3">
     {{if or .Config.Profiles .Config.PreviewActive}}
     {{template "config-preview" .}}
     {{else}}
@@ -46,7 +48,7 @@
     </div>
     {{end}}
   </div>
-  <div class="col-lg-4 d-flex flex-column gap-3">
+  <div class="col-xl-4 d-flex flex-column gap-3">
     {{with .Config.Radio}}
     <div class="card" data-testid="config-radio">
       <div class="card-header"><h2 class="card-title">Radio</h2></div>
@@ -59,7 +61,7 @@
       <div class="list-group list-group-flush list-group-hoverable profile-list" data-testid="config-profile-list">
         {{range .Config.Profiles}}
         <a class="list-group-item list-group-item-action text-truncate{{if eq .Name $.Config.Selected}} active{{end}}" data-testid="config-profile-row"
-           href="/orgs/{{$.Org.Slug}}/config?profile={{.Name | urlquery}}{{if $.PreviewLat}}&amp;lat={{$.PreviewLat}}&amp;lon={{$.PreviewLon}}{{end}}"
+           href="/orgs/{{$.Org.Slug}}/guide/repeaters?profile={{.Name | urlquery}}{{if $.PreviewLat}}&amp;lat={{$.PreviewLat}}&amp;lon={{$.PreviewLon}}{{end}}"
            {{if eq .Name $.Config.Selected}}aria-current="true"{{end}}>{{.Name}}</a>
         {{end}}
       </div>
@@ -77,4 +79,5 @@
   </div>
 </div>
 {{end}}
+{{template "guide-layout-close"}}
 {{end}}

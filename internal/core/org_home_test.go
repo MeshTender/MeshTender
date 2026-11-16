@@ -95,7 +95,7 @@ func TestOrgHomeNetsAndSetup(t *testing.T) {
 	if _, upcoming, _ := strings.Cut(body, `data-testid="home-upcoming"`); !strings.Contains(upcoming, "Later Net") {
 		t.Error("Next nets lacks the upcoming net")
 	}
-	if !strings.Contains(body, `data-testid="home-radio">`+radio.MHz()+` MHz`) || !strings.Contains(body, presetName(radio)) {
+	if !strings.Contains(body, `data-testid="home-radio">`+radio.MHz()+` MHz`) || !strings.Contains(body, radio.PresetName()) {
 		t.Error("the Recommended configuration card lacks the org radio")
 	}
 	if !strings.Contains(body, `data-testid="home-profiles">Solar node<`) {

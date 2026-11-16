@@ -306,7 +306,9 @@ func (s *Handlers) appRouter() chi.Router {
 			r.Post("/orgs/{id}/join", s.handleJoinOrg)
 			r.Post("/orgs/{id}/leave", s.handleLeaveOrg)
 			r.Post("/orgs/{id}/members/{userID}", s.handleSetOrgMember)
-			r.Get("/orgs/{id}/config", s.pageOrgConfig)
+			r.Get("/orgs/{id}/guide", s.pageOrgGuide)
+			r.Get("/orgs/{id}/guide/repeaters", s.pageOrgConfig)
+			r.Get("/orgs/{id}/config", web.RedirectOrgConfig) // its old address
 			r.Get("/orgs/{id}/config/profiles/new", s.pageProfileEdit)
 			r.Post("/orgs/{id}/config/profiles", s.handleCreateProfile)
 			r.Get("/orgs/{id}/config/profiles/{pid}/edit", s.pageProfileEdit)

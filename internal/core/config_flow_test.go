@@ -60,7 +60,7 @@ func TestOrgConfigProfilesFlow(t *testing.T) {
 
 	// Before an area is drawn the region is a draft: flagged on the config page and
 	// contributing nothing to a location's region def.
-	draftView := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/config?lat=15&lon=35", sess))
+	draftView := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/guide/repeaters?lat=15&lon=35", sess))
 	if !strings.Contains(draftView, `data-testid="config-region-draft"`) {
 		t.Fatal("a region with no area should be flagged as needing one")
 	}
@@ -76,7 +76,7 @@ func TestOrgConfigProfilesFlow(t *testing.T) {
 		t.Fatalf("save area status = %d, want 303", asave.StatusCode)
 	}
 
-	body := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/config", sess))
+	body := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/guide/repeaters", sess))
 	// The recommended configuration: the profile list and the region legend, plus
 	// the click-to-preview location map the drawn geofence enables.
 	for _, want := range []string{
@@ -106,7 +106,7 @@ func TestOrgConfigProfilesFlow(t *testing.T) {
 		t.Fatal("a region with an area should not be flagged as needing one")
 	}
 	// And it now applies at a location inside it.
-	preview := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/config?lat=15&lon=35", sess))
+	preview := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/guide/repeaters?lat=15&lon=35", sess))
 	if !strings.Contains(preview, "region def mtns") {
 		t.Fatal("a drawn region should apply at a location inside it")
 	}
@@ -115,7 +115,7 @@ func TestOrgConfigProfilesFlow(t *testing.T) {
 		t.Fatal("default config view should show the first profile's base settings")
 	}
 	// The profile selector works: ?profile= switches the shown base settings.
-	sel := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/config?profile=nRF52", sess))
+	sel := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/guide/repeaters?profile=nRF52", sess))
 	if !strings.Contains(sel, "nrf base") || strings.Contains(sel, "esp base") {
 		t.Fatal("?profile=nRF52 should show nRF52's base settings")
 	}
@@ -123,7 +123,7 @@ func TestOrgConfigProfilesFlow(t *testing.T) {
 	// The preview is assembled: with a location picked, the selected profile's steps
 	// and that location's region commands appear in one block, which is what a
 	// repeater owner actually runs.
-	assembled := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/config?profile=ESP32&lat=15&lon=35", sess))
+	assembled := readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/guide/repeaters?profile=ESP32&lat=15&lon=35", sess))
 	block := assembled[strings.Index(assembled, `data-testid="config-commands"`):]
 	block = block[:strings.Index(block, "</code>")]
 	for _, want := range []string{"esp base", "region def mtns", "region save"} {
@@ -190,7 +190,7 @@ func TestOrgConfigProfilesFlow(t *testing.T) {
 	pcb.Body.Close()
 	pSess := cookieByName(pcb, "meshtender_session")
 	memberView := readBody(t, do(t, ts, h.app, "/orgs/"+noCfg.Slug, pSess))
-	if strings.Contains(memberView, "/orgs/"+noCfg.Slug+"/config") {
+	if strings.Contains(memberView, "/orgs/"+noCfg.Slug+"/guide/repeaters") {
 		t.Fatalf("a non-admin member should not see the config tab when there's no config")
 	}
 
@@ -201,11 +201,11 @@ func TestOrgConfigProfilesFlow(t *testing.T) {
 		t.Fatalf("create org: %v", err)
 	}
 	pub := readBody(t, do(t, ts, h.root, "/orgs/"+empty.Slug))
-	if strings.Contains(pub, "/orgs/"+empty.Slug+"/config") {
+	if strings.Contains(pub, "/orgs/"+empty.Slug+"/guide/repeaters") {
 		t.Fatalf("public org page should hide the config tab when there's no config")
 	}
 	pub2 := readBody(t, do(t, ts, h.root, "/orgs/"+org.Slug))
-	if !strings.Contains(pub2, "/orgs/"+org.Slug+"/config") {
+	if !strings.Contains(pub2, "/orgs/"+org.Slug+"/guide/repeaters") {
 		t.Fatalf("public org page should show the config tab when config exists")
 	}
 }

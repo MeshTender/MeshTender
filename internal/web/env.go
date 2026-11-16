@@ -28,14 +28,14 @@ import (
 	"github.com/MeshTender/MeshTender/internal/store"
 )
 
-//go:embed templates/base.html templates/icons.html templates/brand.html templates/org_tabs.html templates/repeater_tabs.html templates/command_grid.html templates/org_access.html templates/radio_fields.html templates/net_form.html templates/org_config_parts.html templates/ui_parts.html templates/org_public.html templates/org_config.html templates/org_repeaters.html templates/error.html
+//go:embed templates/base.html templates/icons.html templates/brand.html templates/org_tabs.html templates/repeater_tabs.html templates/command_grid.html templates/org_access.html templates/radio_fields.html templates/net_form.html templates/org_config_parts.html templates/ui_parts.html templates/org_public.html templates/org_config.html templates/org_guide.html templates/org_repeaters.html templates/error.html
 var sharedTemplatesFS embed.FS
 
 // sharedPages are full content pages (not just layout partials) that more than
 // one surface renders. They're composed onto the base layout for every surface,
 // so the root host (anonymous) and the app host (signed-in) can render the same
 // public org page without duplicating the template.
-var sharedPages = []string{"templates/org_public.html", "templates/org_config.html", "templates/org_repeaters.html", "templates/error.html"}
+var sharedPages = []string{"templates/org_public.html", "templates/org_config.html", "templates/org_guide.html", "templates/org_repeaters.html", "templates/error.html"}
 
 //go:embed static/*
 var staticFS embed.FS

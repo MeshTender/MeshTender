@@ -108,9 +108,9 @@ func TestConfigPageProfileEditingIsAdminOnly(t *testing.T) {
 		name string
 		body string
 	}{
-		{"admin", readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/config", adminSess))},
-		{"member", readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/config", memberSess))},
-		{"anonymous", readBody(t, do(t, ts, h.root, "/orgs/"+org.Slug+"/config"))},
+		{"admin", readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/guide/repeaters", adminSess))},
+		{"member", readBody(t, do(t, ts, h.app, "/orgs/"+org.Slug+"/guide/repeaters", memberSess))},
+		{"anonymous", readBody(t, do(t, ts, h.root, "/orgs/"+org.Slug+"/guide/repeaters"))},
 	} {
 		if !strings.Contains(v.body, "ESP32") {
 			t.Fatalf("%s config view should still list the profile", v.name)
@@ -144,7 +144,7 @@ func TestConfigPageEmptyStates(t *testing.T) {
 		}
 	}
 
-	anon := readBody(t, do(t, ts, h.root, "/orgs/"+org.Slug+"/config"))
+	anon := readBody(t, do(t, ts, h.root, "/orgs/"+org.Slug+"/guide/repeaters"))
 	if !strings.Contains(anon, "No recommended configuration yet") {
 		t.Fatal("anonymous view of a config-less org should say so")
 	}

@@ -3,10 +3,13 @@ package web
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/go-chi/chi/v5"
 
 	"github.com/MeshTender/MeshTender/internal/config"
 	"github.com/MeshTender/MeshTender/internal/store"
@@ -269,10 +272,10 @@ type OrgNavArgs struct {
 	OrgID int64
 	Name  string
 	Slug  string
-	// Active is the page: "home" | "members" | "repeaters" | "config" (the
-	// read-only recommended configuration) | "nets" (Check-ins) |
-	// "settings-<section>". The top-level tab it lives under is derived from it
-	// (orgTab).
+	// Active is the page: "home" | "members" | "repeaters" | "nets"
+	// (Check-ins) | "guide" (Get on the air) | "guide-repeaters" (the read-only
+	// recommended configuration) | "settings-<section>". The top-level tab it
+	// lives under is derived from it (orgTab).
 	Active string
 	// IsMember gates the member-only tabs (Members, Check-ins), so it's false on
 	// public views even when a member is previewing. IsAdmin adds Settings.
@@ -288,16 +291,15 @@ type OrgNavArgs struct {
 	CanJoin    bool
 }
 
-// orgTab is the top-level org tab a page lives under. The recommended
-// configuration is reached from Home.
+// orgTab is the top-level org tab a page lives under.
 func orgTab(a OrgNavArgs) string {
 	switch {
 	case a.Active == "nets":
 		return "checkins"
 	case strings.HasPrefix(a.Active, "settings-"):
 		return "settings"
-	case a.Active == "config":
-		return "home"
+	case strings.HasPrefix(a.Active, "guide"):
+		return "guide"
 	}
 	return a.Active
 }
@@ -398,4 +400,37 @@ func ScheduledNets(nets []store.NetSummary) []store.NetSummary {
 	}
 	slices.SortStableFunc(out, func(a, b store.NetSummary) int { return a.Next.StartsAt.Compare(b.Next.StartsAt) })
 	return out
+}
+
+// OrgGuide is the data for the Guide's "Get on the air" page: the radio settings
+// a companion needs (nil until an admin sets them) and the nets to check in to.
+type OrgGuide struct {
+	Radio *config.RadioDefaults
+	Nets  []store.NetSummary
+	Now   time.Time
+}
+
+// BuildOrgGuide loads an org's OrgGuide. The Guide is public, so it holds only
+// what already is: the radio settings and the net schedule.
+func BuildOrgGuide(ctx context.Context, st *store.Store, orgID int64, now time.Time) (OrgGuide, error) {
+	radio, err := st.OrgRadio(ctx, orgID)
+	if err != nil {
+		return OrgGuide{}, err
+	}
+	nets, err := st.ListOrgNetSummaries(ctx, orgID, now)
+	if err != nil {
+		return OrgGuide{}, err
+	}
+	return OrgGuide{Radio: radio, Nets: ScheduledNets(nets), Now: now}, nil
+}
+
+// RedirectOrgConfig sends the recommended configuration's old address,
+// /orgs/{id}/config, to its place in the Guide, keeping the query (the chosen
+// profile and preview location) so shared links still land on the same view.
+func RedirectOrgConfig(w http.ResponseWriter, r *http.Request) {
+	target := "/orgs/" + url.PathEscape(chi.URLParam(r, "id")) + "/guide/repeaters"
+	if q := r.URL.RawQuery; q != "" {
+		target += "?" + q
+	}
+	http.Redirect(w, r, target, http.StatusMovedPermanently) //nolint:gosec // G710: a local path built from an escaped slug
 }

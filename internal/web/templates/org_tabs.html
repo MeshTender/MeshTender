@@ -31,15 +31,16 @@
 </div>
 {{end}}
 
-{{/* org-tabs: Home, Check-ins, Members and Repeaters, plus Settings for admins on
-     the right. Taking part comes first; repeaters are a bonus. Check-ins and
-     Members are members-only — they carry personal info — so a public view
-     shows Home and Repeaters. The recommended configuration
-     isn't a tab: Home and Repeaters link to it. */}}
+{{/* org-tabs: Home, Check-ins, Guide, Members and Repeaters, plus Settings for
+     admins on the right. Taking part comes first; repeaters are a bonus.
+     Check-ins and Members are members-only — they carry personal info — so a
+     public view shows Home, Guide and Repeaters. The Guide is the org's
+     knowledge base, public like the radio settings and configuration it holds. */}}
 {{define "org-tabs"}}
 <ul class="nav nav-tabs mb-3" role="tablist" data-testid="org-tabs">
   <li class="nav-item"><a class="nav-link{{if eq .Tab "home"}} active{{end}}" href="/orgs/{{.Slug}}" data-testid="org-tab-home">{{template "icon-home" "me-1"}}Home</a></li>
   {{if .IsMember}}<li class="nav-item"><a class="nav-link{{if eq .Tab "checkins"}} active{{end}}" href="/orgs/{{.Slug}}/nets" data-testid="org-tab-checkins">{{template "icon-calendar-event" "me-1"}}Check-ins</a></li>{{end}}
+  <li class="nav-item"><a class="nav-link{{if eq .Tab "guide"}} active{{end}}" href="/orgs/{{.Slug}}/guide" data-testid="org-tab-guide">{{template "icon-book" "me-1"}}Guide</a></li>
   {{if .IsMember}}<li class="nav-item"><a class="nav-link{{if eq .Tab "members"}} active{{end}}" href="/orgs/{{.Slug}}/members" data-testid="org-tab-members">{{template "icon-users" "me-1"}}Members</a></li>{{end}}
   <li class="nav-item"><a class="nav-link{{if eq .Tab "repeaters"}} active{{end}}" href="/orgs/{{.Slug}}/repeaters" data-testid="org-tab-repeaters">{{template "icon-antenna" "me-1"}}Repeaters</a></li>
   {{if and .IsMember .IsAdmin}}<li class="nav-item ms-auto"><a class="nav-link{{if eq .Tab "settings"}} active{{end}}" href="/orgs/{{.Slug}}/settings" data-testid="org-tab-settings">{{template "icon-settings" "me-1"}}Settings</a></li>{{end}}
@@ -145,7 +146,7 @@
 {{/* org-config-link points members and visitors at the org's recommended
      repeater configuration, which isn't a tab. Shown only when there is some. */}}
 {{define "org-config-link"}}
-{{if .ShowConfig}}<a class="btn" href="/orgs/{{.Slug}}/config" data-testid="org-config-link">{{template "icon-settings" "me-1"}}Recommended configuration</a>{{end}}
+{{if .ShowConfig}}<a class="btn" href="/orgs/{{.Slug}}/guide/repeaters" data-testid="org-config-link">{{template "icon-settings" "me-1"}}Recommended configuration</a>{{end}}
 {{end}}
 
 {{/* org-config-card is the public page's pointer to the recommended
@@ -187,4 +188,39 @@
     {{end}}
   </div>
 </div>
+{{end}}
+
+{{/* guide-layout-open / -close wrap a Guide page: the section rail in a card of
+     its own on the left — Tabler's transparent list group pulls its items out by
+     the card body's padding, so outside a card the active item would spill past
+     the page's edge — and the page on the right. Pass .Nav to the opener. */}}
+{{define "guide-layout-open"}}
+{{template "org-tabs" .}}
+<div class="row g-4">
+  <div class="col-md-4 col-lg-3 col-xl-2">
+    <div class="card"><div class="card-body" data-testid="org-guide-rail">{{template "org-guide-nav" .}}</div></div>
+  </div>
+  <div class="col-md-8 col-lg-9 col-xl-10 d-flex flex-column gap-3">
+{{end}}
+{{define "guide-layout-close"}}
+  </div>
+</div>
+{{end}}
+
+{{/* org-guide-nav is the Guide's section rail. Pass .Nav; Active is "guide" (Get
+     on the air) or "guide-repeaters" (Repeater setup). */}}
+{{define "org-guide-nav"}}
+<nav aria-label="Guide" data-testid="org-guide-nav">
+  <h2 class="subheader">Taking part</h2>
+  <div class="list-group list-group-transparent">
+    {{template "org-guide-item" (dict "Nav" . "Page" "guide" "Path" "" "Label" "Get on the air")}}
+    {{template "org-guide-item" (dict "Nav" . "Page" "guide-repeaters" "Path" "/repeaters" "Label" "Repeater setup")}}
+  </div>
+</nav>
+{{end}}
+
+{{define "org-guide-item"}}
+{{$active := eq .Nav.Active .Page}}
+<a class="list-group-item list-group-item-action{{if $active}} active{{end}}" href="/orgs/{{.Nav.Slug}}/guide{{.Path}}"{{if $active}} aria-current="page"{{end}}
+   data-testid="org-{{.Page}}">{{.Label}}</a>
 {{end}}

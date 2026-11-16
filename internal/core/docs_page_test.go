@@ -17,6 +17,7 @@ func TestDocsPage(t *testing.T) {
 		"setperm ", // the live command, e.g. "setperm <hex> 3"
 		"Confirming is <strong>optional</strong>",
 		"rosters and check-ins are for members only",
+		"<strong>Guide</strong> tab",
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("docs page missing %q", want)
