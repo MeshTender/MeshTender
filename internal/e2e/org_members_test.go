@@ -75,3 +75,36 @@ func TestE2EOrgMembersFilter(t *testing.T) {
 	}
 	watch.assertClean(t)
 }
+
+// TestE2EManageMembersInSettings: an admin makes a member an admin on Settings ›
+// Members, under the strict CSP (MESHTENDER-12).
+func TestE2EManageMembersInSettings(t *testing.T) {
+	srv := newE2EServer(t)
+	admin, cookie := srv.login(t, "e2emanage")
+	member, _ := srv.login(t, "e2emanaged")
+	org, err := srv.store.CreateOrg(srv.ctx, "Manage Org", admin.ID)
+	if err != nil {
+		t.Fatalf("create org: %v", err)
+	}
+	if err := srv.store.AddOrgMember(srv.ctx, org.ID, member.ID, "member"); err != nil {
+		t.Fatal(err)
+	}
+
+	bctx, cancel, watch := startBrowser(t)
+	defer cancel()
+	if err := chromedp.Run(bctx,
+		setSessionCookie(cookie),
+		step("open Settings › Members",
+			chromedp.Navigate(srv.appURL+"/orgs/"+org.Slug+"/settings/members"),
+			chromedp.WaitVisible(`[data-testid="member-promote"]`, chromedp.ByQuery)),
+		step("make the member an admin",
+			reloadedBy(chromedp.Click(`[data-testid="member-promote"]`, chromedp.ByQuery)),
+			chromedp.WaitVisible(`[data-testid="member-demote"]`, chromedp.ByQuery)),
+	); err != nil {
+		t.Fatalf("browser run: %v", err)
+	}
+	if isAdmin, err := srv.store.IsOrgAdmin(srv.ctx, org.ID, member.ID); err != nil || !isAdmin {
+		t.Errorf("member is admin = %v, %v; want true", isAdmin, err)
+	}
+	watch.assertClean(t)
+}

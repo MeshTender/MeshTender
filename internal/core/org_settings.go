@@ -20,7 +20,7 @@ import (
 // MQTT broker — is a form on its section's page; a list — regions, configuration
 // profiles, observers, nets — has a New button and per-row actions, with creating
 // and editing on pages of their own.
-var settingsSections = []string{"profile", "radio", "channels", "regions", "profiles", "mqtt", "nets"}
+var settingsSections = []string{"profile", "members", "radio", "channels", "regions", "profiles", "mqtt", "nets"}
 
 // settingsURL is a Settings section's page; "profile" is the tab's landing page.
 func settingsURL(slug, section string) string {
@@ -147,6 +147,13 @@ func (s *Handlers) settingsData(ctx context.Context, r *http.Request, org *store
 		data["Links"] = links
 		data["Platforms"] = store.LinkPlatforms()
 		data["PlatformsJS"] = web.LinkPlatformsJS(store.LinkPlatforms())
+	case "members":
+		members, err := s.Store.ListOrgMembers(ctx, org.ID)
+		if err != nil {
+			return nil, err
+		}
+		data["Members"] = members
+		data["Self"] = s.Auth.CurrentUserID(ctx)
 	case "radio":
 		mesh, err := s.Store.OrgMesh(ctx, org.ID)
 		if err != nil {

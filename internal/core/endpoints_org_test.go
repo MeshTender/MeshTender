@@ -62,8 +62,8 @@ func TestOrgManagementPosts(t *testing.T) {
 	promote := post(t, ts, h.app, "/orgs/"+slug+"/members/"+strconv.FormatInt(other.ID, 10),
 		url.Values{"action": {"promote"}}, sess)
 	promote.Body.Close()
-	if loc, _ := url.Parse(promote.Header.Get("Location")); promote.StatusCode != http.StatusSeeOther || loc.Path != "/orgs/"+slug+"/members" {
-		t.Fatalf("promote member = %d %q, want 303 → members", promote.StatusCode, promote.Header.Get("Location"))
+	if loc, _ := url.Parse(promote.Header.Get("Location")); promote.StatusCode != http.StatusSeeOther || loc.Path != "/orgs/"+slug+"/settings/members" {
+		t.Fatalf("promote member = %d %q, want 303 → Settings › Members", promote.StatusCode, promote.Header.Get("Location"))
 	}
 	if admin, _ := st.IsOrgAdmin(ctx, orgID, other.ID); !admin {
 		t.Fatal("promote did not make the member an admin")

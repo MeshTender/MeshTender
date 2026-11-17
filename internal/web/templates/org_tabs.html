@@ -66,6 +66,7 @@
   <h2 class="subheader">Organization</h2>
   <div class="list-group list-group-transparent mb-3">
     {{template "org-settings-item" (dict "Nav" . "Section" "profile" "Label" "Profile" "Icon" "world")}}
+    {{template "org-settings-item" (dict "Nav" . "Section" "members" "Label" "Members" "Icon" "users")}}
   </div>
   <h2 class="subheader">Mesh</h2>
   <div class="list-group list-group-transparent mb-3">
@@ -94,7 +95,7 @@
 
 {{/* org-settings-icon picks the rail icon by name (template names can't be computed). */}}
 {{define "org-settings-icon"}}
-{{if eq . "world"}}{{template "icon-world" "me-2"}}{{else if eq . "map-pin"}}{{template "icon-map-pin" "me-2"}}{{else if eq . "list"}}{{template "icon-list" "me-2"}}{{else if eq . "wave-sine"}}{{template "icon-wave-sine" "me-2"}}{{else if eq . "hash"}}{{template "icon-hash" "me-2"}}{{else if eq . "access-point"}}{{template "icon-access-point" "me-2"}}{{else if eq . "calendar-event"}}{{template "icon-calendar-event" "me-2"}}{{end}}
+{{if eq . "world"}}{{template "icon-world" "me-2"}}{{else if eq . "map-pin"}}{{template "icon-map-pin" "me-2"}}{{else if eq . "list"}}{{template "icon-list" "me-2"}}{{else if eq . "wave-sine"}}{{template "icon-wave-sine" "me-2"}}{{else if eq . "hash"}}{{template "icon-hash" "me-2"}}{{else if eq . "users"}}{{template "icon-users" "me-2"}}{{else if eq . "access-point"}}{{template "icon-access-point" "me-2"}}{{else if eq . "calendar-event"}}{{template "icon-calendar-event" "me-2"}}{{end}}
 {{end}}
 
 {{/* settings-layout-open / -close wrap a Settings page's content in one card,

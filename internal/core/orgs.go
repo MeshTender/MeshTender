@@ -184,7 +184,6 @@ func (s *Handlers) pageOrgMembers(w http.ResponseWriter, r *http.Request) {
 		"Nav":     s.OrgNavFor(r.Context(), web.OrgNavArgs{OrgID: org.ID, Name: org.Name, Slug: org.Slug, Active: "members", IsMember: true, IsAdmin: role == "admin", Manage: true}),
 		"IsAdmin": role == "admin",
 		"Members": members,
-		"Self":    uid,
 	})
 }
 
@@ -474,7 +473,7 @@ func (s *Handlers) handleSetOrgMember(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	membersURL := "/orgs/" + orgParam(r) + "/members"
+	membersURL := settingsURL(orgParam(r), "members")
 	memberErr := func(msg string) { web.RedirectErr(w, r, membersURL, msg) }
 	targetID, err := strconv.ParseInt(chi.URLParam(r, "userID"), 10, 64)
 	if err != nil {

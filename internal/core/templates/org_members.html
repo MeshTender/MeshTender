@@ -40,18 +40,6 @@
           messages don't count. */}}
           <div class="small text-secondary" data-testid="member-last-advert">{{with .LastAdvertAt}}Last advert heard {{ts . "relative"}}{{else}}No advert heard yet{{end}}</div>
         </div>
-        {{if and $.IsAdmin (ne .UserID $.Self)}}
-        <form method="post" action="/orgs/{{$.Org.Slug}}/members/{{.UserID}}" class="m-0">
-          {{if eq .Role "admin"}}
-          <button type="submit" name="action" value="demote" class="btn btn-sm">Make member</button>
-          {{else}}
-          <button type="submit" name="action" value="promote" class="btn btn-sm">Make admin</button>
-          {{end}}
-        </form>
-        <form method="post" action="/orgs/{{$.Org.Slug}}/members/{{.UserID}}" class="m-0" data-confirm="Remove {{.Name}} from {{$.Org.Name}}?">
-          <button type="submit" name="action" value="remove" class="btn btn-sm text-danger-emphasis">Remove</button>
-        </form>
-        {{end}}
       </div>
     </div>
     {{end}}
