@@ -70,7 +70,8 @@
   <label class="form-check form-switch">
     <input class="form-check-input" type="checkbox" name="region_primary" value="1" {{if .Region.Primary}}checked{{end}}>
     <span class="form-check-label">Primary region</span>
-    <small class="form-hint">Frames the region map. Turning this on clears whichever region held it.</small>
+    <small class="form-hint">Frames the region map. Turning this on clears whichever region held it.
+      {{with .PrimaryHolder}}<span class="d-block" data-testid="region-primary-holder">Currently: {{.}}</span>{{end}}</small>
   </label>
   <label class="form-check form-switch">
     <input class="form-check-input" type="checkbox" name="region_default_scope" value="1" {{if .Region.DefaultScope}}checked{{end}} data-testid="region-default-scope">
@@ -78,7 +79,8 @@
     {{/* A companion floods with its default scope unless the app picks another
          (default_scope_key, sendFloodScoped in examples/companion_radio/MyMesh.cpp);
          with none, it floods unscoped. */}}
-    <small class="form-hint">The Guide tells members to set their companion's default scope to this region. Turning this on clears whichever region held it; with none, companions stay unscoped.</small>
+    <small class="form-hint">The Guide tells members to set their companion's default scope to this region. Turning this on clears whichever region held it; with none, companions stay unscoped.
+      {{with .DefaultScopeHolder}}<span class="d-block" data-testid="region-default-scope-holder">Currently: {{.}}</span>{{end}}</small>
   </label>
 </div>
 {{end}}

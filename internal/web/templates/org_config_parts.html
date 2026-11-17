@@ -78,7 +78,10 @@
   {{/* Name, then token, then status — each on its own line. A token is an
        identifier, so it never wraps mid-string. */}}
   <div style="min-width:0">
-    <div>{{.DisplayName}}</div>
+    <div class="d-flex flex-wrap align-items-center gap-1">{{.DisplayName}}
+      {{if .Primary}}<span class="badge bg-blue-lt" title="The primary region: the region map opens framed on it." data-tooltip tabindex="0" data-testid="region-badge-primary">Primary</span>{{end}}
+      {{if .DefaultScope}}<span class="badge bg-azure-lt" title="The default scope: the Guide tells members to set their companion's default flood scope to it." data-tooltip tabindex="0" data-testid="region-badge-default-scope">Default scope</span>{{end}}
+    </div>
     <div><span class="text-secondary text-nowrap"><code>{{.Token}}</code></span></div>
     {{if not .HasShape}}
     <div class="text-warning small" data-testid="config-region-draft">Needs an area</div>

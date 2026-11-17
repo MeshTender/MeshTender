@@ -48,16 +48,17 @@ func RegionColor(i int) string { return RegionPalette[i%len(RegionPalette)] }
 // whether the region covers the previewed location (always false without one), which
 // drives the highlighting that explains why a token appears in the assembled config.
 type RegionView struct {
-	ID          int64
-	DisplayName string
-	Token       string
-	Layer       int
-	Primary     bool
-	AllowFlood  bool
-	HasShape    bool
-	Matches     bool
-	Color       string
-	Depth       int
+	ID           int64
+	DisplayName  string
+	Token        string
+	Layer        int
+	Primary      bool
+	DefaultScope bool
+	AllowFlood   bool
+	HasShape     bool
+	Matches      bool
+	Color        string
+	Depth        int
 }
 
 // maxRegionDepth caps legend indentation. Layers are arbitrary integers, so a deep
@@ -243,7 +244,7 @@ func BuildConfigView(ctx context.Context, st *store.Store, orgID int64, selected
 		}
 		cv.Regions = append(cv.Regions, RegionView{
 			ID: z.ID, DisplayName: z.DisplayName, Token: z.Token, Layer: z.Layer,
-			Primary: z.Primary, AllowFlood: z.AllowFlood, HasShape: len(z.GeofenceJSON) > 0,
+			Primary: z.Primary, DefaultScope: z.DefaultScope, AllowFlood: z.AllowFlood, HasShape: len(z.GeofenceJSON) > 0,
 			// RegionMatches is the same predicate RegionDefCommands uses to decide
 			// which tokens ship, so the highlight can't disagree with the commands.
 			Matches: matched,

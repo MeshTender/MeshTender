@@ -83,12 +83,30 @@ func (s *Handlers) pageRegionEdit(w http.ResponseWriter, r *http.Request) {
 // renderRegionEdit renders the attribute editor (shared by the initial GET and the
 // error re-render). A zero ID means a new region.
 func (s *Handlers) renderRegionEdit(w http.ResponseWriter, r *http.Request, org *store.Org, zv configRegionView, errs []string) {
+	// Turning on a one-per-org flag quietly takes it from the region that holds
+	// it, so name that region beside the switch. Bounded by the org's regions.
+	regions, err := s.Store.ListRegions(r.Context(), org.ID)
+	if err != nil {
+		s.ServerError(w, r, "could not load regions", err)
+		return
+	}
 	data := map[string]any{
 		"Org":    org,
 		"Nav":    s.orgAdminNav(r, org, "regions"),
 		"Region": zv,
 		"Action": regionFormAction(org.Slug, zv.ID),
 		"Errors": errs,
+	}
+	for _, z := range regions {
+		if z.ID == zv.ID {
+			continue
+		}
+		if z.Primary {
+			data["PrimaryHolder"] = z.DisplayName
+		}
+		if z.DefaultScope {
+			data["DefaultScopeHolder"] = z.DisplayName
+		}
 	}
 	s.Render(w, r, "config_region_edit.html", data)
 }
