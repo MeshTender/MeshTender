@@ -1,6 +1,8 @@
 // Shared behavior for the profile/org link editors. Both the account page and
 // the org page render a `<form data-link-editor>` with repeatable `.link-row`s;
-// this script adds/removes rows, renumbers the primary-contact radios, adapts
+// this script adds, removes and re-orders rows (the form submits them in DOM
+// order, which is the order they're saved and shown in), renumbers the
+// primary-contact radios, adapts
 // each row to its selected platform (placeholder + whether the optional label
 // applies), and validates client-side before submit. The server re-validates and
 // is authoritative — this is a convenience that keeps people from round-tripping
@@ -111,18 +113,49 @@
       rows.querySelectorAll('.link-row').forEach(fn);
     }
 
+    // syncMoves disables the first row's up and the last row's down.
+    function syncMoves() {
+      var all = rows.querySelectorAll('.link-row');
+      all.forEach(function (row, i) {
+        var up = row.querySelector('.move-link-up');
+        var down = row.querySelector('.move-link-down');
+        if (up) up.disabled = i === 0;
+        if (down) down.disabled = i === all.length - 1;
+      });
+    }
+
+    // move swaps a row with its neighbor, keeping focus on the button pressed
+    // so a keyboard user can press it again.
+    function move(row, btn, up) {
+      var sib = up ? row.previousElementSibling : row.nextElementSibling;
+      while (sib && !sib.classList.contains('link-row')) {
+        sib = up ? sib.previousElementSibling : sib.nextElementSibling;
+      }
+      if (!sib) return;
+      if (up) rows.insertBefore(row, sib);
+      else rows.insertBefore(sib, row);
+      syncMoves();
+      if (!btn.disabled) btn.focus();
+    }
+
     add.addEventListener('click', function () {
       rows.appendChild(tpl.content.cloneNode(true));
       var added = rows.querySelector('.link-row:last-child');
       if (added) applyPlatform(added);
+      syncMoves();
     });
 
     rows.addEventListener('click', function (e) {
-      var btn = e.target.closest('.remove-link');
-      if (btn) {
-        var r = btn.closest('.link-row');
-        if (r) r.remove();
+      var r = e.target.closest('.link-row');
+      if (!r) return;
+      if (e.target.closest('.remove-link')) {
+        r.remove();
+        syncMoves();
+        return;
       }
+      var up = e.target.closest('.move-link-up');
+      var down = e.target.closest('.move-link-down');
+      if (up || down) move(r, up || down, !!up);
     });
 
     rows.addEventListener('change', function (e) {
@@ -140,6 +173,7 @@
 
     // Sync server-rendered rows on load.
     eachRow(applyPlatform);
+    syncMoves();
 
     if (form) {
       form.addEventListener('submit', function (e) {

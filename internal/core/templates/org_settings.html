@@ -93,9 +93,7 @@
       <div class="col">
         <input class="form-control link-value" type="text" name="link_url" value="{{.URL}}" maxlength="300" aria-label="Link value">
       </div>
-      <div class="col-auto">
-        <button type="button" class="btn btn-ghost-secondary btn-icon remove-link" aria-label="Remove link">{{template "icon-trash" ""}}</button>
-      </div>
+      {{template "link-row-actions"}}
     </div>
     {{end}}
   </div>
@@ -112,9 +110,7 @@
       <div class="col">
         <input class="form-control link-value" type="text" name="link_url" maxlength="300" aria-label="Link value">
       </div>
-      <div class="col-auto">
-        <button type="button" class="btn btn-ghost-secondary btn-icon remove-link" aria-label="Remove link">{{template "icon-trash" ""}}</button>
-      </div>
+      {{template "link-row-actions"}}
     </div>
   </template>
   <div class="btn-list mt-2">

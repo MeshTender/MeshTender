@@ -54,6 +54,16 @@ func TestOrgLinksReplaceAndList(t *testing.T) {
 		t.Errorf("link[1].Display() = %q, want %q", d, "Wiki")
 	}
 
+	// Re-ordering is saving the same links in a new order: the editor submits
+	// rows in the order the admin arranged them (MESHTENDER-11).
+	if err := st.ReplaceOrgLinks(ctx, org.ID, []OrgLink{links[1], links[0]}); err != nil {
+		t.Fatalf("replace (reordered): %v", err)
+	}
+	if got, err = st.ListOrgLinks(ctx, org.ID); err != nil || len(got) != 2 || got[0].URL != links[1].URL || got[1].URL != links[0].URL ||
+		got[0].Position != 0 || got[1].Position != 1 {
+		t.Fatalf("after re-ordering = %+v, %v; want the website first", got, err)
+	}
+
 	// Replacing with an empty set clears every link.
 	if err := st.ReplaceOrgLinks(ctx, org.ID, nil); err != nil {
 		t.Fatalf("replace (clear): %v", err)

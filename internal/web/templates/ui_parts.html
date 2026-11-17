@@ -28,3 +28,13 @@
      .stretched-link, so it can live in a clickable row. Pass the 64-hex key. */}}
 {{define "pubkey"}}<span class="d-inline-flex align-items-center"><span class="font-monospace" title="{{.}}">{{if gt (len .) 8}}{{slice . 0 8}}…{{else}}{{.}}{{end}}</span><button type="button" class="btn btn-sm btn-ghost-secondary btn-icon position-relative ms-1 p-0" style="z-index:2" data-copy="{{.}}" aria-label="Copy public key" title="Copy public key">{{template "icon-copy" ""}}</button></span>{{end}}
 
+{{/* link-row-actions is a link editor row's buttons: move it up or down (the
+     order is the order links are shown in) and remove it. link-editor.js drives
+     them; the form submits rows in DOM order, which the store saves as position. */}}
+{{define "link-row-actions"}}
+<div class="col-auto d-flex gap-1">
+  <button type="button" class="btn btn-ghost-secondary btn-icon move-link-up" aria-label="Move link up" title="Move up" data-testid="link-up">{{template "icon-chevron-up" ""}}</button>
+  <button type="button" class="btn btn-ghost-secondary btn-icon move-link-down" aria-label="Move link down" title="Move down" data-testid="link-down">{{template "icon-chevron-down" ""}}</button>
+  <button type="button" class="btn btn-ghost-secondary btn-icon remove-link" aria-label="Remove link">{{template "icon-trash" ""}}</button>
+</div>
+{{end}}
