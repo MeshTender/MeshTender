@@ -182,12 +182,15 @@ func decodeAddressedReply(server meshcore.LocalIdentity, repeater meshcore.Ident
 	if err != nil {
 		return nil, payloadType, fmt.Errorf("derive shared secret: %w", err)
 	}
-	// MACThenDecrypt verifies the 2-byte MAC and decrypts in one step; nil means
-	// the MAC failed — either not really for us (1-byte hash collision) or we
-	// don't hold the matching key.
-	dec, _ := meshcore.MACThenDecrypt(shared, append(mac, ciphertext...))
-	if dec == nil {
+	// MACThenDecrypt verifies the 2-byte MAC and decrypts in one step. A failed
+	// MAC (ErrBadMAC, since meshcore-go v1.2) means the packet isn't really for
+	// us — a 1-byte hash collision — or we don't hold the matching key.
+	dec, err := meshcore.MACThenDecrypt(shared, append(mac, ciphertext...))
+	if errors.Is(err, meshcore.ErrBadMAC) || (err == nil && dec == nil) {
 		return nil, payloadType, ErrNotForUs
+	}
+	if err != nil {
+		return nil, payloadType, fmt.Errorf("decrypt: %w", err)
 	}
 	return dec, payloadType, nil
 }

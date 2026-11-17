@@ -4,8 +4,13 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
+	"github.com/coder/websocket"
 	"github.com/meshcore-go/meshcore-go/hardware"
 )
 
@@ -98,5 +103,39 @@ func assertCmds(t *testing.T, got []*hardware.KissFrame, wantCmds []byte, ctxFmt
 		if f.Command != wantCmds[i] {
 			t.Fatalf(ctxFmt+": frame %d cmd=0x%02x, want 0x%02x", append(args, i, f.Command, wantCmds[i])...)
 		}
+	}
+}
+
+// TestCloseAfterContextDoneDoesNotWaitForHandshake: once the session's context
+// is done nothing reads the socket, so Close mustn't wait for the peer's reply to
+// a closing handshake — websocket.Conn.Close would sit out five seconds, longer
+// than the server's shutdown drain (TestDrainWebSockets in internal/core).
+func TestCloseAfterContextDoneDoesNotWaitForHandshake(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+	accepted := make(chan *Conn, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ws, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			return
+		}
+		accepted <- New(ctx, ws)
+		<-r.Context().Done()
+	}))
+	defer srv.Close()
+
+	// A client that never reads, so it never answers a closing handshake.
+	client, _, err := websocket.Dial(context.Background(), "ws"+strings.TrimPrefix(srv.URL, "http"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.CloseNow()
+	bridge := <-accepted
+
+	cancel()
+	start := time.Now()
+	_ = bridge.Close()
+	if d := time.Since(start); d > time.Second {
+		t.Fatalf("Close took %s after the context was done; want it immediate", d)
 	}
 }

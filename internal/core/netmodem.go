@@ -348,7 +348,9 @@ func (r *netModemRun) transmit() {
 				}
 			}
 			r.status("sent", "Sent: "+mesh.FitGroupText(r.sender, t.text))
-		case errors.Is(err, hardware.ErrTxBusy), errors.Is(err, hardware.ErrTxFailed), errors.Is(err, hardware.ErrTxTimeout):
+		// ErrTxPending: an earlier send's outcome hasn't come back yet (meshcore-go
+		// v1.3); ErrTxBusy is no longer returned since firmware 1.17.
+		case errors.Is(err, hardware.ErrTxPending), errors.Is(err, hardware.ErrTxFailed), errors.Is(err, hardware.ErrTxTimeout):
 			r.status("error", "The modem couldn't send: "+mesh.FitGroupText(r.sender, t.text))
 		default:
 			r.status("error", "send: "+err.Error())

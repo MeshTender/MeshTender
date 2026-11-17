@@ -278,15 +278,22 @@ func TestNetModemSession(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	select {
-	case f := <-m.hw:
-		sub, data, _ := hardware.DecodeHardwareFrame(f)
-		want := (&hardware.RadioConfig{FreqHz: radio.FreqHz, BwHz: radio.BwHz, SF: radio.SF, CR: radio.CR}).ToBytes()
-		if sub != hardware.HW_CMD_SET_RADIO || string(data) != string(want) {
-			t.Fatalf("first hardware command %#x %x, want SET_RADIO %x", sub, data, want)
+	// meshcore-go's KissModem.Connect first sets the modem's signal report (off:
+	// we don't use its SNR/RSSI frames); then the session tunes the radio.
+	for i, wantSub := range []byte{hardware.HW_CMD_SET_SIGNAL_REPORT, hardware.HW_CMD_SET_RADIO} {
+		select {
+		case f := <-m.hw:
+			sub, data, _ := hardware.DecodeHardwareFrame(f)
+			want := []byte{0}
+			if wantSub == hardware.HW_CMD_SET_RADIO {
+				want = (&hardware.RadioConfig{FreqHz: radio.FreqHz, BwHz: radio.BwHz, SF: radio.SF, CR: radio.CR}).ToBytes()
+			}
+			if sub != wantSub || string(data) != string(want) {
+				t.Fatalf("hardware command %d = %#x %x, want %#x %x", i+1, sub, data, wantSub, want)
+			}
+		case <-rctx.Done():
+			t.Fatal("radio never set")
 		}
-	case <-rctx.Done():
-		t.Fatal("radio never set")
 	}
 	m.waitStatus("ready")
 

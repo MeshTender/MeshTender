@@ -1,4 +1,4 @@
-# ko build configuration — see `mise run image` and .woodpecker/build.yaml.
+# ko build configuration — see `mise run image` and .github/workflows/ci.yml.
 #
 # MeshTender is published as a reproducible image so that an end user auditing
 # the source can rebuild it themselves and confirm the digest matches what we

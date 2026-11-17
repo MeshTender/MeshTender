@@ -62,9 +62,17 @@ func New(ctx context.Context, ws *websocket.Conn) *Conn {
 // Connect is a no-op; the socket is already established when New is called.
 func (c *Conn) Connect(context.Context) error { return nil }
 
-// Close marks the bridge dead and closes the socket.
+// Close marks the bridge dead and closes the socket. Once the session's context
+// is done — the page went away, the idle timeout fired, or the server is
+// shutting down — nothing reads the socket any more, so the peer's reply to a
+// closing handshake would never be seen and websocket.Conn.Close would wait out
+// its full five seconds (blowing the shutdown drain, since meshcore-go v1.3
+// closes the transport as soon as the modem closes); tear it down instead.
 func (c *Conn) Close() error {
 	c.markDead()
+	if c.ctx.Err() != nil {
+		return c.ws.CloseNow()
+	}
 	return c.ws.Close(websocket.StatusNormalClosure, "closed")
 }
 
