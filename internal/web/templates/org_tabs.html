@@ -58,23 +58,25 @@
 {{end}}
 
 {{/* org-settings-nav is the Settings tab's left rail (admins only): one page per
-     thing an admin sets up. Active is "settings-<section>". */}}
+     thing an admin sets up. Mesh (radio, regions, channels) comes before
+     Check-ins: it's the basic setup the Guide and nets depend on. Active is
+     "settings-<section>". */}}
 {{define "org-settings-nav"}}
 <nav aria-label="Settings" data-testid="org-settings-nav">
   <h2 class="subheader">Organization</h2>
   <div class="list-group list-group-transparent mb-3">
     {{template "org-settings-item" (dict "Nav" . "Section" "profile" "Label" "Profile" "Icon" "world")}}
   </div>
-  <h2 class="subheader">Check-ins</h2>
-  <div class="list-group list-group-transparent mb-3">
-    {{template "org-settings-item" (dict "Nav" . "Section" "mqtt" "Label" "MQTT" "Icon" "access-point")}}
-    {{template "org-settings-item" (dict "Nav" . "Section" "nets" "Label" "Nets" "Icon" "calendar-event")}}
-  </div>
   <h2 class="subheader">Mesh</h2>
   <div class="list-group list-group-transparent mb-3">
     {{template "org-settings-item" (dict "Nav" . "Section" "radio" "Label" "Radio" "Icon" "wave-sine")}}
     {{template "org-settings-item" (dict "Nav" . "Section" "regions" "Label" "Regions" "Icon" "map-pin")}}
     {{template "org-settings-item" (dict "Nav" . "Section" "channels" "Label" "Channels" "Icon" "hash")}}
+  </div>
+  <h2 class="subheader">Check-ins</h2>
+  <div class="list-group list-group-transparent mb-3">
+    {{template "org-settings-item" (dict "Nav" . "Section" "mqtt" "Label" "MQTT" "Icon" "access-point")}}
+    {{template "org-settings-item" (dict "Nav" . "Section" "nets" "Label" "Nets" "Icon" "calendar-event")}}
   </div>
   <h2 class="subheader">Repeaters</h2>
   <div class="list-group list-group-transparent">
