@@ -111,14 +111,22 @@ func (p LinkPlatform) CanonicalHandleURL(raw string) (string, bool) {
 	if p.Key == mastodonKey {
 		return canonicalMastodon(s)
 	}
-	// A pasted URL is accepted only on a known host; the handle is its last path
-	// segment. Anything else is treated as a bare handle.
+	// A pasted URL is accepted only on a known host. A profile URL — the
+	// platform's profile path with one handle in it — is canonicalized; any
+	// other page there (a share link, a group, a post) is kept as pasted, since
+	// rebuilding a profile URL from its last segment would point somewhere else.
+	// Anything that isn't a URL is treated as a bare handle.
 	if LooksLikeURL(s) {
-		u, err := url.Parse(NormalizeLinkURL(s))
+		full := NormalizeLinkURL(s)
+		u, err := url.Parse(full)
 		if err != nil || !hostAllowed(u.Host, p.Hosts) {
 			return "", false
 		}
-		s = lastPathSegment(u.Path)
+		h, ok := p.handleFromURL(u)
+		if !ok {
+			return full, ValidLinkURL(full)
+		}
+		s = h
 	}
 	h := strings.TrimPrefix(strings.TrimSpace(s), "@")
 	h = strings.TrimPrefix(h, "u/") // Reddit's "u/name" shorthand
@@ -144,11 +152,34 @@ func (p LinkPlatform) HandleFromURL(stored string) string {
 		}
 		return "@" + user + "@" + strings.ToLower(u.Host)
 	}
-	seg := strings.TrimPrefix(lastPathSegment(u.Path), "@")
-	if seg == "" {
-		return ""
+	h, ok := p.handleFromURL(u)
+	if !ok {
+		return "" // not a profile: callers show the platform's name instead
 	}
-	return "@" + seg
+	return "@" + h
+}
+
+// handleFromURL reads the handle out of a URL shaped like the platform's
+// profile URL — URLFmt's path with a single handle where its %s is, and no
+// query. ok is false for any other page on the platform (a share link, a group,
+// a post, profile.php?id=…).
+func (p LinkPlatform) handleFromURL(u *url.URL) (string, bool) {
+	if u.RawQuery != "" {
+		return "", false
+	}
+	prefix := p.URLFmt
+	if i := strings.Index(prefix, "%s"); i >= 0 {
+		prefix = prefix[:i]
+	}
+	pu, err := url.Parse(prefix)
+	if err != nil {
+		return "", false
+	}
+	rest, ok := strings.CutPrefix(strings.TrimSuffix(u.Path, "/"), pu.Path)
+	if !ok || rest == "" || strings.Contains(rest, "/") || !validHandle(strings.TrimPrefix(rest, "@")) {
+		return "", false
+	}
+	return strings.TrimPrefix(rest, "@"), true
 }
 
 // canonicalMastodon accepts "@user@instance", "user@instance", or a profile URL

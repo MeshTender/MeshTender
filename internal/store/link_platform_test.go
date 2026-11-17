@@ -43,6 +43,15 @@ func TestCanonicalHandleURL(t *testing.T) {
 		{"github", "   ", ""},
 		// A space in the handle is rejected.
 		{"github", "not a handle", ""},
+		// Any other page on the platform — a share link, a group, a post, a
+		// profile.php?id= — isn't a handle: it's kept as pasted rather than
+		// rebuilt from its last path segment into a profile URL that goes
+		// somewhere else (MESHTENDER-14).
+		{"facebook", "https://www.facebook.com/share/g/1HjZ7Bg2WX/", "https://www.facebook.com/share/g/1HjZ7Bg2WX/"},
+		{"facebook", "https://www.facebook.com/groups/wnymesh", "https://www.facebook.com/groups/wnymesh"},
+		{"facebook", "https://www.facebook.com/profile.php?id=100012345", "https://www.facebook.com/profile.php?id=100012345"},
+		{"x", "https://x.com/jack/status/20", "https://x.com/jack/status/20"},
+		{"facebook", "https://www.facebook.com/wnymesh", "https://facebook.com/wnymesh"},
 	}
 	for _, c := range cases {
 		got, ok := platform(t, c.platform).CanonicalHandleURL(c.in)
@@ -95,6 +104,21 @@ func TestHandleFromURLAndDisplay(t *testing.T) {
 	if h := platform(t, "mastodon").HandleFromURL("https://mastodon.social/@Gargron"); h != "@Gargron@mastodon.social" {
 		t.Errorf("mastodon HandleFromURL = %q, want @Gargron@mastodon.social", h)
 	}
+	// A page that isn't a profile has no handle to show (MESHTENDER-14): the
+	// share link once rendered as "@1HjZ7Bg2WX".
+	for _, u := range []string{
+		"https://www.facebook.com/share/g/1HjZ7Bg2WX/",
+		"https://www.facebook.com/profile.php?id=100012345",
+		"https://x.com/jack/status/20",
+	} {
+		p := platform(t, "facebook")
+		if u == "https://x.com/jack/status/20" {
+			p = platform(t, "x")
+		}
+		if h := p.HandleFromURL(u); h != "" {
+			t.Errorf("%s HandleFromURL(%q) = %q, want none", p.Key, u, h)
+		}
+	}
 
 	// Display/Href across kinds, via both link types.
 	cases := []struct {
@@ -104,6 +128,8 @@ func TestHandleFromURLAndDisplay(t *testing.T) {
 	}{
 		// Handle platform: display the @handle, link the stored URL.
 		{UserLink{Platform: "github", URL: "https://github.com/octocat"}, "@octocat", "https://github.com/octocat"},
+		// A Facebook group share link shows the platform's name, not "@1HjZ7Bg2WX".
+		{UserLink{Platform: "facebook", URL: "https://www.facebook.com/share/g/1HjZ7Bg2WX/"}, "Facebook", "https://www.facebook.com/share/g/1HjZ7Bg2WX/"},
 		// A custom label always wins over the derived handle.
 		{UserLink{Platform: "github", Label: "My code", URL: "https://github.com/octocat"}, "My code", "https://github.com/octocat"},
 		// Text platform: display the handle text, no link.
