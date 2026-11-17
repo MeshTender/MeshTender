@@ -15,7 +15,6 @@ import (
 	meshcore "github.com/meshcore-go/meshcore-go"
 	"github.com/meshcore-go/meshcore-go/hardware"
 
-	"github.com/MeshTender/MeshTender/internal/auth"
 	"github.com/MeshTender/MeshTender/internal/config"
 	"github.com/MeshTender/MeshTender/internal/identity"
 	"github.com/MeshTender/MeshTender/internal/mesh"
@@ -198,18 +197,14 @@ func newNetModemFixture(t *testing.T, manualAck, withRadio bool) *netModemFixtur
 	if err != nil {
 		t.Fatal(err)
 	}
-	authSvc, err := auth.New(st, st.Pool(), testAuthConfig())
-	if err != nil {
-		t.Fatal(err)
-	}
+	authSvc := testAuth(t, st, testAuthConfig())
 	srv, err := NewServer(st, authSvc, idSvc, testConfig())
 	if err != nil {
 		t.Fatal(err)
 	}
 	srv.app.netModem = netModemTiming{AckEvery: 200 * time.Millisecond, ManualAckEvery: 200 * time.Millisecond,
 		MinGap: 10 * time.Millisecond, TxTimeout: 2 * time.Second, Grace: time.Minute}
-	ts := httptest.NewServer(srv.Handler())
-	t.Cleanup(ts.Close)
+	ts := serveTest(t, srv.Handler())
 
 	jar, _ := cookiejar.New(nil)
 	admin := seedSession(t, ts, st, ctx, jar, "ncadmin")

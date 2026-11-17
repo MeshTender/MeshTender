@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/alexedwards/scs/pgxstore"
@@ -56,6 +57,9 @@ type Service struct {
 	// "promise this to users".
 	mail        mail.Sender
 	mailEnabled bool
+	// sessions is the session store, kept so Close can stop its cleanup goroutine.
+	sessions  *pgxstore.PostgresStore
+	closeOnce sync.Once
 }
 
 // Config configures the auth service.
@@ -95,7 +99,8 @@ func New(st *store.Store, pool *pgxpool.Pool, cfg Config) (*Service, error) {
 	}
 
 	sm := scs.New()
-	sm.Store = pgxstore.New(pool)
+	sessions := pgxstore.New(pool)
+	sm.Store = sessions
 	sm.Lifetime = 7 * 24 * time.Hour
 	// Host-only cookie: no Domain attribute, so the auth and app hosts each get
 	// their own independent session — the browser never sends one host's cookie
@@ -123,8 +128,15 @@ func New(st *store.Store, pool *pgxpool.Pool, cfg Config) (*Service, error) {
 		secure:      cfg.Secure,
 		mail:        sender,
 		mailEnabled: cfg.MailEnabled,
+		sessions:    sessions,
 	}, nil
 }
+
+// Close stops the session store's expired-session cleanup goroutine. Call it
+// before closing the pool. Until then the goroutine keeps the pool, and anything
+// the pool can reach, alive.
+// Safe to call more than once: a second StopCleanup would block forever.
+func (s *Service) Close() { s.closeOnce.Do(s.sessions.StopCleanup) }
 
 // MailEnabled reports whether a real mail provider is configured, so surfaces can
 // hide recovery-by-email instead of offering a link that would never arrive.

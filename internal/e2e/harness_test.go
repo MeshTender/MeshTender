@@ -215,6 +215,7 @@ func newE2EServer(t *testing.T) *e2eServer {
 	if err != nil {
 		t.Fatalf("auth: %v", err)
 	}
+	t.Cleanup(authSvc.Close)
 	srv, err := core.NewServer(st, authSvc, idSvc, &config.Config{
 		PrimaryHost: appHost(), AuthHost: authHost(), RootHost: rootHost(), Secure: true,
 		MasterKey: masterKey,

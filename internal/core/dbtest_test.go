@@ -93,8 +93,26 @@ func coreStore(t *testing.T) (*store.Store, context.Context) {
 	if err != nil {
 		t.Fatalf("store: %v", err)
 	}
-	t.Cleanup(st.Close)
+	// Drop the reference once closed: see serveTest for why a cleanup closure
+	// must not keep what it closes reachable.
+	t.Cleanup(func() {
+		st.Close()
+		st = nil
+	})
 	return st, ctx
+}
+
+// testAuth builds the auth service on st, stopping its session cleanup goroutine
+// at cleanup. Left running, that goroutine ticks forever and keeps the test's
+// closed pool reachable for the rest of the package run.
+func testAuth(t *testing.T, st *store.Store, cfg auth.Config) *auth.Service {
+	t.Helper()
+	svc, err := auth.New(st, st.Pool(), cfg)
+	if err != nil {
+		t.Fatalf("auth: %v", err)
+	}
+	t.Cleanup(svc.Close)
+	return svc
 }
 
 // coreMigrate applies the schema to the template database, releasing its

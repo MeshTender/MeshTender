@@ -3,6 +3,7 @@ package auth
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -117,5 +118,28 @@ func TestSafeLocalPath(t *testing.T) {
 		if got := SafeLocalPath(c.path); got != c.want {
 			t.Errorf("SafeLocalPath(%q) = %v, want %v", c.path, got, c.want)
 		}
+	}
+}
+
+// Close stops the session store's cleanup goroutine (the tests' servers would
+// otherwise stay reachable through it), and a second call must return rather
+// than block on a goroutine that's already gone.
+func TestCloseIsIdempotent(t *testing.T) {
+	// New stores the pool without connecting, and the cleanup goroutine first
+	// touches it after its 5-minute interval, so a nil pool is enough here.
+	svc, err := New(nil, nil, Config{RPID: "localhost", RPDisplayName: "test", RPOrigins: []string{"http://localhost"}})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	done := make(chan struct{})
+	go func() {
+		svc.Close()
+		svc.Close()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Close blocked")
 	}
 }

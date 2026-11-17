@@ -32,14 +32,11 @@ func TestPasswordFloorAppliesOnlyWhenSetting(t *testing.T) {
 
 	// Establish it the way an existing account's hash exists today: through the auth
 	// service's own setter, bypassing the form-level length check.
-	svc, err := auth.New(st, st.Pool(), auth.Config{
+	svc := testAuth(t, st, auth.Config{
 		RPID: "localhost", RPDisplayName: "test",
 		RPOrigins: []string{"http://auth.localhost"},
 		AppHost:   testAppHost, AuthHost: testAuthHost, RootHost: testRootHost,
 	})
-	if err != nil {
-		t.Fatalf("auth service: %v", err)
-	}
 	legacyUser, err := st.CreateUser(ctx, "legacypw", "")
 	if err != nil {
 		t.Fatalf("create user: %v", err)

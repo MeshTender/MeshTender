@@ -116,6 +116,7 @@ func run(logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
+	defer authSvc.Close() // before the deferred st.Close(): its cleanup uses the pool
 
 	srv, err := core.NewServer(st, authSvc, idSvc, cfg)
 	if err != nil {

@@ -82,24 +82,38 @@ func splitServerWith(t *testing.T, mailEnabled bool, cfg *config.Config) (*store
 		t.Fatalf("identity: %v", err)
 	}
 	sender := &fakeSender{}
-	authSvc, err := auth.New(st, st.Pool(), auth.Config{
+	authSvc := testAuth(t, st, auth.Config{
 		RPID: "localhost", RPDisplayName: "test",
 		RPOrigins: []string{"http://auth.localhost", "http://app.localhost"},
 		AppHost:   testAppHost, AuthHost: testAuthHost, RootHost: testRootHost,
 		Mail: sender, MailEnabled: mailEnabled,
 	})
-	if err != nil {
-		t.Fatalf("auth: %v", err)
-	}
 	srv, err := NewServer(st, authSvc, idSvc, cfg)
 	if err != nil {
 		t.Fatalf("server: %v", err)
 	}
-	ts := httptest.NewServer(srv.Handler())
-	t.Cleanup(ts.Close)
+	ts := serveTest(t, srv.Handler())
 	port := mustURL(t, ts.URL).Port()
 	hp := func(h string) string { return h + ":" + port }
 	return st, ctx, ts, hostEnv{auth: hp(testAuthHost), app: hp(testAppHost), root: hp(testRootHost), www: hp(testWWWHost)}, sender
+}
+
+// serveTest starts an httptest server for the test and closes it at cleanup.
+//
+// The cleanup also drops its reference to the server. The testing package keeps
+// a parallel test's T alive until the whole package finishes, and a T keeps the
+// closures it ran at cleanup reachable, so a plain t.Cleanup(ts.Close) pins the
+// server's handler and everything it holds (templates, auth, session stores):
+// 30+ MB per test, which summed over the package's parallel tests to over 16 GB
+// under -race and took the CI runner down.
+func serveTest(t *testing.T, h http.Handler) *httptest.Server {
+	t.Helper()
+	ts := httptest.NewServer(h)
+	t.Cleanup(func() {
+		ts.Close()
+		ts = nil
+	})
+	return ts
 }
 
 // seedSession creates a user and establishes an authenticated app-host session

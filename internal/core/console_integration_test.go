@@ -16,7 +16,6 @@ import (
 	meshcore "github.com/meshcore-go/meshcore-go"
 	"github.com/meshcore-go/meshcore-go/hardware"
 
-	"github.com/MeshTender/MeshTender/internal/auth"
 	"github.com/MeshTender/MeshTender/internal/identity"
 	"github.com/MeshTender/MeshTender/internal/store"
 )
@@ -33,10 +32,7 @@ func TestConsoleRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("identity: %v", err)
 	}
-	authSvc, err := auth.New(st, st.Pool(), testAuthConfig())
-	if err != nil {
-		t.Fatalf("auth: %v", err)
-	}
+	authSvc := testAuth(t, st, testAuthConfig())
 	srv, err := NewServer(st, authSvc, idSvc, testConfig())
 	if err != nil {
 		t.Fatalf("server: %v", err)
@@ -201,10 +197,7 @@ func TestConsoleGetLatUpdatesLocation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("identity: %v", err)
 	}
-	authSvc, err := auth.New(st, st.Pool(), testAuthConfig())
-	if err != nil {
-		t.Fatalf("auth: %v", err)
-	}
+	authSvc := testAuth(t, st, testAuthConfig())
 	srv, err := NewServer(st, authSvc, idSvc, testConfig())
 	if err != nil {
 		t.Fatalf("server: %v", err)
@@ -354,10 +347,7 @@ func TestConsoleGuestLoginConfirms(t *testing.T) {
 	if err != nil {
 		t.Fatalf("identity: %v", err)
 	}
-	authSvc, err := auth.New(st, st.Pool(), testAuthConfig())
-	if err != nil {
-		t.Fatalf("auth: %v", err)
-	}
+	authSvc := testAuth(t, st, testAuthConfig())
 	srv, err := NewServer(st, authSvc, idSvc, testConfig())
 	if err != nil {
 		t.Fatalf("server: %v", err)
@@ -485,10 +475,7 @@ func TestConsoleAuditFailureRefusesCommand(t *testing.T) {
 	if err != nil {
 		t.Fatalf("identity: %v", err)
 	}
-	authSvc, err := auth.New(st, st.Pool(), testAuthConfig())
-	if err != nil {
-		t.Fatalf("auth: %v", err)
-	}
+	authSvc := testAuth(t, st, testAuthConfig())
 	srv, err := NewServer(st, authSvc, idSvc, testConfig())
 	if err != nil {
 		t.Fatalf("server: %v", err)

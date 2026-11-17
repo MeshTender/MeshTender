@@ -28,14 +28,11 @@ func TestVerifyPasswordSpendsEqualTime(t *testing.T) {
 	// No t.Parallel: this measures wall-clock time.
 	st, ctx := coreStore(t)
 
-	svc, err := auth.New(st, st.Pool(), auth.Config{
+	svc := testAuth(t, st, auth.Config{
 		RPID: "localhost", RPDisplayName: "test",
 		RPOrigins: []string{"http://auth.localhost"},
 		AppHost:   testAppHost, AuthHost: testAuthHost, RootHost: testRootHost,
 	})
-	if err != nil {
-		t.Fatalf("auth service: %v", err)
-	}
 
 	withPassword, err := st.CreateUser(ctx, "timing-haspassword", "")
 	if err != nil {

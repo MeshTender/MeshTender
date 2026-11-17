@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MeshTender/MeshTender/internal/auth"
 	"github.com/MeshTender/MeshTender/internal/identity"
 	"github.com/MeshTender/MeshTender/internal/store"
 	"github.com/MeshTender/MeshTender/internal/web"
@@ -25,16 +24,12 @@ func cspServer(t *testing.T) (*store.Store, context.Context, *httptest.Server, h
 	if err != nil {
 		t.Fatalf("identity: %v", err)
 	}
-	authSvc, err := auth.New(st, st.Pool(), testAuthConfig())
-	if err != nil {
-		t.Fatalf("auth: %v", err)
-	}
+	authSvc := testAuth(t, st, testAuthConfig())
 	srv, err := NewServer(st, authSvc, idSvc, testConfig())
 	if err != nil {
 		t.Fatalf("server: %v", err)
 	}
-	ts := httptest.NewServer(srv.Handler())
-	t.Cleanup(ts.Close)
+	ts := serveTest(t, srv.Handler())
 	port := mustURL(t, ts.URL).Port()
 	hp := func(h string) string { return h + ":" + port }
 	env := hostEnv{auth: hp(testAuthHost), app: hp(testAppHost), root: hp(testRootHost), www: hp(testWWWHost)}

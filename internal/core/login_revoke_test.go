@@ -6,7 +6,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/MeshTender/MeshTender/internal/auth"
 	"github.com/MeshTender/MeshTender/internal/identity"
 )
 
@@ -23,10 +22,7 @@ func TestRevokedLoginLogsOut(t *testing.T) {
 	if err != nil {
 		t.Fatalf("identity: %v", err)
 	}
-	authSvc, err := auth.New(st, st.Pool(), testAuthConfig())
-	if err != nil {
-		t.Fatalf("auth service: %v", err)
-	}
+	authSvc := testAuth(t, st, testAuthConfig())
 	srv, err := NewServer(st, authSvc, idSvc, testConfig())
 	if err != nil {
 		t.Fatalf("server: %v", err)
