@@ -299,6 +299,8 @@ func (s *Handlers) appRouter() chi.Router {
 			r.Get("/orgs/{id}/settings/mqtt/observers/new", s.pageNewObserver)
 			r.Get("/orgs/{id}/settings/mqtt/observers/{oid}", s.pageObserver)
 			r.Get("/orgs/{id}/settings/nets/new", s.pageNewNet)
+			r.Get("/orgs/{id}/settings/channels/new", s.pageNewChannel)
+			r.Get("/orgs/{id}/settings/channels/{cid}", s.pageChannel)
 			r.Get("/orgs/{id}/settings/nets/{nid}", s.pageNetSettings)
 			r.Post("/orgs/{id}/edit", s.handleEditOrg)
 			r.Post("/orgs/{id}/links", s.handleSetOrgLinks)
@@ -327,6 +329,9 @@ func (s *Handlers) appRouter() chi.Router {
 			r.Post("/orgs/{id}/config/root-flood", s.handleSetRootFlood)
 			r.Post("/orgs/{id}/config/radio", s.handleSetRadio)
 			r.Post("/orgs/{id}/config/path-hash", s.handleSetPathHash)
+			r.Post("/orgs/{id}/channels", s.handleCreateChannel)
+			r.Post("/orgs/{id}/channels/{cid}", s.handleUpdateChannel)
+			r.Post("/orgs/{id}/channels/{cid}/delete", s.handleDeleteChannel)
 			// Custom org domains are hidden for now — the hosting/TLS infrastructure
 			// isn't in place yet. Leave the handlers in tree but don't expose them.
 			// r.Post("/orgs/{id}/domains", s.handleAddOrgDomain)

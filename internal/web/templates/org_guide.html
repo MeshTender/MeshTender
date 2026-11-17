@@ -1,8 +1,11 @@
-{{/* Guide › Get on the air: everything a member needs to take part — the radio
-     settings for their companion (all it takes to be on the mesh), registering
-     it (optional: it makes adverts count as check-ins), and how a check-in works.
+{{/* Guide › Get on the air: everything a member needs to take part — setting
+     up their companion (the radio settings are all it takes to be on the mesh),
+     the channels to join and the regions to scope to, registering it (optional:
+     it makes adverts count as check-ins), and how a check-in works. Steps are
+     numbered as they appear: the channels step only when there are channels.
      Public, like the radio settings and net schedule it shows; the steps follow
-     the site docs (#companions, #nets). Data: Org, Nav, Guide (web.OrgGuide). */}}
+     the site docs (#companions, #nets). Data: Org, Nav, Guide (web.OrgGuide),
+     Channels (web.OrgChannels). */}}
 {{define "title"}}Get on the air · {{.Org.Name}} · MeshTender{{end}}
 {{define "header"}}{{template "org-header" .}}{{end}}
 {{define "content"}}
@@ -47,9 +50,55 @@
     </div>
   </div>
 
+  {{$step := 2}}{{$checkIn := 3}}
+  {{if or .Channels.Channels .Channels.HiddenPrivate}}
+  <div class="card" data-testid="guide-channels">
+    <div class="card-body pb-2">
+      <h2 class="card-title">{{$step}} · Join the channels</h2>
+      <p class="mb-0">Scan a code with the MeshCore app, or add the channel by hand with its key.</p>
+    </div>
+    <div class="list-group list-group-flush">
+      {{range .Channels.Channels}}
+      <div class="list-group-item d-flex flex-wrap align-items-center gap-3" data-testid="guide-channel">
+        {{with .QR}}<img src="{{.}}" width="96" height="96" alt="QR code that adds this channel in the MeshCore app" class="flex-shrink-0">{{end}}
+        <div class="flex-fill" style="min-width:0">
+          <div><span class="fw-bold">{{.Name}}</span> <span class="text-secondary">· {{.Scope}}</span></div>
+          {{/* The key before the note, so it sits at the same height in every row
+               however long the note runs. */}}
+          <div class="d-flex flex-wrap align-items-center gap-2 mt-1">
+            <code data-testid="guide-channel-key">{{.KeyHex}}</code>
+            <button type="button" class="btn btn-sm" data-copy="{{.KeyHex}}">{{template "icon-copy" ""}}Copy</button>
+          </div>
+          {{with .Note}}<div class="text-secondary small mt-1" data-testid="guide-channel-note">{{.}}</div>{{end}}
+          {{if .Unjoinable}}<div class="text-warning small mt-1">Uppercase letters: companion apps won't let you type this name, so add it by scanning the code.</div>{{end}}
+        </div>
+      </div>
+      {{end}}
+      {{with .Channels.HiddenPrivate}}
+      <div class="list-group-item text-secondary" data-testid="guide-private-hidden">Members see {{.}} private channel{{if ne . 1}}s{{end}}{{if not $.Nav.IsMember}} once they join{{end}}.</div>
+      {{end}}
+    </div>
+  </div>
+  {{$step = 3}}{{$checkIn = 4}}
+  {{end}}
+
+  {{if .Channels.Regions}}
+  <div class="card" data-testid="guide-regions">
+    <div class="card-body">
+      <h2 class="card-title">Regions</h2>
+      <p>Scopes you can pick in the app, so a message only floods where it's meant to. <a href="/orgs/{{.Org.Slug}}/guide/repeaters">See them on the map</a></p>
+      <ul class="list-unstyled mb-0">
+        {{range .Channels.Regions}}
+        <li style="padding-left: {{.Depth}}em" data-testid="guide-region"><code>{{.Token}}</code>{{if ne .DisplayName .Token}} {{.DisplayName}}{{end}}{{if .DefaultScope}} <span class="badge bg-blue-lt ms-1">Default scope</span>{{end}}</li>
+        {{end}}
+      </ul>
+    </div>
+  </div>
+  {{end}}
+
   <div class="card" data-testid="guide-register">
     <div class="card-body">
-      <h2 class="card-title">2 · Register your companion <span class="badge bg-secondary-lt ms-1" data-testid="guide-register-optional">Optional</span></h2>
+      <h2 class="card-title">{{$step}} · Register your companion <span class="badge bg-secondary-lt ms-1" data-testid="guide-register-optional">Optional</span></h2>
       <p>You don't need to register to use the mesh. Registering lets MeshTender count your adverts as check-ins for nets. Copy its public key from the app and add it under Companions, then send a <strong>flood advert</strong> within 24 hours: once an observer hears it, the companion is confirmed. A registration that's never heard expires.</p>
       <a class="btn btn-primary" href="{{.AppURL}}/companions/new" data-testid="guide-register-link">Register a companion</a>
     </div>
@@ -57,7 +106,7 @@
 
   <div class="card" data-testid="guide-checkin">
     <div class="card-body">
-      <h2 class="card-title">3 · Check in during a net</h2>
+      <h2 class="card-title">{{$checkIn}} · Check in during a net</h2>
       <p>While a net is in session, send a flood advert from any companion you've registered. That's your check-in.</p>
       <ul class="text-secondary">
         <li>Your companion's clock must be within ten minutes; the app sets it from your phone.</li>

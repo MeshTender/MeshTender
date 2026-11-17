@@ -199,7 +199,14 @@ func (s *Handlers) pageOrgGuide(w http.ResponseWriter, r *http.Request) {
 		s.ServerError(w, r, "could not load the guide", err)
 		return
 	}
-	data["Guide"] = guide
+	// The root host is public: private channels' keys are never shown here, even
+	// to a member previewing the page — they're on the app host.
+	channels, err := web.BuildOrgChannels(r.Context(), s.Store, id, s.Cfg.MasterKey, false)
+	if err != nil {
+		s.ServerError(w, r, "could not load the guide", err)
+		return
+	}
+	data["Guide"], data["Channels"] = guide, channels
 	s.Render(w, r, "org_guide.html", data)
 }
 

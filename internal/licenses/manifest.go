@@ -205,10 +205,10 @@ var Deps = []Dep{
 		Source:      "https://github.com/tabler/tabler-icons (icon path data, various versions)",
 		LicenseText: "tabler-icons.txt",
 		Files: []File{
-			{Path: "internal/web/templates/icons.html", SHA256: "08cfb9a81ff3d9ba0486277b13dd230da66a4c830069b8bd8ef680770bceb9c1", Notice: true},
+			{Path: "internal/web/templates/icons.html", SHA256: "c3d91fe3f7dcfd1364b7ef1a332383bb2a1901a6abc23f0b9d140bb0dd7b0cc8", Notice: true},
 		},
 		Modified: "Icon path data copied into Go template definitions rather than vendored as SVG files; the transparent 24x24 guard path upstream emits is dropped.",
-		Note:     "All 53 icons in icons.html are Tabler Icons; several are renamed locally (antenna<-antenna-bars-5, copy<-squares, list<-list-details, plug<-plug-connected, terminal<-terminal-2, alert<-alert-triangle, brand-signal<-message-circle-2). Version is unpinned because the set was collected across releases.",
+		Note:     "All 54 icons in icons.html are Tabler Icons; several are renamed locally (antenna<-antenna-bars-5, copy<-squares, list<-list-details, plug<-plug-connected, terminal<-terminal-2, alert<-alert-triangle, brand-signal<-message-circle-2). Version is unpinned because the set was collected across releases.",
 	},
 	{
 		Name:     "distroless static-debian12",

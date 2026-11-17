@@ -10,6 +10,9 @@
 {{template "settings-layout-open" .Nav}}
 {{if eq .Section "profile"}}{{template "settings-profile" .}}
 {{else if eq .Section "radio"}}{{template "settings-radio" .}}
+{{else if and (eq .Section "channels") .New}}{{template "settings-channel-new" .}}
+{{else if and (eq .Section "channels") .ChannelEdit}}{{template "settings-channel-edit" .}}
+{{else if eq .Section "channels"}}{{template "settings-channels" .}}
 {{else if eq .Section "regions"}}{{template "settings-regions" .}}
 {{else if eq .Section "profiles"}}{{template "settings-profiles" .}}
 {{else if and (eq .Section "mqtt") .New}}{{template "settings-observer-new" .}}
@@ -622,4 +625,101 @@
 {{define "air-kind"}}
 <input type="radio" class="btn-check" name="channel_kind" id="air-kind-{{.Kind}}" value="{{.Kind}}" autocomplete="off"{{if eq .Air.ChannelKind .Kind}} checked{{end}}>
 <label class="btn" for="air-kind-{{.Kind}}" data-testid="air-kind-{{.Kind}}">{{.Label}}</label>
+{{end}}
+
+{{/* ======== Channels: what members join, listed in the Guide. ======== */}}
+{{define "settings-channels"}}
+{{template "settings-heading" (dict "Title" "Channels" "ActionURL" (and .CanAdd (printf "/orgs/%s/settings/channels/new" .Org.Slug)) "ActionLabel" "New channel" "ActionTestID" "channel-add")}}
+<p class="text-secondary">Channels members should join. The Guide lists each with its key and a QR code the MeshCore app scans; private channels only for members.{{if not .CanAdd}} This organization has the most channels it can list.{{end}}</p>
+{{if .Channels}}
+<div class="card">
+  <div class="list-group list-group-flush" data-testid="channel-list">
+    {{range .Channels}}
+    <div class="list-group-item d-flex align-items-center gap-3" data-testid="channel-row">
+      <div class="flex-fill" style="min-width:0">
+        <div class="fw-bold text-truncate">{{.Name}}</div>
+        <div class="text-secondary small">Scope: {{.Scope}}{{with .Note}} · {{.}}{{end}}</div>
+      </div>
+      <div class="btn-list flex-shrink-0 flex-nowrap">
+        <a class="btn btn-sm" href="/orgs/{{$.Org.Slug}}/settings/channels/{{.ID}}" data-testid="channel-edit">Edit</a>
+        {{template "settings-delete" (dict "Action" (printf "/orgs/%s/channels/%d/delete" $.Org.Slug .ID) "Confirm" (printf "Delete %s from the Guide?" .Name) "Label" (printf "Delete %s" .Name) "TestID" "channel-delete")}}
+      </div>
+    </div>
+    {{end}}
+  </div>
+</div>
+{{else}}
+<div class="card"><div class="card-body text-secondary">No channels yet.</div></div>
+{{end}}
+{{end}}
+
+{{define "settings-channel-new"}}
+<ol class="breadcrumb mb-2" aria-label="Breadcrumb">
+  <li class="breadcrumb-item"><a href="/orgs/{{.Org.Slug}}/settings/channels">Channels</a></li>
+  <li class="breadcrumb-item active" aria-current="page">New channel</li>
+</ol>
+{{template "settings-heading" (dict "Title" "New channel")}}
+{{template "settings-form-error" .ChannelError}}
+<form method="post" action="/orgs/{{.Org.Slug}}/channels" style="max-width:40rem" data-testid="channel-form">
+  {{template "channel-fields" .}}
+  <div class="btn-list">
+    <button type="submit" class="btn btn-primary" data-testid="channel-save">Add channel</button>
+    <a class="btn" href="/orgs/{{.Org.Slug}}/settings/channels">Cancel</a>
+  </div>
+</form>
+{{end}}
+
+{{define "settings-channel-edit"}}
+<ol class="breadcrumb mb-2" aria-label="Breadcrumb">
+  <li class="breadcrumb-item"><a href="/orgs/{{.Org.Slug}}/settings/channels">Channels</a></li>
+  <li class="breadcrumb-item active" aria-current="page">{{.ChannelEdit.Name}}</li>
+</ol>
+{{template "settings-heading" (dict "Title" .ChannelEdit.Name)}}
+{{template "settings-form-error" .ChannelError}}
+<form method="post" action="/orgs/{{.Org.Slug}}/channels/{{.ChannelEdit.ID}}" style="max-width:40rem" data-testid="channel-form">
+  {{template "channel-fields" .}}
+  <div class="btn-list">
+    <button type="submit" class="btn btn-primary" data-testid="channel-save">Save channel</button>
+    <a class="btn" href="/orgs/{{.Org.Slug}}/settings/channels">Cancel</a>
+  </div>
+</form>
+{{end}}
+
+{{/* channel-fields is the channel form's fields. .KeyHex is the stored channel's
+     current key (edit only); a key typed in replaces a private channel's. */}}
+{{define "channel-fields"}}
+<div class="mb-3">
+  <label class="form-label" for="channel_name">Name</label>
+  <input type="text" class="form-control" id="channel_name" name="name" value="{{.ChannelForm.Name}}" maxlength="31" required placeholder="#lakeshore">
+  {{/* A hashtag channel's key is SHA256 of the exact "#name"
+       (docs/companion_protocol.md, Channel Types). */}}
+  <small class="form-hint">Start it with <code>#</code> for a hashtag channel: its key comes from the name, so anyone who knows it can read it, and case matters (<code>#Lake</code> and <code>#lake</code> are different channels). Any other name is a private channel, shown only to members.</small>
+</div>
+{{if .ChannelUppercase}}
+<div class="alert alert-warning" role="alert" data-testid="channel-uppercase">
+  <div>This name has uppercase letters. Companion apps only let members type lowercase hashtag names, so they can join it only by scanning its QR code.</div>
+</div>
+{{end}}
+<div class="mb-3">
+  <label class="form-label" for="channel_key">Private channel key</label>
+  {{with .KeyHex}}<div class="mb-2"><code data-testid="channel-key">{{.}}</code></div>{{end}}
+  <input type="text" class="form-control font-monospace" id="channel_key" name="key" value="{{.ChannelForm.Key}}" autocomplete="off" spellcheck="false" placeholder="32 hex digits">
+  <small class="form-hint">Only for private channels: paste the key your channel already uses (32 hex digits, or base64), or leave it blank to {{if and .ChannelEdit (not .ChannelEdit.Hashtag)}}keep the current one{{else}}have one made{{end}}. A hashtag channel ignores it.</small>
+</div>
+<div class="mb-3">
+  <label class="form-label" for="channel_scope">Suggested scope</label>
+  <select class="form-select" id="channel_scope" name="scope">
+    <option value="default"{{if eq .ChannelForm.Scope "default"}} selected{{end}}>Use the default scope</option>
+    <option value="unscoped"{{if eq .ChannelForm.Scope "unscoped"}} selected{{end}}>Unscoped</option>
+    {{range .Regions}}{{$id := printf "%d" .ID}}<option value="{{$id}}"{{if eq $.ChannelForm.Scope $id}} selected{{end}}>{{.Token}}{{if ne .DisplayName .Token}} · {{.DisplayName}}{{end}}</option>{{end}}
+  </select>
+  {{/* Companions keep no per-channel scope (sendFloodScoped's TODO in
+       examples/companion_radio/MyMesh.cpp); the app applies it, and the QR code
+       carries it as region_scope. */}}
+  <small class="form-hint">Where messages on this channel should flood. The member's app applies it; the QR code carries it.</small>
+</div>
+<div class="mb-3">
+  <label class="form-label" for="channel_note">Note <span class="text-secondary">(optional)</span></label>
+  <input type="text" class="form-control" id="channel_note" name="note" value="{{.ChannelForm.Note}}" maxlength="200" placeholder="What it's for">
+</div>
 {{end}}

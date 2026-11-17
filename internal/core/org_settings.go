@@ -20,7 +20,7 @@ import (
 // MQTT broker — is a form on its section's page; a list — regions, configuration
 // profiles, observers, nets — has a New button and per-row actions, with creating
 // and editing on pages of their own.
-var settingsSections = []string{"profile", "radio", "regions", "profiles", "mqtt", "nets"}
+var settingsSections = []string{"profile", "radio", "channels", "regions", "profiles", "mqtt", "nets"}
 
 // settingsURL is a Settings section's page; "profile" is the tab's landing page.
 func settingsURL(slug, section string) string {
@@ -163,6 +163,23 @@ func (s *Handlers) settingsData(ctx context.Context, r *http.Request, org *store
 		if mesh.PathHashMode != nil {
 			data["PathHashSet"], data["PathHashMode"] = true, *mesh.PathHashMode
 		}
+	case "channels":
+		channels, err := s.Store.ListOrgChannels(ctx, org.ID)
+		if err != nil {
+			return nil, err
+		}
+		regions, err := s.Store.ListRegions(ctx, org.ID)
+		if err != nil {
+			return nil, err
+		}
+		rows := make([]channelRow, len(channels))
+		for i, c := range channels {
+			rows[i].OrgChannel = c
+			rows[i].Scope, _ = web.ChannelScope(c, regions)
+		}
+		data["Channels"] = rows
+		data["Regions"] = regions
+		data["CanAdd"] = len(channels) < store.MaxOrgChannels
 	case "regions", "profiles":
 		cv, err := web.BuildConfigView(ctx, s.Store, org.ID, r.URL.Query().Get("profile"), nil, nil)
 		if err != nil {

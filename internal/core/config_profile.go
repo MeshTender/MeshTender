@@ -18,22 +18,22 @@ import (
 // guidePage starts a Guide page's data for any signed-in user: the org and its
 // nav with the given page active. ok is false once it has responded. The root
 // host serves the same pages anonymously.
-func (s *Handlers) guidePage(w http.ResponseWriter, r *http.Request, active string) (data map[string]any, orgID int64, ok bool) {
+func (s *Handlers) guidePage(w http.ResponseWriter, r *http.Request, active string) (data map[string]any, orgID int64, member, ok bool) {
 	uid := s.Auth.CurrentUserID(r.Context())
 	id, ok := s.orgID(r)
 	if !ok {
 		s.NotFound(w, r)
-		return nil, 0, false
+		return nil, 0, false, false
 	}
 	org, err := s.Store.GetOrg(r.Context(), id)
 	if err != nil {
 		s.NotFound(w, r)
-		return nil, 0, false
+		return nil, 0, false, false
 	}
 	role, isMember, err := s.Store.OrgRole(r.Context(), id, uid)
 	if err != nil {
 		s.ServerError(w, r, "could not load organization", err)
-		return nil, 0, false
+		return nil, 0, false, false
 	}
 	return map[string]any{
 		"Org": org,
@@ -42,13 +42,14 @@ func (s *Handlers) guidePage(w http.ResponseWriter, r *http.Request, active stri
 			IsMember: isMember, IsAdmin: role == "admin", Manage: isMember,
 			CanGoToOrg: isMember, CanJoin: uid != 0 && !isMember,
 		}),
-	}, id, true
+	}, id, isMember, true
 }
 
-// pageOrgGuide renders Guide › Get on the air: the radio settings, registering a
-// companion, and how check-ins work.
+// pageOrgGuide renders Guide › Get on the air: setting up a companion, the
+// channels to join, registering it, and how check-ins work. A member also gets
+// the private channels' keys, so the page isn't cached.
 func (s *Handlers) pageOrgGuide(w http.ResponseWriter, r *http.Request) {
-	data, id, ok := s.guidePage(w, r, "guide")
+	data, id, member, ok := s.guidePage(w, r, "guide")
 	if !ok {
 		return
 	}
@@ -57,7 +58,15 @@ func (s *Handlers) pageOrgGuide(w http.ResponseWriter, r *http.Request) {
 		s.ServerError(w, r, "could not load the guide", err)
 		return
 	}
-	data["Guide"] = guide
+	channels, err := web.BuildOrgChannels(r.Context(), s.Store, id, s.Cfg.MasterKey, member)
+	if err != nil {
+		s.ServerError(w, r, "could not load the guide", err)
+		return
+	}
+	data["Guide"], data["Channels"] = guide, channels
+	if member {
+		w.Header().Set("Cache-Control", "private, no-store")
+	}
 	s.Render(w, r, "org_guide.html", data)
 }
 
@@ -66,7 +75,7 @@ func (s *Handlers) pageOrgGuide(w http.ResponseWriter, r *http.Request) {
 // the regions (location steps). Admins edit it under Settings. ?profile= chooses
 // which profile to show; ?lat=&lon= marks which regions apply at a location.
 func (s *Handlers) pageOrgConfig(w http.ResponseWriter, r *http.Request) {
-	data, id, ok := s.guidePage(w, r, "guide-repeaters")
+	data, id, _, ok := s.guidePage(w, r, "guide-repeaters")
 	if !ok {
 		return
 	}

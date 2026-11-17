@@ -54,7 +54,8 @@ func TestMemberFeaturesLeadNavigation(t *testing.T) {
 	settings := getBody(t, ts, h.app, "/orgs/"+org.Slug+"/settings", sess)
 	assertInOrder(t, "settings rail", settings,
 		`data-testid="org-settings-profile"`, `data-testid="org-settings-mqtt"`, `data-testid="org-settings-nets"`,
-		`data-testid="org-settings-regions"`, `data-testid="org-settings-profiles"`)
+		`data-testid="org-settings-radio"`, `data-testid="org-settings-regions"`, `data-testid="org-settings-channels"`,
+		`data-testid="org-settings-profiles"`)
 }
 
 // TestRepeaterConfirmationIsOptional: an unconfirmed repeater isn't flagged as

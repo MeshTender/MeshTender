@@ -35,7 +35,7 @@ type netAirView struct {
 // The channel's key is derived from the exact name, and current companion apps
 // only let members type lowercase names, so they couldn't join it.
 func (v netAirView) UnjoinableHashtag() bool {
-	return v.ChannelKind == store.ChannelHashtag && strings.ToLower(v.ChannelName) != v.ChannelName
+	return v.ChannelKind == store.ChannelHashtag && web.UppercaseHashtag(v.ChannelName)
 }
 
 // LowerChannelName is the channel name members could type.
