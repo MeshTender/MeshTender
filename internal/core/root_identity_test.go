@@ -1,10 +1,14 @@
 package core
 
 import (
+	"context"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/MeshTender/MeshTender/internal/store"
 )
 
 // TestRootOrgPageIdentityAwareCTA is the end-to-end payoff: the public org page
@@ -42,20 +46,7 @@ func TestRootOrgPageIdentityAwareCTA(t *testing.T) {
 
 	// Drop a root identity cookie for the member via the beacon (as a fresh
 	// sign-in on the app host would).
-	loginID, err := st.CreateLogin(ctx, u.ID)
-	if err != nil {
-		t.Fatalf("create login: %v", err)
-	}
-	code, err := st.CreateAuthCode(ctx, u.ID, loginID, "/")
-	if err != nil {
-		t.Fatalf("create auth code: %v", err)
-	}
-	beacon := do(t, ts, h.root, "/session/beacon?code="+code)
-	beacon.Body.Close()
-	rootSess := cookieByName(beacon, "meshtender_session")
-	if rootSess == nil || rootSess.Value == "" {
-		t.Fatalf("beacon set no root identity cookie")
-	}
+	rootSess := rootSession(t, ts, st, ctx, h.root, u)
 
 	// The member now sees the app jump, not the sign-in CTA.
 	member := readBody(t, do(t, ts, h.root, "/orgs/"+org.Slug, rootSess))
@@ -72,6 +63,27 @@ func TestRootOrgPageIdentityAwareCTA(t *testing.T) {
 			t.Fatalf("member root %s tab CTA inconsistent with Home", tab)
 		}
 	}
+}
+
+// rootSession drops a root-host identity cookie for an existing user through
+// the identity beacon, as a fresh sign-in on the app host would, and returns it.
+func rootSession(t *testing.T, ts *httptest.Server, st *store.Store, ctx context.Context, rootHost string, u *store.User) *http.Cookie {
+	t.Helper()
+	loginID, err := st.CreateLogin(ctx, u.ID)
+	if err != nil {
+		t.Fatalf("create login: %v", err)
+	}
+	code, err := st.CreateAuthCode(ctx, u.ID, loginID, "/")
+	if err != nil {
+		t.Fatalf("create auth code: %v", err)
+	}
+	beacon := do(t, ts, rootHost, "/session/beacon?code="+code)
+	beacon.Body.Close()
+	c := cookieByName(beacon, "meshtender_session")
+	if c == nil || c.Value == "" {
+		t.Fatalf("beacon set no root identity cookie")
+	}
+	return c
 }
 
 func readBody(t *testing.T, resp *http.Response) string {

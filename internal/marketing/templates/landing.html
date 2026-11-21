@@ -1,22 +1,24 @@
-{{define "title"}}MeshTender · MeshCore repeaters and nets, from your browser{{end}}
+{{define "title"}}MeshTender · Organizations, nets and repeaters for MeshCore{{end}}
 {{define "content"}}
 {{/* The landing page shows what the site does rather than describing it: each
      section pairs a short pitch with a small preview built from the same Tabler
      pieces the app uses (sample data, marked aria-hidden; the text beside each
-     says the same thing). */}}
+     says the same thing).
+
+     It speaks to members first, then repeater owners, then organization admins
+     (MESHTENDER-57). The KISS-modem console is the main selling point, but only
+     admins and some owners have a modem, so its pitch sits with the admins, at
+     full strength, rather than in the hero. */}}
 <div class="container-xl">
   <section class="row align-items-center g-5 py-5" data-testid="landing-hero">
     <div class="col-lg-6">
       <h1 class="display-6 fw-bold mb-3">A home for your MeshCore mesh.</h1>
       <p class="fs-3 text-secondary mb-4">
-        Your organization's repeaters, settings and weekly nets in one place. Members check in with the companion
-        app they already use, repeater owners set up to the organization's spec, and operators with a KISS modem
-        can manage repeaters over the air.
+        Find your local MeshCore organization, set up your companion with the right settings and channels, and
+        check in to nets. When you're ready to bring a repeater, your organization can help keep it properly
+        configured.
       </p>
-      <div class="btn-list">
-        <a href="{{.AppURL}}/signup" class="btn btn-primary btn-lg">Create an account</a>
-        <a href="{{.RootURL}}/orgs" class="btn btn-lg">Find your organization</a>
-      </div>
+      <div class="btn-list">{{template "landing-cta" .}}</div>
     </div>
     <div class="col-lg-6" aria-hidden="true">
       {{template "landing-preview-net"}}
@@ -27,72 +29,99 @@
   <section class="row align-items-center g-5 pb-5">
     <div class="col-lg-5">
       {{template "need-tag" "companion"}}
-      <h3 class="h1 mb-3">Check in from the app you already use</h3>
-      <p class="fs-4 text-secondary">Register the companion you carry, then check in to your organization's weekly net by sending a flood advert. Follow the roster and the news as it comes in, and read your organization's docs and recommended setup any time.</p>
+      <h3 class="h1 mb-3">Check in with your companion</h3>
+      <p class="fs-4 text-secondary">Register your companion, then send a flood advert during a net to check in. You can watch who else checks in and read the news people share.</p>
     </div>
     <div class="col-lg-7" aria-hidden="true">{{template "landing-preview-schedule"}}</div>
   </section>
-
-  <h2 class="section-kicker">For repeater owners</h2>
   <section class="row align-items-center g-5 pb-5 flex-lg-row-reverse">
     <div class="col-lg-5">
+      {{template "need-tag" "companion"}}
+      <h3 class="h1 mb-3">Get the right settings for your area</h3>
+      <p class="fs-4 text-secondary">Each organization has a Guide with its radio settings and channels. Scan a QR code to add a channel instead of typing in its key. Anyone can read the Guide, so you can look before you join. Members also get the organization's private channels.</p>
+    </div>
+    <div class="col-lg-7" aria-hidden="true">{{template "landing-preview-guide"}}</div>
+  </section>
+
+  <h2 class="section-kicker">For repeater owners</h2>
+  <section class="row align-items-center g-5 pb-5">
+    <div class="col-lg-5">
       {{template "need-tag" "usb"}}
-      <h3 class="h1 mb-3">Set up a new repeater to your organization's spec</h3>
-      <p class="fs-4 text-secondary">Plug a freshly flashed repeater into your computer and pick your organization's profile. MeshTender writes the radio, name, region for where it stands and settings in one pass, like the flasher's Repeater Setup, without typing any of it.</p>
+      <h3 class="h1 mb-3">Set up a new repeater in one step</h3>
+      <p class="fs-4 text-secondary">Plug a freshly flashed repeater into your computer and pick one of your organization's configuration profiles. MeshTender sets the radio, name, region and the rest of the profile for you, so you don't have to type any commands.</p>
     </div>
     <div class="col-lg-7" aria-hidden="true">{{template "landing-preview-setup"}}</div>
   </section>
-  <section class="row align-items-center g-5 pb-5">
+  <section class="row align-items-center g-5 pb-5 flex-lg-row-reverse">
     <div class="col-lg-5">
       {{template "need-tag" "none"}}
-      <h3 class="h1 mb-3">Document it, and share it without passwords</h3>
-      <p class="fs-4 text-secondary">Keep each repeater's notes and maintenance history, publish a public page with its stewards, and decide who may run which commands on it: a single-use invite, a trusted steward, or your organization.</p>
+      <h3 class="h1 mb-3">Share access without sharing passwords</h3>
+      <p class="fs-4 text-secondary">Keep notes and a maintenance log for each repeater. Let other people run commands on it, whether that's one person you invite, a trusted steward, or your whole organization, and choose which commands each can use. They connect over the air with their own KISS modem, so you don't need one.</p>
+      <p class="text-secondary mb-0">If you do have a KISS modem, you can manage your own repeaters over the air too.</p>
     </div>
     <div class="col-lg-7" aria-hidden="true">{{template "landing-preview-sharing"}}</div>
   </section>
 
-  <h2 class="section-kicker">For organizations</h2>
-  <section class="row align-items-center g-5 pb-5 flex-lg-row-reverse">
+  <h2 class="section-kicker">For organization admins</h2>
+  <section class="row align-items-center g-5 pb-5">
     <div class="col-lg-5">
       {{template "need-tag" "none"}}
-      <h3 class="h1 mb-3">One configuration for the whole region</h3>
-      <p class="fs-4 text-secondary">Publish your radio settings and configuration profiles, and draw regions on a map. Members see the exact commands for where their repeater stands, and new repeaters get them at setup.</p>
+      <h3 class="h1 mb-3">Configure every repeater the same way</h3>
+      <p class="fs-4 text-secondary">Publish your organization's radio settings and configuration profiles, and draw your regions on a map. Repeater owners see exactly which commands to run for their location, and new repeaters get them automatically during setup.</p>
     </div>
     <div class="col-lg-7" aria-hidden="true">{{template "landing-preview-config"}}</div>
   </section>
-
-  <h2 class="section-kicker">With a KISS modem</h2>
-  <section class="row align-items-center g-5 pb-5">
-    <div class="col-lg-5">
-      {{template "need-tag" "modem"}}
-      <h3 class="h1 mb-3">Manage repeaters over the air</h3>
-      <p class="fs-4 text-secondary">For admins, stewards and net control: plug a MeshCore radio flashed as a KISS modem into your computer to run CLI commands on repeaters from the browser, confirm they're reachable, apply your organization's configuration, and run a net on the air. Every command and reply is logged.</p>
+  <section class="card landing-band mb-5" data-testid="landing-modem">
+    <div class="card-body p-4 p-lg-5">
+      <div class="row align-items-center g-5">
+        <div class="col-lg-6">
+          {{template "need-tag" "modem"}}
+          <h3 class="h1 mb-3">Manage your repeaters over the air</h3>
+          <p class="fs-4 text-secondary">Plug a MeshCore radio running KISS modem firmware into your computer, and you can run commands on any repeater you've been given access to, right from your browser. No other MeshCore tool does this.</p>
+          <ul class="list-unstyled fs-4 mb-0">
+            <li class="d-flex gap-2 mb-2"><span class="text-primary">{{template "icon-check" ""}}</span>Apply configuration changes to repeaters that are already deployed</li>
+            <li class="d-flex gap-2 mb-2"><span class="text-primary">{{template "icon-check" ""}}</span>Check that a repeater is reachable</li>
+            <li class="d-flex gap-2 mb-2"><span class="text-primary">{{template "icon-check" ""}}</span>Run a net over the air, with announcements and acknowledgments sent automatically</li>
+            <li class="d-flex gap-2"><span class="text-primary">{{template "icon-check" ""}}</span>Look back at every command sent and the reply it got</li>
+          </ul>
+        </div>
+        <div class="col-lg-6" aria-hidden="true">{{template "landing-preview-console"}}</div>
+      </div>
     </div>
-    <div class="col-lg-7" aria-hidden="true">{{template "landing-preview-console"}}</div>
   </section>
 
   <section class="py-5" data-testid="landing-steps">
     <h2 class="h1 text-center mb-4">Getting started</h2>
     <div class="row row-cards">
       {{template "landing-step" (dict "N" "1" "Title" "Create an account" "Text" "Use a passkey or a password. It's how your organization knows who checked in.")}}
-      {{template "landing-step" (dict "N" "2" "Title" "Find your organization" "Text" "Join your local organization from the directory, or start one and invite your members.")}}
-      {{template "landing-step" (dict "N" "3" "Title" "Add your radios" "Text" "Register the companion you carry, and set up or register your repeaters.")}}
+      {{template "landing-step" (dict "N" "2" "Title" "Find your organization" "Text" "Join your local organization, then follow its Guide to set up your companion.")}}
+      {{template "landing-step" (dict "N" "3" "Title" "Register your companion" "Text" "Once it's registered, your adverts count as check-ins. If you run a repeater, add that too.")}}
     </div>
-    <p class="text-center text-secondary mt-3 mb-0">Have a KISS modem? Connect it any time to manage repeaters over the air.</p>
-    <div class="text-center mt-4 btn-list justify-content-center">
-      <a href="{{.AppURL}}/signup" class="btn btn-primary btn-lg">Create an account</a>
-      <a href="{{.RootURL}}/docs" class="btn btn-lg">Read the docs</a>
-    </div>
+    <p class="text-center text-secondary mt-3 mb-0">Starting a mesh in your area? <a href="{{.AppURL}}/orgs/new">Create an organization</a> and invite your members.</p>
+    <div class="btn-list justify-content-center mt-4">{{template "landing-cta" .}}</div>
   </section>
 </div>
+{{end}}
+
+{{/* landing-cta: the page's two buttons, for the caller's btn-list. Signed
+     out, the directory leads (browsing needs no account, and an org's public
+     page is its own pitch); signed in, the dashboard replaces sign-up. */}}
+{{define "landing-cta"}}
+  {{if .UserName}}
+  <a href="{{.AppURL}}/" class="btn btn-primary btn-lg">Go to your dashboard</a>
+  <a href="{{.RootURL}}/orgs" class="btn btn-lg">Find your organization</a>
+  {{else}}
+  <a href="{{.RootURL}}/orgs" class="btn btn-primary btn-lg">Find your organization</a>
+  <a href="{{.AppURL}}/signup" class="btn btn-lg">Create an account</a>
+  {{end}}
 {{end}}
 
 {{/* need-tag says what a feature needs. Pass "companion", "usb", "none" or
      "modem". */}}
 {{define "need-tag"}}
 <div class="need-tag mb-2" data-testid="need-tag-{{.}}">
-  {{if eq . "companion"}}{{template "icon-radio" "me-1"}}Just your companion app
-  {{else if eq . "usb"}}{{template "icon-plug" "me-1"}}Just the repeater and a USB cable
+  {{if eq . "companion"}}{{template "icon-radio" "me-1"}}Just your companion radio
+  {{else if eq . "usb"}}{{template "icon-plug" "me-1"}}A repeater and a USB cable
   {{else if eq . "modem"}}{{template "icon-antenna" "me-1"}}Needs a KISS modem
   {{else}}{{template "icon-check" "me-1"}}No extra hardware{{end}}
 </div>
@@ -169,7 +198,7 @@
   <div class="list-group list-group-flush">
     <div class="list-group-item d-flex gap-2"><span class="text-green">{{template "icon-check" ""}}</span>New identity, made in your browser</div>
     <div class="list-group-item d-flex gap-2"><span class="text-green">{{template "icon-check" ""}}</span>Radio 910.525 MHz · BW62.5 · SF7 · CR5</div>
-    <div class="list-group-item d-flex gap-2"><span class="text-green">{{template "icon-check" ""}}</span>Name “Hilltop” and the profile's settings</div>
+    <div class="list-group-item d-flex gap-2"><span class="text-green">{{template "icon-check" ""}}</span>Name “Hilltop” and profile settings</div>
     <div class="list-group-item d-flex gap-2"><span class="text-green">{{template "icon-check" ""}}</span>Region us › ny › buf</div>
     <div class="list-group-item d-flex gap-2"><span class="text-green">{{template "icon-check" ""}}</span>Admin access for MeshTender</div>
   </div>
@@ -187,6 +216,32 @@ region allowf us
 region allowf ny
 region allowf buf
 region save</pre></div>
+</div>
+{{end}}
+
+{{define "landing-preview-guide"}}
+{{/* The Guide's "Get on the air" (org_guide.html), cut down. The QR code is an
+     icon, not a real code: a scannable one would add a channel to the reader's
+     companion. */}}
+<div class="card landing-preview">
+  <div class="card-header"><div><div class="card-title">Get on the air</div><div class="card-subtitle">WNY MeshCore · Guide</div></div></div>
+  <div class="card-body">
+    <h4 class="mb-3">1 · Set up your companion</h4>
+    <div class="row g-3">
+      <div class="col-6 col-md-3"><div class="datagrid-title">Frequency</div><div class="datagrid-content">910.525 MHz</div></div>
+      <div class="col-6 col-md-3"><div class="datagrid-title">Bandwidth</div><div class="datagrid-content">62.5 kHz</div></div>
+      <div class="col-6 col-md-3"><div class="datagrid-title">Spreading factor</div><div class="datagrid-content">7</div></div>
+      <div class="col-6 col-md-3"><div class="datagrid-title">Coding rate</div><div class="datagrid-content">5</div></div>
+    </div>
+  </div>
+  <div class="card-body border-top pb-2"><h4 class="mb-0">2 · Join the channels</h4></div>
+  <div class="list-group list-group-flush">
+    <div class="list-group-item d-flex align-items-center gap-3">
+      <span class="avatar avatar-lg bg-white text-dark">{{template "icon-qrcode" ""}}</span>
+      <div><span class="fw-bold">#wnynet</span> <span class="text-secondary">· your default scope</span></div>
+    </div>
+    <div class="list-group-item d-flex align-items-center gap-2 text-secondary">{{template "icon-lock" ""}}Members see 1 private channel once they join.</div>
+  </div>
 </div>
 {{end}}
 
