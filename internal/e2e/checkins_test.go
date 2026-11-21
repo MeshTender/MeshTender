@@ -13,7 +13,6 @@ import (
 	cdplog "github.com/chromedp/cdproto/log"
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/chromedp"
-	"github.com/chromedp/chromedp/kb"
 
 	"github.com/MeshTender/MeshTender/internal/config"
 	"github.com/MeshTender/MeshTender/internal/observe/observetest"
@@ -532,6 +531,18 @@ func TestE2ENetSessionActionsKeepThePage(t *testing.T) {
 		}
 		return chromedp.Evaluate(`window.__settled = false`, nil).Do(ctx)
 	})
+	// htmx starts a form's request while handling its submit event, so a submit
+	// from a key press has already counted by the time the key press returns.
+	noAddPost := chromedp.ActionFunc(func(ctx context.Context) error {
+		var posts int
+		if err := chromedp.Evaluate(`window.__addPosts`, &posts).Do(ctx); err != nil {
+			return err
+		}
+		if posts != 0 {
+			return fmt.Errorf("pressing Enter in the member search submitted the form %d time(s)", posts)
+		}
+		return nil
+	})
 	bctx, cancel, watch := startBrowser(t)
 	defer cancel()
 	var search, location string
@@ -568,7 +579,13 @@ func TestE2ENetSessionActionsKeepThePage(t *testing.T) {
 			chromedp.WaitVisible(`[data-testid="add-member"]`, chromedp.ByQuery),
 			settled,
 			// Enter in the search picks no one, so it mustn't submit the form.
-			chromedp.SendKeys(`[data-testid="add-search"]`, kb.Enter, chromedp.ByQuery),
+			// The form posts with htmx, so a submit wouldn't reload the page;
+			// count the form's own requests to see one.
+			chromedp.Evaluate(`window.__addPosts = 0;
+				const addForm = document.querySelector("[data-nc-add]");
+				addForm.addEventListener("htmx:beforeRequest", e => { if (e.target === addForm) window.__addPosts++; })`, nil),
+			pressEnter(`[data-testid="add-search"]`),
+			noAddPost,
 			stillSamePage("pressing Enter in the member search"),
 			chromedp.Click(`[data-testid="add-member"]`, chromedp.ByQuery)),
 		step("see the hand-added check-in",

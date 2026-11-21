@@ -44,6 +44,7 @@ import (
 	"time"
 
 	"github.com/chromedp/cdproto/emulation"
+	"github.com/chromedp/cdproto/input"
 	cdplog "github.com/chromedp/cdproto/log"
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/cdproto/page"
@@ -575,6 +576,28 @@ func stepWithin(name string, limit time.Duration, actions ...chromedp.Action) ch
 		}
 		return nil
 	})
+}
+
+// pressEnter presses Enter in the element sel matches the way a keyboard does.
+// Use it, not chromedp's kb.Enter, wherever a page handles Enter itself.
+//
+// A keyboard sends a rawKeyDown and then a char event, and Chrome drops the
+// char when the page cancels the keydown. kb.Enter sends a plain keyDown
+// instead, which Chrome doesn't suppress that way, so its char always arrives
+// as a keypress. That keypress runs the browser's default Enter handling
+// (implicit form submission, a search input's search event) even when the
+// page's keydown handler cancelled Enter, which a person typing can never
+// cause.
+func pressEnter(sel string) chromedp.Action {
+	key := func(t input.KeyType) *input.DispatchKeyEventParams {
+		return input.DispatchKeyEvent(t).WithKey("Enter").WithCode("Enter").WithWindowsVirtualKeyCode(13)
+	}
+	return chromedp.Tasks{
+		chromedp.Focus(sel, chromedp.ByQuery),
+		key(input.KeyRawDown),
+		key(input.KeyChar).WithText("\r").WithUnmodifiedText("\r"),
+		key(input.KeyUp),
+	}
 }
 
 // reloadedBy runs trigger (a click that submits a form, say) and waits for the
