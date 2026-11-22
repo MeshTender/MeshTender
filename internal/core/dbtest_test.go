@@ -131,7 +131,9 @@ func coreMigrate(dsn string) error {
 // It also shortens the packet-reply wait once, before any test runs: the
 // integration tests run in parallel and only ever read perTryReply, so setting
 // it here (rather than mutating it per-test) keeps it race-free under -race.
+// The same goes for heardSettle, the wait before reporting who heard a packet.
 func TestMain(m *testing.M) {
 	perTryReply = 300 * time.Millisecond
+	heardSettle = 300 * time.Millisecond
 	os.Exit(testdb.RunMain(m))
 }

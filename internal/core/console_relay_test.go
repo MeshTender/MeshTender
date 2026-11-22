@@ -59,6 +59,10 @@ func newRelayHarness(t *testing.T, approve bool) *relayHarness {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Hand sessions what other observers hear, as main does.
+	heardCtx, stopHeard := context.WithCancel(context.Background())
+	t.Cleanup(stopHeard)
+	go srv.ListenHeard(heardCtx)
 	broker := mqtttest.New(t, "s3cret", "ws")
 	srv.app.relayDialer = &ingest.Dialer{
 		Resolver: net.DefaultResolver,

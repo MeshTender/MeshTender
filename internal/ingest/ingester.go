@@ -14,6 +14,7 @@ import (
 
 	meshcore "github.com/meshcore-go/meshcore-go"
 
+	"github.com/MeshTender/MeshTender/internal/mesh"
 	"github.com/MeshTender/MeshTender/internal/netair"
 	"github.com/MeshTender/MeshTender/internal/observe"
 	"github.com/MeshTender/MeshTender/internal/store"
@@ -52,6 +53,10 @@ type Ingester struct {
 	// MasterKey opens a private net channel's key.
 	MasterKey [32]byte
 	Log       *slog.Logger
+	// Server is MeshTender's identity. A packet that may be a reply to it, or
+	// one of its own being repeated, is passed to every replica's console
+	// sessions (store.NotifyHeard). Zero turns that off.
+	Server meshcore.Identity
 
 	mu      sync.Mutex
 	touched map[touchKey]time.Time
@@ -138,11 +143,26 @@ func (in *Ingester) handlePacket(ctx context.Context, m Message, observer string
 	if err != nil {
 		return
 	}
+	in.passHeard(ctx, m, observer, p.Raw)
 	switch pkt.PayloadType() {
 	case meshcore.PayloadTypeAdvert:
 		in.handleAdvert(ctx, m, observer, p.Raw)
 	case meshcore.PayloadTypeGrpTxt:
 		in.handleChannelMessage(ctx, m, observer, p.Raw)
+	}
+}
+
+// passHeard passes on a packet that may be a reply to MeshTender, or one of
+// its own requests being repeated, from any observer on the org's broker:
+// replies are authenticated by their MAC, not by who uploaded them, and a
+// repeat is only counted by a session that sent the same packet.
+func (in *Ingester) passHeard(ctx context.Context, m Message, observer string, raw []byte) {
+	if in.Server.IsZero() || mesh.ClassifyHeard(raw, in.Server) == 0 {
+		return
+	}
+	h := store.HeardPacket{Raw: raw, Observer: observer, At: m.ReceivedAt}
+	if err := in.Store.NotifyHeard(ctx, h); err != nil {
+		in.Log.Warn("ingest: pass on heard packet", "org", m.OrgID, "err", err)
 	}
 }
 

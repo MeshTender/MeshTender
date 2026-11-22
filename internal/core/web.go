@@ -45,6 +45,9 @@ type Handlers struct {
 	// relayDialer opens console relay connections; nil means
 	// ingest.NewDialer(). A field so tests can reach a broker on loopback.
 	relayDialer *ingest.Dialer
+	// heard hands console sessions what every observer hears of their
+	// packets and replies (Server.ListenHeard runs it).
+	heard heardHub
 }
 
 // Server is the built HTTP entry point.
@@ -61,6 +64,12 @@ func (s *Server) Handler() http.Handler { return s.handler }
 // it in a goroutine alongside the other background workers, and let it finish before
 // the store's pool closes — it does a final flush of anything still queued.
 func (s *Server) CollectCSPReports(ctx context.Context) { s.csp.Run(ctx) }
+
+// ListenHeard hands console sessions on this replica every packet the ingest
+// leader passes on (store.NotifyHeard): replies to MeshTender and repeats of
+// its packets, heard by any observer. Run it in a goroutine until ctx is
+// canceled; without it, sessions hear only through their own modem or relay.
+func (s *Server) ListenHeard(ctx context.Context) { s.app.heard.run(ctx, s.app.Store) }
 
 // WSDrainTimeout is the recommended deadline for DrainWebSockets on shutdown. It
 // must comfortably exceed a single handler's consoleEndTimeout (the deferred

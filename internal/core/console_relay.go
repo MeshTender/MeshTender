@@ -9,7 +9,6 @@ import (
 	meshcore "github.com/meshcore-go/meshcore-go"
 
 	"github.com/MeshTender/MeshTender/internal/ingest"
-	"github.com/MeshTender/MeshTender/internal/mesh"
 	"github.com/MeshTender/MeshTender/internal/relay"
 	"github.com/MeshTender/MeshTender/internal/secretbox"
 	"github.com/MeshTender/MeshTender/internal/store"
@@ -36,10 +35,10 @@ type consoleRelay struct {
 
 // dialConsoleRelay connects the session to the observer whose key is
 // observerKey (lowercase hex), through the broker of an org the user
-// administers that approved it. Every packet the observer hears goes to ex;
+// administers that approved it. Every packet the observer hears goes to feed;
 // the observer's verdict on each frame we send goes to the page when it's a
 // refusal. With debug set, every packet heard is also shown in the log.
-func (s *Handlers) dialConsoleRelay(ctx context.Context, uid int64, observerKey string, debug bool, ex *mesh.Exchanger, bridge *wsbridge.Conn) (*consoleRelay, error) {
+func (s *Handlers) dialConsoleRelay(ctx context.Context, uid int64, observerKey string, debug bool, feed func(raw []byte), bridge *wsbridge.Conn) (*consoleRelay, error) {
 	b, err := s.Store.RelayBroker(ctx, uid, observerKey)
 	if errors.Is(err, store.ErrNotFound) {
 		return nil, errRelayNotAllowed
@@ -75,7 +74,7 @@ func (s *Handlers) dialConsoleRelay(ctx context.Context, uid int64, observerKey 
 			if debug {
 				_ = bridge.Status("debug", fmt.Sprintf("heard len=%d data=%x", len(raw), raw))
 			}
-			ex.HandleData(raw)
+			feed(raw)
 		},
 		Result: func(res relay.Result) {
 			cr.answered.Store(true)

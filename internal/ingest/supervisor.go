@@ -12,6 +12,7 @@ import (
 	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
+	meshcore "github.com/meshcore-go/meshcore-go"
 
 	"github.com/MeshTender/MeshTender/internal/secretbox"
 	"github.com/MeshTender/MeshTender/internal/store"
@@ -47,6 +48,9 @@ type Supervisor struct {
 	Dialer Dialer
 
 	ReconcileEvery time.Duration
+	// Server is MeshTender's identity, for passing on what observers hear of
+	// its packets and replies (Ingester.Server). Zero turns that off.
+	Server meshcore.Identity
 
 	ingester *Ingester
 	queue    chan Message
@@ -66,7 +70,7 @@ func NewSupervisor(st *store.Store, masterKey [32]byte, log *slog.Logger) *Super
 
 // Run blocks until ctx is done, acting as leader whenever it holds the lock.
 func (s *Supervisor) Run(ctx context.Context) {
-	s.ingester = &Ingester{Store: s.Store, MasterKey: s.MasterKey, Log: s.Log}
+	s.ingester = &Ingester{Store: s.Store, MasterKey: s.MasterKey, Log: s.Log, Server: s.Server}
 	s.queue = make(chan Message, queueSize)
 	var wg sync.WaitGroup
 	wg.Add(1)

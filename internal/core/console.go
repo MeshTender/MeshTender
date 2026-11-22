@@ -354,18 +354,40 @@ func (s *Handlers) wsConsole(w http.ResponseWriter, r *http.Request) {
 	if modem != nil {
 		link = modem
 	}
-	ex := mesh.NewExchanger(senderFunc(func(pkt []byte) error { return link.SendData(pkt) }),
-		server, repeaterID, sendInterval, perTryReply, maxSendTries)
+	// tracker sees every packet the session sends and hears: through its own
+	// modem or relay, and through every other observer (the replica's heard
+	// hub). It hands each reply to the exchanger once.
+	tracker := &heardTracker{server: server.Identity, via: viaKey}
+	ex := mesh.NewExchanger(senderFunc(func(pkt []byte) error {
+		tracker.noteSent(pkt)
+		return link.SendData(pkt)
+	}), server, repeaterID, sendInterval, perTryReply, maxSendTries)
+	tracker.ex = ex
 	userPathSet, ok := applyUserRoute(ex, r, bridge)
 	if !ok {
 		return
 	}
 	debug := r.URL.Query().Get("debug") == "1"
+	if debug {
+		tracker.debug = func(msg string) { _ = bridge.Status("debug", msg) }
+	}
 	if modem != nil {
 		modem.SetDataHandler(func(data []byte, _ float32, _ int8, _ bool) {
-			ex.HandleData(data)
+			tracker.feed(data, "")
 		})
 	}
+	heard, stopHeard := s.heard.subscribe()
+	defer stopHeard()
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case p := <-heard:
+				tracker.heard(p)
+			}
+		}
+	}()
 	if modem != nil && debug {
 		// Dump every inbound KISS frame as hex so we can see exactly what the modem
 		// reports back (e.g. whether the repeater replies at all).
@@ -399,7 +421,7 @@ func (s *Handlers) wsConsole(w http.ResponseWriter, r *http.Request) {
 		// The observer is already on the mesh's channel, so there's no radio to
 		// tune: connect to the broker it shares with MeshTender.
 		_ = bridge.Status("info", "Connecting to the observer…")
-		cr, err = s.dialConsoleRelay(ctx, uid, viaKey, debug, ex, bridge)
+		cr, err = s.dialConsoleRelay(ctx, uid, viaKey, debug, func(raw []byte) { tracker.feed(raw, "") }, bridge)
 		switch {
 		case errors.Is(err, errRelayNotAllowed):
 			_ = bridge.Status("error", "You can only send through an observer that an organization you administer has approved, and that organization needs an MQTT broker set up.")
@@ -450,11 +472,13 @@ func (s *Handlers) wsConsole(w http.ResponseWriter, r *http.Request) {
 	// direct routing. If login gets no reply we proceed anyway — the repeater may
 	// still have us cached as an admin client from an earlier session.
 	_ = bridge.Status("info", "Establishing session…")
+	tracker.begin()
 	lr, err := ex.Login(ctx, "", func(attempt, max int) {
 		if attempt > 1 {
 			_ = bridge.Status("info", fmt.Sprintf("No reply yet — retrying (%d/%d)…", attempt, max))
 		}
 	})
+	tracker.reportLater(ctx, tracker.end(), "login", bridge)
 	switch {
 	case errors.Is(err, mesh.ErrNoReply):
 		_ = bridge.Status("warning", "Couldn't reach the repeater to establish a session — commands will still be attempted (flood), but may not work if it doesn't recognize MeshTender.")
@@ -550,6 +574,7 @@ func (s *Handlers) wsConsole(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		tracker.begin()
 		reply, err := ex.Command(ctx, text, func(attempt, max int) {
 			if attempt == 1 {
 				_ = bridge.Status("sent", "→ "+text)
@@ -557,6 +582,7 @@ func (s *Handlers) wsConsole(w http.ResponseWriter, r *http.Request) {
 				_ = bridge.Status("info", fmt.Sprintf("no reply — retrying (%d/%d)…", attempt, max))
 			}
 		})
+		tracker.reportLater(ctx, tracker.end(), "command", bridge)
 		switch {
 		case err == nil:
 			markReply(logID, reply)

@@ -175,12 +175,21 @@ func run(logger *slog.Logger) error {
 			}},
 		)
 	}()
+	// Console sessions on this replica hear replies (and repeats of their own
+	// packets) through every observer, which only the leader below reads.
+	heardDone := make(chan struct{})
+	go func() {
+		defer close(heardDone)
+		srv.ListenHeard(bgCtx)
+	}()
 	// Org MQTT brokers: one replica (elected by a Postgres lock) holds the
 	// connections and records check-in adverts; the rest stand by.
 	ingestDone := make(chan struct{})
 	go func() {
 		defer close(ingestDone)
-		ingest.NewSupervisor(st, cfg.MasterKey, logger).Run(bgCtx)
+		sup := ingest.NewSupervisor(st, cfg.MasterKey, logger)
+		sup.Server = idSvc.Local().Identity
+		sup.Run(bgCtx)
 	}()
 
 	httpSrv := &http.Server{
@@ -240,6 +249,7 @@ func run(logger *slog.Logger) error {
 	<-cspDone
 	<-janitorDone
 	<-ingestDone
+	<-heardDone
 	return srvErr
 }
 
