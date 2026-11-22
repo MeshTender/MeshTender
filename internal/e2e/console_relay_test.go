@@ -41,6 +41,12 @@ func TestE2EConsoleThroughObserver(t *testing.T) {
 	if err := srv.store.ReportObserver(srv.ctx, org.ID, observer.String(), "BUF", time.Now(), status); err != nil {
 		t.Fatal(err)
 	}
+	// The org recommends a default scope, so the region list preselects it and
+	// the session floods in it.
+	region := store.RegionInput{Token: "wny", DisplayName: "Western NY", Layer: 1, AllowFlood: true, DefaultScope: true}
+	if _, err := srv.store.CreateRegion(srv.ctx, org.ID, region); err != nil {
+		t.Fatal(err)
+	}
 	broker := store.OrgBroker{OrgID: org.ID, URL: "ws://127.0.0.1:1/mqtt", TopicPrefix: "meshcore", Enabled: true}
 	if err := srv.store.UpsertOrgBroker(srv.ctx, broker, nil, false, owner.ID); err != nil {
 		t.Fatal(err)
@@ -49,7 +55,7 @@ func TestE2EConsoleThroughObserver(t *testing.T) {
 	bctx, cancel, watch := startBrowser(t)
 	defer cancel()
 
-	var option, button, refusal string
+	var option, button, refusal, logText string
 	if err := chromedp.Run(bctx,
 		network.Enable(),
 		cdplog.Enable(),
@@ -65,7 +71,8 @@ func TestE2EConsoleThroughObserver(t *testing.T) {
 			chromedp.WaitEnabled(`[data-testid="connect"]`, chromedp.ByQuery),
 			chromedp.Click(`[data-testid="connect"]`, chromedp.ByQuery),
 			chromedp.WaitVisible(`#log li.ev-error`, chromedp.ByQuery),
-			chromedp.Text(`#log li.ev-error`, &refusal, chromedp.ByQuery)),
+			chromedp.Text(`#log li.ev-error`, &refusal, chromedp.ByQuery),
+			chromedp.Text(`#log`, &logText, chromedp.ByQuery)),
 	); err != nil {
 		t.Fatalf("browser run: %v", err)
 	}
@@ -77,6 +84,35 @@ func TestE2EConsoleThroughObserver(t *testing.T) {
 	}
 	if !strings.HasPrefix(refusal, "Couldn't reach the observer") {
 		t.Errorf("log error = %q, want the relay's dial refusal", refusal)
+	}
+	if !strings.Contains(logText, "Flooding in the region #wny.") {
+		t.Errorf("log = %q, want the session flooding in the default scope region", logText)
+	}
+
+	// A region typed in and used for a session is remembered for next time.
+	var listed, typed string
+	if err := chromedp.Run(bctx,
+		step("connect in a region that isn't on the list",
+			chromedp.Navigate(srv.appURL+"/repeaters/"+rep.PublicID+"/configure"),
+			chromedp.WaitVisible(`[data-testid="transport"]`, chromedp.ByQuery),
+			chooseTransport("observer:"+observer.String()),
+			chromedp.Click(`[data-testid="conn-options"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(`#scope-region`, chromedp.ByQuery),
+			chromedp.SetValue(`#scope-region`, "", chromedp.ByQuery),
+			chromedp.Evaluate(`document.getElementById("scope-region").dispatchEvent(new Event("change"))`, nil),
+			chromedp.SendKeys(`#scope`, "buf", chromedp.ByQuery),
+			chromedp.Click(`[data-testid="connect"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(`#log li.ev-error`, chromedp.ByQuery)),
+		step("come back to it remembered",
+			chromedp.Navigate(srv.appURL+"/repeaters/"+rep.PublicID+"/configure"),
+			chromedp.WaitVisible(`[data-testid="transport"]`, chromedp.ByQuery),
+			chromedp.Value(`#scope-region`, &listed, chromedp.ByQuery),
+			chromedp.Value(`#scope`, &typed, chromedp.ByQuery)),
+	); err != nil {
+		t.Fatalf("browser run: %v", err)
+	}
+	if listed != "" || typed != "buf" {
+		t.Errorf("after a session in #buf: list %q, typed %q; want another region, buf", listed, typed)
 	}
 	watch.assertClean(t)
 }

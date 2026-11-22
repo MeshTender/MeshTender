@@ -233,6 +233,26 @@ func (s *Handlers) pageConfigure(w http.ResponseWriter, r *http.Request) {
 		via = ""
 	}
 	debug := r.URL.Query().Get("debug") == "1"
+	// The regions of the repeater's orgs are suggested for scoping floods, and
+	// the one an org recommends as its default scope is preselected: a mesh
+	// that drops unscoped floods would drop an unscoped login. Private ($)
+	// regions can't be used: their key isn't derived from the name.
+	regionNames, err := s.Store.ListRepeaterRegionNames(ctx, id)
+	if err != nil {
+		s.ServerError(w, r, "could not load regions", err)
+		return
+	}
+	var scopeRegions []store.RegionName
+	var defaultScope string
+	for _, rn := range regionNames {
+		if strings.HasPrefix(rn.Token, "$") {
+			continue
+		}
+		scopeRegions = append(scopeRegions, rn)
+		if rn.DefaultScope && defaultScope == "" {
+			defaultScope = rn.Token
+		}
+	}
 	data := map[string]any{
 		"Repeater":         rep,
 		"Nav":              web.RepeaterNav(rep, isOwner, "configure"),
@@ -243,6 +263,8 @@ func (s *Handlers) pageConfigure(w http.ResponseWriter, r *http.Request) {
 		"ShowConfig":       len(configOrgs) > 0,
 		"Debug":            debug,
 		"Observers":        observers,
+		"ScopeRegions":     scopeRegions,
+		"DefaultScope":     defaultScope,
 		"Via":              via,
 	}
 	if isOwner {
@@ -334,7 +356,10 @@ func (s *Handlers) wsConsole(w http.ResponseWriter, r *http.Request) {
 	}
 	ex := mesh.NewExchanger(senderFunc(func(pkt []byte) error { return link.SendData(pkt) }),
 		server, repeaterID, sendInterval, perTryReply, maxSendTries)
-	userPathSet := applyUserPath(ex, r, bridge)
+	userPathSet, ok := applyUserRoute(ex, r, bridge)
+	if !ok {
+		return
+	}
 	debug := r.URL.Query().Get("debug") == "1"
 	if modem != nil {
 		modem.SetDataHandler(func(data []byte, _ float32, _ int8, _ bool) {

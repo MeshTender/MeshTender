@@ -76,10 +76,46 @@ before anything is sent to it. */}}
       </div>
     </div>
     <div class="collapse" id="conn-options">
+      {{/* How the login and commands travel (configure.js shows the field
+      for the chosen route; air-console.js sends it as ?scope= or ?path=).
+      A scope only applies to floods, so it's one or the other. The org's
+      default scope region, if any, is preselected (data-default-route). */}}
       <div class="card-body border-top" data-air-only hidden>
-        <label class="form-label" for="path">Route through repeaters</label>
-        <input type="text" class="form-control font-monospace" id="path" placeholder="e.g. 11, 22, 33" autocomplete="off" spellcheck="false">
-        <div class="form-text">The hex prefix of each repeater between your modem or observer and this one, in order and all the same length. Leave it blank to flood.</div>
+        <div class="form-label">Route</div>
+        <div data-testid="route" data-default-route="{{if .DefaultScope}}scope{{else}}flood{{end}}">
+          <label class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="route" value="flood" data-route data-testid="route-flood">
+            <span class="form-check-label">Flood</span>
+          </label>
+          <label class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="route" value="scope" data-route data-testid="route-scope">
+            <span class="form-check-label">Flood in a region</span>
+          </label>
+          <label class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="route" value="path" data-route data-testid="route-path">
+            <span class="form-check-label">Direct through repeaters</span>
+          </label>
+        </div>
+        {{/* The repeater's orgs' regions, or "Another region…" (value "")
+        to type one into #scope. With no regions, just the text field. */}}
+        <div class="mt-2" data-route-only="scope" hidden>
+          <label class="form-label" for="{{if .ScopeRegions}}scope-region{{else}}scope{{end}}">Region</label>
+          {{- with .ScopeRegions}}
+          <select class="form-select" id="scope-region" aria-label="Region" autocomplete="off" data-testid="scope-region">
+            {{- range .}}
+            <option value="{{.Token}}"{{if eq .Token $.DefaultScope}} selected{{end}}>{{.DisplayName}} (#{{.Token}})</option>
+            {{- end}}
+            <option value="">Another region…</option>
+          </select>
+          {{- end}}
+          <input type="text" class="form-control font-monospace{{if .ScopeRegions}} mt-2{{end}}" id="scope" aria-label="Region name" placeholder="e.g. wny" autocomplete="off" spellcheck="false"{{if .ScopeRegions}} hidden{{end}}>
+          <div class="form-text">Repeaters that drop unscoped floods still repeat one in a region they allow, and the repeater answers in the same region.</div>
+        </div>
+        <div class="mt-2" data-route-only="path" hidden>
+          <label class="form-label" for="path">Repeaters to route through</label>
+          <input type="text" class="form-control font-monospace" id="path" placeholder="e.g. 11, 22, 33" autocomplete="off" spellcheck="false">
+          <div class="form-text">The hex prefix of each repeater between your modem or observer and this one, in order and all the same length.</div>
+        </div>
         <div class="mt-3">
           {{if .Debug}}<a href="?{{with .Via}}via={{.}}&amp;{{end}}debug=0" data-testid="console-debug">Hide raw frames</a>{{else}}<a href="?{{with .Via}}via={{.}}&amp;{{end}}debug=1" data-testid="console-debug">Show raw frames in the log</a>{{end}}
         </div>

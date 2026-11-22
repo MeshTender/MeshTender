@@ -18,7 +18,7 @@ const txtTypeCLIData = 1
 // accepts CLI commands as encrypted TXT_MSG packets with plaintext
 // [timestamp(4)][flags][command].
 func BuildCommandPacket(server meshcore.LocalIdentity, repeater meshcore.Identity, command string, now time.Time) ([]byte, error) {
-	return buildCommandPacket(server, repeater, command, now, meshcore.RouteTypeFlood, floodPathLen, nil)
+	return buildCommandPacket(server, repeater, command, now, meshcore.RouteTypeFlood, floodPathLen, nil, nil)
 }
 
 // BuildCommandPacketDirect builds a direct-routed CLI command using a path
@@ -26,10 +26,12 @@ func BuildCommandPacket(server meshcore.LocalIdentity, repeater meshcore.Identit
 // OutPathLen). Direct packets traverse only the repeaters on the path rather
 // than flooding the whole mesh.
 func BuildCommandPacketDirect(server meshcore.LocalIdentity, repeater meshcore.Identity, command string, now time.Time, path []byte, pathLen byte) ([]byte, error) {
-	return buildCommandPacket(server, repeater, command, now, meshcore.RouteTypeDirect, pathLen, path)
+	return buildCommandPacket(server, repeater, command, now, meshcore.RouteTypeDirect, pathLen, path, nil)
 }
 
-func buildCommandPacket(server meshcore.LocalIdentity, repeater meshcore.Identity, command string, now time.Time, routeType, pathLen byte, path []byte) ([]byte, error) {
+// buildCommandPacket builds a CLI command routed as routeType. A non-nil scope
+// scopes a flood to that region (see scopeFlood).
+func buildCommandPacket(server meshcore.LocalIdentity, repeater meshcore.Identity, command string, now time.Time, routeType, pathLen byte, path []byte, scope *meshcore.RegionKey) ([]byte, error) {
 	shared, err := server.SharedSecret(repeater)
 	if err != nil {
 		return nil, fmt.Errorf("derive shared secret: %w", err)
@@ -50,6 +52,7 @@ func buildCommandPacket(server meshcore.LocalIdentity, repeater meshcore.Identit
 		Path:       path,
 		Payload:    payload,
 	}
+	scopeFlood(pkt, meshcore.PayloadTypeTxtMsg, scope)
 	raw, err := pkt.ToBytes()
 	if err != nil {
 		return nil, fmt.Errorf("encode packet: %w", err)

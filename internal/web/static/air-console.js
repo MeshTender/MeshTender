@@ -20,8 +20,11 @@
 // Each registers itself in window.MeshTransports under its name; configure.js
 // picks which is window.MeshConsole.
 //
-// Activity goes to #log. window.MESHTENDER_WS is the session's WebSocket URL; a
-// #path field, if the page has one, routes it directly instead of by flood.
+// Activity goes to #log. window.MESHTENDER_WS is the session's WebSocket URL.
+// The route chosen in the page's [data-route] radios goes with it: the region
+// (picked in #scope-region, or typed in #scope when that's "Another region…"
+// or absent) floods in that region, the #path field routes directly instead
+// of by flood (configure.js keeps it to one or the other).
 (function () {
   "use strict";
 
@@ -75,8 +78,18 @@
     function wsURL() {
       var url = String(window.MESHTENDER_WS || "");
       if (!serial) url = withParam(url, "via", String(api.observer || ""));
-      var el = document.getElementById("path");
-      if (el && el.value.trim()) url = withParam(url, "path", el.value.trim());
+      var chosen = document.querySelector("[data-route]:checked");
+      var kind = chosen ? chosen.value : "";
+      var value = "";
+      if (kind === "scope") {
+        var list = document.getElementById("scope-region");
+        var typed = document.getElementById("scope");
+        value = list && list.value ? list.value : (typed ? typed.value : "");
+      } else if (kind === "path") {
+        var path = document.getElementById("path");
+        value = path ? path.value : "";
+      }
+      if (String(value).trim()) url = withParam(url, kind, String(value).trim());
       return url;
     }
 

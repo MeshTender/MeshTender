@@ -44,6 +44,9 @@ type Exchanger struct {
 	pathKnown  bool
 	outPath    []byte
 	outPathLen byte
+	// scope, when set, scopes every flood the exchanger sends to a region:
+	// the login and the flood fallback after a route is known.
+	scope *meshcore.RegionKey
 }
 
 type pendingReply struct {
@@ -141,12 +144,12 @@ func (e *Exchanger) Login(ctx context.Context, password string, onAttempt func(a
 			// on early attempts; fall back to flood on later ones in case it's stale.
 			e.mu.Lock()
 			direct := e.pathKnown && attempt <= e.directThreshold()
-			path, pathLen := e.outPath, e.outPathLen
+			path, pathLen, scope := e.outPath, e.outPathLen, e.scope
 			e.mu.Unlock()
 			if direct {
 				return BuildLoginPacketDirect(e.server, e.repeater, password, ts, path, pathLen)
 			}
-			return BuildLoginPacket(e.server, e.repeater, password, ts)
+			return buildLoginPacket(e.server, e.repeater, password, ts, meshcore.RouteTypeFlood, floodPathLen, nil, scope)
 		},
 		func(raw []byte) bool {
 			lr, err := DecodeLoginResponse(e.server, e.repeater, raw)
@@ -185,6 +188,15 @@ func (e *Exchanger) SetPath(path []byte, pathLen byte) {
 	e.mu.Unlock()
 }
 
+// SetScope scopes every flood the exchanger sends to the region keyed scope
+// (see scopeFlood), for meshes whose repeaters drop unscoped floods. Direct
+// sends are unaffected: a scope only applies to floods. Call it before Login.
+func (e *Exchanger) SetScope(scope meshcore.RegionKey) {
+	e.mu.Lock()
+	e.scope = &scope
+	e.mu.Unlock()
+}
+
 // directThreshold is the highest attempt number that uses direct routing once a
 // path is known; later attempts fall back to flood in case the path is stale.
 func (e *Exchanger) directThreshold() int { return (e.tries + 1) / 2 }
@@ -212,12 +224,12 @@ func (e *Exchanger) CommandAccept(ctx context.Context, command string, accept fu
 		func(ts time.Time, attempt int) ([]byte, error) {
 			e.mu.Lock()
 			direct := e.pathKnown && attempt <= e.directThreshold()
-			path, pathLen := e.outPath, e.outPathLen
+			path, pathLen, scope := e.outPath, e.outPathLen, e.scope
 			e.mu.Unlock()
 			if direct {
 				return BuildCommandPacketDirect(e.server, e.repeater, command, ts, path, pathLen)
 			}
-			return BuildCommandPacket(e.server, e.repeater, command, ts)
+			return buildCommandPacket(e.server, e.repeater, command, ts, meshcore.RouteTypeFlood, floodPathLen, nil, scope)
 		},
 		func(raw []byte) bool {
 			text, err := DecodeCommandReply(e.server, e.repeater, raw)

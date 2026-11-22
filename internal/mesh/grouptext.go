@@ -102,9 +102,8 @@ func truncateUTF8(s string, n int) string {
 // BuildGroupText encodes a channel message from sender, as a companion sends
 // it: flags 0 (plain text), text trimmed to fit (FitGroupText), flooded with
 // our usual 3-byte path hashes. A non-nil scope sends it as a transport flood
-// scoped to that region — transport code 0 is the region's code for this
-// packet, code 1 is 0, exactly as a companion's sendFloodScoped does — so
-// repeaters that deny unscoped floods still repeat it.
+// scoped to that region (see scopeFlood), so repeaters that deny unscoped
+// floods still repeat it.
 func BuildGroupText(ch Channel, sender, text string, scope *meshcore.RegionKey, now time.Time) ([]byte, error) {
 	msg := meshcore.GroupTextPayload{
 		Timestamp: uint32(now.Unix()), //nolint:gosec // unix seconds fit until 2106, as the firmware's
@@ -124,10 +123,7 @@ func BuildGroupText(ch Channel, sender, text string, scope *meshcore.RegionKey, 
 		PathLength: floodPathLen,
 		Payload:    payload,
 	}
-	if scope != nil {
-		pkt.Header = meshcore.MakeHeader(meshcore.RouteTypeTransportFlood, meshcore.PayloadTypeGrpTxt, 0)
-		pkt.TransportCode1 = scope.CalcTransportCode(meshcore.PayloadTypeGrpTxt, payload)
-	}
+	scopeFlood(pkt, meshcore.PayloadTypeGrpTxt, scope)
 	raw, err := pkt.ToBytes()
 	if err != nil {
 		return nil, fmt.Errorf("encode packet: %w", err)

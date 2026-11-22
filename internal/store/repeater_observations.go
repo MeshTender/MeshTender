@@ -253,26 +253,31 @@ func (s *Store) PruneRepeaterAdverts(ctx context.Context) (int64, error) {
 type RegionName struct {
 	Token       string
 	DisplayName string
+	// DefaultScope: one of the repeater's orgs recommends this region as the
+	// default flood scope.
+	DefaultScope bool
 }
 
 // ListRepeaterRegionNames returns the regions of every org the repeater takes
-// part in — the candidates for the scope its flood adverts were sent with.
+// part in, by token — the candidates for the scope its flood adverts were sent
+// with, and for the scope the console floods in.
 func (s *Store) ListRepeaterRegionNames(ctx context.Context, repeaterID int64) ([]RegionName, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT DISTINCT ON (cr.token) cr.token, cr.display_name
+		SELECT cr.token, min(cr.display_name), bool_or(cr.is_default_scope)
 		FROM repeaters r
 		JOIN org_members om ON om.user_id = r.owner_id
 		JOIN config_regions cr ON cr.org_id = om.org_id
 		WHERE r.id = $1
 		  AND NOT EXISTS (SELECT 1 FROM org_repeater_excludes e
 		                  WHERE e.org_id = om.org_id AND e.repeater_id = r.id)
-		ORDER BY cr.token, cr.display_name`, repeaterID)
+		GROUP BY cr.token
+		ORDER BY cr.token`, repeaterID)
 	if err != nil {
 		return nil, fmt.Errorf("list repeater region names: %w", err)
 	}
 	return collectRows(rows, func(r pgx.Row) (RegionName, error) {
 		var n RegionName
-		err := r.Scan(&n.Token, &n.DisplayName)
+		err := r.Scan(&n.Token, &n.DisplayName, &n.DefaultScope)
 		return n, err
 	})
 }

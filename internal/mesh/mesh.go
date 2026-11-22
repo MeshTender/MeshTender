@@ -54,7 +54,7 @@ type LoginResponse struct {
 // granted via `setperm <pubkey> 3` (pubkey ACL). now is the timestamp embedded
 // in the request (the repeater uses it for clock sync).
 func BuildLoginPacket(server meshcore.LocalIdentity, repeater meshcore.Identity, password string, now time.Time) ([]byte, error) {
-	return buildLoginPacket(server, repeater, password, now, meshcore.RouteTypeFlood, floodPathLen, nil)
+	return buildLoginPacket(server, repeater, password, now, meshcore.RouteTypeFlood, floodPathLen, nil, nil)
 }
 
 // BuildLoginPacketDirect builds an anonymous login routed directly over a known
@@ -62,10 +62,12 @@ func BuildLoginPacket(server meshcore.LocalIdentity, repeater meshcore.Identity,
 // user) rather than flooded — useful for distant repeaters where the flood login
 // is unreliable.
 func BuildLoginPacketDirect(server meshcore.LocalIdentity, repeater meshcore.Identity, password string, now time.Time, path []byte, pathLen byte) ([]byte, error) {
-	return buildLoginPacket(server, repeater, password, now, meshcore.RouteTypeDirect, pathLen, path)
+	return buildLoginPacket(server, repeater, password, now, meshcore.RouteTypeDirect, pathLen, path, nil)
 }
 
-func buildLoginPacket(server meshcore.LocalIdentity, repeater meshcore.Identity, password string, now time.Time, routeType, pathLen byte, path []byte) ([]byte, error) {
+// buildLoginPacket builds a login routed as routeType. A non-nil scope scopes a
+// flood to that region (see scopeFlood).
+func buildLoginPacket(server meshcore.LocalIdentity, repeater meshcore.Identity, password string, now time.Time, routeType, pathLen byte, path []byte, scope *meshcore.RegionKey) ([]byte, error) {
 	shared, err := server.SharedSecret(repeater)
 	if err != nil {
 		return nil, fmt.Errorf("derive shared secret: %w", err)
@@ -99,11 +101,26 @@ func buildLoginPacket(server meshcore.LocalIdentity, repeater meshcore.Identity,
 		Path:       path,
 		Payload:    payload,
 	}
+	scopeFlood(pkt, meshcore.PayloadTypeAnonReq, scope)
 	raw, err := pkt.ToBytes()
 	if err != nil {
 		return nil, fmt.Errorf("encode packet: %w", err)
 	}
 	return raw, nil
+}
+
+// scopeFlood turns pkt, a flood, into a transport flood scoped to the region
+// keyed scope, exactly as a companion's sendFloodScoped does: transport code 1
+// is the region's code for this packet, code 2 is 0. Repeaters that drop
+// unscoped floods still repeat it, if they allow flooding in that region, and
+// a repeater answers a scoped request in the same scope (sendFloodReply). A
+// nil scope, or a packet that isn't a flood, is left as it is.
+func scopeFlood(pkt *meshcore.Packet, payloadType byte, scope *meshcore.RegionKey) {
+	if scope == nil || pkt.RouteType() != meshcore.RouteTypeFlood {
+		return
+	}
+	pkt.Header = meshcore.MakeHeader(meshcore.RouteTypeTransportFlood, payloadType, 0)
+	pkt.TransportCode1 = scope.CalcTransportCode(payloadType, pkt.Payload)
 }
 
 // ErrNotForUs indicates the packet was a valid RESPONSE but not addressed to

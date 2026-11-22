@@ -80,16 +80,89 @@
     document.dispatchEvent(new CustomEvent("mesh:transport", { detail: { name: t.name } }));
   });
 
+  // The route in Options: flood, flood in a region or direct through
+  // repeaters (the #path field). Only the chosen route's field shows. The
+  // region is picked from the #scope-region list, whose "Another region…"
+  // option (value "") reveals the #scope text field; a page with no regions
+  // has just the text field. The route and region are remembered; without a
+  // remembered route, the page's default applies (flood in the org's default
+  // scope region, if it recommends one). The region is only remembered when a
+  // session starts with it, so a half-typed name never is. (The key changed
+  // from "meshtender.scope" when that was learned the hard way.)
+  var ROUTE_KEY = "meshtender.route";
+  var SCOPE_KEY = "meshtender.region";
+  var routes = Array.prototype.slice.call(document.querySelectorAll("[data-route]"));
+  var routeOnly = Array.prototype.slice.call(document.querySelectorAll("[data-route-only]"));
+  var scopeList = document.getElementById("scope-region");
+  var scopeField = document.getElementById("scope");
+  var routeBox = document.querySelector('[data-testid="route"]');
+  // scopeName is the region chosen, from the list or typed.
+  function scopeName() {
+    if (scopeList && scopeList.value) return scopeList.value;
+    return scopeField ? scopeField.value.trim() : "";
+  }
+  function showScopeField() {
+    if (scopeList && scopeField) scopeField.hidden = scopeList.value !== "";
+  }
+  // rememberScope saves the region a session is starting with.
+  function rememberScope() {
+    if (!routes.length || route() !== "scope" || !scopeName()) return;
+    try { localStorage.setItem(SCOPE_KEY, scopeName()); } catch (_) { /* private mode */ }
+  }
+  function route() {
+    var r = routes.find(function (i) { return i.checked; });
+    return r ? r.value : "flood";
+  }
+  function showRoute() {
+    routeOnly.forEach(function (el) { el.hidden = el.getAttribute("data-route-only") !== route(); });
+  }
+  if (routes.length) {
+    var savedRoute = null, savedScope = null;
+    try {
+      savedRoute = localStorage.getItem(ROUTE_KEY);
+      savedScope = localStorage.getItem(SCOPE_KEY);
+    } catch (_) { /* private mode */ }
+    var initial = savedRoute || (routeBox && routeBox.getAttribute("data-default-route")) || "flood";
+    routes.forEach(function (r) {
+      r.checked = r.value === initial;
+      r.addEventListener("change", function () {
+        try { localStorage.setItem(ROUTE_KEY, route()); } catch (_) { /* private mode */ }
+        showRoute();
+      });
+    });
+    if (!routes.some(function (r) { return r.checked; })) routes[0].checked = true;
+    // A remembered region is picked from the list if it's there, and typed in
+    // otherwise.
+    if (savedScope) {
+      var listed = scopeList && Array.prototype.slice.call(scopeList.options).some(function (o) { return o.value === savedScope; });
+      if (listed) {
+        scopeList.value = savedScope;
+      } else {
+        if (scopeList) scopeList.value = "";
+        if (scopeField) scopeField.value = savedScope;
+      }
+    }
+    if (scopeList) {
+      scopeList.addEventListener("change", function () {
+        showScopeField();
+        if (!scopeList.value && scopeField) scopeField.focus();
+      });
+    }
+    showScopeField();
+    showRoute();
+  }
+
   button.addEventListener("click", function () {
     var t = window.MeshConsole;
     if (!t) return;
     if (t.ready) { t.disconnect(); return; }
     busy = true;
+    rememberScope();
     render();
     t.connect();
   });
   // Something else on the page (the location banner) may start a connection.
-  document.addEventListener("mesh:connecting", function () { busy = true; render(); });
+  document.addEventListener("mesh:connecting", function () { busy = true; rememberScope(); render(); });
   document.addEventListener("mesh:ready", function () { busy = false; render(); });
   document.addEventListener("mesh:closed", function () { busy = false; render(); });
 })();

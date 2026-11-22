@@ -216,3 +216,96 @@ func TestExchangerCancelled(t *testing.T) {
 		t.Fatalf("err = %v, want context.Canceled", err)
 	}
 }
+
+// TestExchangerScopesFloods: with a scope set, every flood the exchanger sends
+// is a transport flood carrying the region's code (the login, and a command's
+// flood fallback after direct tries fail), while direct tries stay unscoped.
+func TestExchangerScopesFloods(t *testing.T) {
+	t.Parallel()
+	server := mustIdentity(t)
+	repeater := mustIdentity(t)
+	shared, _ := repeater.SharedSecret(server.Identity)
+	region := meshcore.NewRegionFromHashtag("wny")
+
+	type sent struct {
+		route  byte
+		scoped bool
+	}
+	var logins, commands []sent
+	fm := &routeFakeModem{}
+	ex := NewExchanger(fm, server, repeater.Identity, 0, 20*time.Millisecond, 4)
+	ex.SetScope(region.Key)
+	fm.reply = func(raw []byte) {
+		pkt, err := meshcore.PacketFromBytes(raw)
+		if err != nil {
+			return
+		}
+		s := sent{route: pkt.RouteType(), scoped: region.MatchesPacket(pkt)}
+		switch pkt.PayloadType() {
+		case meshcore.PayloadTypeAnonReq:
+			logins = append(logins, s)
+			resp := make([]byte, 13)
+			resp[6] = 1 // admin
+			resp[7] = 3
+			body := append([]byte{byte((3-1)<<6 | 1), 0xaa, 0xbb, 0xcc}, meshcore.PayloadTypeResponse)
+			enc, _ := meshcore.EncryptThenMAC(shared, append(body, resp...))
+			p := &meshcore.Path{Destination: server.Hash()[0], Source: repeater.Hash()[0], MAC: [2]byte{enc[0], enc[1]}, EncryptedPayload: enc[2:]}
+			payload, _ := p.ToBytes()
+			r, _ := (&meshcore.Packet{Header: meshcore.MakeHeader(meshcore.RouteTypeFlood, meshcore.PayloadTypePath, 0), Payload: payload}).ToBytes()
+			ex.HandleData(r)
+		case meshcore.PayloadTypeTxtMsg:
+			commands = append(commands, s)
+			if s.route == meshcore.RouteTypeDirect {
+				return // the learned route is stale: only the flood fallback gets through
+			}
+			plain := meshcore.BuildTextPlaintext(time.Unix(1, 0), 1<<2, []byte("> ok"))
+			tm, _ := meshcore.NewTextMessage(repeater, server.Identity, plain, shared)
+			payload, _ := tm.ToBytes()
+			r, _ := (&meshcore.Packet{Header: meshcore.MakeHeader(meshcore.RouteTypeFlood, meshcore.PayloadTypeTxtMsg, 0), Payload: payload}).ToBytes()
+			ex.HandleData(r)
+		}
+	}
+
+	if _, err := ex.Login(context.Background(), "", nil); err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+	if _, err := ex.Command(context.Background(), "get name", nil); err != nil {
+		t.Fatalf("Command: %v", err)
+	}
+	if len(logins) != 1 || logins[0] != (sent{meshcore.RouteTypeTransportFlood, true}) {
+		t.Errorf("logins = %+v, want one transport flood in the region", logins)
+	}
+	want := []sent{
+		{meshcore.RouteTypeDirect, false},
+		{meshcore.RouteTypeDirect, false},
+		{meshcore.RouteTypeTransportFlood, true},
+	}
+	if len(commands) != len(want) {
+		t.Fatalf("commands = %+v, want %+v", commands, want)
+	}
+	for i := range want {
+		if commands[i] != want[i] {
+			t.Errorf("command try %d = %+v, want %+v", i+1, commands[i], want[i])
+		}
+	}
+}
+
+// TestUnscopedExchangerFloodsPlainly: without a scope, floods stay plain floods.
+func TestUnscopedExchangerFloodsPlainly(t *testing.T) {
+	t.Parallel()
+	server := mustIdentity(t)
+	repeater := mustIdentity(t)
+	var route byte
+	fm := &routeFakeModem{reply: func(raw []byte) {
+		if pkt, err := meshcore.PacketFromBytes(raw); err == nil {
+			route = pkt.RouteType()
+		}
+	}}
+	ex := NewExchanger(fm, server, repeater.Identity, 0, time.Millisecond, 1)
+	if _, err := ex.Login(context.Background(), "", nil); !errors.Is(err, ErrNoReply) {
+		t.Fatalf("Login: %v", err)
+	}
+	if route != meshcore.RouteTypeFlood {
+		t.Errorf("login route = %d, want a plain flood (%d)", route, meshcore.RouteTypeFlood)
+	}
+}

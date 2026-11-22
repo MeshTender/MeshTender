@@ -44,6 +44,47 @@ func applyUserPath(ex *mesh.Exchanger, r *http.Request, bridge *wsbridge.Conn) b
 	return true
 }
 
+// applyUserRoute applies the route the console page asked for: ?path= (direct
+// through those repeaters, see applyUserPath), ?scope= (floods scoped to that
+// region, see applyUserScope), or neither (plain floods). A scope only applies
+// to floods and a path makes the login direct, so asking for both is refused
+// and ok is false; the caller ends the session. pathSet reports whether a path
+// was set, so the caller can report whether it worked.
+func applyUserRoute(ex *mesh.Exchanger, r *http.Request, bridge *wsbridge.Conn) (pathSet, ok bool) {
+	q := r.URL.Query()
+	if strings.TrimSpace(q.Get("path")) != "" && strings.TrimSpace(q.Get("scope")) != "" {
+		_ = bridge.Status("error", "Choose either a route through repeaters or a region to flood in, not both.")
+		return false, false
+	}
+	applyUserScope(ex, r, bridge)
+	return applyUserPath(ex, r, bridge), true
+}
+
+// applyUserScope scopes the exchanger's floods to the region named by the
+// optional ?scope= query param (with or without its leading '#'), for meshes
+// whose repeaters drop unscoped floods. A name that can't be used is reported
+// and ignored, so floods stay unscoped, as a malformed path is.
+func applyUserScope(ex *mesh.Exchanger, r *http.Request, bridge *wsbridge.Conn) {
+	name := strings.TrimPrefix(strings.TrimSpace(r.URL.Query().Get("scope")), "#")
+	switch {
+	case name == "":
+		return
+	case strings.HasPrefix(name, "$"):
+		_ = bridge.Status("warning", "Ignoring the region "+name+": MeshTender doesn't have the key for a private ($) region, so it floods unscoped.")
+		return
+	case !validRegionToken(name):
+		_ = bridge.Status("warning", "Ignoring the region you entered: a region name is letters, digits, hyphens and underscores. Flooding unscoped.")
+		return
+	}
+	key, err := mesh.RegionScope(name)
+	if err != nil {
+		_ = bridge.Status("warning", "Ignoring the region "+name+" ("+err.Error()+"). Flooding unscoped.")
+		return
+	}
+	ex.SetScope(key)
+	_ = bridge.Status("info", "Flooding in the region #"+name+".")
+}
+
 // reportPathOutcome logs whether the login reached the repeater over the
 // user-supplied path (a direct RESPONSE reply) or had to fall back to flood (a
 // PATH return reply). Only meaningful when a path was set and login succeeded.

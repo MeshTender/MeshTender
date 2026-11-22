@@ -105,10 +105,14 @@ func newRelayHarness(t *testing.T, approve bool) *relayHarness {
 }
 
 // dial opens the console WebSocket through the observer and says the page is
-// ready, as air-console.js does with no serial port.
-func (h *relayHarness) dial() *websocket.Conn {
+// ready, as air-console.js does with no serial port. Each of query (already
+// escaped, e.g. "scope=wny") is added to the WebSocket's URL.
+func (h *relayHarness) dial(query ...string) *websocket.Conn {
 	h.t.Helper()
 	wsURL := "ws" + strings.TrimPrefix(h.ts.URL, "http") + "/repeaters/" + h.rep.PublicID + "/console/ws?via=" + h.observer.String()
+	for _, q := range query {
+		wsURL += "&" + q
+	}
 	hdr := http.Header{}
 	for _, c := range h.jar.Cookies(mustURL(h.t, h.ts.URL)) {
 		hdr.Add("Cookie", c.Name+"="+c.Value)
