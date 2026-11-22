@@ -7,6 +7,7 @@ import (
 
 	cdplog "github.com/chromedp/cdproto/log"
 	"github.com/chromedp/cdproto/network"
+	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
 )
 
@@ -25,6 +26,7 @@ func TestE2EObserverInstallPage(t *testing.T) {
 	var defined bool
 	var manifest, repeaterManifest, version string
 	var repeaterBoardsVisible bool
+	var themed []string
 	if err := chromedp.Run(bctx,
 		network.Enable(),
 		cdplog.Enable(),
@@ -41,6 +43,15 @@ func TestE2EObserverInstallPage(t *testing.T) {
 			chromedp.AttributeValue(`[data-testid="firmware-install-button"]`, "manifest", &repeaterManifest, nil, chromedp.ByQuery),
 			chromedp.Evaluate(`!document.querySelector('[data-fw-role="repeater"]').hidden && document.querySelector('[data-fw-role="room_server"]').hidden`, &repeaterBoardsVisible),
 			chromedp.Text(`[data-fw-version]`, &version, chromedp.ByQuery)),
+		// The install dialog needs a serial port, which headless Chrome can't
+		// pick; the no-port dialog is the same Material components and needs
+		// none. Its color tokens must come from the page's theme, not the
+		// light theme esp-web-tools fixes on its :host.
+		step("open esp-web-tools' no-port dialog",
+			chromedp.Evaluate(noPortDialogTheme, &themed, func(p *runtime.EvaluateParams) *runtime.EvaluateParams {
+				return p.WithAwaitPromise(true)
+			}),
+			chromedp.WaitVisible(`ewt-no-port-picked-dialog`, chromedp.ByQuery)),
 	); err != nil {
 		t.Fatalf("install page: %v", err)
 	}
@@ -58,7 +69,22 @@ func TestE2EObserverInstallPage(t *testing.T) {
 	if !repeaterBoardsVisible {
 		t.Error("choosing repeater didn't swap the board list")
 	}
+	if len(themed) != 2 || themed[0] == "" || themed[0] != themed[1] {
+		t.Errorf("no-port dialog surface = %q, want the page's --tblr-bg-surface", themed)
+	}
 	if version != "v1.18.0.4313" {
 		t.Errorf("version hint = %q", version)
 	}
 }
+
+// noPortDialogTheme opens esp-web-tools' no-port dialog and returns its
+// --md-sys-color-surface next to the page's --tblr-bg-surface.
+const noPortDialogTheme = `(async () => {
+	const src = document.querySelector('script[type="module"][src*="esp-web-tools"]').src;
+	const m = await import(new URL("no-port-picked-DPUnbpty.js", src).href);
+	m.openNoPortPickedDialog(() => {});
+	await customElements.whenDefined("ewt-no-port-picked-dialog");
+	const d = document.querySelector("ewt-no-port-picked-dialog");
+	return [getComputedStyle(d).getPropertyValue("--md-sys-color-surface").trim(),
+	        getComputedStyle(document.body).getPropertyValue("--tblr-bg-surface").trim()];
+})()`

@@ -383,3 +383,28 @@ code.pubkey {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* esp-web-tools' install dialogs (the observer install page) are Material Web
+   components with a light theme fixed on their :host. Custom properties inherit
+   into their shadow DOM, and a page rule on the host element beats :host, so
+   setting Material's color tokens here from Tabler's theme variables makes the
+   dialogs follow light/dark mode with the rest of the app. Dark mode is the
+   default theme, where the stock white dialog stood out. */
+ewt-install-dialog,
+ewt-no-port-picked-dialog {
+  --roboto-font: var(--tblr-font-sans-serif);
+  --text-color: var(--tblr-secondary);
+  --danger-color: var(--tblr-danger);
+  --md-sys-color-primary: var(--tblr-primary);
+  --md-sys-color-on-primary: var(--tblr-primary-fg);
+  --md-sys-color-surface: var(--tblr-bg-surface);
+  --md-sys-color-surface-container: var(--tblr-bg-surface);
+  --md-sys-color-surface-container-high: var(--tblr-bg-surface);
+  --md-sys-color-surface-container-highest: var(--tblr-bg-surface-secondary);
+  --md-sys-color-secondary-container: var(--tblr-bg-surface-tertiary);
+  --md-sys-color-on-secondary-container: var(--tblr-body-color);
+  --md-sys-color-on-surface: var(--tblr-body-color);
+  --md-sys-color-on-surface-variant: var(--tblr-secondary);
+  --md-sys-color-outline-variant: var(--tblr-border-color);
+  --md-sys-color-error: var(--tblr-danger);
+}
