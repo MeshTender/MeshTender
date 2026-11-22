@@ -1,7 +1,8 @@
 // Drives the Configure tab's "Organization configuration" pane (configure.html).
 // Commands go through whichever connection configure.js has chosen
 // (window.MeshConsole): "usb" (usb-console.js, the repeater plugged into this
-// computer) or "air" (air-console.js, a KISS modem). It fetches the
+// computer), or "air" or "observer" (air-console.js: a KISS modem, or an
+// observer MeshTender sends through). It fetches the
 // recommended configuration for a chosen org/profile from
 // /repeaters/{id}/config.json, lists every command (marking which the user may
 // run), and runs them over the live console session via window.MeshConsole

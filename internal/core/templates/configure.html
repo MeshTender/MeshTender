@@ -54,13 +54,21 @@ before anything is sent to it. */}}
 
   <div class="card mb-3" data-testid="connection">
     <div class="card-body d-flex flex-wrap align-items-center gap-3">
-      <span class="text-secondary">Send with</span>
-      <div class="btn-group" role="group" aria-label="How commands reach the repeater">
-        <input type="radio" class="btn-check" name="transport" id="transport-usb" value="usb" autocomplete="off" data-transport data-testid="transport-usb" checked>
-        <label class="btn btn-sm" for="transport-usb">{{template "icon-plug" "me-1"}}USB cable</label>
-        <input type="radio" class="btn-check" name="transport" id="transport-air" value="air" autocomplete="off" data-transport data-testid="transport-air">
-        <label class="btn btn-sm" for="transport-air">{{template "icon-antenna" "me-1"}}{{if .Via}}Observer{{else}}KISS modem{{end}}</label>
-      </div>
+      {{/* configure.js reads this choice. An observer's value is
+      "observer:<public key>"; ?via= on the page preselects one
+      (data-preselected), overriding the remembered choice. */}}
+      <label class="text-secondary" for="transport">Send with</label>
+      <select class="form-select form-select-sm w-auto" id="transport" data-testid="transport"{{if .Via}} data-preselected{{end}}>
+        <option value="usb">USB cable</option>
+        <option value="air">KISS modem</option>
+        {{- with .Observers}}
+        <optgroup label="Observers">
+          {{- range .}}
+          <option value="observer:{{.PublicKeyHex}}"{{if eq .PublicKeyHex $.Via}} selected{{end}}>{{.Name}} ({{.OrgName}})</option>
+          {{- end}}
+        </optgroup>
+        {{- end}}
+      </select>
       <span id="conn-status" class="text-secondary" role="status" data-testid="conn-status">Not connected</span>
       <div class="btn-list ms-auto">
         <button type="button" class="btn btn-ghost-secondary" data-bs-toggle="collapse" data-bs-target="#conn-options" aria-expanded="false" aria-controls="conn-options" data-air-only hidden data-testid="conn-options">Options</button>
@@ -71,7 +79,7 @@ before anything is sent to it. */}}
       <div class="card-body border-top" data-air-only hidden>
         <label class="form-label" for="path">Route through repeaters</label>
         <input type="text" class="form-control font-monospace" id="path" placeholder="e.g. 11, 22, 33" autocomplete="off" spellcheck="false">
-        <div class="form-text">The hex prefix of each repeater between your modem and this one, in order and all the same length. Leave it blank to flood.</div>
+        <div class="form-text">The hex prefix of each repeater between your modem or observer and this one, in order and all the same length. Leave it blank to flood.</div>
         <div class="mt-3">
           {{if .Debug}}<a href="?{{with .Via}}via={{.}}&amp;{{end}}debug=0" data-testid="console-debug">Hide raw frames</a>{{else}}<a href="?{{with .Via}}via={{.}}&amp;{{end}}debug=1" data-testid="console-debug">Show raw frames in the log</a>{{end}}
         </div>
@@ -144,9 +152,7 @@ before anything is sent to it. */}}
 <script src="{{ asset "/static/regionmap.js" }}"></script>
 {{end}}
 <script nonce="{{.Nonce}}">
-  window.MESHTENDER_WS = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/repeaters/{{.Repeater.PublicID}}/console/ws{{with .WSQuery}}?{{.}}{{end}}";
-  {{/* Set when ?via= names an observer to send through instead of a modem. */}}
-  window.MESHTENDER_VIA = {{.Via}};
+  window.MESHTENDER_WS = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/repeaters/{{.Repeater.PublicID}}/console/ws{{if .Debug}}?debug=1{{end}}";
 </script>
 <script src="{{ asset "/static/serial-port.js" }}"></script>
 <script src="{{ asset "/static/serial-cli.js" }}"></script>

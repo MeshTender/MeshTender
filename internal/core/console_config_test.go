@@ -361,7 +361,7 @@ func TestConfigureTab(t *testing.T) {
 		t.Fatal(err)
 	}
 	page := body(do(t, ts, h.app, path, ownerCookie))
-	for _, want := range []string{`data-pubkey="` + key + `"`, `data-testid="transport-usb"`, `data-testid="transport-air"`, `/console/ws`} {
+	for _, want := range []string{`data-pubkey="` + key + `"`, `data-testid="transport"`, `<option value="usb">`, `<option value="air">`, `/console/ws`} {
 		if !strings.Contains(page, want) {
 			t.Errorf("the tab is missing %s", want)
 		}

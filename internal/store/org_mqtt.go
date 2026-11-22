@@ -133,6 +133,48 @@ func (s *Store) RelayBroker(ctx context.Context, userID int64, observerKeyHex st
 	return b, notFoundOr(err, "relay broker")
 }
 
+// RelayObserver is an observer a user can send packets through.
+type RelayObserver struct {
+	PublicKeyHex string
+	Name         string
+	OrgName      string
+	LastSeenAt   *time.Time
+}
+
+// relayFirmwareTag marks MeshTender's observer firmware in the version an
+// observer reports (vX.Y.Z.B-meshtender-<hash>); only it can relay.
+const relayFirmwareTag = "-meshtender-"
+
+// maxRelayObservers caps ListRelayObservers. A user administers a few orgs,
+// each with a handful of observers, so the cap only guards the page.
+const maxRelayObservers = 50
+
+// ListRelayObservers returns the observers the user can send packets through:
+// the ones RelayBroker would accept that also run MeshTender's firmware, once
+// each (from the org that heard it most recently), most recently heard first.
+func (s *Store) ListRelayObservers(ctx context.Context, userID int64) ([]RelayObserver, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT public_key_hex, name, org_name, last_seen_at FROM (
+			SELECT DISTINCT ON (o.public_key_hex) o.public_key_hex, o.name, org.name AS org_name, o.last_seen_at
+			FROM org_observers o
+			JOIN org_members m ON m.org_id = o.org_id AND m.user_id = $1 AND m.role = 'admin'
+			JOIN org_mqtt_brokers b ON b.org_id = o.org_id AND b.enabled
+			JOIN organizations org ON org.id = o.org_id
+			WHERE o.approved_at IS NOT NULL AND strpos(o.firmware_version, $2) > 0
+			ORDER BY o.public_key_hex, o.last_seen_at DESC NULLS LAST, o.org_id
+		) relay
+		ORDER BY last_seen_at DESC NULLS LAST, lower(name), public_key_hex
+		LIMIT $3`, userID, relayFirmwareTag, maxRelayObservers)
+	if err != nil {
+		return nil, fmt.Errorf("list relay observers: %w", err)
+	}
+	return collectRows(rows, func(r pgx.Row) (RelayObserver, error) {
+		var o RelayObserver
+		err := r.Scan(&o.PublicKeyHex, &o.Name, &o.OrgName, &o.LastSeenAt)
+		return o, err
+	})
+}
+
 // RecordBrokerStatus stores the ingester's view of a broker connection. Nil
 // times leave the column as is; lastError replaces the stored category (empty
 // clears it).

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -219,18 +219,20 @@ func (s *Handlers) pageConfigure(w http.ResponseWriter, r *http.Request) {
 	default:
 		pane = "commands"
 	}
-	// ?via=<observer key> sends over the air through an observer instead of a
-	// KISS modem (see wsConsole). The console's WebSocket carries it, and
-	// ?debug=, along.
-	wsQuery := url.Values{}
+	// The observers this user can send through are offered alongside the USB
+	// cable and the KISS modem; the page adds the chosen one to the console's
+	// WebSocket as ?via= (see wsConsole). ?via= on the page preselects one, if
+	// it's on the list.
+	observers, err := s.Store.ListRelayObservers(ctx, uid)
+	if err != nil {
+		s.ServerError(w, r, "could not load observers", err)
+		return
+	}
 	via, _ := normalizeCompanionKey(r.URL.Query().Get("via"))
-	if via != "" {
-		wsQuery.Set("via", via)
+	if !slices.ContainsFunc(observers, func(o store.RelayObserver) bool { return o.PublicKeyHex == via }) {
+		via = ""
 	}
 	debug := r.URL.Query().Get("debug") == "1"
-	if debug {
-		wsQuery.Set("debug", "1")
-	}
 	data := map[string]any{
 		"Repeater":         rep,
 		"Nav":              web.RepeaterNav(rep, isOwner, "configure"),
@@ -240,8 +242,8 @@ func (s *Handlers) pageConfigure(w http.ResponseWriter, r *http.Request) {
 		"CanFetchLocation": canFetchLocation(allowed),
 		"ShowConfig":       len(configOrgs) > 0,
 		"Debug":            debug,
+		"Observers":        observers,
 		"Via":              via,
-		"WSQuery":          wsQuery.Encode(),
 	}
 	if isOwner {
 		sessions, hasMore, err := s.Store.ListCommandLogSessionsPage(ctx, id, decodeLogCursor(r.URL.Query().Get("before")))

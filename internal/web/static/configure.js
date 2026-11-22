@@ -1,68 +1,84 @@
 // configure.js — the Configure tab's connection bar.
 //
-// The tab talks to the repeater through one of two connections, both loaded on
-// the page: usb-console.js (the repeater plugged into this computer) and
-// air-console.js (a KISS modem, over the air). This script owns the choice
-// between them ([data-transport] radios, remembered in localStorage), makes the
-// chosen one window.MeshConsole, and runs the Connect/Disconnect button and the
-// status beside it. Everything else on the tab — the command line (console.js),
-// the organization configuration (console-config.js) — just uses
-// window.MeshConsole, and hears about a switch from the "mesh:transport" event.
-// The choice is locked while connecting or connected.
+// The tab talks to the repeater through one of the connections loaded on the
+// page: usb-console.js (the repeater plugged into this computer) and
+// air-console.js (a KISS modem, or an observer MeshTender sends through). This
+// script owns the choice between them (the #transport select, remembered in
+// localStorage), makes the chosen one window.MeshConsole, and runs the
+// Connect/Disconnect button and the status beside it. Everything else on the
+// tab — the command line (console.js), the organization configuration
+// (console-config.js) — just uses window.MeshConsole, and hears about a switch
+// from the "mesh:transport" event. The choice is locked while connecting or
+// connected.
+//
+// The select's values are "usb", "air", or "observer:<public key>" for each
+// observer the user can send through.
 (function () {
   "use strict";
 
-  var radios = Array.prototype.slice.call(document.querySelectorAll("[data-transport]"));
+  var select = document.getElementById("transport");
   var button = document.getElementById("connect");
   var label = document.getElementById("connect-label");
   var status = document.getElementById("conn-status");
   var unsupported = document.getElementById("unsupported");
   var airOnly = Array.prototype.slice.call(document.querySelectorAll("[data-air-only]"));
-  if (!radios.length || !button || !window.MeshTransports) return;
+  if (!select || !button || !window.MeshTransports) return;
 
   var KEY = "meshtender.transport";
+  var OBSERVER = "observer:";
+  var DEVICES = { usb: "repeater", air: "modem", observer: "observer" };
   var busy = false; // a connect is under way
 
+  // chosen is the connection the selected option uses.
   function chosen() {
-    var r = radios.find(function (i) { return i.checked; });
-    return r ? r.value : "usb";
+    var v = String(select.value || "");
+    return v.indexOf(OBSERVER) === 0 ? "observer" : v;
   }
-  // ?via= on the page sends over the air through an observer, not a modem.
-  var airDevice = window.MESHTENDER_VIA ? "observer" : "modem";
-  function device() { return chosen() === "usb" ? "repeater" : airDevice; }
+  function device() { return DEVICES[chosen()] || "repeater"; }
 
   function render() {
     var t = window.MeshConsole;
     var ready = !!(t && t.ready);
-    radios.forEach(function (r) { r.disabled = ready || busy; });
-    airOnly.forEach(function (el) { el.hidden = chosen() !== "air"; });
+    select.disabled = ready || busy;
+    airOnly.forEach(function (el) { el.hidden = chosen() === "usb"; });
     if (unsupported) unsupported.hidden = !!(t && t.supported);
     button.disabled = !(t && t.supported) || (busy && !ready);
     button.classList.toggle("btn-primary", !ready);
     label.textContent = ready ? "Disconnect" : busy ? "Connecting…" : "Connect " + device();
     status.textContent = ready
-      ? (chosen() === "usb" ? "Connected over USB" : "Connected through the " + airDevice)
+      ? (chosen() === "usb" ? "Connected over USB" : "Connected through the " + device())
       : busy ? "Connecting…" : "Not connected";
     status.classList.toggle("text-green", ready);
   }
 
-  function use(name) {
-    var t = window.MeshTransports[name];
-    if (!t) return;
+  // pick makes the selected option's connection window.MeshConsole.
+  function pick() {
+    var t = window.MeshTransports[chosen()];
+    if (!t) return null;
+    if (chosen() === "observer") t.observer = select.value.slice(OBSERVER.length);
     window.MeshConsole = t;
-    try { localStorage.setItem(KEY, name); } catch (_) { /* private mode */ }
-    render();
-    document.dispatchEvent(new CustomEvent("mesh:transport", { detail: { name: name } }));
+    return t;
   }
 
-  var saved = null;
-  try { saved = localStorage.getItem(KEY); } catch (_) { /* private mode */ }
-  radios.forEach(function (r) {
-    if (saved && r.value === saved) r.checked = true;
-    r.addEventListener("change", function () { use(chosen()); });
-  });
-  window.MeshConsole = window.MeshTransports[chosen()];
+  // Restore the remembered choice, unless the page preselected an observer
+  // (?via=). Only an option still on the list is restored: an observer that's
+  // gone falls back to the first option.
+  if (!select.hasAttribute("data-preselected")) {
+    var saved = null;
+    try { saved = localStorage.getItem(KEY); } catch (_) { /* private mode */ }
+    var options = Array.prototype.slice.call(select.options);
+    if (saved && options.some(function (o) { return o.value === saved; })) select.value = saved;
+  }
+  pick();
   render();
+
+  select.addEventListener("change", function () {
+    var t = pick();
+    if (!t) return;
+    try { localStorage.setItem(KEY, select.value); } catch (_) { /* private mode */ }
+    render();
+    document.dispatchEvent(new CustomEvent("mesh:transport", { detail: { name: t.name } }));
+  });
 
   button.addEventListener("click", function () {
     var t = window.MeshConsole;

@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
@@ -22,6 +23,7 @@ import (
 	"github.com/MeshTender/MeshTender/internal/identity"
 	"github.com/MeshTender/MeshTender/internal/ingest"
 	"github.com/MeshTender/MeshTender/internal/mqtttest"
+	"github.com/MeshTender/MeshTender/internal/observe"
 	"github.com/MeshTender/MeshTender/internal/relay"
 	"github.com/MeshTender/MeshTender/internal/secretbox"
 	"github.com/MeshTender/MeshTender/internal/store"
@@ -41,6 +43,7 @@ type relayHarness struct {
 	observer meshcore.LocalIdentity
 	rep      *store.Repeater
 	user     *store.User
+	orgID    int64 // the org that approved the observer, if any
 	ts       *httptest.Server
 	jar      http.CookieJar
 }
@@ -85,6 +88,7 @@ func newRelayHarness(t *testing.T, approve bool) *relayHarness {
 		if err != nil {
 			t.Fatal(err)
 		}
+		h.orgID = org.ID
 		if err := st.CreateOrgObserver(ctx, org.ID, "Roof", h.observer.String(), user.ID); err != nil {
 			t.Fatal(err)
 		}
@@ -301,5 +305,54 @@ func TestConsoleRejectsABadObserverKey(t *testing.T) {
 	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", resp.StatusCode)
+	}
+}
+
+// page fetches the repeater's Configure tab with query, as the harness's user.
+func (h *relayHarness) page(query string) string {
+	h.t.Helper()
+	resp, err := (&http.Client{Jar: h.jar}).Get(h.ts.URL + "/repeaters/" + h.rep.PublicID + "/configure" + query)
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	b, err := io.ReadAll(resp.Body)
+	if err != nil || resp.StatusCode != http.StatusOK {
+		h.t.Fatalf("configure page: %d, %v", resp.StatusCode, err)
+	}
+	return string(b)
+}
+
+func TestConfigureOffersRelayObservers(t *testing.T) {
+	t.Parallel()
+	h := newRelayHarness(t, true)
+	option := `<option value="observer:` + h.observer.String() + `"`
+
+	// Approved, with a broker, but not running MeshTender's firmware.
+	if page := h.page(""); strings.Contains(page, option) || strings.Contains(page, `<optgroup label="Observers">`) {
+		t.Fatal("offered an observer without MeshTender's firmware")
+	}
+
+	status := &observe.Status{FirmwareVersion: "v1.18.0.4313-meshtender-6626f0c8"}
+	if err := h.st.ReportObserver(h.ctx, h.orgID, h.observer.String(), "BUF", time.Now(), status); err != nil {
+		t.Fatal(err)
+	}
+	page := h.page("")
+	if !strings.Contains(page, option+`>Roof (Relay Org)</option>`) {
+		t.Fatal("the relay-ready observer isn't offered")
+	}
+	if strings.Contains(page, "data-preselected") {
+		t.Error("an observer is preselected without ?via=")
+	}
+
+	if page := h.page("?via=" + strings.ToUpper(h.observer.String())); !strings.Contains(page, option+` selected>`) || !strings.Contains(page, "data-preselected") {
+		t.Error("?via= didn't preselect the observer")
+	}
+	other, err := meshcore.GenerateLocalIdentity(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if page := h.page("?via=" + other.String()); strings.Contains(page, "data-preselected") || strings.Contains(page, other.String()) {
+		t.Error("?via= preselected an observer that isn't on the list")
 	}
 }

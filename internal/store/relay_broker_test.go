@@ -2,8 +2,11 @@ package store
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 	"time"
+
+	"github.com/MeshTender/MeshTender/internal/observe"
 )
 
 func TestRelayBroker(t *testing.T) {
@@ -85,5 +88,69 @@ func TestRelayBroker(t *testing.T) {
 	}
 	if id, err := relayOrg(admin); err != nil || id != org {
 		t.Fatalf("after unapproving: org %d, err %v; want %d", id, err, org)
+	}
+}
+
+func TestListRelayObservers(t *testing.T) {
+	t.Parallel()
+	st, ctx := orgTestStore(t)
+	admin := mustUser(t, st, ctx, "listrelayadmin")
+	member := mustUser(t, st, ctx, "listrelaymember")
+	org := mustOrg(t, st, ctx, "ListRelayOrg", admin)
+	other := mustOrg(t, st, ctx, "ListRelayOther", admin)
+	noBroker := mustOrg(t, st, ctx, "ListRelayNoBroker", admin)
+	if err := st.AddOrgMember(ctx, org, member, "member"); err != nil {
+		t.Fatal(err)
+	}
+	for _, o := range []int64{org, other} {
+		b := OrgBroker{OrgID: o, URL: "wss://mqtt.example.org/mqtt", TopicPrefix: "meshcore", Enabled: true}
+		if err := st.UpsertOrgBroker(ctx, b, nil, false, admin); err != nil {
+			t.Fatal(err)
+		}
+	}
+	now := time.Now()
+	add := func(orgID int64, name string, key int, firmware string, seen time.Time) {
+		t.Helper()
+		if err := st.CreateOrgObserver(ctx, orgID, name, testKey(key), admin); err != nil {
+			t.Fatal(err)
+		}
+		if err := st.ReportObserver(ctx, orgID, testKey(key), "BUF", seen, &observe.Status{FirmwareVersion: firmware}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	add(org, "Older", 1, "v1.18.0.4313-meshtender-6626f0c8", now.Add(-time.Hour))
+	add(org, "Newer", 2, "v1.18.0.4313-meshtender-6626f0c8", now)
+	add(org, "Upstream", 3, "v1.18.0.4300-observer-abcdef12", now)         // can't relay
+	add(noBroker, "No broker", 4, "v1.18.0.4313-meshtender-6626f0c8", now) // org has no broker
+	add(other, "Shared here", 1, "v1.18.0.4313-meshtender-6626f0c8", now)  // key 1 again, heard later
+	add(other, "Unapproved", 5, "v1.18.0.4313-meshtender-6626f0c8", now)
+
+	obs, err := st.ListOrgObservers(ctx, other, ObserversApproved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, o := range obs {
+		if o.Name == "Unapproved" {
+			if err := st.UnapproveOrgObserver(ctx, other, o.ID); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+
+	got, err := st.ListRelayObservers(ctx, admin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, o := range got {
+		names = append(names, o.Name+"@"+o.OrgName)
+	}
+	// Key 1 appears once, from the org that heard it last.
+	want := []string{"Newer@ListRelayOrg", "Shared here@ListRelayOther"}
+	if fmt.Sprint(names) != fmt.Sprint(want) {
+		t.Fatalf("relay observers = %q, want %q", names, want)
+	}
+	if got, err := st.ListRelayObservers(ctx, member); err != nil || len(got) != 0 {
+		t.Fatalf("plain member: %v, %v; want none", got, err)
 	}
 }

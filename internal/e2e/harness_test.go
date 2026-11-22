@@ -600,6 +600,16 @@ func pressEnter(sel string) chromedp.Action {
 	}
 }
 
+// chooseTransport picks value ("usb", "air" or "observer:<key>") in the
+// Configure tab's "Send with" select, firing the change event a person's choice
+// would.
+func chooseTransport(value string) chromedp.Action {
+	return chromedp.Tasks{
+		chromedp.SetValue(`[data-testid="transport"]`, value, chromedp.ByQuery),
+		chromedp.Evaluate(`document.querySelector('[data-testid="transport"]').dispatchEvent(new Event("change"))`, nil),
+	}
+}
+
 // reloadedBy runs trigger (a click that submits a form, say) and waits for the
 // page it causes to finish loading. A form that posts back to the page it's on
 // reloads into the same markup, so waiting for an element would find it on the

@@ -93,7 +93,7 @@ func TestE2ERepeaterConfigTab(t *testing.T) {
 			chromedp.WaitVisible(`[data-testid="config-commands"] .list-group-item`, chromedp.ByQuery),
 			chromedp.Poll(`location.search === "?pane=configuration"`, nil)),
 		step("switch to the KISS modem",
-			chromedp.Click(`label[for="transport-air"]`, chromedp.ByQuery),
+			chooseTransport("air"),
 			chromedp.Poll(`document.getElementById("connect-label").textContent === "Connect modem"`, nil),
 			// Switching reloads the configuration (what may run differs); wait for it.
 			chromedp.Poll(`document.querySelector('[data-testid="config-hint"]').textContent === "Connect the modem above to run them."`, nil),
