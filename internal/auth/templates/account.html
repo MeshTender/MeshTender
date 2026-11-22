@@ -288,7 +288,7 @@
             {{/* Underlined at rest, not just on hover, plus a chevron that flips with
                  aria-expanded: a summary line that only looks like a link when you're
                  already pointing at it isn't discoverable. */}}
-            <button class="btn btn-link p-0 text-secondary text-decoration-underline" type="button" data-bs-toggle="collapse" data-bs-target="#sec-passkey-list"
+            <button class="link-button" type="button" data-bs-toggle="collapse" data-bs-target="#sec-passkey-list"
                     aria-expanded="{{if or .PKErr .PKMsg}}true{{else}}false{{end}}" aria-controls="sec-passkey-list" data-testid="passkey-list-toggle">
               {{if eq (len .Passkeys) 1}}1 passkey configured{{else}}{{len .Passkeys}} passkeys configured{{end}}{{template "icon-chevron-down" "collapse-chevron ms-1"}}
             </button>

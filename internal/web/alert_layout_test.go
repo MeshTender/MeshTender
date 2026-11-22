@@ -148,3 +148,42 @@ func hasClass(n *html.Node, class string) bool {
 	}
 	return false
 }
+
+// TestNoPaddinglessLinkButtons enforces the .btn-link trap: Tabler's
+// .btn-link clears the button's background at rest but not on hover, so it
+// still gets .btn's hover fill. With its padding stripped (p-0), that fill
+// hugs the text edge to edge. A link-looking control inside text is a
+// .link-button (app.css) instead, which has no fill at all.
+func TestNoPaddinglessLinkButtons(t *testing.T) {
+	t.Parallel()
+	root := moduleRoot(t)
+	classRe := regexp.MustCompile(`(?is)<(?:button|a)\b[^>]*class="([^"]*)"`)
+	err := filepath.WalkDir(filepath.Join(root, "internal"), func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".html") {
+			return nil
+		}
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		rel, _ := filepath.Rel(root, path)
+		for _, m := range classRe.FindAllSubmatch(b, -1) {
+			classes := map[string]bool{}
+			for _, c := range strings.Fields(string(m[1])) {
+				classes[c] = true
+			}
+			if classes["btn-link"] && (classes["p-0"] || classes["px-0"]) {
+				t.Errorf("%s: .btn-link without padding gets a hover fill that hugs its "+
+					"text; use .link-button for a link-looking control inside text. "+
+					"Found class=%q", rel, m[1])
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk templates: %v", err)
+	}
+}
