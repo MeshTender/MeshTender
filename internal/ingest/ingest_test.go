@@ -20,6 +20,7 @@ import (
 	"github.com/eclipse/paho.mqtt.golang/packets"
 	meshcore "github.com/meshcore-go/meshcore-go"
 
+	"github.com/MeshTender/MeshTender/internal/mqtttest"
 	"github.com/MeshTender/MeshTender/internal/observe/observetest"
 	"github.com/MeshTender/MeshTender/internal/secretbox"
 	"github.com/MeshTender/MeshTender/internal/store"
@@ -362,8 +363,8 @@ var testMasterKey = [32]byte{1, 2, 3}
 
 // testDialer reaches the fake broker: loopback allowed only when allow is
 // allowAll, and its test CA trusted for wss.
-func testDialer(b *fakeBroker, allow AddrPolicy) Dialer {
-	return Dialer{Resolver: net.DefaultResolver, Allow: allow, RootCAs: b.rootCAs}
+func testDialer(b *mqtttest.Broker, allow AddrPolicy) Dialer {
+	return Dialer{Resolver: net.DefaultResolver, Allow: allow, RootCAs: b.RootCAs()}
 }
 
 func startSupervisor(t *testing.T, st *store.Store, d Dialer) {
@@ -421,15 +422,15 @@ func TestSupervisorEndToEnd(t *testing.T) {
 			t.Parallel()
 			st, ctx := newStore(t)
 			f := newFixture(t, st, ctx)
-			broker := newFakeBroker(t, "s3cret", transport)
-			saveBroker(t, st, ctx, f, broker.url(), "s3cret", true)
+			broker := mqtttest.New(t, "s3cret", transport)
+			saveBroker(t, st, ctx, f, broker.URL(), "s3cret", true)
 			startSupervisor(t, st, testDialer(broker, allowAll))
 
 			eventually(t, "both subscriptions", func() bool {
-				filters, _, _ := broker.snapshot()
+				filters, _, _ := broker.Snapshot()
 				return len(filters) == 2
 			})
-			filters, users, paths := broker.snapshot()
+			filters, users, paths := broker.Snapshot()
 			slices.Sort(filters) // one SUBSCRIBE; Paho orders the filters as it likes
 			if filters[0] != "meshcore/+/+/packets" || filters[1] != "meshcore/+/+/status" || users[0] != "meshtender" {
 				t.Fatalf("filters=%v users=%v", filters, users)
@@ -445,12 +446,12 @@ func TestSupervisorEndToEnd(t *testing.T) {
 			now := time.Now().Add(time.Second)
 			raw := observetest.AdvertPacket(t, f.companion, uint32(now.Unix()), "Owner T1", meshcore.RouteTypeFlood, 1, [][]byte{{0x42}}) //nolint:gosec // test clock
 			m := packetMsg(f.org, f.observer, raw, now)
-			broker.publish(m.Topic, m.Payload)
+			broker.Publish(m.Topic, m.Payload)
 			eventually(t, "companion confirmed", func() bool { return f.companionState(t, ctx).Confirmed() })
 
 			// Disabling the broker disconnects it on the next reconcile.
-			saveBroker(t, st, ctx, f, broker.url(), "s3cret", false)
-			eventually(t, "disconnect", func() bool { return broker.live() == 0 })
+			saveBroker(t, st, ctx, f, broker.URL(), "s3cret", false)
+			eventually(t, "disconnect", func() bool { return broker.Live() == 0 })
 		})
 	}
 }
@@ -459,8 +460,8 @@ func TestSupervisorReportsAuthFailure(t *testing.T) {
 	t.Parallel()
 	st, ctx := newStore(t)
 	f := newFixture(t, st, ctx)
-	broker := newFakeBroker(t, "right", "wss")
-	saveBroker(t, st, ctx, f, broker.url(), "wrong", true)
+	broker := mqtttest.New(t, "right", "wss")
+	saveBroker(t, st, ctx, f, broker.URL(), "wrong", true)
 	startSupervisor(t, st, testDialer(broker, allowAll))
 	eventually(t, "auth category", func() bool {
 		b, _ := st.GetOrgBroker(ctx, f.org)
@@ -472,15 +473,15 @@ func TestSupervisorRefusesPrivateBroker(t *testing.T) {
 	t.Parallel()
 	st, ctx := newStore(t)
 	f := newFixture(t, st, ctx)
-	broker := newFakeBroker(t, "s3cret", "wss")
-	saveBroker(t, st, ctx, f, broker.url(), "s3cret", true)
+	broker := mqtttest.New(t, "s3cret", "wss")
+	saveBroker(t, st, ctx, f, broker.URL(), "s3cret", true)
 	startSupervisor(t, st, testDialer(broker, PublicAddr)) // production policy: loopback is refused
 
 	eventually(t, "blocked category", func() bool {
 		b, _ := st.GetOrgBroker(ctx, f.org)
 		return b.LastError == CategoryBlocked
 	})
-	if _, users, _ := broker.snapshot(); len(users) != 0 {
+	if _, users, _ := broker.Snapshot(); len(users) != 0 {
 		t.Fatalf("connected to a loopback broker: %v", users)
 	}
 }
@@ -493,9 +494,9 @@ func TestSupervisorReportsRejectedSubscription(t *testing.T) {
 	t.Parallel()
 	st, ctx := newStore(t)
 	f := newFixture(t, st, ctx)
-	broker := newFakeBroker(t, "s3cret", "ws")
-	broker.rejectSubs = true
-	saveBroker(t, st, ctx, f, broker.url(), "s3cret", true)
+	broker := mqtttest.New(t, "s3cret", "ws")
+	broker.RejectSubs = true
+	saveBroker(t, st, ctx, f, broker.URL(), "s3cret", true)
 	startSupervisor(t, st, testDialer(broker, allowAll))
 	eventually(t, "subscribe category", func() bool {
 		b, _ := st.GetOrgBroker(ctx, f.org)
@@ -508,13 +509,13 @@ func TestSupervisorReportsRejectedSubscription(t *testing.T) {
 // dialer doesn't trust is refused as a TLS failure, not silently accepted.
 func TestDialerVerifiesTLSAgainstEnteredHost(t *testing.T) {
 	t.Parallel()
-	broker := newFakeBroker(t, "s3cret", "wss")
+	broker := mqtttest.New(t, "s3cret", "wss")
 	untrusting := Dialer{Resolver: net.DefaultResolver, Allow: allowAll} // system roots only
-	_, err := untrusting.Connect(BrokerConfig{OrgID: 1, URL: broker.url(), Username: "meshtender", Password: "s3cret"}, nil)
+	_, err := untrusting.Connect(BrokerConfig{OrgID: 1, URL: broker.URL(), Username: "meshtender", Password: "s3cret"}, nil)
 	if Category(err) != CategoryTLS {
 		t.Fatalf("err = %v (category %q), want a TLS failure", err, Category(err))
 	}
-	client, err := testDialer(broker, allowAll).Connect(BrokerConfig{OrgID: 1, URL: broker.url(), Username: "meshtender", Password: "s3cret"}, nil)
+	client, err := testDialer(broker, allowAll).Connect(BrokerConfig{OrgID: 1, URL: broker.URL(), Username: "meshtender", Password: "s3cret"}, nil)
 	if err != nil {
 		t.Fatalf("trusted CA: %v", err)
 	}
@@ -541,18 +542,18 @@ func TestSupervisorConnectsAsSoonAsBrokerIsSaved(t *testing.T) {
 	t.Parallel()
 	st, ctx := newStore(t)
 	f := newFixture(t, st, ctx)
-	broker := newFakeBroker(t, "s3cret", "ws")
+	broker := mqtttest.New(t, "s3cret", "ws")
 	startSupervisorEvery(t, st, testDialer(broker, allowAll), time.Hour)
 	// Let the leader take the lock and run its first (empty) reconcile, so
 	// the connection below can only come from the notification.
 	time.Sleep(300 * time.Millisecond)
 
-	saveBroker(t, st, ctx, f, broker.url(), "s3cret", true)
-	eventually(t, "connect on save", func() bool { return broker.live() == 1 })
+	saveBroker(t, st, ctx, f, broker.URL(), "s3cret", true)
+	eventually(t, "connect on save", func() bool { return broker.Live() == 1 })
 	if err := st.DeleteOrgBroker(ctx, f.org); err != nil {
 		t.Fatal(err)
 	}
-	eventually(t, "disconnect on delete", func() bool { return broker.live() == 0 })
+	eventually(t, "disconnect on delete", func() bool { return broker.Live() == 0 })
 }
 
 // TestLeaderSweepsExpiredAdvertSets: the leading replica deletes the relay and
