@@ -1,0 +1,112 @@
+{{define "title"}}Account recovery · MeshTender{{end}}
+{{define "header"}}
+<div class="row g-2 align-items-center">
+  <div class="col">
+    <div class="page-pretitle">Administration</div>
+    <h1 class="page-title fs-1">Account recovery</h1>
+  </div>
+</div>
+{{end}}
+
+{{/* recovery-modal is the htmx fragment swapped into the shared user modal. The
+     form posts normally, so the result replaces the whole page and the modal
+     closes with it. */}}
+{{define "recovery-modal"}}
+<div class="modal-header">
+  <h2 class="modal-title">Account recovery — {{.Account.Name}} <span class="text-secondary">@{{.Account.Username}}</span></h2>
+  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+</div>
+<form method="post" action="/admin/users/{{.Account.ID}}/recovery">
+  <div class="modal-body">
+    <p class="text-secondary">
+      This creates a link that lets the person set up a new passkey for this account
+      and sign in with it. Use it when they can't sign in and email reset can't help.
+    </p>
+    <h3 class="mb-2">How this account signs in</h3>
+    <dl class="row mb-3" data-testid="recovery-methods">
+      <dt class="col-4">Password</dt>
+      <dd class="col-8">{{if .Account.PasswordHash}}Set{{else}}None{{end}}</dd>
+      <dt class="col-4">Passkeys</dt>
+      <dd class="col-8">{{.Passkeys}}</dd>
+      <dt class="col-4">Email</dt>
+      <dd class="col-8">
+        {{if .Account.Email}}{{.Account.Email}}
+          {{if .Account.EmailVerified}}<span class="badge bg-success-lt">confirmed</span>{{else}}<span class="badge bg-yellow-lt">unconfirmed</span>{{end}}
+        {{else}}None{{end}}
+      </dd>
+    </dl>
+    {{if .Account.CanResetPassword}}
+    <p class="text-secondary">
+      This account has a password and a confirmed email address, so the person can
+      also use "Forgot password?" on the sign-in page themselves.
+    </p>
+    {{end}}
+
+    <div class="alert alert-warning" role="alert">
+      {{template "icon-alert" "alert-icon"}}
+      <div>
+        <h3 class="alert-title">Check who's asking first</h3>
+        Anyone who opens this link can get into the account. Only create one once you're
+        sure you're talking to the person it belongs to.
+      </div>
+    </div>
+
+    <label class="form-label" for="recovery-email">Send the link to</label>
+    <input type="email" class="form-control" id="recovery-email" name="email"
+           value="{{with .Account.Email}}{{.}}{{end}}" placeholder="someone@example.com"
+           autocomplete="off" data-testid="recovery-email">
+    <small class="form-hint mt-1">
+      {{if .MailEnabled}}
+      The address is saved to the account. Using the link confirms it. Leave this blank
+      to only get the link here and pass it on yourself.
+      {{else}}
+      Email isn't set up on this server, so nothing will be sent. You'll get the link
+      here to pass on yourself. An address you enter is still saved to the account.
+      {{end}}
+    </small>
+    <p class="text-secondary small mt-3 mb-0">
+      The link works once and expires in a day. Creating a new one stops any earlier
+      link for this account from working.
+    </p>
+  </div>
+  <div class="modal-footer">
+    <button type="button" class="btn btn-link link-secondary me-auto" data-bs-dismiss="modal">Cancel</button>
+    <button type="submit" class="btn btn-primary" data-testid="recovery-submit">Create recovery link</button>
+  </div>
+</form>
+{{end}}
+
+{{/* content is the result after a link is created. The link is shown this once and
+     isn't stored anywhere readable, so the page says so. */}}
+{{define "content"}}
+<div class="row row-cards">
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-body">
+        <h2 class="card-title">Recovery link for {{.Account.Name}} <span class="text-secondary">@{{.Account.Username}}</span></h2>
+        {{if .MailedTo}}
+        <div class="alert alert-success" role="status" data-testid="recovery-mailed">
+          {{template "icon-check" "alert-icon"}}
+          <div>We sent the link to <strong>{{.MailedTo}}</strong>.</div>
+        </div>
+        {{else if .MailFailed}}
+        <div class="alert alert-warning" role="status" data-testid="recovery-mail-failed">
+          {{template "icon-alert" "alert-icon"}}
+          <div>We couldn't send the email. The link below still works, so you can pass it on yourself.</div>
+        </div>
+        {{end}}
+        <label class="form-label" for="recovery-link">Link</label>
+        <div class="input-group mb-2">
+          <input type="text" class="form-control font-monospace" id="recovery-link" value="{{.Link}}" readonly data-testid="recovery-link">
+          <button type="button" class="btn" data-copy-target="#recovery-link">{{template "icon-copy" "me-1"}}Copy</button>
+        </div>
+        <p class="text-secondary mb-0">
+          This is the only time the link is shown. It works once and expires in a day.
+          If you send it yourself, use a way you know reaches the right person.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+<a class="back-link mt-3" href="/admin/users">{{template "icon-arrow-left" "me-1"}}Users</a>
+{{end}}

@@ -6,8 +6,11 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/MeshTender/MeshTender/internal/auth"
 	mailer "github.com/MeshTender/MeshTender/internal/mail"
@@ -336,5 +339,197 @@ func TestRecoveryCeremonyIsolatedFromRegistration(t *testing.T) {
 	body = readBody(t, resp)
 	if resp.StatusCode != http.StatusBadRequest || !strings.Contains(body, "no recovery in progress") {
 		t.Fatalf("recover/finish after a sign-up begin = %d %s", resp.StatusCode, body)
+	}
+}
+
+// recoveryAdmin signs in a user manager on the app host and makes a passkey-only
+// account for them to recover.
+func recoveryAdmin(t *testing.T) (*store.Store, context.Context, *httptest.Server, hostEnv, *fakeSender, *http.Cookie, *store.User) {
+	t.Helper()
+	st, ctx, ts, h, sender := splitServerMail(t)
+	admin, sess := appLogin(t, ts, st, ctx, h.app, "recoveradmin")
+	if err := st.SetCapabilities(ctx, admin.ID, true, false); err != nil {
+		t.Fatalf("set caps: %v", err)
+	}
+	target := passkeyOnlyUser(t, st, ctx, "needshelp")
+	return st, ctx, ts, h, sender, sess, target
+}
+
+func recoveryPath(u *store.User) string {
+	return "/admin/users/" + strconv.FormatInt(u.ID, 10) + "/recovery"
+}
+
+// TestAdminRecoveryModal: the Actions menu offers recovery, and the modal shows
+// how the account signs in today, so the admin can see email reset won't help.
+func TestAdminRecoveryModal(t *testing.T) {
+	t.Parallel()
+	_, _, ts, h, _, sess, target := recoveryAdmin(t)
+
+	list := readBody(t, do(t, ts, h.app, "/admin/users", sess))
+	if !strings.Contains(list, `hx-get="`+recoveryPath(target)+`"`) {
+		t.Fatal("the users list has no Account recovery action for the account")
+	}
+
+	frag := readBody(t, doHX(t, ts, h.app, recoveryPath(target), sess))
+	for _, want := range []string{
+		`action="` + recoveryPath(target) + `"`,
+		`name="email"`,
+		"Check who's asking first",
+		"modal-header",
+	} {
+		if !strings.Contains(frag, want) {
+			t.Errorf("recovery modal lacks %q:\n%s", want, frag)
+		}
+	}
+	// Passkey-only, one passkey, no email: exactly the case email reset refuses.
+	methods := frag[strings.Index(frag, `data-testid="recovery-methods"`):]
+	methods = methods[:strings.Index(methods, "</dl>")]
+	if strings.Count(methods, "None") != 2 || !strings.Contains(methods, "<dd class=\"col-8\">1</dd>") {
+		t.Errorf("sign-in methods don't show no password, one passkey, no email:\n%s", methods)
+	}
+	if strings.Contains(frag, "Forgot password?") {
+		t.Error("the modal suggests email reset for an account it can't help")
+	}
+}
+
+// TestAdminRecoveryModalShowsAddress: an address on file is shown and prefilled,
+// dereferenced rather than printed as a pointer.
+func TestAdminRecoveryModalShowsAddress(t *testing.T) {
+	t.Parallel()
+	st, ctx, ts, h, _, sess, target := recoveryAdmin(t)
+	if err := st.SetEmail(ctx, target.ID, "help@example.test"); err != nil {
+		t.Fatalf("set email: %v", err)
+	}
+	frag := readBody(t, doHX(t, ts, h.app, recoveryPath(target), sess))
+	if !strings.Contains(frag, `value="help@example.test"`) || !strings.Contains(frag, "unconfirmed") {
+		t.Errorf("modal doesn't show and prefill the unconfirmed address:\n%s", frag)
+	}
+}
+
+// TestAdminIssuesRecoveryLink: posting the form mails the link and shows it to the
+// admin once, on a page that isn't cached and isn't a redirect, so the link never
+// lands in a URL.
+func TestAdminIssuesRecoveryLink(t *testing.T) {
+	t.Parallel()
+	st, ctx, ts, h, sender, sess, target := recoveryAdmin(t)
+
+	resp := post(t, ts, h.app, recoveryPath(target), url.Values{"email": {"needshelp@example.test"}}, sess)
+	body := readBody(t, resp)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("issue = %d (Location %q), want the result page", resp.StatusCode, resp.Header.Get("Location"))
+	}
+	if cc := resp.Header.Get("Cache-Control"); !strings.Contains(cc, "no-store") {
+		t.Errorf("Cache-Control = %q; the page holds a live link", cc)
+	}
+	if !strings.Contains(body, `data-testid="recovery-mailed"`) || !strings.Contains(body, "needshelp@example.test") {
+		t.Errorf("result doesn't say where the link went:\n%s", body)
+	}
+
+	msg := sender.last(t)
+	if msg.Kind != mailer.KindAccountRecovery || msg.To != "needshelp@example.test" {
+		t.Fatalf("mail kind=%q to=%q", msg.Kind, msg.To)
+	}
+	_, path, _ := strings.Cut(msg.Text, "http://"+h.auth)
+	path, _, _ = strings.Cut(path, "\n")
+	if !strings.HasPrefix(path, "/recover/") || !strings.Contains(body, path) {
+		t.Fatalf("the page doesn't show the mailed link %q", path)
+	}
+	if !recoveryStillWorks(t, st, ctx, strings.TrimPrefix(path, "/recover/")) {
+		t.Error("the issued link doesn't work")
+	}
+}
+
+// TestAdminRecoveryWithoutAddress: leaving the address blank sends nothing and
+// shows the link for the admin to pass on.
+func TestAdminRecoveryWithoutAddress(t *testing.T) {
+	t.Parallel()
+	_, _, ts, h, sender, sess, target := recoveryAdmin(t)
+
+	resp := post(t, ts, h.app, recoveryPath(target), url.Values{"email": {""}}, sess)
+	body := readBody(t, resp)
+	if resp.StatusCode != http.StatusOK || !strings.Contains(body, "/recover/") {
+		t.Fatalf("issue = %d, want a page with the link:\n%s", resp.StatusCode, body)
+	}
+	if sender.count() != 0 || strings.Contains(body, "recovery-mailed") {
+		t.Error("something was mailed with no address given")
+	}
+}
+
+// TestAdminRecoveryRejectsBadAddress goes back to the list with an error and sends
+// nothing.
+func TestAdminRecoveryRejectsBadAddress(t *testing.T) {
+	t.Parallel()
+	_, _, ts, h, sender, sess, target := recoveryAdmin(t)
+
+	resp := post(t, ts, h.app, recoveryPath(target), url.Values{"email": {"Someone <a@example.test>"}}, sess)
+	readBody(t, resp)
+	loc, _ := url.Parse(resp.Header.Get("Location"))
+	if resp.StatusCode != http.StatusSeeOther || loc.Path != "/admin/users" || loc.Query().Get("error") == "" {
+		t.Fatalf("bad address = %d %q, want 303 back to the list with an error", resp.StatusCode, resp.Header.Get("Location"))
+	}
+	if sender.count() != 0 {
+		t.Error("mail sent for a rejected address")
+	}
+}
+
+// TestAdminRecoveryThrottledPerAccount: links for one account are capped, so a
+// mailbox can't be flooded or a send quota drained. The cap is per account, so
+// other accounts are unaffected.
+func TestAdminRecoveryThrottledPerAccount(t *testing.T) {
+	t.Parallel()
+	st, ctx, ts, h, sender, sess, target := recoveryAdmin(t)
+	form := url.Values{"email": {"needshelp@example.test"}}
+
+	for i := 1; i <= 5; i++ {
+		resp := post(t, ts, h.app, recoveryPath(target), form, sess)
+		readBody(t, resp)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("link %d = %d, want it issued", i, resp.StatusCode)
+		}
+	}
+	resp := post(t, ts, h.app, recoveryPath(target), form, sess)
+	readBody(t, resp)
+	if loc, _ := url.Parse(resp.Header.Get("Location")); resp.StatusCode != http.StatusSeeOther || !strings.Contains(loc.Query().Get("error"), "Too many") {
+		t.Fatalf("6th link = %d %q, want throttled", resp.StatusCode, resp.Header.Get("Location"))
+	}
+	if sender.count() != 5 {
+		t.Errorf("sent %d messages, want 5", sender.count())
+	}
+
+	other := passkeyOnlyUser(t, st, ctx, "alsoneedshelp")
+	resp = post(t, ts, h.app, recoveryPath(other), url.Values{}, sess)
+	readBody(t, resp)
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("another account was throttled too: %d", resp.StatusCode)
+	}
+}
+
+// TestAdminRecoveryRequiresManageUsers: a recovery link gets someone into an
+// account, so only user managers can issue one. Everyone else gets the same 404
+// as the rest of the admin area.
+func TestAdminRecoveryRequiresManageUsers(t *testing.T) {
+	t.Parallel()
+	st, ctx, ts, h := splitServer(t)
+	target := passkeyOnlyUser(t, st, ctx, "target")
+	catalog, catSess := appLogin(t, ts, st, ctx, h.app, "catalogonly")
+	if err := st.SetCapabilities(ctx, catalog.ID, false, true); err != nil {
+		t.Fatalf("caps: %v", err)
+	}
+	_, plainSess := appLogin(t, ts, st, ctx, h.app, "plain")
+
+	for name, sess := range map[string]*http.Cookie{"catalog manager": catSess, "plain user": plainSess} {
+		resp := doHX(t, ts, h.app, recoveryPath(target), sess)
+		readBody(t, resp)
+		if resp.StatusCode != http.StatusNotFound {
+			t.Errorf("%s: GET = %d, want 404", name, resp.StatusCode)
+		}
+		resp = post(t, ts, h.app, recoveryPath(target), url.Values{"email": {"x@example.test"}}, sess)
+		readBody(t, resp)
+		if resp.StatusCode != http.StatusNotFound {
+			t.Errorf("%s: POST = %d, want 404", name, resp.StatusCode)
+		}
+	}
+	if n, err := st.CountRecentEmailTokens(ctx, target.ID, store.PurposeRecoverAccount, time.Hour); err != nil || n != 0 {
+		t.Errorf("%d recovery tokens minted by people without the capability (err=%v)", n, err)
 	}
 }

@@ -362,6 +362,12 @@ func (s *Handlers) appRouter() chi.Router {
 				r.With(s.requireCap(capUsers)).Get("/users/{id}/permissions", s.pageUserPermissions)
 				r.With(s.requireCap(capUsers)).Get("/users/{id}/history", s.pageUserHistory)
 				r.With(s.requireCap(capUsers)).Post("/users/{id}", s.handleSetUserCaps)
+				// Account recovery links. capUsers: a link gets someone into an account,
+				// which is as much trust as granting capabilities. Five per account,
+				// then one every twelve minutes, so an hour allows about ten.
+				recoveryLimit := web.NewRateLimiter(5, 12*time.Minute)
+				r.With(s.requireCap(capUsers)).Get("/users/{id}/recovery", s.pageUserRecovery)
+				r.With(s.requireCap(capUsers)).Post("/users/{id}/recovery", s.handleIssueRecovery(recoveryLimit))
 				// Server-identity backup/restore. Gated on capUsers — the capability that
 				// already lets you grant capabilities, so the highest-trust one there is.
 				// The exported value stays sealed under the master key, so exporting

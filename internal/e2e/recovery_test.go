@@ -102,3 +102,61 @@ func TestAccountRecoveryCeremony(t *testing.T) {
 
 	watch.assertClean(t)
 }
+
+// TestAdminIssuesRecoveryLink drives the admin side in a real browser: the Actions
+// menu loads the recovery modal over htmx, submitting it mails the link and shows
+// it once, and the mailed link opens the recovery page for the right account.
+func TestAdminIssuesRecoveryLink(t *testing.T) {
+	e := newE2EServer(t)
+	// login()'s first account bootstraps the manage-users capability.
+	_, cookie := e.login(t, "e2eadmin")
+	target, err := e.store.CreateUser(e.ctx, "needshelp", "")
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	if err := e.store.AddCredential(e.ctx, target.ID, []byte("broken-passkey"), []byte(`{}`), "Old phone"); err != nil {
+		t.Fatalf("add credential: %v", err)
+	}
+
+	ctx, cancel, watch := startBrowser(t)
+	defer cancel()
+
+	const addr = "needshelp@example.test"
+	var shown string
+	if err := chromedp.Run(ctx,
+		setSessionCookie(cookie),
+		step("find the account",
+			chromedp.Navigate(e.appURL+"/admin/users?q=needshelp"),
+			chromedp.WaitVisible(`[data-testid="user-row"]`, chromedp.ByQuery)),
+		step("open its actions",
+			chromedp.Click(`[data-testid="user-actions"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(`[data-testid="user-recovery"]`, chromedp.ByQuery)),
+		step("open account recovery",
+			chromedp.Click(`[data-testid="user-recovery"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(`#user-modal-content [data-testid="recovery-email"]`, chromedp.ByQuery)),
+		step("send a recovery link",
+			chromedp.SendKeys(`[data-testid="recovery-email"]`, addr, chromedp.ByQuery),
+			chromedp.Click(`[data-testid="recovery-submit"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(`[data-testid="recovery-mailed"]`, chromedp.ByQuery),
+			chromedp.Value(`[data-testid="recovery-link"]`, &shown, chromedp.ByQuery)),
+	); err != nil {
+		t.Fatalf("issue recovery link: %v", err)
+	}
+
+	mailed := e.mail.lastLink(t)
+	if !strings.HasPrefix(shown, e.authURL+"/recover/") || !strings.HasSuffix(shown, mailed) {
+		t.Fatalf("page shows %q, mail has %q; want the same auth-host link", shown, mailed)
+	}
+
+	var who string
+	if err := chromedp.Run(ctx, step("open the mailed link",
+		chromedp.Navigate(e.authURL+mailed),
+		chromedp.Text(`[data-testid="recover-username"]`, &who, chromedp.ByQuery))); err != nil {
+		t.Fatalf("open link: %v", err)
+	}
+	if who != "@needshelp" {
+		t.Errorf("recovery page names %q, want @needshelp", who)
+	}
+
+	watch.assertClean(t)
+}

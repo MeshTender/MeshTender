@@ -36,6 +36,10 @@
               hx-get="/admin/users/{{.ID}}/history" hx-target="#user-modal-content" hx-swap="innerHTML">
         History
       </button>
+      <button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#user-modal" data-testid="user-recovery"
+              hx-get="/admin/users/{{.ID}}/recovery" hx-target="#user-modal-content" hx-swap="innerHTML">
+        Account recovery
+      </button>
     </div>
   </div>
 </div>
@@ -108,7 +112,7 @@
   </div>
 </div>
 
-<!-- Shared modal; the Actions dropdown loads Permissions/History into it via htmx. -->
+<!-- Shared modal; the Actions dropdown loads Permissions, History and Account recovery into it via htmx. -->
 <div class="modal modal-blur fade" id="user-modal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
     <div class="modal-content" id="user-modal-content"></div>

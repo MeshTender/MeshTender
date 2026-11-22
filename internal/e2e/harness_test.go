@@ -147,8 +147,8 @@ func (c *captureSender) lastLink(t *testing.T) string {
 	return match[1]
 }
 
-// recoveryLinkRe captures the path of a verification or reset link.
-var recoveryLinkRe = regexp.MustCompile(`https?://[^/\s]+(/(?:verify-email|reset)/[A-Za-z0-9_-]+)`)
+// recoveryLinkRe captures the path of a verification, reset, or recovery link.
+var recoveryLinkRe = regexp.MustCompile(`https?://[^/\s]+(/(?:verify-email|reset|recover)/[A-Za-z0-9_-]+)`)
 
 // Surface hostnames. All three are subdomains of browserHost() so a single
 // host-resolver rule (MAP *.<browserHost> <browserHost>) makes every surface
