@@ -1,0 +1,64 @@
+{{define "title"}}Install observer firmware · MeshTender{{end}}
+{{define "header"}}
+<div class="row g-2 align-items-center">
+  <div class="col">
+    <h1 class="page-title fs-1">Install observer firmware</h1>
+    <div class="text-secondary mt-1">An observer is a room server or repeater running MeshTender's observer firmware. It uploads what it hears to an organization's MQTT broker, and updates itself over Wi-Fi after this first install.</div>
+  </div>
+</div>
+{{end}}
+{{define "content"}}
+<div class="card" style="max-width:40rem">
+  <div class="card-body">
+    {{if not .Roles}}
+    <div class="alert alert-warning mb-0" role="alert" data-testid="firmware-unavailable">
+      {{template "icon-alert" "alert-icon"}}
+      <div>The firmware list can't be loaded right now. Try again in a few minutes.</div>
+    </div>
+    {{else}}
+    <form data-fw-install data-fw-manifest="/firmware/{env}/manifest.json" data-testid="firmware-install">
+      <div class="mb-3">
+        <label class="form-label" for="fw-role">What should the device run as?</label>
+        <select class="form-select" id="fw-role" data-testid="firmware-role">
+          {{range .Roles}}<option value="{{.Role}}">{{.Name}}</option>{{end}}
+        </select>
+      </div>
+      {{range $i, $role := .Roles}}
+      <div class="mb-3" data-fw-role="{{$role.Role}}"{{if $i}} hidden{{end}}>
+        <label class="form-label" for="fw-board-{{$role.Role}}">Board</label>
+        <select class="form-select" id="fw-board-{{$role.Role}}" data-testid="firmware-board-{{$role.Role}}">
+          {{range $role.Boards}}<option value="{{.Env}}" data-version="{{.Version}}" data-published="{{.Published}}">{{.Board}}</option>{{end}}
+        </select>
+      </div>
+      {{end}}
+      {{with index .Roles 0}}{{with index .Boards 0}}
+      <p class="form-hint mb-3" data-testid="firmware-latest">Latest version: <span data-fw-version>{{.Version}}</span><span data-fw-published-wrap{{if not .Published}} hidden{{end}}>, published <span data-fw-published>{{.Published}}</span></span>.</p>
+      {{end}}{{end}}
+    </form>
+
+    <h2 class="h4">Keeping its settings</h2>
+    <p>Before installing, you'll be asked whether to erase the device. If it already runs MeshCore, leave that unchecked: it keeps its public key, name, passwords, and Wi-Fi and MQTT settings, so members logging in to a room server won't notice the change.</p>
+    <p>Erase it if it ran some other firmware, or to start over. It then gets a new public key, and anyone who saved the old one will need to add it again.</p>
+
+    {{with index .Roles 0}}{{with index .Boards 0}}
+    <esp-web-install-button manifest="/firmware/{{.Env}}/manifest.json" data-testid="firmware-install-button">
+      <button slot="activate" type="button" class="btn btn-primary">Connect and install</button>
+      <div slot="unsupported" class="alert alert-warning mb-0" role="alert">
+        {{template "icon-alert" "alert-icon"}}
+        <div>This browser can't install firmware. Use Chrome or Edge on a computer, or Chrome on Android, with a USB data cable.</div>
+      </div>
+      <div slot="not-allowed" class="alert alert-warning mb-0" role="alert">
+        {{template "icon-alert" "alert-icon"}}
+        <div>Installing firmware only works over a secure (https) connection.</div>
+      </div>
+    </esp-web-install-button>
+    {{end}}{{end}}
+    <p class="form-hint mt-3 mb-0">Your browser will ask which serial port to use. Pick the one that appears when you plug the board in.</p>
+    {{end}}
+  </div>
+</div>
+{{if .Roles}}
+<script type="module" src="{{ asset "/static/esp-web-tools/install-button.js" }}"></script>
+<script src="{{ asset "/static/observer-install.js" }}" defer></script>
+{{end}}
+{{end}}

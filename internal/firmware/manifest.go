@@ -44,10 +44,19 @@ var webToolsChips = map[string]bool{
 	"ESP32-S2": true, "ESP32-S3": true, "ESP8266": true,
 }
 
-// roleNames are the index's roles as the install dialog names them.
+// roleNames are the index's roles as people read them.
 var roleNames = map[string]string{
 	"room_server": "room server",
 	"repeater":    "repeater",
+}
+
+// RoleName is the index's role (room_server, repeater) as people read it, in
+// lower case; an unknown role is returned as is.
+func RoleName(role string) string {
+	if n := roleNames[role]; n != "" {
+		return n
+	}
+	return role
 }
 
 // WebToolsManifest returns the manifest that installs build b of f over USB:
@@ -60,12 +69,8 @@ func WebToolsManifest(f Firmware, b Build) (Manifest, error) {
 	if b.Full.URL == "" {
 		return Manifest{}, fmt.Errorf("%w: %s %s has no merged image", ErrNotFlashable, f.Env, b.Version)
 	}
-	role := roleNames[f.Role]
-	if role == "" {
-		role = f.Role
-	}
 	return Manifest{
-		Name:                  fmt.Sprintf("MeshTender observer (%s, %s)", f.Board, role),
+		Name:                  fmt.Sprintf("MeshTender observer (%s, %s)", f.Board, RoleName(f.Role)),
 		Version:               b.Version,
 		NewInstallPromptErase: true,
 		Builds: []ManifestBuild{{

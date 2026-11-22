@@ -130,6 +130,7 @@ func TestPageHeadingOutlines(t *testing.T) {
 		{"app repeater org access", h.app, "/repeaters/" + rep.PublicID + "/settings/organizations/" + org.Slug, false},
 		{"app repeater transfer", h.app, "/repeaters/" + rep.PublicID + "/settings/ownership/transfer", false},
 		{"app my orgs", h.app, "/orgs", false},
+		{"app observer install (catalog unreachable)", h.app, "/observers/install", false},
 		{"app org member view", h.app, "/orgs/" + org.Slug, false},
 		{"app 404 (error page)", h.app, "/no-such-page", false},
 	}

@@ -10,6 +10,8 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5/middleware"
+
+	"github.com/MeshTender/MeshTender/internal/config"
 )
 
 // nonceCtxKey keys the per-request CSP nonce in the request context.
@@ -20,7 +22,8 @@ type nonceCtxKey struct{}
 // a per-request nonce (so inline scripts must be nonce'd and inline on*= handlers
 // are rejected — the guard against injected script). Styles keep 'unsafe-inline'
 // (low XSS risk, and avoids nonce'ing every style= attribute + htmx's indicator
-// style). The only external resource is the CARTO basemap.
+// style). The only external resources are the CARTO basemap and the firmware
+// host, both in connect-src (see connectSrc).
 //
 // That basemap is why connect-src, not img-src, names CARTO: the vector basemaps
 // that replaced their deprecated raster tiles are fetched — the style JSON, the
@@ -37,7 +40,6 @@ var cspDirectives = strings.Join([]string{
 	"default-src 'self'",
 	"style-src 'self' 'unsafe-inline'",
 	"img-src 'self' data:",
-	"connect-src 'self' https://*.basemaps.cartocdn.com",
 	"worker-src 'self'",
 	"font-src 'self' data:",
 	"frame-ancestors 'none'",
@@ -45,7 +47,21 @@ var cspDirectives = strings.Join([]string{
 	"object-src 'none'",
 	// form-action is NOT here: it has to name the sibling surfaces, and their origins
 	// include the request's port, so it's built per request. See formAction.
+	// connect-src isn't either: it names the configured firmware host. See
+	// connectSrc.
 }, "; ")
+
+// connectSrc builds the connect-src directive: same-origin, the CARTO basemap
+// (see cspDirectives), and the firmware host. esp-web-tools fetches the
+// firmware image it writes to a device straight from that host — the install
+// manifest is ours, but the image URLs in it point there.
+func connectSrc(cfg *config.Config) string {
+	d := "connect-src 'self' https://*.basemaps.cartocdn.com"
+	if cfg != nil && cfg.FirmwareHost != "" {
+		d += " " + cfg.FirmwareURL()
+	}
+	return d
+}
 
 // formAction builds the form-action directive: 'self' plus the other two surface
 // origins.
@@ -103,7 +119,7 @@ func (e *Env) securityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		nonce := newNonce()
 		h := w.Header()
-		policy := cspDirectives + "; " + e.formAction(r) +
+		policy := cspDirectives + "; " + connectSrc(e.Cfg) + "; " + e.formAction(r) +
 			"; script-src 'self' 'nonce-" + nonce + "'"
 		if e.csp != nil {
 			// report-uri ONLY, deliberately — not the modern report-to /

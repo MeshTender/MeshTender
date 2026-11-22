@@ -3,6 +3,8 @@ package core
 import (
 	"errors"
 	"net/http"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -46,4 +48,83 @@ func (s *Handlers) firmwareManifest(w http.ResponseWriter, r *http.Request) {
 	if err := web.ServeJSONCached(w, r, manifestMaxAge, m); err != nil {
 		s.ServerError(w, r, "Couldn't build the install manifest.", err)
 	}
+}
+
+// installBoard is one board the install page offers for a role.
+type installBoard struct {
+	Env       string
+	Board     string
+	Version   string
+	Published string // date only, e.g. "November 22, 2026"
+}
+
+// installRole is a role (room server, repeater) and the boards it's built for.
+type installRole struct {
+	Role   string
+	Name   string // "Room server"
+	Boards []installBoard
+}
+
+// roleOrder puts room servers first (most observers are room servers), then
+// repeaters, then any role the index adds later, by name.
+var roleOrder = map[string]int{"room_server": 0, "repeater": 1}
+
+// installRoles lists what the install page can offer: every stable firmware
+// with a latest build esp-web-tools can flash, grouped by role, boards by name.
+func installRoles(idx *firmware.Index) []installRole {
+	byRole := map[string]*installRole{}
+	for _, c := range idx.Channels {
+		if c.Name != firmware.StableChannel {
+			continue
+		}
+		for _, f := range c.Firmware {
+			b, ok := f.LatestBuild()
+			if !ok || f.Role == "" {
+				continue
+			}
+			if _, err := firmware.WebToolsManifest(f, b); err != nil {
+				continue
+			}
+			ir := byRole[f.Role]
+			if ir == nil {
+				name := firmware.RoleName(f.Role)
+				ir = &installRole{Role: f.Role, Name: strings.ToUpper(name[:1]) + name[1:]}
+				byRole[f.Role] = ir
+			}
+			ib := installBoard{Env: f.Env, Board: f.Board, Version: b.Version}
+			if !b.PublishedAt.IsZero() {
+				ib.Published = b.PublishedAt.UTC().Format("January 2, 2006")
+			}
+			ir.Boards = append(ir.Boards, ib)
+		}
+	}
+	roles := make([]installRole, 0, len(byRole))
+	for _, ir := range byRole {
+		sort.Slice(ir.Boards, func(i, j int) bool { return ir.Boards[i].Board < ir.Boards[j].Board })
+		roles = append(roles, *ir)
+	}
+	sort.Slice(roles, func(i, j int) bool {
+		oi, iok := roleOrder[roles[i].Role]
+		oj, jok := roleOrder[roles[j].Role]
+		switch {
+		case iok && jok:
+			return oi < oj
+		case iok != jok:
+			return iok
+		}
+		return roles[i].Name < roles[j].Name
+	})
+	return roles
+}
+
+// pageInstallObserver is the observer firmware install page. With the catalog
+// unreachable it still renders, saying so, rather than failing the page.
+func (s *Handlers) pageInstallObserver(w http.ResponseWriter, r *http.Request) {
+	var roles []installRole
+	if idx, err := s.firmware.Index(r.Context()); err != nil {
+		web.LogError(r, "firmware index unavailable", err)
+	} else {
+		roles = installRoles(idx)
+	}
+	s.Render(w, r, "observer_install.html", map[string]any{"Roles": roles})
 }

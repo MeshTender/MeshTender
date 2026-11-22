@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -200,10 +201,16 @@ func TestEveryStaticFileIsAccountedFor(t *testing.T) {
 	root := repoRoot(t)
 	staticDir := filepath.Join(root, "internal", "web", "static")
 
-	claimed := map[string]string{} // base name -> owning dependency
+	// Keyed by path relative to the static directory: a vendored library may
+	// keep its files in a subdirectory (esp-web-tools/), and those must be
+	// audited as much as anything at the top level.
+	claimed := map[string]string{} // relative path -> owning dependency
+	staticPrefix := filepath.Join("internal", "web", "static") + string(filepath.Separator)
 	for _, d := range Deps {
 		for _, f := range d.Files {
-			claimed[filepath.Base(f.Path)] = d.Label()
+			if rel, ok := strings.CutPrefix(filepath.FromSlash(f.Path), staticPrefix); ok {
+				claimed[filepath.ToSlash(rel)] = d.Label()
+			}
 		}
 	}
 	firstParty := map[string]bool{}
@@ -214,21 +221,22 @@ func TestEveryStaticFileIsAccountedFor(t *testing.T) {
 	// AGPL — a third bucket, not an exception to the rule.
 	brand := map[string]bool{}
 	for _, a := range BrandAssets {
-		if dir, name := filepath.Split(a.Path); filepath.Clean(dir) == filepath.Join("internal", "web", "static") {
-			brand[name] = true
+		if rel, ok := strings.CutPrefix(filepath.FromSlash(a.Path), staticPrefix); ok {
+			brand[filepath.ToSlash(rel)] = true
 		}
 	}
 
-	entries, err := os.ReadDir(staticDir)
-	if err != nil {
-		t.Fatalf("reading %s: %v", staticDir, err)
-	}
-
-	for _, e := range entries {
-		if e.IsDir() {
-			continue
+	present := map[string]bool{}
+	err := filepath.WalkDir(staticDir, func(p string, e fs.DirEntry, err error) error {
+		if err != nil || e.IsDir() {
+			return err
 		}
-		name := e.Name()
+		rel, err := filepath.Rel(staticDir, p)
+		if err != nil {
+			return err
+		}
+		name := filepath.ToSlash(rel)
+		present[name] = true
 		switch {
 		case claimed[name] != "":
 			// vendored and declared
@@ -241,14 +249,14 @@ func TestEveryStaticFileIsAccountedFor(t *testing.T) {
 				"If it is third-party, add a Deps entry with its license; if we wrote it, add it to "+
 				"FirstPartyStatic; if it carries the MeshTender name or mark, add it to BrandAssets.", name)
 		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walking %s: %v", staticDir, err)
 	}
 
 	// A stale FirstPartyStatic entry is worth knowing about too: it means a file
 	// was deleted or renamed and the list drifted.
-	present := map[string]bool{}
-	for _, e := range entries {
-		present[e.Name()] = true
-	}
 	for _, name := range FirstPartyStatic {
 		if !present[name] {
 			t.Errorf("FirstPartyStatic lists %q, which no longer exists in internal/web/static", name)

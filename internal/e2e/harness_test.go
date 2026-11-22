@@ -27,8 +27,10 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
@@ -63,9 +65,46 @@ import (
 	"github.com/MeshTender/MeshTender/internal/testdb"
 )
 
-// TestMain manages the shared testdb container/template for the whole package.
+// TestMain manages the shared testdb container/template for the whole package,
+// and the fake firmware host every test server installs from.
 func TestMain(m *testing.M) {
-	os.Exit(testdb.RunMain(m))
+	stop := startFirmwareHost()
+	code := testdb.RunMain(m)
+	stop()
+	os.Exit(code)
+}
+
+// firmwareHostAddr is the fake firmware host's host:port (see
+// startFirmwareHost).
+var firmwareHostAddr string
+
+// startFirmwareHost serves a small index.json for the server's firmware
+// catalog: a room server and a repeater build. It's TLS because the test
+// servers are Secure, so the catalog reaches the firmware host over https.
+// The catalog uses http.DefaultTransport, which is told to trust this server's
+// certificate here, before any test runs, so nothing races the change. The
+// browser never fetches from it — that only happens when a board is flashed.
+func startFirmwareHost() (stop func()) {
+	var fw *httptest.Server
+	fw = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/index.json" {
+			http.NotFound(w, r)
+			return
+		}
+		build := func(env, board, role string) string {
+			return `{"env":"` + env + `","board":"` + board + `","role":"` + role + `","chipFamily":"ESP32-S3",` +
+				`"latest":"v1.18.0.4313","builds":[{"version":"v1.18.0.4313","publishedAt":"2026-11-22T13:47:22Z",` +
+				`"ota":{"url":"` + fw.URL + `/v/` + env + `.bin"},"full":{"url":"` + fw.URL + `/v/` + env + `-merged.bin","offset":0}}]}`
+		}
+		_, _ = io.WriteString(w, `{"schema":1,"channels":[{"name":"stable","path":"v","firmware":[`+
+			build("heltec_v4_room_server_observer_mqtt", "Heltec v4", "room_server")+","+
+			build("heltec_v3_repeater_observer_mqtt", "Heltec v3", "repeater")+`]}]}`)
+	}))
+	roots := x509.NewCertPool()
+	roots.AddCert(fw.Certificate())
+	http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{RootCAs: roots, MinVersion: tls.VersionTLS12}
+	firmwareHostAddr = strings.TrimPrefix(fw.URL, "https://")
+	return fw.Close
 }
 
 // migrate applies the schema to the template database (cloned per test by
@@ -219,7 +258,7 @@ func newE2EServer(t *testing.T) *e2eServer {
 	t.Cleanup(authSvc.Close)
 	srv, err := core.NewServer(st, authSvc, idSvc, &config.Config{
 		PrimaryHost: appHost(), AuthHost: authHost(), RootHost: rootHost(), Secure: true,
-		FirmwareHost: "firmware.invalid", // reserved TLD: no test fetches firmware
+		FirmwareHost: firmwareHostAddr, // see startFirmwareHost
 		MasterKey:    masterKey,
 	})
 	if err != nil {

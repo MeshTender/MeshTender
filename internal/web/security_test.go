@@ -100,6 +100,33 @@ func TestCSPFormActionAllowsSiblingSurfaces(t *testing.T) {
 	}
 }
 
+// TestCSPConnectSrcAllowsFirmwareHost: esp-web-tools fetches the firmware image
+// it writes to a device straight from the firmware host, so connect-src must
+// name it (with the deployment's scheme) — and only connect-src: nothing else
+// is loaded from there.
+func TestCSPConnectSrcAllowsFirmwareHost(t *testing.T) {
+	t.Parallel()
+	rec := httptest.NewRecorder()
+	(&Env{Cfg: &config.Config{FirmwareHost: "firmware.example.test", Secure: true}}).
+		securityHeaders(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})).
+		ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+
+	var connect string
+	for _, d := range strings.Split(rec.Header().Get("Content-Security-Policy"), ";") {
+		d = strings.TrimSpace(d)
+		if strings.HasPrefix(d, "connect-src ") {
+			connect = d
+		} else if strings.Contains(d, "firmware.example.test") {
+			t.Errorf("firmware host leaked into %q", d)
+		}
+	}
+	for _, want := range []string{"'self'", "https://*.basemaps.cartocdn.com", "https://firmware.example.test"} {
+		if !strings.Contains(connect, want) {
+			t.Errorf("connect-src missing %q: %q", want, connect)
+		}
+	}
+}
+
 func TestSecurityHeadersHSTSGatedOnTLS(t *testing.T) {
 	t.Parallel()
 	// No TLS (nil/insecure config): no HSTS.

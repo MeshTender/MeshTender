@@ -231,6 +231,7 @@ func (s *Handlers) appRouter() chi.Router {
 			r.Get("/orgs/{id}/members", s.pageOrgMembers)
 			r.Get("/orgs/{id}/repeaters", s.pageOrgRepeaters)
 			r.Get("/repeaters", s.pageRepeaters)
+			r.Get("/observers/install", s.pageInstallObserver)
 			r.Post("/logout", s.handleLogout)
 			r.Get("/repeaters/add", s.pageAddRepeater)
 			r.Post("/repeaters", s.handleAddRepeater)

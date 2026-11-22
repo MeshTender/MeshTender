@@ -329,6 +329,7 @@
 </div>
 
 {{template "settings-subheading" (dict "Title" "Observers" "ID" "observers" "Hint" "Observers publishing to the broker appear here as they report in (every few minutes). Only adverts an approved observer heard count as check-ins." "ActionURL" (printf "/orgs/%s/settings/mqtt/observers/new" .Org.Slug) "ActionLabel" "New observer" "ActionTestID" "observer-add")}}
+<p class="text-secondary" data-testid="observer-install-link">Setting up a new observer? <a href="/observers/install">Install MeshTender's observer firmware</a> on a room server or repeater over USB.</p>
 <nav class="btn-group mb-3" aria-label="Show observers" data-testid="observer-filter">
   {{range .ObserverFilters}}{{$on := eq (print .Value) $.ObserverFilter}}
   <a class="btn{{if $on}} active{{end}}" href="/orgs/{{$.Org.Slug}}/settings/mqtt?observers={{.Value}}#observers"{{if $on}} aria-current="page"{{end}} data-testid="observer-filter-{{.Value}}">{{.Label}}<span class="badge bg-secondary-lt ms-2" data-testid="observer-count-{{.Value}}">{{.Count}}</span></a>
