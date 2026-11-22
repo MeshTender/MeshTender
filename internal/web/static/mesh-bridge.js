@@ -8,13 +8,16 @@
 // session (netcontrol.js).
 //
 //   MeshBridge.supported                      — can this browser reach a serial device?
-//   MeshBridge.open(url, {onStatus, onLog, onClose}) → Promise<bridge>
+//   MeshBridge.open(url, {onStatus, onLog, onClose, serial}) → Promise<bridge>
 //       onStatus(state, message) — every server status
 //       onLog(state, message)    — local progress and errors, for the page's log
 //       onClose()                — the session ended (either side)
+//       serial                   — false for a session with no modem, where the
+//                                  server relays through an observer: only the
+//                                  WebSocket opens, for control messages
 //   bridge.send(obj)  — send a JSON control message; false if the socket isn't open
 //   bridge.close()    — close the session and release the port
-// Opening needs a user gesture (the browser's port picker).
+// Opening a modem session needs a user gesture (the browser's port picker).
 (function () {
   "use strict";
 
@@ -23,6 +26,7 @@
     var onStatus = h.onStatus || function () {};
     var onLog = h.onLog || function () {};
     var onClose = h.onClose || function () {};
+    var useSerial = h.serial !== false;
     var port, ws, reader, writer;
     var reading = false;
     var closed = false;
@@ -61,18 +65,22 @@
 
     return (async function () {
       try {
-        onLog("info", "Requesting serial port…");
-        port = await window.MeshSerial.requestPort();
-        await port.open({ baudRate: 115200 });
-        writer = port.writable.getWriter();
-        reader = port.readable.getReader();
-        reading = true;
-        onLog("info", "Serial port open. Connecting to server…");
+        if (useSerial) {
+          onLog("info", "Requesting serial port…");
+          port = await window.MeshSerial.requestPort();
+          await port.open({ baudRate: 115200 });
+          writer = port.writable.getWriter();
+          reader = port.readable.getReader();
+          reading = true;
+          onLog("info", "Serial port open. Connecting to server…");
+        } else {
+          onLog("info", "Connecting to server…");
+        }
 
         ws = new WebSocket(String(url));
         ws.binaryType = "arraybuffer";
         ws.onopen = function () {
-          pumpSerialToWS();
+          if (reader) pumpSerialToWS();
           ws.send(JSON.stringify({ type: "ready" }));
         };
         ws.onmessage = async function (ev) {
@@ -82,6 +90,7 @@
             onStatus(String(msg.state || "info"), String(msg.message || ev.data));
             return;
           }
+          if (!writer) return;
           try { await writer.write(new Uint8Array(ev.data)); }
           catch (e) { onLog("error", "Serial write error: " + e.message); }
         };

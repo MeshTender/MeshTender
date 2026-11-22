@@ -177,6 +177,12 @@ func TestConsoleLoginConfirms(t *testing.T) {
 // buildResponseFrame builds a KISS data frame carrying a repeater login RESPONSE.
 func buildResponseFrame(t *testing.T, repeater meshcore.LocalIdentity, server meshcore.Identity) []byte {
 	t.Helper()
+	return hardware.EncodeDataFrame(buildResponsePacket(t, repeater, server))
+}
+
+// buildResponsePacket builds the raw packet of a repeater's admin login RESPONSE.
+func buildResponsePacket(t *testing.T, repeater meshcore.LocalIdentity, server meshcore.Identity) []byte {
+	t.Helper()
 	shared, err := repeater.SharedSecret(server)
 	if err != nil {
 		t.Fatalf("shared: %v", err)
@@ -208,7 +214,7 @@ func buildResponseFrame(t *testing.T, repeater meshcore.LocalIdentity, server me
 	if err != nil {
 		t.Fatalf("packet bytes: %v", err)
 	}
-	return hardware.EncodeDataFrame(raw)
+	return raw
 }
 
 func mustURL(t *testing.T, raw string) *url.URL {

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -12,7 +13,9 @@ import (
 	meshcore "github.com/meshcore-go/meshcore-go"
 	"github.com/meshcore-go/meshcore-go/hardware"
 
+	"github.com/MeshTender/MeshTender/internal/ingest"
 	"github.com/MeshTender/MeshTender/internal/mesh"
+	"github.com/MeshTender/MeshTender/internal/relay"
 	"github.com/MeshTender/MeshTender/internal/store"
 	"github.com/MeshTender/MeshTender/internal/web"
 	"github.com/MeshTender/MeshTender/internal/wsbridge"
@@ -216,6 +219,18 @@ func (s *Handlers) pageConfigure(w http.ResponseWriter, r *http.Request) {
 	default:
 		pane = "commands"
 	}
+	// ?via=<observer key> sends over the air through an observer instead of a
+	// KISS modem (see wsConsole). The console's WebSocket carries it, and
+	// ?debug=, along.
+	wsQuery := url.Values{}
+	via, _ := normalizeCompanionKey(r.URL.Query().Get("via"))
+	if via != "" {
+		wsQuery.Set("via", via)
+	}
+	debug := r.URL.Query().Get("debug") == "1"
+	if debug {
+		wsQuery.Set("debug", "1")
+	}
 	data := map[string]any{
 		"Repeater":         rep,
 		"Nav":              web.RepeaterNav(rep, isOwner, "configure"),
@@ -224,7 +239,9 @@ func (s *Handlers) pageConfigure(w http.ResponseWriter, r *http.Request) {
 		"Commands":         allowed,
 		"CanFetchLocation": canFetchLocation(allowed),
 		"ShowConfig":       len(configOrgs) > 0,
-		"Debug":            r.URL.Query().Get("debug") == "1",
+		"Debug":            debug,
+		"Via":              via,
+		"WSQuery":          wsQuery.Encode(),
 	}
 	if isOwner {
 		sessions, hasMore, err := s.Store.ListCommandLogSessionsPage(ctx, id, decodeLogCursor(r.URL.Query().Get("before")))
@@ -282,7 +299,23 @@ func (s *Handlers) wsConsole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sess, ok := s.openModemSession(w, r, consoleIdleTimeout, hardware.WithTxFlowControl(0))
+	// ?via=<observer key> sends through that observer (internal/relay) instead
+	// of a KISS modem in the browser.
+	via := r.URL.Query().Get("via")
+	var viaKey string
+	if via != "" {
+		if viaKey, ok = normalizeCompanionKey(via); !ok {
+			http.Error(w, "invalid observer key", http.StatusBadRequest)
+			return
+		}
+	}
+
+	var sess *modemSession
+	if viaKey != "" {
+		sess, ok = s.openPageSession(w, r, consoleIdleTimeout)
+	} else {
+		sess, ok = s.openModemSession(w, r, consoleIdleTimeout, hardware.WithTxFlowControl(0))
+	}
 	if !ok {
 		return
 	}
@@ -291,14 +324,22 @@ func (s *Handlers) wsConsole(w http.ResponseWriter, r *http.Request) {
 	server := s.Identity.Local()
 
 	// All commands go through one exchanger: rate-limited, monotonic timestamps,
-	// automatic retry of lost packets.
-	ex := mesh.NewExchanger(modem, server, repeaterID, sendInterval, perTryReply, maxSendTries)
-	modem.SetDataHandler(func(data []byte, _ float32, _ int8, _ bool) {
-		ex.HandleData(data)
-	})
+	// automatic retry of lost packets. It sends through link, which is the modem
+	// or, once dialed, the relay.
+	var link mesh.Sender
+	if modem != nil {
+		link = modem
+	}
+	ex := mesh.NewExchanger(senderFunc(func(pkt []byte) error { return link.SendData(pkt) }),
+		server, repeaterID, sendInterval, perTryReply, maxSendTries)
 	userPathSet := applyUserPath(ex, r, bridge)
 	debug := r.URL.Query().Get("debug") == "1"
-	if debug {
+	if modem != nil {
+		modem.SetDataHandler(func(data []byte, _ float32, _ int8, _ bool) {
+			ex.HandleData(data)
+		})
+	}
+	if modem != nil && debug {
 		// Dump every inbound KISS frame as hex so we can see exactly what the modem
 		// reports back (e.g. whether the repeater replies at all).
 		bridge.SetObserver(func(f *hardware.KissFrame) {
@@ -319,31 +360,64 @@ func (s *Handlers) wsConsole(w http.ResponseWriter, r *http.Request) {
 		_ = s.Store.EndConsoleSession(endCtx, sessionID)
 	}()
 
-	if err := modem.Connect(ctx); err != nil {
-		// The user's own local modem — keep the detail for troubleshooting, and log
-		// it so operators see connection failures.
-		web.LogError(r, "console: modem connect", err, "repeater_id", id)
-		_ = bridge.Status("error", "modem connect: "+err.Error())
-		return
-	}
+	// relayLost ends the session if the relay's broker connection drops; it
+	// stays nil (never ready) for a modem session.
+	var relayLost <-chan struct{}
+	var cr *consoleRelay
+	if modem == nil {
+		sess.Start()
+		if !sess.WaitReady() {
+			return
+		}
+		// The observer is already on the mesh's channel, so there's no radio to
+		// tune: connect to the broker it shares with MeshTender.
+		_ = bridge.Status("info", "Connecting to the observer…")
+		cr, err = s.dialConsoleRelay(ctx, uid, viaKey, debug, ex, bridge)
+		switch {
+		case errors.Is(err, errRelayNotAllowed):
+			_ = bridge.Status("error", "You can only send through an observer that an organization you administer has approved, and that organization needs an MQTT broker set up.")
+			return
+		case err != nil:
+			web.LogError(r, "console: relay dial", err, "repeater_id", id)
+			msg := ingest.CategoryMessage(ingest.Category(err))
+			if ingest.Category(err) == ingest.CategorySubscribe {
+				msg = "Connected, but the broker refused MeshTender's subscription to the observer's packets or its meshtender/v1/…/txresult topic. Check the account's read access."
+			}
+			_ = bridge.Status("error", "Couldn't reach the observer: "+msg)
+			return
+		}
+		defer cr.Close()
+		link, relayLost = cr, cr.Lost()
+	} else {
+		if err := modem.Connect(ctx); err != nil {
+			// The user's own local modem — keep the detail for troubleshooting, and log
+			// it so operators see connection failures.
+			web.LogError(r, "console: modem connect", err, "repeater_id", id)
+			_ = bridge.Status("error", "modem connect: "+err.Error())
+			return
+		}
 
-	sess.Start()
-	if !sess.WaitReady() {
-		return
-	}
+		sess.Start()
+		if !sess.WaitReady() {
+			return
+		}
 
-	// Tune the modem to the repeater's channel.
-	_ = bridge.Status("info", "Tuning radio…")
-	if err := modem.SetRadio(&hardware.RadioConfig{
-		FreqHz: uint32(rep.RadioFreqHz), //nolint:gosec // G115: radio config value is bounded (preset-constrained)
-		BwHz:   uint32(rep.RadioBwHz),   //nolint:gosec // G115: radio config value is bounded (preset-constrained)
-		SF:     uint8(rep.RadioSF),      //nolint:gosec // G115: radio config value is bounded (preset-constrained)
-		CR:     uint8(rep.RadioCR),      //nolint:gosec // G115: radio config value is bounded (preset-constrained)
-	}); err != nil {
-		web.LogError(r, "console: set radio", err, "repeater_id", id)
-		_ = bridge.Status("error", "set radio: "+err.Error())
-		return
+		// Tune the modem to the repeater's channel.
+		_ = bridge.Status("info", "Tuning radio…")
+		if err := modem.SetRadio(&hardware.RadioConfig{
+			FreqHz: uint32(rep.RadioFreqHz), //nolint:gosec // G115: radio config value is bounded (preset-constrained)
+			BwHz:   uint32(rep.RadioBwHz),   //nolint:gosec // G115: radio config value is bounded (preset-constrained)
+			SF:     uint8(rep.RadioSF),      //nolint:gosec // G115: radio config value is bounded (preset-constrained)
+			CR:     uint8(rep.RadioCR),      //nolint:gosec // G115: radio config value is bounded (preset-constrained)
+		}); err != nil {
+			web.LogError(r, "console: set radio", err, "repeater_id", id)
+			_ = bridge.Status("error", "set radio: "+err.Error())
+			return
+		}
 	}
+	// unanswered reports a relay whose observer has never reported on a frame,
+	// so a missing reply can be blamed on the right thing.
+	unanswered := func() bool { return cr != nil && !cr.answered.Load() }
 
 	// Establish the session (flood) and learn the route home so commands can use
 	// direct routing. If login gets no reply we proceed anyway — the repeater may
@@ -357,8 +431,14 @@ func (s *Handlers) wsConsole(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case errors.Is(err, mesh.ErrNoReply):
 		_ = bridge.Status("warning", "Couldn't reach the repeater to establish a session — commands will still be attempted (flood), but may not work if it doesn't recognize MeshTender.")
+		if unanswered() {
+			_ = bridge.Status("warning", relayNoReplyHint)
+		}
 	case err != nil:
-		return // context canceled
+		if errors.Is(err, relay.ErrClosed) {
+			_ = bridge.Status("error", relayLostMessage)
+		}
+		return // context canceled, or the relay dropped
 	default:
 		if userPathSet {
 			reportPathOutcome(bridge, lr)
@@ -461,8 +541,12 @@ func (s *Handlers) wsConsole(w http.ResponseWriter, r *http.Request) {
 			s.storeCoordFromReply(ctx, r, cmd, reply, id, bridge)
 		case errors.Is(err, mesh.ErrNoReply):
 			_ = bridge.Status("noreply", "No reply received after several tries — the command may still have run.")
+			if unanswered() {
+				_ = bridge.Status("warning", relayNoReplyHint)
+			}
 		default:
-			// context canceled or a build/transmit error
+			// context canceled or a build/transmit error; a dropped relay is
+			// reported by the loop below.
 		}
 	}
 
@@ -501,6 +585,9 @@ func (s *Handlers) wsConsole(w http.ResponseWriter, r *http.Request) {
 	for {
 		select {
 		case <-ctx.Done():
+			return
+		case <-relayLost:
+			_ = bridge.Status("error", relayLostMessage)
 			return
 		case msg := <-sess.Messages():
 			switch msg.Type {

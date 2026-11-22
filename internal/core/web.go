@@ -17,6 +17,7 @@ import (
 	"github.com/MeshTender/MeshTender/internal/buildinfo"
 	"github.com/MeshTender/MeshTender/internal/config"
 	"github.com/MeshTender/MeshTender/internal/identity"
+	"github.com/MeshTender/MeshTender/internal/ingest"
 	"github.com/MeshTender/MeshTender/internal/marketing"
 	"github.com/MeshTender/MeshTender/internal/store"
 	"github.com/MeshTender/MeshTender/internal/web"
@@ -41,6 +42,9 @@ type Handlers struct {
 
 	// netModem paces net control modem sessions; zero means the defaults.
 	netModem netModemTiming
+	// relayDialer opens console relay connections; nil means
+	// ingest.NewDialer(). A field so tests can reach a broker on loopback.
+	relayDialer *ingest.Dialer
 }
 
 // Server is the built HTTP entry point.

@@ -19,10 +19,14 @@ import (
 // {state, message} statuses back to it. Everything else — framing, packets,
 // what to transmit — happens here. The repeater console and the net control
 // session are both built on it.
+//
+// A session relaying through an observer (internal/relay) has no modem: Modem
+// is nil, the page sends no serial bytes, and the socket only carries control
+// messages and statuses.
 type modemSession struct {
 	Ctx    context.Context
 	Bridge *wsbridge.Conn
-	Modem  *hardware.KissModem
+	Modem  *hardware.KissModem // nil for a relay session
 
 	ws        *websocket.Conn
 	cancel    context.CancelFunc
@@ -48,6 +52,16 @@ const modemMsgQueue = 8
 // down, or nothing resets the idle timer for idleAfter. Callers must Close it.
 // ok is false when the upgrade failed (the response has been written).
 func (s *Handlers) openModemSession(w http.ResponseWriter, r *http.Request, idleAfter time.Duration, opts ...hardware.ModemOption) (*modemSession, bool) {
+	m, ok := s.openPageSession(w, r, idleAfter)
+	if ok {
+		m.Modem = hardware.NewKissModem(m.Bridge, opts...)
+	}
+	return m, ok
+}
+
+// openPageSession is openModemSession without a modem, for a session that
+// reaches the mesh some other way (a relay).
+func (s *Handlers) openPageSession(w http.ResponseWriter, r *http.Request, idleAfter time.Duration) (*modemSession, bool) {
 	// Track the socket so shutdown can drain it (http.Server.Shutdown doesn't
 	// close hijacked/WebSocket conns). Add before Accept so a shutdown racing
 	// the upgrade still waits for this handler.
@@ -63,7 +77,6 @@ func (s *Handlers) openModemSession(w http.ResponseWriter, r *http.Request, idle
 	return &modemSession{
 		Ctx:       ctx,
 		Bridge:    bridge,
-		Modem:     hardware.NewKissModem(bridge, opts...),
 		ws:        ws,
 		cancel:    cancel,
 		idle:      time.AfterFunc(idleAfter, cancel),
@@ -88,7 +101,9 @@ func (m *modemSession) Start() {
 			}
 			switch typ {
 			case websocket.MessageBinary:
-				m.Bridge.Feed(data)
+				if m.Modem != nil {
+					m.Bridge.Feed(data)
+				}
 			case websocket.MessageText:
 				var msg modemClientMsg
 				if json.Unmarshal(data, &msg) != nil {
@@ -111,8 +126,8 @@ func (m *modemSession) Start() {
 	}()
 }
 
-// WaitReady blocks until the page reports its serial port is open, or the
-// session ends. It reports whether the page is ready.
+// WaitReady blocks until the page reports it's ready (its serial port is open,
+// for a modem), or the session ends. It reports whether the page is ready.
 func (m *modemSession) WaitReady() bool {
 	select {
 	case <-m.ready:
@@ -131,7 +146,9 @@ func (m *modemSession) ResetIdle() { m.idle.Reset(m.idleAfter) }
 // Close ends the session and releases the shutdown drain.
 func (m *modemSession) Close() {
 	m.idle.Stop()
-	_ = m.Modem.Close()
+	if m.Modem != nil {
+		_ = m.Modem.Close()
+	}
 	m.cancel()
 	m.done()
 }

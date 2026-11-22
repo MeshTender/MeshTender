@@ -117,6 +117,22 @@ func (s *Store) ListEnabledBrokers(ctx context.Context) ([]*OrgBroker, error) {
 	return collectRows(rows, scanOrgBroker)
 }
 
+// RelayBroker returns the broker a user may send packets through to reach the
+// observer: the enabled broker of an org the user administers that has approved
+// the observer. With several such orgs, the one that heard from the observer
+// most recently wins. Returns ErrNotFound if there is none.
+func (s *Store) RelayBroker(ctx context.Context, userID int64, observerKeyHex string) (*OrgBroker, error) {
+	b, err := scanOrgBroker(s.pool.QueryRow(ctx, orgBrokerSelect+`
+		WHERE enabled AND org_id = (
+			SELECT o.org_id FROM org_observers o
+			JOIN org_members m ON m.org_id = o.org_id AND m.user_id = $1 AND m.role = 'admin'
+			JOIN org_mqtt_brokers b ON b.org_id = o.org_id AND b.enabled
+			WHERE o.public_key_hex = $2 AND o.approved_at IS NOT NULL
+			ORDER BY o.last_seen_at DESC NULLS LAST, o.org_id
+			LIMIT 1)`, userID, observerKeyHex))
+	return b, notFoundOr(err, "relay broker")
+}
+
 // RecordBrokerStatus stores the ingester's view of a broker connection. Nil
 // times leave the column as is; lastError replaces the stored category (empty
 // clears it).

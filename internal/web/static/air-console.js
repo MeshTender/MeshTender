@@ -17,17 +17,20 @@
 //
 // Activity goes to #log. window.MESHTENDER_WS is the session's WebSocket URL; a
 // #path field, if the page has one, routes it directly instead of by flood.
+// When window.MESHTENDER_VIA names an observer, the server sends through it
+// instead of a modem, so no serial port is opened (and none is needed).
 (function () {
   "use strict";
 
   var log = document.getElementById("log");
+  var viaObserver = !!window.MESHTENDER_VIA;
   var bridge = null;
   var connecting = false;
 
   var api = {
     name: "air",
     ready: false,
-    supported: !!(window.MeshBridge && window.MeshBridge.supported),
+    supported: !!window.MeshBridge && (viaObserver || !!window.MeshBridge.supported),
     connect: connect,
     disconnect: function () {
       if (bridge) bridge.close();
@@ -74,6 +77,7 @@
     connecting = true;
     try {
       bridge = await MeshBridge.open(wsURL(), {
+        serial: !viaObserver,
         onLog: addLog,
         onStatus: function (state, message) {
           addLog(state, message);

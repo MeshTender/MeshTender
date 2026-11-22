@@ -27,7 +27,9 @@
     var r = radios.find(function (i) { return i.checked; });
     return r ? r.value : "usb";
   }
-  function device() { return chosen() === "usb" ? "repeater" : "modem"; }
+  // ?via= on the page sends over the air through an observer, not a modem.
+  var airDevice = window.MESHTENDER_VIA ? "observer" : "modem";
+  function device() { return chosen() === "usb" ? "repeater" : airDevice; }
 
   function render() {
     var t = window.MeshConsole;
@@ -39,7 +41,7 @@
     button.classList.toggle("btn-primary", !ready);
     label.textContent = ready ? "Disconnect" : busy ? "Connecting…" : "Connect " + device();
     status.textContent = ready
-      ? (chosen() === "usb" ? "Connected over USB" : "Connected through the modem")
+      ? (chosen() === "usb" ? "Connected over USB" : "Connected through the " + airDevice)
       : busy ? "Connecting…" : "Not connected";
     status.classList.toggle("text-green", ready);
   }
