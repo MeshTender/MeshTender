@@ -134,6 +134,12 @@ func (s *Handlers) credentialRoutes(r chi.Router) {
 	r.Post("/api/login/finish", s.Auth.LoginFinish)
 	r.Post("/api/login/discoverable/begin", s.Auth.LoginDiscoverableBegin)
 	r.Post("/api/login/discoverable/finish", s.Auth.LoginDiscoverableFinish)
+	// Admin-issued account recovery. Session-free like the email links, since it's
+	// often opened on another device. Not gated on mail: an admin can hand the link
+	// over without it. GET only looks the link up; it's spent at finish.
+	r.Get("/recover/{token}", s.pageRecover)
+	r.With(authLimit.Middleware).Post("/api/recover/begin", s.Auth.RecoverBegin)
+	r.Post("/api/recover/finish", s.Auth.RecoverFinish)
 	s.resetRoutes(r)
 }
 

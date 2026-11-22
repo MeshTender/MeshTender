@@ -32,6 +32,11 @@ const (
 	sessKeyWANewName = "wa_new_username" // string: pending new-account username
 	sessKeyWANewDN   = "wa_new_display"  // string: pending new-account display name
 	sessKeyNext      = "next"            // string: post-auth redirect target
+	// Account recovery runs its ceremony in its own slot (see ceremonySlot), next
+	// to the link it will spend.
+	sessKeyRecoverUID   = "wa_recover_uid"   // int64: account being recovered
+	sessKeyRecoverData  = "wa_recover_data"  // []byte: marshaled webauthn.SessionData
+	sessKeyRecoverToken = "wa_recover_token" // string: the recovery link's token
 )
 
 // Service wires WebAuthn, the data store, and session management.

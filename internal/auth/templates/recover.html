@@ -1,0 +1,37 @@
+{{define "title"}}Get back into your account · MeshTender{{end}}
+{{define "content"}}
+<div class="card card-md">
+  <div class="card-body">
+    {{if .Invalid}}
+    <h1 class="card-title text-center mb-4">This link doesn't work</h1>
+    <p class="text-secondary" data-testid="recover-invalid">
+      Recovery links can only be used once, and they expire a day after they're made.
+      This one has already been used, has expired, or was replaced by a newer link.
+    </p>
+    <p class="text-secondary mb-0">
+      Ask the administrator who sent it for a new one.
+    </p>
+    {{else}}
+    <h1 class="card-title text-center mb-2">Get back into your account</h1>
+    <p class="text-secondary text-center mb-4">for <strong data-testid="recover-username">@{{.Username}}</strong></p>
+    <p class="text-secondary">
+      An administrator sent you this link so you can set up a new passkey for this
+      account. Your browser or phone will ask you to create one, the same way it did
+      when you first signed up.
+    </p>
+    <div class="form-footer mt-0">
+      <button type="button" class="btn btn-primary w-100" id="recover-passkey-btn"
+              data-recover-token="{{.Token}}" data-testid="recover-submit">
+        {{template "icon-key" "me-1"}}Create a new passkey
+      </button>
+    </div>
+    <p class="text-secondary small mt-2 mb-0" id="passkey-status" role="status" aria-live="polite"></p>
+    <p class="text-secondary small mt-3 mb-0">
+      This signs out every other device signed in to this account. Afterwards you can
+      remove the passkey that stopped working from your account page.
+    </p>
+    {{end}}
+  </div>
+</div>
+<script src="{{ asset "/static/webauthn.js" }}"></script>
+{{end}}

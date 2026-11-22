@@ -1,5 +1,6 @@
 // Package mail sends the small set of transactional messages MeshTender needs —
-// today the account-recovery pair (verify an address, reset a password).
+// today account recovery: verify an address, reset a password, or recover a
+// passkey-only account through a link an admin sends.
 //
 // Callers depend on Sender and Message, never on a provider type. That seam is
 // what keeps `go test ./...` off the network: the production binary wires
@@ -22,6 +23,8 @@ const (
 	KindVerifyEmail Kind = "verify_email"
 	// KindPasswordReset carries a single-use password-reset link.
 	KindPasswordReset Kind = "password_reset"
+	// KindAccountRecovery carries an admin-issued link for registering a new passkey.
+	KindAccountRecovery Kind = "account_recovery"
 )
 
 // Message is one outbound email.

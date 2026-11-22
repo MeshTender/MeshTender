@@ -143,6 +143,26 @@ async function addPasskey() {
   }
 }
 
+// recoverAccount registers a new passkey from an admin-issued recovery link. The
+// link's token rides on the button (data-recover-token); the server spends it only
+// once the new passkey is verified, so a cancelled prompt can simply be retried.
+async function recoverAccount(e) {
+  const btn = e.currentTarget;
+  const token = String(btn.getAttribute("data-recover-token") || "");
+  btn.disabled = true;
+  try {
+    setStatus("Starting…");
+    const options = await postJSON("/api/recover/begin", { token });
+    const cred = await navigator.credentials.create({ publicKey: decodeCreation(options.publicKey) });
+    setStatus("Verifying…");
+    const data = await postJSON("/api/recover/finish", encodeAttestation(cred));
+    window.location = data.redirect || "/account";
+  } catch (err) {
+    setStatus("Error: " + err.message);
+    btn.disabled = false;
+  }
+}
+
 // passkeyLogin runs a username-scoped assertion (for credentials that aren't
 // discoverable, where the server needs to know which account to challenge).
 async function passkeyLogin() {
@@ -347,6 +367,7 @@ async function initSignupEmphasis() {
     ["add-passkey-btn", addPasskey],
     ["passkey-btn", passkeyButton],
     ["signup-passkey-btn", passkeyRegister],
+    ["recover-passkey-btn", recoverAccount],
   ];
   bindings.forEach(function (b) {
     var el = document.getElementById(b[0]);

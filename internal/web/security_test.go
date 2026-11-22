@@ -212,10 +212,12 @@ func TestTemplatesHeadingConventions(t *testing.T) {
 	}
 	// The auth host's standalone pages have no page header, so their card title
 	// legitimately carries the page's h1. They're single-purpose panels on the
-	// authbase layout — sign in, sign up, and the two account-recovery steps.
+	// authbase layout — sign in, sign up, the two password-reset steps, and the
+	// admin-issued recovery link.
 	authPages := map[string]bool{
 		"login.html": true, "signup.html": true,
 		"forgot.html": true, "reset.html": true,
+		"recover.html": true,
 	}
 
 	err := filepath.WalkDir(filepath.Join(root, "internal"), func(path string, d os.DirEntry, err error) error {

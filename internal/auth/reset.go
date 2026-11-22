@@ -197,18 +197,7 @@ existing password still works.
 // PeekResetToken looks up a reset token without spending it, so the form can name the
 // account it belongs to. ok is false for an unknown, expired, or already-used token.
 func (s *Service) PeekResetToken(ctx context.Context, token string) (*store.User, bool, error) {
-	tok, ok, err := s.store.PeekEmailToken(ctx, store.PurposeResetPassword, token)
-	if err != nil || !ok {
-		return nil, false, err
-	}
-	u, err := s.store.GetUserByID(ctx, tok.UserID)
-	if errors.Is(err, store.ErrNotFound) {
-		return nil, false, nil
-	}
-	if err != nil {
-		return nil, false, err
-	}
-	return u, true, nil
+	return s.peekTokenUser(ctx, store.PurposeResetPassword, token)
 }
 
 // CompletePasswordReset spends a reset token and sets the new password.

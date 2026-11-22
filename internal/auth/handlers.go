@@ -368,24 +368,42 @@ func (s *Service) LoginDiscoverableFinish(w http.ResponseWriter, r *http.Request
 
 // --- ceremony state helpers ---
 
+// ceremonySlot names the two session keys one kind of ceremony keeps its state
+// under. Flows that must not be finished by another flow's endpoint get their own
+// slot: a recovery ceremony left in the shared one could be completed through
+// /api/register/finish, which would add the passkey without spending the link.
+type ceremonySlot struct{ uidKey, dataKey string }
+
+// sharedCeremony is the slot for sign-up, sign-in, adding a passkey, and re-auth.
+// Their finishers each re-check that the ceremony is theirs.
+var sharedCeremony = ceremonySlot{uidKey: sessKeyWAUID, dataKey: sessKeyWAData}
+
 func (s *Service) stashCeremony(ctx context.Context, userID int64, sd *webauthn.SessionData) error {
+	return s.stashCeremonyIn(ctx, sharedCeremony, userID, sd)
+}
+
+func (s *Service) popCeremony(ctx context.Context) (int64, *webauthn.SessionData, bool) {
+	return s.popCeremonyFrom(ctx, sharedCeremony)
+}
+
+func (s *Service) stashCeremonyIn(ctx context.Context, slot ceremonySlot, userID int64, sd *webauthn.SessionData) error {
 	blob, err := json.Marshal(sd)
 	if err != nil {
 		return err
 	}
-	s.Sessions.Put(ctx, sessKeyWAUID, userID)
-	s.Sessions.Put(ctx, sessKeyWAData, blob)
+	s.Sessions.Put(ctx, slot.uidKey, userID)
+	s.Sessions.Put(ctx, slot.dataKey, blob)
 	return nil
 }
 
-func (s *Service) popCeremony(ctx context.Context) (int64, *webauthn.SessionData, bool) {
-	uid := s.Sessions.GetInt64(ctx, sessKeyWAUID)
-	blob, _ := s.Sessions.Get(ctx, sessKeyWAData).([]byte)
+func (s *Service) popCeremonyFrom(ctx context.Context, slot ceremonySlot) (int64, *webauthn.SessionData, bool) {
+	uid := s.Sessions.GetInt64(ctx, slot.uidKey)
+	blob, _ := s.Sessions.Get(ctx, slot.dataKey).([]byte)
 	if uid == 0 || len(blob) == 0 {
 		return 0, nil, false
 	}
-	s.Sessions.Remove(ctx, sessKeyWAUID)
-	s.Sessions.Remove(ctx, sessKeyWAData)
+	s.Sessions.Remove(ctx, slot.uidKey)
+	s.Sessions.Remove(ctx, slot.dataKey)
 	var sd webauthn.SessionData
 	if err := json.Unmarshal(blob, &sd); err != nil {
 		return 0, nil, false

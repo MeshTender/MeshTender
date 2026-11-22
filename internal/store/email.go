@@ -12,8 +12,9 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// TokenPurpose distinguishes the two emailed-token flows. It's filtered on at
-// redemption, so a verification link can never be replayed as a password reset.
+// TokenPurpose distinguishes the emailed-token flows. It's filtered on at
+// redemption, so a verification link can never be replayed as a password reset,
+// and neither can be replayed as an account recovery.
 type TokenPurpose string
 
 const (
@@ -21,6 +22,9 @@ const (
 	PurposeVerifyEmail TokenPurpose = "verify"
 	// PurposeResetPassword authorizes setting a new password on one account.
 	PurposeResetPassword TokenPurpose = "reset"
+	// PurposeRecoverAccount authorizes registering a new passkey on one account. Only
+	// a user manager can mint one (see migration 0059).
+	PurposeRecoverAccount TokenPurpose = "recover"
 )
 
 // VerifyTokenTTL is how long an address-confirmation link stays usable. Generous:
@@ -31,6 +35,12 @@ const VerifyTokenTTL = 24 * time.Hour
 // shorter than VerifyTokenTTL — this one is a live credential for taking over an
 // account, and the legitimate user acts on it within minutes of asking.
 const ResetTokenTTL = 45 * time.Minute
+
+// RecoverTokenTTL is how long an admin-issued recovery link stays usable. Longer
+// than ResetTokenTTL because the person didn't ask for it at that moment: an
+// admin sends it, and the person may not see it for hours. A day covers that, and
+// it's still short enough that a forgotten link doesn't stay live.
+const RecoverTokenTTL = 24 * time.Hour
 
 // hashToken is the one-way transform applied before a token touches the database.
 // Only the hash is stored, so a leaked email_tokens table yields nothing
@@ -125,10 +135,40 @@ func (s *Store) CreateEmailToken(ctx context.Context, userID int64, purpose Toke
 	return raw, nil
 }
 
+// ReplaceEmailToken mints a token like CreateEmailToken, and in the same statement
+// deletes every other outstanding token of that purpose for the user. Use it where
+// only the newest link should work: when an admin issues a second recovery link,
+// the first one must stop working, since it may have gone to the wrong place.
+func (s *Store) ReplaceEmailToken(ctx context.Context, userID int64, purpose TokenPurpose, addr string, ttl time.Duration) (string, error) {
+	raw, err := randomToken()
+	if err != nil {
+		return "", err
+	}
+	var addrArg *string
+	if addr != "" {
+		addrArg = &addr
+	}
+	// One statement, so there's no moment where both links work or neither does.
+	// The DELETE can't remove the new row: both parts of the statement see the
+	// table as it was before it started.
+	_, err = s.pool.Exec(ctx,
+		`WITH gone AS (
+		     DELETE FROM email_tokens WHERE user_id = $1 AND purpose = $2
+		 )
+		 INSERT INTO email_tokens (user_id, purpose, token_hash, email, expires_at)
+		 VALUES ($1, $2, $3, $4, now() + $5)`,
+		userID, string(purpose), hashToken(raw), addrArg, ttl)
+	if err != nil {
+		return "", fmt.Errorf("replace email token: %w", err)
+	}
+	return raw, nil
+}
+
 // EmailToken is a redeemed or inspected token.
 type EmailToken struct {
 	UserID int64
-	// Email is the address a verify token was issued for, "" for a reset token.
+	// Email is the address a verify or recover token was issued for. It's "" for a
+	// reset token, and for a recover token that wasn't mailed anywhere.
 	Email     string
 	ExpiresAt time.Time
 }

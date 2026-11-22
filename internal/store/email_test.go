@@ -503,3 +503,90 @@ func usernames(us []*User) []string {
 	}
 	return out
 }
+
+// TestReplaceEmailTokenRevokesOlderLinks: when an admin issues a second recovery
+// link, the first must stop working. It may have gone to the wrong address, and
+// "send a new one" is how an admin fixes that. Tokens of other purposes are left
+// alone, since a recovery link has nothing to do with a pending address check.
+func TestReplaceEmailTokenRevokesOlderLinks(t *testing.T) {
+	t.Parallel()
+	st, ctx := emailTestStore(t)
+	u := mkUser(t, st, ctx, "locked", "", false, false)
+
+	first, err := st.ReplaceEmailToken(ctx, u.ID, PurposeRecoverAccount, "old@example.test", RecoverTokenTTL)
+	if err != nil {
+		t.Fatalf("first: %v", err)
+	}
+	verify, err := st.CreateEmailToken(ctx, u.ID, PurposeVerifyEmail, "old@example.test", VerifyTokenTTL)
+	if err != nil {
+		t.Fatalf("verify token: %v", err)
+	}
+	second, err := st.ReplaceEmailToken(ctx, u.ID, PurposeRecoverAccount, "new@example.test", RecoverTokenTTL)
+	if err != nil {
+		t.Fatalf("second: %v", err)
+	}
+
+	if _, ok, err := st.PeekEmailToken(ctx, PurposeRecoverAccount, first); err != nil || ok {
+		t.Errorf("first link still works after a replacement (ok=%v err=%v)", ok, err)
+	}
+	tok, ok, err := st.PeekEmailToken(ctx, PurposeRecoverAccount, second)
+	if err != nil || !ok {
+		t.Fatalf("replacement link doesn't work (ok=%v err=%v)", ok, err)
+	}
+	if tok.UserID != u.ID || tok.Email != "new@example.test" {
+		t.Errorf("replacement token = %+v, want user %d and new@example.test", tok, u.ID)
+	}
+	if _, ok, err := st.PeekEmailToken(ctx, PurposeVerifyEmail, verify); err != nil || !ok {
+		t.Errorf("replacing a recovery link removed an unrelated verify token (ok=%v err=%v)", ok, err)
+	}
+}
+
+// TestReplaceEmailTokenWithoutAddress: a recovery link handed over in person
+// isn't tied to any address, so redeeming it must not confirm one.
+func TestReplaceEmailTokenWithoutAddress(t *testing.T) {
+	t.Parallel()
+	st, ctx := emailTestStore(t)
+	u := mkUser(t, st, ctx, "nomail", "", false, false)
+
+	raw, err := st.ReplaceEmailToken(ctx, u.ID, PurposeRecoverAccount, "", RecoverTokenTTL)
+	if err != nil {
+		t.Fatalf("replace: %v", err)
+	}
+	tok, ok, err := st.ConsumeEmailToken(ctx, PurposeRecoverAccount, raw)
+	if err != nil || !ok {
+		t.Fatalf("consume (ok=%v err=%v)", ok, err)
+	}
+	if tok.Email != "" {
+		t.Errorf("Email = %q, want empty for a link that wasn't mailed", tok.Email)
+	}
+}
+
+// TestRecoverTokenIsItsOwnPurpose: a recovery link can't be spent as a password
+// reset or an address confirmation, and neither of those can be spent as a
+// recovery. Each one authorizes something different.
+func TestRecoverTokenIsItsOwnPurpose(t *testing.T) {
+	t.Parallel()
+	st, ctx := emailTestStore(t)
+	u := mkUser(t, st, ctx, "purposes", "p@example.test", true, true)
+
+	rec, err := st.ReplaceEmailToken(ctx, u.ID, PurposeRecoverAccount, "", RecoverTokenTTL)
+	if err != nil {
+		t.Fatalf("recover token: %v", err)
+	}
+	reset, err := st.CreateEmailToken(ctx, u.ID, PurposeResetPassword, "", ResetTokenTTL)
+	if err != nil {
+		t.Fatalf("reset token: %v", err)
+	}
+	for _, p := range []TokenPurpose{PurposeResetPassword, PurposeVerifyEmail} {
+		if _, ok, err := st.ConsumeEmailToken(ctx, p, rec); err != nil || ok {
+			t.Errorf("recover token redeemed as %q (ok=%v err=%v)", p, ok, err)
+		}
+	}
+	if _, ok, err := st.ConsumeEmailToken(ctx, PurposeRecoverAccount, reset); err != nil || ok {
+		t.Errorf("reset token redeemed as a recovery (ok=%v err=%v)", ok, err)
+	}
+	// Still spendable as what it is, after all those misses.
+	if _, ok, err := st.ConsumeEmailToken(ctx, PurposeRecoverAccount, rec); err != nil || !ok {
+		t.Errorf("recover token not redeemable for its own purpose (ok=%v err=%v)", ok, err)
+	}
+}

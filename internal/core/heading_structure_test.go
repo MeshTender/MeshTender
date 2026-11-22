@@ -100,6 +100,11 @@ func TestPageHeadingOutlines(t *testing.T) {
 		t.Fatalf("create org: %v", err)
 	}
 
+	recoverTok, err := st.ReplaceEmailToken(ctx, user.ID, store.PurposeRecoverAccount, "", store.RecoverTokenTTL)
+	if err != nil {
+		t.Fatalf("mint recovery link: %v", err)
+	}
+
 	pages := []struct {
 		label, host, path string
 		anon              bool // fetch without the session cookie
@@ -114,6 +119,8 @@ func TestPageHeadingOutlines(t *testing.T) {
 		// Auth host — authbase has no page header, so the card title is the heading.
 		{"auth login", h.auth, "/login", true},
 		{"auth signup", h.auth, "/signup", true},
+		{"auth recovery link", h.auth, "/recover/" + recoverTok, true},
+		{"auth recovery link (dead)", h.auth, "/recover/not-a-real-token", true},
 		// App host — covers base's own header, repeater-tabs and org-tabs headers.
 		{"app dashboard", h.app, "/", false},
 		{"app repeater list", h.app, "/repeaters", false},
