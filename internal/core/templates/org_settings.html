@@ -92,7 +92,7 @@
         <input class="form-control link-label" name="link_label" value="{{.Label}}" maxlength="60" placeholder="Label (optional)" aria-label="Link label">
       </div>
       <div class="col">
-        <input class="form-control link-value" type="text" name="link_url" value="{{.URL}}" maxlength="300" aria-label="Link value">
+        <input class="form-control link-value" type="text" name="link_url" data-1p-ignore value="{{.URL}}" maxlength="300" aria-label="Link value">
       </div>
       {{template "link-row-actions"}}
     </div>
@@ -109,7 +109,7 @@
         <input class="form-control link-label" name="link_label" maxlength="60" placeholder="Label (optional)" aria-label="Link label">
       </div>
       <div class="col">
-        <input class="form-control link-value" type="text" name="link_url" maxlength="300" aria-label="Link value">
+        <input class="form-control link-value" type="text" name="link_url" data-1p-ignore maxlength="300" aria-label="Link value">
       </div>
       {{template "link-row-actions"}}
     </div>
@@ -294,11 +294,11 @@
     <div class="row g-3 mb-3">
       <div class="col-md-6">
         <label class="form-label" for="broker-user">Username</label>
-        <input type="text" id="broker-user" name="username" class="form-control" value="{{with .Broker}}{{.Username}}{{end}}" autocomplete="off">
+        <input type="text" id="broker-user" name="username" data-1p-ignore class="form-control" value="{{with .Broker}}{{.Username}}{{end}}" autocomplete="off">
       </div>
       <div class="col-md-6">
         <label class="form-label" for="broker-pass">Password</label>
-        <input type="password" id="broker-pass" name="password" class="form-control" autocomplete="new-password"
+        <input type="password" id="broker-pass" data-1p-ignore name="password" class="form-control" autocomplete="new-password"
                placeholder="{{with .Broker}}{{if .HasPassword}}Unchanged{{end}}{{end}}">
         {{with .Broker}}{{if .HasPassword}}
         <label class="form-check mt-2">
@@ -574,7 +574,7 @@
       </div>
       <div class="mb-3">
         <label class="form-label" for="air-key">Channel key</label>
-        <input type="password" id="air-key" name="channel_key" class="form-control font-monospace" autocomplete="off"
+        <input type="password" id="air-key" data-1p-ignore name="channel_key" class="form-control font-monospace" autocomplete="off"
                placeholder="{{if and (eq .Air.ChannelKind "private") .Air.HasKey}}Stored — leave blank to keep it{{else}}32 hex digits{{end}}">
         <div class="form-hint">The secret the companion app shares. It's stored encrypted and never shown again.</div>
       </div>

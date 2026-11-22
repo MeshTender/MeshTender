@@ -73,7 +73,7 @@
             <input class="form-control link-label" name="link_label" value="{{$l.Label}}" maxlength="60" placeholder="Label (optional)" aria-label="Link label">
           </div>
           <div class="col">
-            <input class="form-control link-value" type="text" name="link_url" value="{{$l.URL}}" maxlength="300" aria-label="Link value">
+            <input class="form-control link-value" type="text" name="link_url" data-1p-ignore value="{{$l.URL}}" maxlength="300" aria-label="Link value">
           </div>
           <div class="col-auto">
             <label class="form-check form-check-inline m-0" title="Primary contact">
@@ -99,7 +99,7 @@
             <input class="form-control link-label" name="link_label" maxlength="60" placeholder="Label (optional)" aria-label="Link label">
           </div>
           <div class="col">
-            <input class="form-control link-value" type="text" name="link_url" maxlength="300" aria-label="Link value">
+            <input class="form-control link-value" type="text" name="link_url" data-1p-ignore maxlength="300" aria-label="Link value">
           </div>
           <div class="col-auto">
             <label class="form-check form-check-inline m-0" title="Primary contact">
@@ -188,7 +188,7 @@
                 <label class="form-label" for="acct_username">Username</label>
                 <div class="input-group input-group-flat">
                   <span class="input-group-text">@</span>
-                  <input type="text" class="form-control" id="acct_username" name="username" minlength="3" maxlength="32" pattern="[a-zA-Z0-9_.\-]+" value="{{.User.Username}}" {{if .NextRename}}disabled{{end}}>
+                  <input type="text" class="form-control" id="acct_username" name="username" data-1p-ignore minlength="3" maxlength="32" pattern="[a-zA-Z0-9_.\-]+" value="{{.User.Username}}" {{if .NextRename}}disabled{{end}}>
                 </div>
               </div>
               <div class="col-md-auto">
@@ -265,7 +265,7 @@
             <div class="row g-2 align-items-end">
               <div class="col-sm">
                 <label class="form-label" for="email">{{if .Email}}Change address{{else}}Email address{{end}}</label>
-                <input type="email" class="form-control" id="email" name="email" autocomplete="email" autocapitalize="none" maxlength="254" placeholder="you@example.com" required>
+                <input type="email" class="form-control" id="email" name="email" data-1p-ignore autocomplete="email" autocapitalize="none" maxlength="254" placeholder="you@example.com" required>
               </div>
               <div class="col-sm-auto">
                 <button type="submit" class="btn btn-primary w-100" data-testid="email-save">{{if .Email}}Save new address{{else}}Save address{{end}}</button>

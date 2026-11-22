@@ -52,7 +52,7 @@
     </div>
 
     <label class="form-label" for="recovery-email">Send the link to</label>
-    <input type="email" class="form-control" id="recovery-email" name="email"
+    <input type="email" class="form-control" id="recovery-email" name="email" data-1p-ignore
            value="{{with .Account.Email}}{{.}}{{end}}" placeholder="someone@example.com"
            autocomplete="off" data-testid="recovery-email">
     <small class="form-hint mt-1">
