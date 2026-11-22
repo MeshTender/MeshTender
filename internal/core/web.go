@@ -16,6 +16,7 @@ import (
 	"github.com/MeshTender/MeshTender/internal/auth"
 	"github.com/MeshTender/MeshTender/internal/buildinfo"
 	"github.com/MeshTender/MeshTender/internal/config"
+	"github.com/MeshTender/MeshTender/internal/firmware"
 	"github.com/MeshTender/MeshTender/internal/identity"
 	"github.com/MeshTender/MeshTender/internal/ingest"
 	"github.com/MeshTender/MeshTender/internal/marketing"
@@ -48,6 +49,8 @@ type Handlers struct {
 	// heard hands console sessions what every observer hears of their
 	// packets and replies (Server.ListenHeard runs it).
 	heard heardHub
+	// firmware is the observer firmware catalog (cfg.FirmwareHost).
+	firmware *firmware.Catalog
 }
 
 // Server is the built HTTP entry point.
@@ -136,6 +139,9 @@ func NewServer(st *store.Store, authSvc *auth.Service, idSvc *identity.Service, 
 		return nil, err
 	}
 	app := &Handlers{Env: coreEnv, Auth: authSvc}
+	if app.firmware, err = firmware.NewCatalog(cfg.FirmwareURL()); err != nil {
+		return nil, err
+	}
 	app.wsCtx, app.wsCancel = context.WithCancel(context.Background())
 
 	authH, err := auth.NewWeb(deps, authSvc)
@@ -197,6 +203,9 @@ func (s *Handlers) appRouter() chi.Router {
 	// Static assets and health don't need a session (and static is hit often), so
 	// register them ahead of the session middleware, which does per-request DB work.
 	s.SharedRoutes(r)
+	// Install manifests hold nothing but public catalog data, and esp-web-tools
+	// fetches them on its own; no session needed.
+	r.Get("/firmware/{env}/manifest.json", s.firmwareManifest)
 	// Branded 404 for unrouted paths. Run it through the session middleware so the
 	// page chrome reflects the signed-in user (the renderer reads the session).
 	r.NotFound(s.withSession(s.NotFound))

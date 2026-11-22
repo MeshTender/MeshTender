@@ -219,7 +219,8 @@ func newE2EServer(t *testing.T) *e2eServer {
 	t.Cleanup(authSvc.Close)
 	srv, err := core.NewServer(st, authSvc, idSvc, &config.Config{
 		PrimaryHost: appHost(), AuthHost: authHost(), RootHost: rootHost(), Secure: true,
-		MasterKey: masterKey,
+		FirmwareHost: "firmware.invalid", // reserved TLD: no test fetches firmware
+		MasterKey:    masterKey,
 	})
 	if err != nil {
 		t.Fatalf("server: %v", err)

@@ -19,6 +19,7 @@ func validEnv(t *testing.T) {
 	t.Setenv("MESHTENDER_AUTH_HOST", "auth.example.dev")
 	t.Setenv("MESHTENDER_ROOT_HOST", "example.dev")
 	t.Setenv("MESHTENDER_WWW_HOST", "")
+	t.Setenv("MESHTENDER_FIRMWARE_HOST", "firmware.example.dev")
 	// Blanked explicitly so an ambient .env can't switch mail on underneath a test
 	// that says nothing about it.
 	t.Setenv("MESHTENDER_RESEND_API_KEY", "")
@@ -26,6 +27,33 @@ func validEnv(t *testing.T) {
 	t.Setenv("MESHTENDER_MAIL_REPLY_TO", "")
 	// The dev mise task sets this; a test run under mise mustn't inherit it.
 	t.Setenv("MESHTENDER_LIVE_RELOAD", "")
+}
+
+// TestLoadFirmwareHost: the firmware host takes the deployment's scheme like
+// the other hosts, and anything but a bare hostname fails at startup instead of
+// leaving an install page that can never load firmware.
+func TestLoadFirmwareHost(t *testing.T) {
+	validEnv(t)
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if c.FirmwareHost != "firmware.example.dev" {
+		t.Errorf("FirmwareHost = %q", c.FirmwareHost)
+	}
+	if got := c.FirmwareURL(); got != "https://firmware.example.dev" {
+		t.Errorf("FirmwareURL() = %q on an https deployment", got)
+	}
+	if got := (&Config{FirmwareHost: "firmware.example.dev"}).FirmwareURL(); got != "http://firmware.example.dev" {
+		t.Errorf("FirmwareURL() = %q on a plain-http deployment", got)
+	}
+
+	for _, bad := range []string{" firmware.example.dev", "https://firmware.example.dev", "firmware.example.dev/v", "u:p@firmware.example.dev", "firmware.example.dev?x", "a b"} {
+		t.Setenv("MESHTENDER_FIRMWARE_HOST", bad)
+		if _, err := Load(); err == nil || !strings.Contains(err.Error(), "MESHTENDER_FIRMWARE_HOST") {
+			t.Errorf("MESHTENDER_FIRMWARE_HOST=%q: err = %v, want a startup error naming it", bad, err)
+		}
+	}
 }
 
 // TestLoadLiveReloadIsOptIn: the dev-only auto-refresh is off unless the dev
@@ -168,10 +196,10 @@ func TestLoadTrustedProxiesValid(t *testing.T) {
 	mustMatch("8.8.8.8", false)    // not trusted
 }
 
-func TestLoadRequiresAuthAndRootHost(t *testing.T) {
-	// AUTH_HOST and ROOT_HOST are required; Load must fail fast when either is
-	// missing rather than silently falling back.
-	for _, missing := range []string{"MESHTENDER_AUTH_HOST", "MESHTENDER_ROOT_HOST"} {
+func TestLoadRequiresHosts(t *testing.T) {
+	// AUTH_HOST, ROOT_HOST and FIRMWARE_HOST are required; Load must fail fast
+	// when any is missing rather than silently falling back.
+	for _, missing := range []string{"MESHTENDER_AUTH_HOST", "MESHTENDER_ROOT_HOST", "MESHTENDER_FIRMWARE_HOST"} {
 		t.Run(missing, func(t *testing.T) {
 			validEnv(t)
 			t.Setenv(missing, "")

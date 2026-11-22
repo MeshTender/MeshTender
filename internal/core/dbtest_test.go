@@ -70,7 +70,10 @@ func testConfig() *config.Config {
 	return &config.Config{
 		PrimaryHost: testAppHost, AuthHost: testAuthHost,
 		RootHost: testRootHost, WWWHost: testWWWHost,
-		MasterKey: testMasterKey,
+		// Reserved TLD: nothing resolves, so only a test that points it at
+		// its own fake firmware host ever fetches from it.
+		FirmwareHost: "firmware.invalid",
+		MasterKey:    testMasterKey,
 	}
 }
 

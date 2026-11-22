@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -53,6 +54,13 @@ type Config struct {
 	// WWWHost redirects to RootHost (e.g. "www.meshtender.com"). Defaults to
 	// "www." + RootHost when RootHost is set.
 	WWWHost string
+
+	// FirmwareHost serves MeshTender's observer firmware (e.g.
+	// "firmware.meshtender.com"): its index.json lists the builds members can
+	// install from the browser, and the images it names must be on this same
+	// host. Unlike the other hosts it isn't served by this binary, but it's
+	// reached the same way: over https when Secure. Required.
+	FirmwareHost string
 
 	// LiveReload makes every page reload itself when the server restarts, so a
 	// rebuild from the dev watcher shows up without a manual refresh. Dev only:
@@ -150,6 +158,7 @@ func Load() (*Config, error) {
 		AuthHost:       os.Getenv("MESHTENDER_AUTH_HOST"),
 		RootHost:       os.Getenv("MESHTENDER_ROOT_HOST"),
 		WWWHost:        os.Getenv("MESHTENDER_WWW_HOST"),
+		FirmwareHost:   os.Getenv("MESHTENDER_FIRMWARE_HOST"),
 		TLSCert:        os.Getenv("MESHTENDER_TLS_CERT"),
 		TLSKey:         os.Getenv("MESHTENDER_TLS_KEY"),
 		ResendAPIKey:   os.Getenv("MESHTENDER_RESEND_API_KEY"),
@@ -182,8 +191,9 @@ func Load() (*Config, error) {
 	// would make the logging sender useless for the case it exists to serve.
 	c.MailEnabled = c.MailFrom != ""
 
-	// MeshTender runs across three hosts (auth + app + root). Require the two that
-	// have no sane default (PrimaryHost falls back to RPID above).
+	// MeshTender runs across three hosts (auth + app + root) and installs
+	// firmware from a fourth. Require the ones that have no sane default
+	// (PrimaryHost falls back to RPID above).
 	if c.AuthHost == "" {
 		return nil, fmt.Errorf("MESHTENDER_AUTH_HOST is required")
 	}
@@ -192,6 +202,14 @@ func Load() (*Config, error) {
 	}
 	if c.WWWHost == "" {
 		c.WWWHost = "www." + c.RootHost
+	}
+	if c.FirmwareHost == "" {
+		return nil, fmt.Errorf("MESHTENDER_FIRMWARE_HOST is required")
+	}
+	// It's spliced into URLs the server fetches and the browser installs from,
+	// so it must be a bare hostname, not a URL.
+	if err := validHostname(c.FirmwareHost); err != nil {
+		return nil, fmt.Errorf("MESHTENDER_FIRMWARE_HOST: %w", err)
 	}
 	// HTTPS deployments advertise https:// origins; this drives Secure cookies
 	// and the scheme used when building absolute cross-host URLs.
@@ -274,6 +292,26 @@ func parseTrustedProxies(s string) ([]*net.IPNet, error) {
 func mustCIDR(s string) *net.IPNet {
 	_, n, _ := net.ParseCIDR(s)
 	return n
+}
+
+// FirmwareURL is the firmware host's base URL, with the scheme every other host
+// gets (https when Secure).
+func (c *Config) FirmwareURL() string {
+	scheme := "http"
+	if c.Secure {
+		scheme = "https"
+	}
+	return scheme + "://" + c.FirmwareHost
+}
+
+// validHostname requires a bare host (optionally with a port): no scheme, path
+// or credentials, which would otherwise end up spliced into a URL.
+func validHostname(h string) error {
+	u, err := url.Parse("https://" + h)
+	if err != nil || h == "" || u.Host != h || u.User != nil || u.Path != "" || u.RawQuery != "" || u.Fragment != "" {
+		return fmt.Errorf("%q must be a bare hostname, like firmware.meshtender.com", h)
+	}
+	return nil
 }
 
 func envOr(key, def string) string {
