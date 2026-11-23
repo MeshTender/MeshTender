@@ -172,7 +172,7 @@ func (s *Handlers) handleAddOrgObserver(w http.ResponseWriter, r *http.Request) 
 		fail("Give the observer a name (up to 64 characters).")
 		return
 	}
-	key, ok := normalizeCompanionKey(r.FormValue("public_key"))
+	key, ok := normalizePublicKey(r.FormValue("public_key"))
 	if !ok {
 		fail("That isn't a MeshCore public key (64 hex characters).")
 		return

@@ -6,9 +6,12 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	meshcore "github.com/meshcore-go/meshcore-go"
 
+	"github.com/MeshTender/MeshTender/internal/observe"
+	"github.com/MeshTender/MeshTender/internal/observe/observetest"
 	"github.com/MeshTender/MeshTender/internal/store"
 )
 
@@ -19,6 +22,7 @@ func TestNodeRowsSortByName(t *testing.T) {
 	rows := nodeRows(
 		[]*store.Companion{{Name: "zed"}, {Name: "Hilltop"}},
 		[]*store.Repeater{{Name: "hilltop"}, {Name: "Alpha"}},
+		nil,
 	)
 	var got []string
 	for _, r := range rows {
@@ -32,7 +36,7 @@ func TestNodeRowsSortByName(t *testing.T) {
 
 func TestParseNodeShow(t *testing.T) {
 	t.Parallel()
-	for in, want := range map[string]string{"companion": "companion", "repeater": "repeater", "shared": "shared", "observer": "", "": ""} {
+	for in, want := range map[string]string{"companion": "companion", "repeater": "repeater", "observer": "observer", "shared": "shared", "sensor": "", "": ""} {
 		if got := parseNodeShow(url.Values{"show": {in}}); got != want {
 			t.Errorf("show=%q → %q, want %q", in, got, want)
 		}
@@ -165,5 +169,75 @@ func TestAddNodeOffersEachKind(t *testing.T) {
 	st, ctx, ts, h := splitServer(t)
 	_, sess := appLogin(t, ts, st, ctx, h.app, "addnode")
 	body := getBody(t, ts, h.app, "/nodes/new", sess)
-	assertInOrder(t, "add node", body, `href="/companions/new"`, `href="/repeaters/add"`, `href="/observers/install"`)
+	assertInOrder(t, "add node", body, `href="/companions/new"`, `href="/repeaters/add"`, `href="/observers/new"`)
+}
+
+// TestNodeRowsWithObservers: an observer whose key is one of the user's
+// repeaters rides on the repeater's row instead of getting its own, and an
+// observer nobody has heard from yet (no name) sorts after the named rows.
+func TestNodeRowsWithObservers(t *testing.T) {
+	t.Parallel()
+	shared := &store.UserObserver{PublicKeyHex: "bb", Name: "Ridge"}
+	unnamed := &store.UserObserver{PublicKeyHex: "aa"}
+	named := &store.UserObserver{PublicKeyHex: "cc", Name: "Hilltop"}
+	rows := nodeRows(nil, []*store.Repeater{{Name: "Ridge", PublicKeyHex: "bb"}}, []*store.UserObserver{shared, unnamed, named})
+	var got []string
+	for _, r := range rows {
+		got = append(got, r.Kind+":"+r.Name+":"+r.Key)
+	}
+	if want := "observer:Hilltop:cc repeater:Ridge:bb observer::aa"; strings.Join(got, " ") != want {
+		t.Errorf("rows = %v, want %s", got, want)
+	}
+	if rows[1].Observer != shared {
+		t.Error("the repeater's row doesn't carry its observer")
+	}
+}
+
+// TestNodesListShowsObservers: observers appear in the list (tagged for the
+// Show filter's Observers choice), an unheard one by its short key, and one of
+// the user's repeaters that's also an observer gets a badge linking to the
+// observer's page. Observers alone are enough to bring up the filters.
+func TestNodesListShowsObservers(t *testing.T) {
+	t.Parallel()
+	st, ctx, ts, h := splitServer(t)
+	user, sess := appLogin(t, ts, st, ctx, h.app, "nodeobservers")
+	org, err := st.CreateOrg(ctx, "Obs Mesh", user.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	heard := observetest.NewIdentity(t).String()
+	if _, err := st.CreateUserObserver(ctx, user.ID, heard); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.ReportObserver(ctx, org.ID, heard, "PDX", time.Now(), &observe.Status{Name: "Hilltop Room", FirmwareVersion: "v1.18.0.4313-meshtender-fe351d9f"}); err != nil {
+		t.Fatal(err)
+	}
+	quiet := observetest.NewIdentity(t).String()
+	if _, err := st.CreateUserObserver(ctx, user.ID, quiet); err != nil {
+		t.Fatal(err)
+	}
+
+	body := getBody(t, ts, h.app, "/nodes", sess)
+	assertInOrder(t, "node list", body, "Hilltop Room", quiet[:8]+"…")
+	for _, want := range []string{
+		`data-testid="node-show"`, `<option value="observer"`, `data-show="observer"`,
+		"v1.18.0.4313-meshtender-fe351d9f", "Reports to 1 organization",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("node list lacks %s", want)
+		}
+	}
+
+	rep := newNodesRepeater(t, st, user.ID, "Ridge Repeater")
+	o, err := st.CreateUserObserver(ctx, user.ID, rep.PublicKeyHex)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body = getBody(t, ts, h.app, "/nodes", sess)
+	if !strings.Contains(body, `data-show="repeater observer"`) || !strings.Contains(body, `href="/observers/`+o.PublicID+`" data-testid="node-repeater-observer"`) {
+		t.Error("a repeater that's also an observer should be one row with an Observer badge linking to the observer")
+	}
+	if n := strings.Count(body, `data-testid="node-observer"`); n != 2 {
+		t.Errorf("%d observer rows, want 2: the repeater's observer shouldn't get a row of its own", n)
+	}
 }

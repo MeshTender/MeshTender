@@ -1,14 +1,17 @@
-{{define "title"}}Install observer firmware · MeshTender{{end}}
+{{define "title"}}Add an observer · MeshTender{{end}}
 {{define "header"}}
 <div class="row g-2 align-items-center">
   <div class="col">
-    <h1 class="page-title fs-1">Install observer firmware</h1>
-    <div class="text-secondary mt-1">An observer is a room server or repeater running MeshTender's observer firmware. It uploads what it hears to an organization's MQTT broker, and updates itself over Wi-Fi after this first install.</div>
+    <ol class="breadcrumb mb-2" aria-label="Breadcrumb"><li class="breadcrumb-item"><a href="/nodes">Nodes</a></li><li class="breadcrumb-item"><a href="/nodes/new">Add</a></li><li class="breadcrumb-item active" aria-current="page">Observer</li></ol>
+    <h1 class="page-title fs-1">Add an observer</h1>
+    <div class="text-secondary mt-1">An observer is a room server or repeater running MeshTender's observer firmware. It uploads what it hears to an organization's MQTT broker, and updates itself over Wi-Fi after the first install.</div>
   </div>
 </div>
 {{end}}
 {{define "content"}}
-<div class="card" style="max-width:40rem">
+<div class="d-flex flex-column gap-3" style="max-width:40rem">
+<section class="card">
+  <div class="card-header"><h2 class="card-title">Install the firmware over USB</h2></div>
   <div class="card-body">
     {{if not .Roles}}
     <div class="alert alert-warning mb-0" role="alert" data-testid="firmware-unavailable">
@@ -36,7 +39,7 @@
       {{end}}{{end}}
     </form>
 
-    <h2 class="h4">Keeping its settings</h2>
+    <h3 class="h4">Keeping its settings</h3>
     <p>Before installing, you'll be asked whether to erase the device. If it already runs MeshCore, leave that unchecked: it keeps its public key, name, passwords, and Wi-Fi and MQTT settings, so members logging in to a room server won't notice the change.</p>
     <p>Erase it if it ran some other firmware, or to start over. It then gets a new public key, and anyone who saved the old one will need to add it again.</p>
 
@@ -53,9 +56,30 @@
       </div>
     </esp-web-install-button>
     {{end}}{{end}}
-    <p class="form-hint mt-3 mb-0">Your browser will ask which serial port to use. Pick the one that appears when you plug the board in.</p>
+    <p class="form-hint mt-3 mb-0">Your browser will ask which serial port to use. Pick the one that appears when you plug the board in. Once it's installed, add it below.</p>
     {{end}}
   </div>
+</section>
+
+<section class="card" id="by-key">
+  <div class="card-header"><h2 class="card-title">Add one that runs the firmware</h2></div>
+  <div class="card-body">
+    {{if .AtLimit}}
+    <p class="mb-0" data-testid="observer-at-limit">You've added the most observers you can ({{.Max}}). Remove one to add another.</p>
+    {{else}}
+    <p class="text-secondary">Add it by its public key. Its name, firmware and status come from the organizations whose MQTT brokers it reports to.</p>
+    <form method="post" action="/observers" data-testid="observer-add-form">
+      <div class="mb-3">
+        <label class="form-label" for="observer-key">Public key</label>
+        <input type="text" id="observer-key" name="public_key" class="form-control font-monospace" required
+               pattern="[0-9A-Fa-f]{64}" autocomplete="off" spellcheck="false" placeholder="64 hex characters">
+        <div class="form-hint">Run <code>get public.key</code> on the observer, over USB or remote admin.</div>
+      </div>
+      <button type="submit" class="btn btn-primary">Add observer</button>
+    </form>
+    {{end}}
+  </div>
+</section>
 </div>
 {{if .Roles}}
 <script type="module" src="{{ asset "/static/esp-web-tools/install-button.js" }}"></script>

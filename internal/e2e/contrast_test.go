@@ -250,7 +250,7 @@ func TestContrastMeetsWCAGAA(t *testing.T) {
 		{"app dashboard", srv.appURL + "/"},
 		{"app nodes", srv.appURL + "/nodes"},
 		{"app add node", srv.appURL + "/nodes/new"},
-		{"app install observer", srv.appURL + "/observers/install"},
+		{"app add observer", srv.appURL + "/observers/new"},
 		{"app repeater", srv.appURL + "/repeaters/" + rep.PublicID},
 		{"app repeater people", srv.appURL + "/repeaters/" + rep.PublicID + "/settings/people"},
 		{"app repeater orgs", srv.appURL + "/repeaters/" + rep.PublicID + "/settings/organizations"},

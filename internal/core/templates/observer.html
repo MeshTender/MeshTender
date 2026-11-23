@@ -1,0 +1,74 @@
+{{define "title"}}{{with .Observer}}{{if .Name}}{{.Name}}{{else}}Observer{{end}}{{end}} · MeshTender{{end}}
+{{define "header"}}
+{{with .Observer}}
+<div class="row g-2 align-items-center">
+  <div class="col">
+    <ol class="breadcrumb mb-2" aria-label="Breadcrumb"><li class="breadcrumb-item"><a href="/nodes">Nodes</a></li><li class="breadcrumb-item active" aria-current="page">{{if .Name}}{{.Name}}{{else}}Observer{{end}}</li></ol>
+    <div class="d-flex align-items-center flex-wrap gap-2">
+      <h1 class="page-title fs-1 mb-0">{{if .Name}}{{.Name}}{{else}}Observer{{end}}</h1>
+      <span class="badge bg-teal-lt">Observer</span>
+      {{if not .Reported}}<span class="badge bg-orange-lt" data-testid="observer-not-heard">Not heard yet</span>{{end}}
+    </div>
+    <div class="small text-secondary mt-1">{{template "pubkey" .PublicKeyHex}}</div>
+  </div>
+  <div class="col-auto ms-auto d-print-none btn-list">
+    <a class="btn" href="/observers/new">Reinstall over USB</a>
+    <form method="post" action="/observers/{{.PublicID}}/delete" class="m-0" data-confirm="Remove this observer from your nodes? It keeps reporting to its organizations.">
+      <button type="submit" class="btn text-danger-emphasis" data-testid="observer-remove">Remove</button>
+    </form>
+  </div>
+</div>
+{{end}}
+{{end}}
+{{define "content"}}
+{{with .Observer}}
+<div class="d-flex flex-column gap-3">
+<section class="card" data-testid="observer-status">
+  <div class="card-header"><h2 class="card-title">Status</h2></div>
+  <div class="card-body">
+    {{if .Reported}}
+    <div class="datagrid">
+      <div class="datagrid-item"><div class="datagrid-title">Firmware</div><div class="datagrid-content">{{if .FirmwareVersion}}{{.FirmwareVersion}}{{else}}<span class="text-secondary">Not reported</span>{{end}}</div></div>
+      <div class="datagrid-item"><div class="datagrid-title">Model</div><div class="datagrid-content">{{if .Model}}{{.Model}}{{else}}<span class="text-secondary">Not reported</span>{{end}}</div></div>
+      <div class="datagrid-item"><div class="datagrid-title">Last heard</div><div class="datagrid-content">{{if .LastSeenAt}}{{ts .LastSeenAt "relative"}}{{else}}<span class="text-secondary">Not yet</span>{{end}}</div></div>
+      <div class="datagrid-item"><div class="datagrid-title">Region</div><div class="datagrid-content">{{if .IATA}}{{.IATA}}{{else}}<span class="text-secondary">Not reported</span>{{end}}</div></div>
+      <div class="datagrid-item"><div class="datagrid-title">Battery</div><div class="datagrid-content">{{if .BatteryMV}}{{.BatteryMV}} mV{{else}}<span class="text-secondary">Not reported</span>{{end}}</div></div>
+      <div class="datagrid-item"><div class="datagrid-title">Noise floor</div><div class="datagrid-content">{{if .NoiseFloor}}{{.NoiseFloor}} dBm{{else}}<span class="text-secondary">Not reported</span>{{end}}</div></div>
+    </div>
+    <p class="text-secondary small mt-3 mb-0">From its latest report. When a newer firmware version is published, it can update itself: run <code>ota update</code> on it.</p>
+    {{else}}
+    <p class="mb-0">No organization's MQTT broker has heard from it yet. Once it's on Wi-Fi and connected to an organization's broker, its status shows up here within a few minutes.</p>
+    {{end}}
+  </div>
+</section>
+
+{{if .Reported}}
+<section class="card" data-testid="observer-orgs">
+  <div class="card-header"><h2 class="card-title">Organizations it reports to</h2></div>
+  {{if $.Reports}}
+  <div class="table-responsive">
+    <table class="table card-table table-vcenter">
+      <thead><tr><th>Organization</th><th>Listed as</th><th>Status</th><th>Last heard</th></tr></thead>
+      <tbody>
+        {{range $.Reports}}
+        <tr data-testid="observer-org">
+          <td><a href="/orgs/{{.OrgSlug}}">{{.OrgName}}</a></td>
+          <td>{{.Name}}</td>
+          <td>{{if .Approved}}<span class="badge bg-green-lt">Approved</span>{{else}}<span class="badge bg-orange-lt" title="Only adverts an approved observer heard count as check-ins">Awaiting approval</span>{{end}}</td>
+          <td class="text-secondary">{{if .LastSeenAt}}{{ts .LastSeenAt "relative"}}{{else}}Not yet{{end}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+  {{end}}
+  {{if gt $.OtherOrgs 0}}
+  <div class="card-body{{if $.Reports}} border-top{{end}} text-secondary" data-testid="observer-other-orgs">
+    {{if $.Reports}}Also listed by{{else}}Listed by{{end}} {{$.OtherOrgs}} organization{{if ne $.OtherOrgs 1}}s{{end}} you're not a member of.
+  </div>
+  {{end}}
+</section>
+{{end}}
+</div>
+{{end}}
+{{end}}

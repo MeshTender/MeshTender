@@ -13,11 +13,11 @@
 {{define "content"}}
 {{if .Nodes}}
 <div class="card" data-filter-root data-testid="node-list">
-  {{/* Filters only once there's a repeater: a companion-only list (most members)
-       is short and has none. Their choices are the same whatever's chosen. They
+  {{/* Filters only once there's more than companions: a companion-only list
+       (most members) is short and has none. Their choices are the same whatever's chosen. They
        sit above the list, so they come first on a phone and in tab order
        (TestFilterControlsPrecedeTheList). */}}
-  {{if .HasRepeaters}}
+  {{if .HasFilters}}
   <div class="card-header">
     <div class="d-flex flex-wrap gap-2 w-100" role="search">
       <div class="input-icon flex-fill" style="min-width:12rem">
@@ -28,6 +28,7 @@
         <option value="">All</option>
         <option value="companion"{{if eq .Show "companion"}} selected{{end}}>Companions</option>
         <option value="repeater"{{if eq .Show "repeater"}} selected{{end}}>Repeaters</option>
+        <option value="observer"{{if eq .Show "observer"}} selected{{end}}>Observers</option>
         <option value="shared"{{if eq .Show "shared"}} selected{{end}}>Shared with me</option>
       </select>
     </div>
@@ -35,6 +36,7 @@
   {{end}}
   <div class="list-group list-group-flush">
     {{range .Nodes}}
+    {{$row := .}}
     {{if .Companion}}{{with .Companion}}
     <div class="list-group-item position-relative" data-filter-item data-show="companion" data-name="{{.Name}}" data-testid="node-companion">
       <div class="d-flex align-items-center gap-3">
@@ -51,18 +53,21 @@
         <div class="text-secondary small text-end text-nowrap">{{if .LastHeardAt}}Heard {{ts .LastHeardAt "relative"}}{{end}}</div>
       </div>
     </div>
-    {{end}}{{else}}{{with .Repeater}}
+    {{end}}{{else if .Repeater}}{{with .Repeater}}
     {{$shareCounts := index $.ShareCounts .ID}}
     {{/* Problems such as guest-only access show as badges here (repstatus); the
          repeater's own page explains them and how to fix them. */}}
     <div class="list-group-item position-relative" data-filter-item data-testid="node-repeater"
-         data-show="repeater{{if .Shared}} shared{{end}}" data-name="{{.Name}}">
+         data-show="repeater{{if .Shared}} shared{{end}}{{if $row.Observer}} observer{{end}}" data-name="{{.Name}}">
       <div class="d-flex align-items-center gap-3">
         <span class="avatar bg-purple-lt d-none d-sm-flex">{{template "icon-antenna" ""}}</span>
         <div class="flex-fill" style="min-width:0">
           <div class="d-flex align-items-center flex-wrap gap-2">
             <a class="fw-bold text-reset stretched-link" href="/repeaters/{{.PublicID}}">{{.Name}}</a>
             <span class="badge bg-purple-lt">Repeater</span>
+            {{/* Also one of the user's observers: the badge leads to the
+                 observer's page, above the row's own link. */}}
+            {{with $row.Observer}}<a class="badge bg-teal-lt position-relative" style="z-index:2" href="/observers/{{.PublicID}}" data-testid="node-repeater-observer">Observer</a>{{end}}
             {{template "repstatus" .}}
           </div>
           <div class="d-flex align-items-center flex-wrap gap-2 small text-secondary">
@@ -71,6 +76,26 @@
             {{if .Shared}}<span>Shared with you by {{.OwnerName}}</span>{{else}}<span>{{template "sharetext" $shareCounts}}</span>{{end}}
           </div>
         </div>
+      </div>
+    </div>
+    {{end}}{{else}}{{with .Observer}}
+    <div class="list-group-item position-relative" data-filter-item data-show="observer" data-name="{{.Name}}" data-testid="node-observer">
+      <div class="d-flex align-items-center gap-3">
+        <span class="avatar bg-teal-lt d-none d-sm-flex">{{template "icon-cloud-upload" ""}}</span>
+        <div class="flex-fill" style="min-width:0">
+          <div class="d-flex align-items-center flex-wrap gap-2">
+            {{if .Name}}<a class="fw-bold text-reset stretched-link" href="/observers/{{.PublicID}}">{{.Name}}</a>
+            {{else}}<a class="fw-bold text-reset stretched-link font-monospace" href="/observers/{{.PublicID}}" title="{{.PublicKeyHex}}">{{slice .PublicKeyHex 0 8}}…</a>{{end}}
+            <span class="badge bg-teal-lt">Observer</span>
+            {{if not .Reported}}<span class="badge bg-orange-lt" title="No organization's MQTT broker has heard from it yet">Not heard yet</span>{{end}}
+          </div>
+          <div class="d-flex align-items-center flex-wrap gap-2 small text-secondary">
+            {{if .Name}}{{template "pubkey" .PublicKeyHex}}{{end}}
+            {{if .FirmwareVersion}}{{if .Name}}<span>·</span>{{end}}<span>{{.FirmwareVersion}}</span>{{end}}
+            {{if .Reported}}{{if or .Name .FirmwareVersion}}<span>·</span>{{end}}<span>Reports to {{.OrgCount}} organization{{if ne .OrgCount 1}}s{{end}}</span>{{end}}
+          </div>
+        </div>
+        <div class="text-secondary small text-end text-nowrap">{{if .LastSeenAt}}Heard {{ts .LastSeenAt "relative"}}{{end}}</div>
       </div>
     </div>
     {{end}}{{end}}

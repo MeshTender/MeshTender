@@ -228,7 +228,7 @@ func (s *Handlers) pageConfigure(w http.ResponseWriter, r *http.Request) {
 		s.ServerError(w, r, "could not load observers", err)
 		return
 	}
-	via, _ := normalizeCompanionKey(r.URL.Query().Get("via"))
+	via, _ := normalizePublicKey(r.URL.Query().Get("via"))
 	if !slices.ContainsFunc(observers, func(o store.RelayObserver) bool { return o.PublicKeyHex == via }) {
 		via = ""
 	}
@@ -328,7 +328,7 @@ func (s *Handlers) wsConsole(w http.ResponseWriter, r *http.Request) {
 	via := r.URL.Query().Get("via")
 	var viaKey string
 	if via != "" {
-		if viaKey, ok = normalizeCompanionKey(via); !ok {
+		if viaKey, ok = normalizePublicKey(via); !ok {
 			http.Error(w, "invalid observer key", http.StatusBadRequest)
 			return
 		}

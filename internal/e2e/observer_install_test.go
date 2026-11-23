@@ -3,6 +3,7 @@
 package e2e
 
 import (
+	"strings"
 	"testing"
 
 	cdplog "github.com/chromedp/cdproto/log"
@@ -32,7 +33,7 @@ func TestE2EObserverInstallPage(t *testing.T) {
 		cdplog.Enable(),
 		setSessionCookie(cookie),
 		step("open the install page",
-			chromedp.Navigate(srv.appURL+"/observers/install"),
+			chromedp.Navigate(srv.appURL+"/observers/new"),
 			chromedp.WaitVisible(`[data-testid="firmware-install-button"]`, chromedp.ByQuery),
 			chromedp.Poll(`customElements.get("esp-web-install-button") !== undefined`, &defined),
 			chromedp.AttributeValue(`[data-testid="firmware-install-button"]`, "manifest", &manifest, nil, chromedp.ByQuery),
@@ -88,3 +89,46 @@ const noPortDialogTheme = `(async () => {
 	return [getComputedStyle(d).getPropertyValue("--md-sys-color-surface").trim(),
 	        getComputedStyle(document.body).getPropertyValue("--tblr-bg-surface").trim()];
 })()`
+
+// TestE2EAddObserverByKey adds an observer through the form on Add an observer,
+// lands on its page, and removes it through the data-confirm form, back on the
+// Nodes list — all under the strict CSP.
+func TestE2EAddObserverByKey(t *testing.T) {
+	srv := newE2EServer(t)
+	user, cookie := srv.login(t, "e2eaddobserver")
+	key := strings.Repeat("ef", 32)
+
+	bctx, cancel, watch := startBrowser(t)
+	defer cancel()
+	acceptDialogs(bctx)
+
+	var heading, notHeard string
+	if err := chromedp.Run(bctx,
+		network.Enable(),
+		cdplog.Enable(),
+		setSessionCookie(cookie),
+		step("open Add an observer",
+			chromedp.Navigate(srv.appURL+"/observers/new"),
+			chromedp.WaitVisible(`#observer-key`, chromedp.ByID)),
+		step("add it by key",
+			chromedp.SendKeys(`#observer-key`, key, chromedp.ByID),
+			chromedp.Submit(`#observer-key`, chromedp.ByID),
+			chromedp.WaitVisible(`[data-testid="observer-status"]`, chromedp.ByQuery),
+			chromedp.Text(`h1`, &heading, chromedp.ByQuery),
+			chromedp.Text(`[data-testid="observer-not-heard"]`, &notHeard, chromedp.ByQuery)),
+		step("remove it",
+			chromedp.Click(`[data-testid="observer-remove"]`, chromedp.ByQuery),
+			waitForLocation(srv.appURL+"/nodes"),
+			chromedp.WaitVisible(`body`, chromedp.ByQuery)),
+	); err != nil {
+		t.Fatalf("add observer: %v", err)
+	}
+	watch.assertClean(t)
+
+	if heading != "Observer" || notHeard != "Not heard yet" {
+		t.Errorf("observer page: heading %q, badge %q", heading, notHeard)
+	}
+	if left, _ := srv.store.ListObserversForUser(srv.ctx, user.ID); len(left) != 0 {
+		t.Error("observer not removed")
+	}
+}

@@ -116,15 +116,3 @@ func installRoles(idx *firmware.Index) []installRole {
 	})
 	return roles
 }
-
-// pageInstallObserver is the observer firmware install page. With the catalog
-// unreachable it still renders, saying so, rather than failing the page.
-func (s *Handlers) pageInstallObserver(w http.ResponseWriter, r *http.Request) {
-	var roles []installRole
-	if idx, err := s.firmware.Index(r.Context()); err != nil {
-		web.LogError(r, "firmware index unavailable", err)
-	} else {
-		roles = installRoles(idx)
-	}
-	s.Render(w, r, "observer_install.html", map[string]any{"Roles": roles})
-}

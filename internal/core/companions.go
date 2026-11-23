@@ -36,11 +36,11 @@ func (s *Handlers) pageNewCompanion(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// normalizeCompanionKey validates a pasted MeshCore public key and returns it in
-// the stored form (lowercase hex). The ingester looks companions up by the
-// lowercase hex meshcore.Identity.String() produces, so storing any other form
-// would make the companion unmatchable.
-func normalizeCompanionKey(raw string) (string, bool) {
+// normalizePublicKey validates a pasted MeshCore public key (a companion's, an
+// observer's, a relay's) and returns it in the stored form (lowercase hex). The
+// ingester looks nodes up by the lowercase hex meshcore.Identity.String()
+// produces, so storing any other form would make the key unmatchable.
+func normalizePublicKey(raw string) (string, bool) {
 	key := strings.ToLower(strings.TrimSpace(raw))
 	id, err := meshcore.NewIdentityFromHex(key)
 	if err != nil {
@@ -58,7 +58,7 @@ func (s *Handlers) handleAddCompanion(w http.ResponseWriter, r *http.Request) {
 		addErr("Give the companion a name (up to 64 characters).")
 		return
 	}
-	key, ok := normalizeCompanionKey(r.FormValue("public_key"))
+	key, ok := normalizePublicKey(r.FormValue("public_key"))
 	if !ok {
 		addErr("That isn't a MeshCore public key. Paste the 64 hex characters from the companion app's contact sharing.")
 		return

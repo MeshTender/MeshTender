@@ -111,7 +111,7 @@ func TestInstallObserverPage(t *testing.T) {
 		  "latest":"v9","builds":[]}`)
 	ts, h, login := firmwareServer(t, fw)
 
-	body := getBody(t, ts, h.app, "/observers/install", login("installer"))
+	body := getBody(t, ts, h.app, "/observers/new", login("installer"))
 	checkHeadingOutline(t, "observer install", body)
 	roleSelect := between(body, `data-testid="firmware-role"`, "</select>")
 	if strings.Index(roleSelect, "Room server") > strings.Index(roleSelect, "Repeater") || !strings.Contains(roleSelect, "Repeater") {
@@ -139,23 +139,27 @@ func TestInstallObserverPage(t *testing.T) {
 }
 
 // TestInstallObserverPageCatalogDown: the page still renders, saying the list
-// can't be loaded, and offers no install button.
+// can't be loaded, and offers no install button; adding an observer by its key
+// still works.
 func TestInstallObserverPageCatalogDown(t *testing.T) {
 	t.Parallel()
 	ts, h, login := firmwareServer(t, firmwareHost(t, http.StatusBadGateway))
-	body := getBody(t, ts, h.app, "/observers/install", login("installer"))
+	body := getBody(t, ts, h.app, "/observers/new", login("installer"))
 	if !strings.Contains(body, `data-testid="firmware-unavailable"`) {
 		t.Error("no unavailable notice")
 	}
 	if strings.Contains(body, "esp-web-install-button") {
 		t.Error("offers an install button with nothing to install")
 	}
+	if !strings.Contains(body, `data-testid="observer-add-form"`) {
+		t.Error("the add-by-key form went with the firmware list")
+	}
 }
 
 func TestInstallObserverPageNeedsSignIn(t *testing.T) {
 	t.Parallel()
 	ts, h, _ := firmwareServer(t, firmwareHost(t, 0))
-	if got := status(t, do(t, ts, h.app, "/observers/install")); got == http.StatusOK {
+	if got := status(t, do(t, ts, h.app, "/observers/new")); got == http.StatusOK {
 		t.Errorf("signed-out GET = %d, want a redirect to sign in", got)
 	}
 }

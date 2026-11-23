@@ -13,8 +13,8 @@ import (
 )
 
 // TestE2ENodesFilter drives the client-side filtering on the Nodes list in a
-// real browser: search, and each Show choice (companions, repeaters, and
-// repeaters shared with me, which are a subset of repeaters). The filter
+// real browser: search, and each Show choice (companions, repeaters,
+// observers, and repeaters shared with me, which are a subset of repeaters). The filter
 // controls stay the same whichever is chosen, a link can open the list already
 // filtered with ?show=, and listfilter.js runs clean under the strict CSP.
 func TestE2ENodesFilter(t *testing.T) {
@@ -33,6 +33,9 @@ func TestE2ENodesFilter(t *testing.T) {
 	if _, err := srv.store.AddShare(srv.ctx, gamma.ID, user.ID); err != nil {
 		t.Fatalf("share gamma to me: %v", err)
 	}
+	if _, err := srv.store.CreateUserObserver(srv.ctx, user.ID, strings.Repeat("cd", 32)); err != nil {
+		t.Fatalf("add observer: %v", err)
+	}
 
 	bctx, cancel, watch := startBrowser(t)
 	defer cancel()
@@ -44,7 +47,7 @@ func TestE2ENodesFilter(t *testing.T) {
 			`var k=document.getElementById('node-show');k.value='` + v + `';k.dispatchEvent(new Event('change'));})()`
 	}
 	type result struct{ rows, controls int }
-	var all, searched, companions, repeaters, shared, back, linked result
+	var all, searched, companions, repeaters, observers, shared, back, linked result
 	read := func(r *result) chromedp.Action {
 		return chromedp.ActionFunc(func(ctx context.Context) error {
 			if err := chromedp.Evaluate(visible, &r.rows).Do(ctx); err != nil {
@@ -64,6 +67,7 @@ func TestE2ENodesFilter(t *testing.T) {
 		step("search", chromedp.Evaluate(`(function(){var s=document.getElementById('node-search');s.value='alpha';s.dispatchEvent(new Event('input'));})()`, nil), read(&searched)),
 		step("show companions", chromedp.Evaluate(show("companion"), nil), read(&companions)),
 		step("show repeaters", chromedp.Evaluate(show("repeater"), nil), read(&repeaters)),
+		step("show observers", chromedp.Evaluate(show("observer"), nil), read(&observers)),
 		step("show shared with me", chromedp.Evaluate(show("shared"), nil), read(&shared)),
 		step("show all", chromedp.Evaluate(show(""), nil), read(&back)),
 		step("open a link to shared with me",
@@ -80,8 +84,8 @@ func TestE2ENodesFilter(t *testing.T) {
 		got  result
 		rows int
 	}{
-		{"all", all, 4}, {"search alpha", searched, 1}, {"companions", companions, 1},
-		{"repeaters", repeaters, 3}, {"shared with me", shared, 1}, {"back to all", back, 4},
+		{"all", all, 5}, {"search alpha", searched, 1}, {"companions", companions, 1},
+		{"repeaters", repeaters, 3}, {"observers", observers, 1}, {"shared with me", shared, 1}, {"back to all", back, 5},
 		{"?show=shared", linked, 1},
 	} {
 		if c.got.rows != c.rows {
