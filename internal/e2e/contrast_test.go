@@ -257,6 +257,7 @@ func TestContrastMeetsWCAGAA(t *testing.T) {
 		{"app repeater details", srv.appURL + "/repeaters/" + rep.PublicID + "/settings"},
 		{"app my orgs", srv.appURL + "/orgs"},
 		{"app org", srv.appURL + "/orgs/" + org.Slug},
+		{"app org MQTT settings", srv.appURL + "/orgs/" + org.Slug + "/settings/mqtt"},
 		{"admin hub", srv.appURL + "/admin"},
 		{"admin catalog", srv.appURL + "/admin/catalog"},
 		{"admin users", srv.appURL + "/admin/users"},

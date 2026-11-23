@@ -120,12 +120,14 @@ code.pubkey {
 /* Segmented controls (a .btn-group of .btn-check radios, or of links where the
    current page carries aria-current): Tabler marks the chosen segment with a
    background barely lighter than the rest, which is hard to pick out,
-   especially in the dark theme. Tint it with the primary color. */
+   especially in the dark theme. Tint it with the primary color. The text is
+   the emphasis blue: full-strength primary is 2.75:1 on the tint in the dark
+   theme, under AA (as with .landing-step-n). */
 .btn-group > .btn-check:checked + .btn,
 .btn-group > .btn[aria-current="page"] {
   background-color: var(--tblr-primary-lt);
   border-color: var(--tblr-primary);
-  color: var(--tblr-primary);
+  color: var(--tblr-primary-text-emphasis);
   z-index: 1;
 }
 
