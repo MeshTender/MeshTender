@@ -131,6 +131,10 @@ func TestInstallObserverPage(t *testing.T) {
 		`data-published="November 22, 2026"`,
 		`/static/esp-web-tools/install-button.`,
 		`type="module"`,
+		// After installing: the firmware's own setup guide, and the one
+		// MeshTender-specific step.
+		`href="https://observer.gessaman.com/docs"`,
+		`<code>set mqtt1.meshtender on</code>`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("page lacks %s", want)

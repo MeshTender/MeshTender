@@ -56,8 +56,16 @@
       </div>
     </esp-web-install-button>
     {{end}}{{end}}
-    <p class="form-hint mt-3 mb-0">Your browser will ask which serial port to use. Pick the one that appears when you plug the board in. Once it's installed, add it below.</p>
+    <p class="form-hint mt-3 mb-0">Your browser will ask which serial port to use. Pick the one that appears when you plug the board in.</p>
     {{end}}
+  </div>
+</section>
+
+<section class="card" data-testid="observer-setup">
+  <div class="card-header"><h2 class="card-title">Connect it to your organization</h2></div>
+  <div class="card-body">
+    <p>Follow the observer firmware's <a href="https://observer.gessaman.com/docs" target="_blank" rel="noopener noreferrer">setup guide</a> to put it on Wi-Fi and connect it to your organization's MQTT broker.</p>
+    <p class="mb-0">Then turn on MeshTender for the broker slot your organization uses, so MeshTender can send packets through it. For slot 1, that's <code>set mqtt1.meshtender on</code>.</p>
   </div>
 </section>
 
