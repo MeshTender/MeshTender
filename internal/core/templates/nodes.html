@@ -1,0 +1,93 @@
+{{define "title"}}Nodes · MeshTender{{end}}
+{{define "header"}}
+<div class="row g-2 align-items-center">
+  <div class="col">
+    <h1 class="page-title fs-1">Nodes</h1>
+    <div class="text-secondary mt-1">The companions you carry, and the repeaters and observers you look after.</div>
+  </div>
+  <div class="col-auto ms-auto d-print-none">
+    <a class="btn btn-primary" href="/nodes/new" data-testid="node-new">{{template "icon-plus" "me-1"}}Add node</a>
+  </div>
+</div>
+{{end}}
+{{define "content"}}
+{{if .Nodes}}
+<div class="card" data-filter-root data-testid="node-list">
+  {{/* Filters only once there's a repeater: a companion-only list (most members)
+       is short and has none. Their choices are the same whatever's chosen. They
+       sit above the list, so they come first on a phone and in tab order
+       (TestFilterControlsPrecedeTheList). */}}
+  {{if .HasRepeaters}}
+  <div class="card-header">
+    <div class="d-flex flex-wrap gap-2 w-100" role="search">
+      <div class="input-icon flex-fill" style="min-width:12rem">
+        <span class="input-icon-addon">{{template "icon-search" ""}}</span>
+        <input type="search" id="node-search" class="form-control" data-filter-search placeholder="Search by name" aria-label="Search your nodes">
+      </div>
+      <select id="node-show" class="form-select w-auto" data-filter-key="show" data-filter-tokens aria-label="Show" data-testid="node-show">
+        <option value="">All</option>
+        <option value="companion"{{if eq .Show "companion"}} selected{{end}}>Companions</option>
+        <option value="repeater"{{if eq .Show "repeater"}} selected{{end}}>Repeaters</option>
+        <option value="shared"{{if eq .Show "shared"}} selected{{end}}>Shared with me</option>
+      </select>
+    </div>
+  </div>
+  {{end}}
+  <div class="list-group list-group-flush">
+    {{range .Nodes}}
+    {{if .Companion}}{{with .Companion}}
+    <div class="list-group-item position-relative" data-filter-item data-show="companion" data-name="{{.Name}}" data-testid="node-companion">
+      <div class="d-flex align-items-center gap-3">
+        <span class="avatar bg-blue-lt d-none d-sm-flex">{{template "icon-radio" ""}}</span>
+        <div class="flex-fill" style="min-width:0">
+          <div class="d-flex align-items-center flex-wrap gap-2">
+            <a class="fw-bold text-reset stretched-link" href="/companions/{{.PublicID}}">{{.Name}}</a>
+            <span class="badge bg-blue-lt">Companion</span>
+            {{if not .Confirmed}}<span class="badge bg-orange-lt" title="Send a flood advert from it to confirm it">Not heard yet</span>{{end}}
+            {{if .Public}}<span class="badge bg-azure-lt" title="Shown on your public profile">Public</span>{{end}}
+          </div>
+          <div class="small text-secondary">{{template "pubkey" .PublicKeyHex}}</div>
+        </div>
+        <div class="text-secondary small text-end text-nowrap">{{if .LastHeardAt}}Heard {{ts .LastHeardAt "relative"}}{{end}}</div>
+      </div>
+    </div>
+    {{end}}{{else}}{{with .Repeater}}
+    {{$shareCounts := index $.ShareCounts .ID}}
+    {{/* Problems such as guest-only access show as badges here (repstatus); the
+         repeater's own page explains them and how to fix them. */}}
+    <div class="list-group-item position-relative" data-filter-item data-testid="node-repeater"
+         data-show="repeater{{if .Shared}} shared{{end}}" data-name="{{.Name}}">
+      <div class="d-flex align-items-center gap-3">
+        <span class="avatar bg-purple-lt d-none d-sm-flex">{{template "icon-antenna" ""}}</span>
+        <div class="flex-fill" style="min-width:0">
+          <div class="d-flex align-items-center flex-wrap gap-2">
+            <a class="fw-bold text-reset stretched-link" href="/repeaters/{{.PublicID}}">{{.Name}}</a>
+            <span class="badge bg-purple-lt">Repeater</span>
+            {{template "repstatus" .}}
+          </div>
+          <div class="d-flex align-items-center flex-wrap gap-2 small text-secondary">
+            {{template "pubkey" .PublicKeyHex}}
+            <span>·</span>
+            {{if .Shared}}<span>Shared with you by {{.OwnerName}}</span>{{else}}<span>{{template "sharetext" $shareCounts}}</span>{{end}}
+          </div>
+        </div>
+      </div>
+    </div>
+    {{end}}{{end}}
+    {{end}}
+  </div>
+  <div data-filter-empty hidden>
+    {{template "empty-state" (dict "Compact" true "Title" "No matches" "Line" "No nodes match your search.")}}
+  </div>
+</div>
+{{else}}
+<div class="card">
+  {{template "empty-state" (dict "Title" "No nodes yet" "Line" "Register the companion you carry, then send a flood advert from it to check in to your organizations' nets." "ActionHref" "/nodes/new" "ActionLabel" "Add node")}}
+</div>
+{{end}}
+{{end}}
+
+{{/* sharetext renders a repeater's sharing summary as plain text: e.g.
+     "Shared with 3 users, 2 organizations", omitting a zero count, or
+     "Not shared" when both are zero. Dot is a store.ShareCounts {Users, Orgs}. */}}
+{{define "sharetext"}}{{if and (eq .Users 0) (eq .Orgs 0)}}Not shared{{else}}Shared with{{if gt .Users 0}} {{.Users}} {{if eq .Users 1}}person{{else}}people{{end}}{{end}}{{if and (gt .Users 0) (gt .Orgs 0)}},{{end}}{{if gt .Orgs 0}} {{.Orgs}} organization{{if ne .Orgs 1}}s{{end}}{{end}}{{end}}{{end}}

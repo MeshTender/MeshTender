@@ -187,3 +187,56 @@ func TestNoPaddinglessLinkButtons(t *testing.T) {
 		t.Fatalf("walk templates: %v", err)
 	}
 }
+
+// TestHiddenElementsHaveNoDisplayUtility enforces the [hidden] trap: Tabler's
+// display utilities (.d-flex, .d-block, .d-md-grid, …) are display:…
+// !important, and so is [hidden]{display:none}. Same specificity, and the
+// utilities come later, so an element carrying both stays on screen while its
+// hidden property says otherwise — nothing errors, and a test that reads the
+// property passes. Put hidden on a wrapper without a display utility instead.
+//
+// It checks elements hidden in the markup, and the ones listfilter.js hides at
+// runtime (filter rows and the no-matches note).
+func TestHiddenElementsHaveNoDisplayUtility(t *testing.T) {
+	t.Parallel()
+	root := moduleRoot(t)
+	tagRe := regexp.MustCompile(`(?is)<[a-z][a-z0-9-]*\b[^>]*>`)
+	classRe := regexp.MustCompile(`(?is)\bclass="([^"]*)"`)
+	hiddenRe := regexp.MustCompile(`(?is)\s(?:hidden|data-filter-item|data-filter-empty)(?:[\s=>/]|$)`)
+	displayRe := regexp.MustCompile(`^d(?:-(?:sm|md|lg|xl|xxl))?-(?:inline|inline-block|block|grid|inline-grid|table|table-row|table-cell|flex|inline-flex)$`)
+
+	err := filepath.WalkDir(filepath.Join(root, "internal"), func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".html") {
+			return nil
+		}
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		rel, _ := filepath.Rel(root, path)
+		// Template actions go first, so `{{if .X}} hidden{{end}}` reads as hidden.
+		src := templateAction.ReplaceAllString(string(b), "")
+		for _, tag := range tagRe.FindAllString(src, -1) {
+			if !hiddenRe.MatchString(tag) {
+				continue
+			}
+			m := classRe.FindStringSubmatch(tag)
+			if m == nil {
+				continue
+			}
+			for _, c := range strings.Fields(m[1]) {
+				if displayRe.MatchString(c) {
+					t.Errorf("%s: %s can be hidden but carries %s, whose display:… !important "+
+						"beats [hidden] and keeps it on screen. Move hidden to a wrapper.", rel, tag, c)
+				}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk templates: %v", err)
+	}
+}

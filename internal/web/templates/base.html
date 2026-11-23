@@ -167,8 +167,7 @@
         {{if .UserName}}
         {{template "topnav-item" (dict "Page" . "Section" "dashboard" "Href" (printf "%s/" .AppURL) "Icon" "home" "Label" "Dashboard")}}
         {{template "topnav-item" (dict "Page" . "Section" "organizations" "Href" (printf "%s/orgs" .AppURL) "Icon" "world" "Label" "Organizations")}}
-        {{template "topnav-item" (dict "Page" . "Section" "companions" "Href" (printf "%s/companions" .AppURL) "Icon" "radio" "Label" "Companions")}}
-        {{template "topnav-item" (dict "Page" . "Section" "repeaters" "Href" (printf "%s/repeaters" .AppURL) "Icon" "antenna" "Label" "Repeaters")}}
+        {{template "topnav-item" (dict "Page" . "Section" "nodes" "Href" (printf "%s/nodes" .AppURL) "Icon" "radio" "Label" "Nodes")}}
         {{else}}
         {{template "topnav-item" (dict "Page" . "Section" "organizations" "Href" (printf "%s/orgs" .RootURL) "Icon" "world" "Label" "Organizations")}}
         {{end}}

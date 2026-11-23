@@ -111,8 +111,8 @@ func TestE2ERelativeTimestamp(t *testing.T) {
 		network.Enable(),
 		cdplog.Enable(),
 		setSessionCookie(cookie),
-		step("open the companions list",
-			chromedp.Navigate(srv.appURL+"/companions"),
+		step("open the nodes list",
+			chromedp.Navigate(srv.appURL+"/nodes"),
 			chromedp.WaitReady(`time[data-fmt="relative"]`, chromedp.ByQuery)),
 		step("read the relative time",
 			chromedp.Evaluate(`(function () {

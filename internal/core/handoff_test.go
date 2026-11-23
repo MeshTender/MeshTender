@@ -489,7 +489,7 @@ func TestSessionCallback(t *testing.T) {
 		if err != nil {
 			t.Fatalf("create login: %v", err)
 		}
-		code, err := st.CreateAuthCode(ctx, u.ID, loginID, "/repeaters")
+		code, err := st.CreateAuthCode(ctx, u.ID, loginID, "/nodes")
 		if err != nil {
 			t.Fatalf("create auth code: %v", err)
 		}
@@ -520,12 +520,12 @@ func TestSessionCallback(t *testing.T) {
 		if rootSess := cookieByName(beacon, "meshtender_session"); rootSess == nil || rootSess.Value == "" {
 			t.Fatalf("expected a root identity cookie from the beacon")
 		}
-		if bloc, _ := url.Parse(beacon.Header.Get("Location")); bloc.Host != h.app || bloc.Path != "/repeaters" {
+		if bloc, _ := url.Parse(beacon.Header.Get("Location")); bloc.Host != h.app || bloc.Path != "/nodes" {
 			t.Fatalf("beacon Location = %q, want app /repeaters", beacon.Header.Get("Location"))
 		}
 
 		// The app session must actually authenticate: the protected page loads.
-		follow := do(t, ts, appHost, "/repeaters", sess)
+		follow := do(t, ts, appHost, "/nodes", sess)
 		defer follow.Body.Close()
 		if follow.StatusCode != http.StatusOK {
 			t.Fatalf("authenticated /repeaters = %d, want 200", follow.StatusCode)
@@ -533,14 +533,14 @@ func TestSessionCallback(t *testing.T) {
 	})
 
 	t.Run("state mismatch is rejected", func(t *testing.T) {
-		code, err := st.CreateAuthCode(ctx, u.ID, "", "/repeaters")
+		code, err := st.CreateAuthCode(ctx, u.ID, "", "/nodes")
 		if err != nil {
 			t.Fatalf("create auth code: %v", err)
 		}
 		resp := do(t, ts, appHost, "/session/callback?code="+code+"&state=s1",
 			&http.Cookie{Name: "mt_state", Value: "different"})
 		defer resp.Body.Close()
-		if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") == "/repeaters" {
+		if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") == "/nodes" {
 			t.Fatalf("status=%d loc=%q, want bounce to login", resp.StatusCode, resp.Header.Get("Location"))
 		}
 		if c := cookieByName(resp, "meshtender_session"); c != nil && c.Value != "" {

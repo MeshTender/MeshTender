@@ -32,7 +32,8 @@ func assertInOrder(t *testing.T, what, body string, markers ...string) {
 
 // TestMemberFeaturesLeadNavigation: taking part (organizations, companions,
 // check-ins) comes before repeaters in the top nav, the org tabs and the org
-// settings rail. Repeaters are a bonus, not the point of the app.
+// settings rail. Repeaters are a bonus, not the point of the app. The top nav
+// has one Nodes section for companions and repeaters alike.
 func TestMemberFeaturesLeadNavigation(t *testing.T) {
 	t.Parallel()
 	st, ctx, ts, h := splitServer(t)
@@ -44,7 +45,7 @@ func TestMemberFeaturesLeadNavigation(t *testing.T) {
 
 	dash := getBody(t, ts, h.app, "/", sess)
 	_, nav, _ := strings.Cut(dash, `data-testid="topnav"`)
-	assertInOrder(t, "top nav", nav, ">Dashboard<", ">Organizations<", ">Companions<", ">Repeaters<", ">Docs<")
+	assertInOrder(t, "top nav", nav, ">Dashboard<", ">Organizations<", ">Nodes<", ">Docs<")
 
 	home := getBody(t, ts, h.app, "/orgs/"+org.Slug, sess)
 	assertInOrder(t, "org tabs", home,
@@ -79,7 +80,7 @@ func TestRepeaterConfirmationIsOptional(t *testing.T) {
 	}
 
 	pages := map[string]string{
-		"repeater list":   getBody(t, ts, h.app, "/repeaters", sess),
+		"node list":       getBody(t, ts, h.app, "/nodes", sess),
 		"repeater page":   getBody(t, ts, h.app, "/repeaters/"+rep.PublicID, sess),
 		"public repeater": getBody(t, ts, h.root, "/r/"+rep.PublicID),
 	}

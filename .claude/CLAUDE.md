@@ -144,6 +144,14 @@ markup for it. The one that has already bitten us:
   After a Tabler upgrade, re-check each `app.css` override still applies — drop
   the ones upstream fixed.
 
+- **`hidden` loses to a display utility.** `.d-flex`, `.d-block`, `.d-md-grid`
+  and the rest are `display: … !important`, the same as `[hidden]`, and they
+  come later, so an element with both stays on screen while its `hidden`
+  property says it's gone (a test reading the property still passes). Put
+  `hidden`, or a listfilter.js `data-filter-*` role that toggles it, on a
+  wrapper with no display utility. `TestHiddenElementsHaveNoDisplayUtility`,
+  in the same file, enforces it.
+
 - **A `<button>` centers its text.** Invisible on a normal button, wrong the
   moment you use one as a full-width row (`d-flex w-100`, e.g. a
   `list-group-item` that expands a collapse): the label sits centered while

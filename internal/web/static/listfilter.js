@@ -5,7 +5,10 @@
 // Markup contract, all within one [data-filter-root]:
 //   - [data-filter-search]           an <input>; matches item [data-name] (substring, case-insensitive)
 //   - [data-filter-key="foo"]        a <select>; item shown when its [data-foo] equals the selected value
-//                                    (an empty value means "any")
+//                                    (an empty value means "any"). With [data-filter-tokens] the item's
+//                                    [data-foo] is a space-separated list, and the item shows when it
+//                                    contains the selected value: one choice can be a subset of another
+//                                    ("repeater" vs "repeater shared")
 //   - [data-filter-flag="bar"]       a checkbox; when checked, only items with [data-bar="1"] show
 //   - [data-filter-item]             a list item (row/card/list-group-item); hidden when it doesn't match
 //   - [data-filter-empty]            optional element shown only when nothing matches
@@ -35,7 +38,12 @@
       for (var i = 0; i < selects.length; i++) {
         var key = selects[i].getAttribute("data-filter-key");
         var want = selects[i].value;
-        if (want && item.getAttribute("data-" + key) !== want) return false;
+        if (!want) continue;
+        var have = String(item.getAttribute("data-" + key) || "");
+        var hit = selects[i].hasAttribute("data-filter-tokens")
+          ? have.split(/\s+/).indexOf(want) !== -1
+          : have === want;
+        if (!hit) return false;
       }
       for (var j = 0; j < flags.length; j++) {
         if (flags[j].checked && item.getAttribute("data-" + flags[j].getAttribute("data-filter-flag")) !== "1") {

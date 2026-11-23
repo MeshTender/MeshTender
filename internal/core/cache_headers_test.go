@@ -86,7 +86,7 @@ func TestNoStoreOnSessionSurfaces(t *testing.T) {
 	// Unauthenticated app-host routes still run the session middleware, so they
 	// carry the header too — enough to prove the wiring without seeding data.
 	t.Run("app host session routes", func(t *testing.T) {
-		for _, path := range []string{"/", "/repeaters", "/orgs", "/nonexistent-page"} {
+		for _, path := range []string{"/", "/nodes", "/orgs", "/nonexistent-page"} {
 			resp := do(t, ts, h.app, path)
 			resp.Body.Close()
 			assertNoStore(t, resp, "app "+path)
@@ -108,7 +108,7 @@ func TestNoStoreOnSessionSurfaces(t *testing.T) {
 		}
 		st, ctx, ts2, h2 := splitServer(t)
 		seedSession(t, ts2, st, ctx, jar, "nostoreuser")
-		req, _ := http.NewRequest(http.MethodGet, ts2.URL+"/repeaters", nil)
+		req, _ := http.NewRequest(http.MethodGet, ts2.URL+"/nodes", nil)
 		req.Host = h2.app
 		for _, c := range jar.Cookies(mustURL(t, ts2.URL)) {
 			req.AddCookie(c)

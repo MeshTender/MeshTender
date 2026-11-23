@@ -68,7 +68,7 @@ func TestCrossSiteWritesBlocked(t *testing.T) {
 		ts, h, _, cookies := signedIn(t)
 
 		// Confirm the session works before the attempt.
-		before := do(t, ts, h.app, "/repeaters", cookies...)
+		before := do(t, ts, h.app, "/nodes", cookies...)
 		before.Body.Close()
 		if before.StatusCode != http.StatusOK {
 			t.Fatalf("precondition: /repeaters = %d, want 200", before.StatusCode)
@@ -81,7 +81,7 @@ func TestCrossSiteWritesBlocked(t *testing.T) {
 		}
 
 		// The whole point: the logout must not have happened.
-		after := do(t, ts, h.app, "/repeaters", cookies...)
+		after := do(t, ts, h.app, "/nodes", cookies...)
 		after.Body.Close()
 		if after.StatusCode != http.StatusOK {
 			t.Fatalf("session was destroyed by a blocked cross-site logout: /repeaters = %d, want 200",

@@ -123,7 +123,8 @@ func TestPageHeadingOutlines(t *testing.T) {
 		{"auth recovery link (dead)", h.auth, "/recover/not-a-real-token", true},
 		// App host — covers base's own header, repeater-tabs and org-tabs headers.
 		{"app dashboard", h.app, "/", false},
-		{"app repeater list", h.app, "/repeaters", false},
+		{"app node list", h.app, "/nodes", false},
+		{"app add node", h.app, "/nodes/new", false},
 		{"app repeater overview", h.app, "/repeaters/" + rep.PublicID, false},
 		{"app repeater sharing", h.app, "/repeaters/" + rep.PublicID + "/settings/people", false},
 		{"app repeater new invite", h.app, "/repeaters/" + rep.PublicID + "/settings/people/new", false},

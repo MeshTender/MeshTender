@@ -56,7 +56,7 @@ func TestCompanionRegistration(t *testing.T) {
 	if !strings.Contains(page, `data-testid="companion-pending"`) || !strings.Contains(page, "flood") {
 		t.Error("owner's unconfirmed companion page lacks the flood-advert instructions")
 	}
-	if !strings.Contains(getBody(t, ts, h.app, "/companions", aliceSess), "Alice T1") {
+	if !strings.Contains(getBody(t, ts, h.app, "/nodes", aliceSess), "Alice T1") {
 		t.Error("list lacks the companion")
 	}
 
@@ -102,7 +102,7 @@ func TestCompanionVisibilityAndDelete(t *testing.T) {
 			t.Errorf("non-owner delete = %d, want 404", got)
 		}
 	}
-	redirectTo(t, post(t, ts, h.app, path+"/delete", nil, aliceSess), "/companions")
+	redirectTo(t, post(t, ts, h.app, path+"/delete", nil, aliceSess), "/nodes")
 	if list, _ := st.ListCompanionsForUser(ctx, alice.ID); len(list) != 0 {
 		t.Fatal("companion not deleted")
 	}

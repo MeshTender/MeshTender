@@ -42,8 +42,10 @@ func TestE2ECompanionRegistrationAndOrgPages(t *testing.T) {
 		cdplog.Enable(),
 		setSessionCookie(cookie),
 		step("open the register form",
-			chromedp.Navigate(srv.appURL+"/companions"),
-			chromedp.Click(`[data-testid="companion-new"]`, chromedp.ByQuery),
+			chromedp.Navigate(srv.appURL+"/nodes"),
+			chromedp.Click(`[data-testid="node-new"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(`[data-testid="node-new-companion"]`, chromedp.ByQuery),
+			chromedp.Click(`[data-testid="node-new-companion"]`, chromedp.ByQuery),
 			chromedp.WaitVisible(`#companion-name`, chromedp.ByQuery)),
 		step("register the companion",
 			chromedp.SendKeys(`#companion-name`, "My T1", chromedp.ByQuery),
@@ -106,18 +108,23 @@ func TestE2ECompanionRegistrationAndOrgPages(t *testing.T) {
 		t.Errorf("broker card: %q", observersText)
 	}
 
-	// Remove it through the data-confirm form.
+	// Remove it through the data-confirm form. It lands back on the Nodes list,
+	// which still holds the user's repeater.
 	acceptDialogs(bctx)
+	var nodesText string
 	if err := chromedp.Run(bctx,
 		step("open the companion",
 			chromedp.Navigate(srv.appURL+"/companions/"+list[0].PublicID)),
 		step("delete it",
 			chromedp.Click(`form[action$="/delete"] button`, chromedp.ByQuery),
-			// Back on the (now empty) list; the companion page's URL shares the
-			// prefix, so wait for the list's empty state rather than the location.
-			chromedp.WaitVisible(`.empty`, chromedp.ByQuery)),
+			waitForLocation(srv.appURL+"/nodes"),
+			chromedp.WaitVisible(`[data-testid="node-list"]`, chromedp.ByQuery),
+			chromedp.Text(`[data-testid="node-list"]`, &nodesText, chromedp.ByQuery)),
 	); err != nil {
 		t.Fatalf("delete companion: %v", err)
+	}
+	if strings.Contains(nodesText, "My T1") || !strings.Contains(nodesText, "Hilltop") {
+		t.Errorf("nodes after deleting the companion: %q", nodesText)
 	}
 	if left, _ := srv.store.ListCompanionsForUser(srv.ctx, user.ID); len(left) != 0 {
 		t.Error("companion not deleted")

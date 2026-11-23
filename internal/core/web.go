@@ -230,7 +230,9 @@ func (s *Handlers) appRouter() chi.Router {
 			r.Get("/orgs/{id}", s.pageOrg) // member view (non-members redirect to root)
 			r.Get("/orgs/{id}/members", s.pageOrgMembers)
 			r.Get("/orgs/{id}/repeaters", s.pageOrgRepeaters)
-			r.Get("/repeaters", s.pageRepeaters)
+			r.Get("/nodes", s.pageNodes)
+			r.Get("/nodes/new", s.pageAddNode)
+			r.Get("/repeaters", redirectToNodes(nodeRepeater))
 			r.Get("/observers/install", s.pageInstallObserver)
 			r.Post("/logout", s.handleLogout)
 			r.Get("/repeaters/add", s.pageAddRepeater)
@@ -285,7 +287,7 @@ func (s *Handlers) appRouter() chi.Router {
 			r.Post("/invite/{token}/accept", s.handleAcceptInvite)
 
 			// Companions and check-ins.
-			r.Get("/companions", s.pageCompanions)
+			r.Get("/companions", redirectToNodes(nodeCompanion))
 			r.Get("/companions/new", s.pageNewCompanion)
 			r.Post("/companions", s.handleAddCompanion)
 			r.Get("/companions/{id}", s.pageCompanion)
@@ -411,30 +413,6 @@ func (s *Handlers) pageHome(w http.ResponseWriter, r *http.Request) {
 	s.pageDashboard(w, r)
 }
 
-// pageRepeaters lists every repeater the user owns or has been shared as one
-// combined list, owned first, each tagged owned/shared in the template.
-func (s *Handlers) pageRepeaters(w http.ResponseWriter, r *http.Request) {
-	uid := s.Auth.CurrentUserID(r.Context())
-	repeaters, err := s.Store.ListRepeatersForUser(r.Context(), uid)
-	if err != nil {
-		s.ServerError(w, r, "could not load repeaters", err)
-		return
-	}
-	shareCounts, err := s.Store.RepeaterSharingCounts(r.Context(), uid)
-	if err != nil {
-		s.ServerError(w, r, "could not load sharing", err)
-		return
-	}
-	owned, shared := splitOwnedShared(repeaters)
-	combined := make([]*store.Repeater, 0, len(owned)+len(shared))
-	combined = append(combined, owned...)
-	combined = append(combined, shared...)
-	s.Render(w, r, "repeaters.html", map[string]any{
-		"Repeaters":   combined,
-		"ShareCounts": shareCounts,
-	})
-}
-
 // onboardingStep is one item in the dashboard getting-started checklist. Steps
 // are data-driven so adding a new one (e.g. future profile fields) is a single
 // entry in buildOnboarding rather than template surgery.
@@ -537,7 +515,7 @@ func (s *Handlers) pageDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// The checklist is about taking part — an organization and a companion come
-	// first; running a repeater is optional, so it lives in the Your radios card
+	// first; running a repeater is optional, so it lives in the Your nodes card
 	// instead of here.
 	steps := []onboardingStep{
 		{

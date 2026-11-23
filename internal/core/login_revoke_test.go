@@ -35,7 +35,7 @@ func TestRevokedLoginLogsOut(t *testing.T) {
 	client := &http.Client{Jar: jar, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 
 	// The seeded session authenticates the protected page.
-	resp, err := client.Get(ts.URL + "/repeaters")
+	resp, err := client.Get(ts.URL + "/nodes")
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
@@ -49,7 +49,7 @@ func TestRevokedLoginLogsOut(t *testing.T) {
 	if err := st.RevokeAllUserLogins(ctx, user.ID); err != nil {
 		t.Fatalf("revoke: %v", err)
 	}
-	resp2, err := client.Get(ts.URL + "/repeaters")
+	resp2, err := client.Get(ts.URL + "/nodes")
 	if err != nil {
 		t.Fatalf("get after revoke: %v", err)
 	}

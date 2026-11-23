@@ -3,7 +3,7 @@
 <div class="row g-2 align-items-center">
   <div class="col">
     {{if .IsOwner}}
-    <ol class="breadcrumb mb-2" aria-label="Breadcrumb"><li class="breadcrumb-item"><a href="/companions">Companions</a></li><li class="breadcrumb-item active" aria-current="page">{{.Companion.Name}}</li></ol>
+    <ol class="breadcrumb mb-2" aria-label="Breadcrumb"><li class="breadcrumb-item"><a href="/nodes">Nodes</a></li><li class="breadcrumb-item active" aria-current="page">{{.Companion.Name}}</li></ol>
     {{else}}
     <div class="page-pretitle">Companion · {{.Companion.OwnerName}}</div>
     {{end}}

@@ -248,7 +248,9 @@ func TestContrastMeetsWCAGAA(t *testing.T) {
 	}
 	authenticated := []struct{ label, url string }{
 		{"app dashboard", srv.appURL + "/"},
-		{"app repeaters", srv.appURL + "/repeaters"},
+		{"app nodes", srv.appURL + "/nodes"},
+		{"app add node", srv.appURL + "/nodes/new"},
+		{"app install observer", srv.appURL + "/observers/install"},
 		{"app repeater", srv.appURL + "/repeaters/" + rep.PublicID},
 		{"app repeater people", srv.appURL + "/repeaters/" + rep.PublicID + "/settings/people"},
 		{"app repeater orgs", srv.appURL + "/repeaters/" + rep.PublicID + "/settings/organizations"},

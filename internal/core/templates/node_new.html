@@ -1,0 +1,44 @@
+{{define "title"}}Add a node · MeshTender{{end}}
+{{define "header"}}
+<div class="row g-2 align-items-center">
+  <div class="col">
+    <ol class="breadcrumb mb-2" aria-label="Breadcrumb"><li class="breadcrumb-item"><a href="/nodes">Nodes</a></li><li class="breadcrumb-item active" aria-current="page">Add</li></ol>
+    <h1 class="page-title fs-1">Add a node</h1>
+    <div class="text-secondary mt-1">What kind of node is it?</div>
+  </div>
+</div>
+{{end}}
+{{define "content"}}
+<div class="row row-cards" data-testid="node-kinds">
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-body d-flex flex-column gap-3">
+        <span class="avatar avatar-md bg-blue-lt">{{template "icon-radio" ""}}</span>
+        <h2 class="card-title mb-0">Companion</h2>
+        <p class="text-secondary flex-fill mb-0">The radio you carry, paired with the MeshCore app on your phone. When you send an advert from it, you're checked in to your organizations' nets.</p>
+        <a class="btn btn-primary" href="/companions/new" data-testid="node-new-companion">Register a companion</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-body d-flex flex-column gap-3">
+        <span class="avatar avatar-md bg-purple-lt">{{template "icon-antenna" ""}}</span>
+        <h2 class="card-title mb-0">Repeater</h2>
+        <p class="text-secondary flex-fill mb-0">A repeater you own or help look after. Add it to keep its settings and maintenance notes here, share it with your organizations, and manage it over the air.</p>
+        <a class="btn btn-primary" href="/repeaters/add" data-testid="node-new-repeater">Add a repeater</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-body d-flex flex-column gap-3">
+        <span class="avatar avatar-md bg-teal-lt">{{template "icon-cloud-upload" ""}}</span>
+        <h2 class="card-title mb-0">Observer</h2>
+        <p class="text-secondary flex-fill mb-0">A room server or repeater that uploads what it hears to an organization's MQTT broker. Install MeshTender's observer firmware on it over USB.</p>
+        <a class="btn btn-primary" href="/observers/install" data-testid="node-new-observer">Add an observer</a>
+      </div>
+    </div>
+  </div>
+</div>
+{{end}}

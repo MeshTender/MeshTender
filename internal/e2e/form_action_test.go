@@ -114,7 +114,7 @@ func TestE2ELogoutFormNavigatesCrossHost(t *testing.T) {
 		// The form lives in the user-menu dropdown: in the DOM but not laid out until
 		// the menu opens, so wait for readiness rather than visibility.
 		step("open a signed-in page",
-			chromedp.Navigate(srv.appURL+"/repeaters"),
+			chromedp.Navigate(srv.appURL+"/nodes"),
 			chromedp.WaitReady(`[data-testid="logout-form"]`, chromedp.ByQuery)),
 		// Sign-out lands on the public root host.
 		step("submit the sign-out form",

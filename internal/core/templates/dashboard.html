@@ -90,18 +90,18 @@
 
   <div class="col-lg-4 d-flex flex-column gap-3">
     <div class="card" data-testid="dashboard-radios">
-      <div class="card-header"><h2 class="card-title">Your radios</h2></div>
+      <div class="card-header"><h2 class="card-title">Your nodes</h2></div>
       <div class="list-group list-group-flush">
-        <a class="list-group-item list-group-item-action d-flex align-items-center" href="/companions">
+        <a class="list-group-item list-group-item-action d-flex align-items-center" href="/nodes?show=companion">
           {{template "icon-radio" "me-2 text-secondary"}}Companions
           <span class="ms-auto">{{if .Unheard}}<span class="badge bg-orange-lt me-2">{{.Unheard}} not heard yet</span>{{end}}<span class="fw-bold">{{.CompanionCount}}</span></span>
         </a>
-        <a class="list-group-item list-group-item-action d-flex align-items-center" href="/repeaters">
+        <a class="list-group-item list-group-item-action d-flex align-items-center" href="/nodes?show=repeater">
           {{template "icon-antenna" "me-2 text-secondary"}}Repeaters
           <span class="ms-auto fw-bold">{{.OwnedCount}}</span>
         </a>
         {{if .SharedCount}}
-        <a class="list-group-item list-group-item-action d-flex align-items-center" href="/repeaters">
+        <a class="list-group-item list-group-item-action d-flex align-items-center" href="/nodes?show=shared">
           {{template "icon-share" "me-2 text-secondary"}}Shared with you<span class="ms-auto fw-bold">{{.SharedCount}}</span>
         </a>
         {{end}}

@@ -95,8 +95,8 @@ func TestCSPViolationIsReportedByARealBrowser(t *testing.T) {
 	err := chromedp.Run(bctx,
 		network.Enable(),
 		setSessionCookie(cookie),
-		step("open your repeaters",
-			chromedp.Navigate(srv.appURL+"/repeaters"),
+		step("open your nodes",
+			chromedp.Navigate(srv.appURL+"/nodes"),
 			chromedp.WaitVisible(`body`, chromedp.ByQuery)),
 		step("violate the CSP",
 			chromedp.Evaluate(violate, &ok, func(p *runtime.EvaluateParams) *runtime.EvaluateParams {
@@ -122,8 +122,8 @@ func TestCSPViolationIsReportedByARealBrowser(t *testing.T) {
 			continue
 		}
 		found = true
-		if r.DocumentPath != "/repeaters" {
-			t.Errorf("DocumentPath = %q, want /repeaters", r.DocumentPath)
+		if r.DocumentPath != "/nodes" {
+			t.Errorf("DocumentPath = %q, want /nodes", r.DocumentPath)
 		}
 		if r.Host != appHost() {
 			t.Errorf("Host = %q, want %q", r.Host, appHost())

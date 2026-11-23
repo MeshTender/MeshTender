@@ -10,8 +10,7 @@ import (
 // Top-nav sections (base.html's "topnav"), named by navSection.
 const (
 	NavDashboard     = "dashboard"
-	NavRepeaters     = "repeaters"
-	NavCompanions    = "companions"
+	NavNodes         = "nodes"
 	NavOrganizations = "organizations"
 	NavDocs          = "docs"
 	NavAdmin         = "admin"
@@ -37,10 +36,10 @@ func navSection(cfg *config.Config, r *http.Request) string {
 	switch {
 	case path == "/":
 		return NavDashboard
-	case under("/repeaters"):
-		return NavRepeaters
-	case under("/companions"):
-		return NavCompanions
+	// Companions, repeaters and observers are all nodes: their own pages sit
+	// under the Nodes list.
+	case under("/nodes"), under("/companions"), under("/repeaters"), under("/observers"):
+		return NavNodes
 	case under("/orgs"):
 		return NavOrganizations
 	case under("/admin"):

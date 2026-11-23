@@ -19,10 +19,12 @@ func TestNavSection(t *testing.T) {
 	cfg := &config.Config{PrimaryHost: "app.example", AuthHost: "auth.example", RootHost: "example"}
 	for _, tc := range []struct{ url, want string }{
 		{"https://app.example/", NavDashboard},
-		{"https://app.example/repeaters", NavRepeaters},
-		{"https://app.example/repeaters/abc/console", NavRepeaters},
+		{"https://app.example/nodes", NavNodes},
+		{"https://app.example/nodes/new", NavNodes},
+		{"https://app.example/repeaters/abc/console", NavNodes},
 		{"https://app.example/repeatersx", ""},
-		{"https://app.example/companions/abc", NavCompanions},
+		{"https://app.example/companions/abc", NavNodes},
+		{"https://app.example/observers/install", NavNodes},
 		{"https://app.example/orgs/wny/nets/3", NavOrganizations},
 		{"https://app.example/admin/users", NavAdmin},
 		{"https://app.example/invite/tok", ""},
@@ -59,12 +61,12 @@ func TestTopNavMarksTheCurrentSection(t *testing.T) {
 	active := regexp.MustCompile(`<li class="nav-item active">\s*<a class="nav-link" href="([^"]+)" aria-current="page"`)
 
 	body := renderLayout(t, "base", "https://app.example/repeaters/abc", true)
-	if m := active.FindAllStringSubmatch(body, -1); len(m) != 1 || !strings.HasSuffix(m[0][1], "/repeaters") {
-		t.Errorf("app /repeaters/abc: active items %v, want just Repeaters", m)
+	if m := active.FindAllStringSubmatch(body, -1); len(m) != 1 || !strings.HasSuffix(m[0][1], "/nodes") {
+		t.Errorf("app /repeaters/abc: active items %v, want just Nodes", m)
 	}
 
 	root := renderLayout(t, "rootbase", "https://example/orgs/wny", true)
-	for _, want := range []string{"/repeaters\"", "/companions\""} {
+	for _, want := range []string{"/nodes\""} {
 		if !strings.Contains(root, want) {
 			t.Errorf("signed in on the public host, the nav lacks %s", want)
 		}
@@ -74,7 +76,7 @@ func TestTopNavMarksTheCurrentSection(t *testing.T) {
 	}
 
 	out := renderLayout(t, "landingbase", "https://example/", false)
-	if strings.Contains(out, "/repeaters\"") || !strings.Contains(out, "Sign in") {
+	if strings.Contains(out, "/nodes\"") || !strings.Contains(out, "Sign in") {
 		t.Error("signed out, the nav should offer sign-in and no app sections")
 	}
 }

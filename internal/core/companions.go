@@ -22,19 +22,6 @@ import (
 // shorter still (31 bytes).
 const maxCompanionName = 64
 
-func (s *Handlers) pageCompanions(w http.ResponseWriter, r *http.Request) {
-	uid := s.Auth.CurrentUserID(r.Context())
-	companions, err := s.Store.ListCompanionsForUser(r.Context(), uid)
-	if err != nil {
-		s.ServerError(w, r, "Couldn't load your companions.", err)
-		return
-	}
-	s.Render(w, r, "companions.html", map[string]any{
-		"Companions": companions,
-		"Max":        store.MaxCompanionsPerUser,
-	})
-}
-
 // pageNewCompanion is the register-a-companion form.
 func (s *Handlers) pageNewCompanion(w http.ResponseWriter, r *http.Request) {
 	companions, err := s.Store.ListCompanionsForUser(r.Context(), s.Auth.CurrentUserID(r.Context()))
@@ -127,7 +114,7 @@ func (s *Handlers) handleDeleteCompanion(w http.ResponseWriter, r *http.Request)
 		s.ServerError(w, r, "Couldn't remove the companion.", err)
 		return
 	}
-	http.Redirect(w, r, "/companions", http.StatusSeeOther)
+	http.Redirect(w, r, "/nodes", http.StatusSeeOther)
 }
 
 func (s *Handlers) pageCompanion(w http.ResponseWriter, r *http.Request) {
