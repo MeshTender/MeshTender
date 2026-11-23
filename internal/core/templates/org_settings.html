@@ -329,7 +329,17 @@
 </div>
 
 {{template "settings-subheading" (dict "Title" "Observers" "ID" "observers" "Hint" "Observers publishing to the broker appear here as they report in (every few minutes). Only adverts an approved observer heard count as check-ins." "ActionURL" (printf "/orgs/%s/settings/mqtt/observers/new" .Org.Slug) "ActionLabel" "New observer" "ActionTestID" "observer-add")}}
-<p class="text-secondary" data-testid="observer-install-link">Setting up a new observer? <a href="/observers/new">Install MeshTender's observer firmware</a> on a room server or repeater over USB.</p>
+<div class="alert alert-info mb-3" role="note" data-testid="observer-firmware">
+  {{template "icon-info-circle" "alert-icon"}}
+  {{/* Body color: Tabler's info-alert text is 4.4:1 on the dark theme, under AA. */}}
+  <div class="text-body">
+    <p><strong>Try MeshTender's custom observer firmware.</strong> While any observer works for check-ins and verifying repeater settings from their adverts, MeshTender's observer firmware allows you to send commands to repeaters without plugging in a KISS modem.</p>
+    <div class="btn-list">
+      <a class="btn btn-primary" href="/observers/new" data-testid="observer-install-link">Install the firmware</a>
+      <a class="btn" href="https://github.com/MeshTender/MeshCore/blob/meshtender/MESHTENDER.md" target="_blank" rel="noopener noreferrer">Learn more</a>
+    </div>
+  </div>
+</div>
 <nav class="btn-group mb-3" aria-label="Show observers" data-testid="observer-filter">
   {{range .ObserverFilters}}{{$on := eq (print .Value) $.ObserverFilter}}
   <a class="btn{{if $on}} active{{end}}" href="/orgs/{{$.Org.Slug}}/settings/mqtt?observers={{.Value}}#observers"{{if $on}} aria-current="page"{{end}} data-testid="observer-filter-{{.Value}}">{{.Label}}<span class="badge bg-secondary-lt ms-2" data-testid="observer-count-{{.Value}}">{{.Count}}</span></a>

@@ -128,3 +128,26 @@ func TestOldInstallAddressRedirects(t *testing.T) {
 		t.Errorf("GET /observers/install = %d → %q", resp.StatusCode, resp.Header.Get("Location"))
 	}
 }
+
+// TestMQTTSettingsPitchObserverFirmware: an org's MQTT settings offer
+// MeshTender's observer firmware in an info box, linking to what it needs from
+// the broker (its README) and to installing it.
+func TestMQTTSettingsPitchObserverFirmware(t *testing.T) {
+	t.Parallel()
+	st, ctx, ts, h := splitServer(t)
+	admin, sess := appLogin(t, ts, st, ctx, h.app, "pitchadmin")
+	org, err := st.CreateOrg(ctx, "Pitch Mesh", admin.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, card, ok := strings.Cut(getBody(t, ts, h.app, "/orgs/"+org.Slug+"/settings/mqtt", sess), `class="alert alert-info mb-3" role="note" data-testid="observer-firmware"`)
+	if !ok {
+		t.Fatal("no observer firmware card")
+	}
+	card, _, _ = strings.Cut(card, `data-testid="observer-filter"`)
+	for _, want := range []string{`href="https://github.com/MeshTender/MeshCore/blob/meshtender/MESHTENDER.md"`, `href="/observers/new"`} {
+		if !strings.Contains(card, want) {
+			t.Errorf("observer firmware card lacks %s", want)
+		}
+	}
+}
