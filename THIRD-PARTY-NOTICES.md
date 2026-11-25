@@ -1448,7 +1448,7 @@ Redistributed in compiled form. Their notices are reproduced here.
 - **github.com/gorilla/css** v1.0.1 — BSD-3-Clause  
   Copyright (c) 2023 The Gorilla Authors. All rights reserved.  
   copyright notice, this list of conditions and the following disclaimer
-- **github.com/gorilla/websocket** v1.5.3 — BSD-2-Clause  
+- **github.com/gorilla/websocket** v1.5.4-0.20240701034025-d67f41855da4 — BSD-2-Clause  
   Copyright (c) 2013 The Gorilla WebSocket Authors. All rights reserved.
 - **github.com/jackc/pgpassfile** v1.0.0 — MIT  
   Copyright (c) 2019 Jack Christensen
